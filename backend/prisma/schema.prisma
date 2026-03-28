@@ -1,13 +1,220 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
-  provider = "prisma-client"
-  output   = "../generated/prisma"
+  provider = "prisma-client-js"
 }
 
 datasource db {
   provider = "postgresql"
+}
+
+// ================================
+// USER & AUTH
+// ================================
+
+model User {
+  id        String   @id @default(uuid())
+  name      String
+  email     String   @unique
+  password  String
+  role      Role     @default(STUDENT)
+  phone     String?
+  address   String?
+  avatar    String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  student    Student?
+  instructor Instructor?
+  admin      Admin?
+  notices    Notice[]
+}
+
+enum Role {
+  ADMIN
+  INSTRUCTOR
+  STUDENT
+}
+
+// ================================
+// PROFILES
+// ================================
+
+model Admin {
+  id     String @id @default(uuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id])
+}
+
+model Instructor {
+  id         String   @id @default(uuid())
+  userId     String   @unique
+  user       User     @relation(fields: [userId], references: [id])
+  department String?
+  subjects   Subject[]
+  attendances Attendance[]
+  assignments Assignment[]
+  marks      Mark[]
+  materials  StudyMaterial[]
+}
+
+model Student {
+  id           String   @id @default(uuid())
+  userId       String   @unique
+  user         User     @relation(fields: [userId], references: [id])
+  rollNumber   String   @unique
+  semester     Int
+  section      String?
+  department   String?
+  enrolledAt   DateTime @default(now())
+  attendances  Attendance[]
+  submissions  Submission[]
+  marks        Mark[]
+}
+
+// ================================
+// ACADEMIC
+// ================================
+
+model Subject {
+  id           String   @id @default(uuid())
+  name         String
+  code         String   @unique
+  description  String?
+  semester     Int
+  department   String?
+  instructorId String?
+  instructor   Instructor? @relation(fields: [instructorId], references: [id])
+  createdAt    DateTime @default(now())
+
+  attendances  Attendance[]
+  assignments  Assignment[]
+  materials    StudyMaterial[]
+  marks        Mark[]
+}
+
+// ================================
+// ATTENDANCE
+// ================================
+
+model Attendance {
+  id           String   @id @default(uuid())
+  studentId    String
+  student      Student  @relation(fields: [studentId], references: [id])
+  subjectId    String
+  subject      Subject  @relation(fields: [subjectId], references: [id])
+  instructorId String
+  instructor   Instructor @relation(fields: [instructorId], references: [id])
+  date         DateTime @default(now())
+  status       AttendanceStatus @default(PRESENT)
+  qrCode       String?
+  createdAt    DateTime @default(now())
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+}
+
+// ================================
+// ASSIGNMENTS
+// ================================
+
+model Assignment {
+  id           String   @id @default(uuid())
+  title        String
+  description  String
+  subjectId    String
+  subject      Subject  @relation(fields: [subjectId], references: [id])
+  instructorId String
+  instructor   Instructor @relation(fields: [instructorId], references: [id])
+  dueDate      DateTime
+  totalMarks   Int      @default(100)
+  createdAt    DateTime @default(now())
+
+  submissions  Submission[]
+}
+
+model Submission {
+  id           String   @id @default(uuid())
+  assignmentId String
+  assignment   Assignment @relation(fields: [assignmentId], references: [id])
+  studentId    String
+  student      Student  @relation(fields: [studentId], references: [id])
+  fileUrl      String?
+  note         String?
+  obtainedMarks Int?
+  submittedAt  DateTime @default(now())
+  status       SubmissionStatus @default(SUBMITTED)
+}
+
+enum SubmissionStatus {
+  SUBMITTED
+  GRADED
+  LATE
+}
+
+// ================================
+// MARKS / EXAM
+// ================================
+
+model Mark {
+  id           String   @id @default(uuid())
+  studentId    String
+  student      Student  @relation(fields: [studentId], references: [id])
+  subjectId    String
+  subject      Subject  @relation(fields: [subjectId], references: [id])
+  instructorId String
+  instructor   Instructor @relation(fields: [instructorId], references: [id])
+  examType     ExamType
+  totalMarks   Int
+  obtainedMarks Int
+  remarks      String?
+  createdAt    DateTime @default(now())
+}
+
+enum ExamType {
+  INTERNAL
+  MIDTERM
+  FINAL
+  PRACTICAL
+}
+
+// ================================
+// STUDY MATERIAL
+// ================================
+
+model StudyMaterial {
+  id           String   @id @default(uuid())
+  title        String
+  description  String?
+  fileUrl      String
+  subjectId    String
+  subject      Subject  @relation(fields: [subjectId], references: [id])
+  instructorId String
+  instructor   Instructor @relation(fields: [instructorId], references: [id])
+  createdAt    DateTime @default(now())
+}
+
+// ================================
+// NOTICES & EVENTS
+// ================================
+
+model Notice {
+  id        String     @id @default(uuid())
+  title     String
+  content   String
+  type      NoticeType @default(GENERAL)
+  postedBy  String
+  user      User       @relation(fields: [postedBy], references: [id])
+  createdAt DateTime   @default(now())
+}
+
+enum NoticeType {
+  GENERAL
+  EXAM
+  HOLIDAY
+  EVENT
+  URGENT
 }
