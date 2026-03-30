@@ -1,16 +1,28 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import Login from './pages/auth/Login'
+
+// Admin pages
 import AdminDashboard from './pages/admin/Dashboard'
 import Users from './pages/admin/Users'
 import Subjects from './pages/admin/Subjects'
 import Notices from './pages/admin/Notices'
+
+// Instructor pages
 import InstructorDashboard from './pages/instructor/Dashboard'
 import InstructorSubjects from './pages/instructor/Subjects'
 import Attendance from './pages/instructor/Attendance'
 import Assignments from './pages/instructor/Assignments'
 import Marks from './pages/instructor/Marks'
 import InstructorNotices from './pages/instructor/Notices'
+
+// Student pages
+import StudentDashboard from './pages/student/Dashboard'
+import StudentSubjects from './pages/student/Subjects'
+import StudentAttendance from './pages/student/Attendance'
+import StudentAssignments from './pages/student/Assignments'
+import StudentMarks from './pages/student/Marks'
+import StudentNotices from './pages/student/Notices'
 
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const { user, loading } = useAuth()
@@ -22,23 +34,6 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
   if (!user) return <Navigate to="/login" />
   if (allowedRoles && !allowedRoles.includes(user.role)) return <Navigate to="/login" />
   return children
-}
-
-const StudentDashboard = () => {
-  const { user, logout } = useAuth()
-  return (
-    <div className="min-h-screen bg-gray-100 p-8">
-      <div className="max-w-4xl mx-auto">
-        <div className="flex justify-between items-center mb-8">
-          <h1 className="text-2xl font-bold text-gray-800">Student Dashboard</h1>
-          <button onClick={logout} className="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600">Logout</button>
-        </div>
-        <div className="bg-white rounded-2xl p-6 shadow-sm">
-          <p className="text-gray-600">Welcome back, <span className="font-semibold text-purple-600">{user?.name}</span>! 👋</p>
-        </div>
-      </div>
-    </div>
-  )
 }
 
 const AppRoutes = () => {
@@ -63,6 +58,11 @@ const AppRoutes = () => {
 
       {/* Student Routes */}
       <Route path="/student" element={<ProtectedRoute allowedRoles={['STUDENT']}><StudentDashboard /></ProtectedRoute>} />
+      <Route path="/student/subjects" element={<ProtectedRoute allowedRoles={['STUDENT']}><StudentSubjects /></ProtectedRoute>} />
+      <Route path="/student/attendance" element={<ProtectedRoute allowedRoles={['STUDENT']}><StudentAttendance /></ProtectedRoute>} />
+      <Route path="/student/assignments" element={<ProtectedRoute allowedRoles={['STUDENT']}><StudentAssignments /></ProtectedRoute>} />
+      <Route path="/student/marks" element={<ProtectedRoute allowedRoles={['STUDENT']}><StudentMarks /></ProtectedRoute>} />
+      <Route path="/student/notices" element={<ProtectedRoute allowedRoles={['STUDENT']}><StudentNotices /></ProtectedRoute>} />
 
       <Route path="*" element={<Navigate to="/login" />} />
     </Routes>
