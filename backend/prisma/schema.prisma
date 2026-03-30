@@ -56,6 +56,7 @@ model Instructor {
   assignments Assignment[]
   marks      Mark[]
   materials  StudyMaterial[]
+  routines     Routine[]
 }
 
 model Student {
@@ -91,6 +92,7 @@ model Subject {
   assignments  Assignment[]
   materials    StudyMaterial[]
   marks        Mark[]
+  routines     Routine[]
 }
 
 // ================================
@@ -217,4 +219,30 @@ enum NoticeType {
   HOLIDAY
   EVENT
   URGENT
+}
+// ================================
+// CLASS ROUTINE
+// ================================
+
+model Routine {
+  id           String   @id @default(uuid())
+  subjectId    String
+  subject      Subject  @relation(fields: [subjectId], references: [id])
+  instructorId String
+  instructor   Instructor @relation(fields: [instructorId], references: [id])
+  dayOfWeek    DayOfWeek
+  startTime    String
+  endTime      String
+  room         String?
+  createdAt    DateTime @default(now())
+}
+
+enum DayOfWeek {
+  SUNDAY
+  MONDAY
+  TUESDAY
+  WEDNESDAY
+  THURSDAY
+  FRIDAY
+  SATURDAY
 }
