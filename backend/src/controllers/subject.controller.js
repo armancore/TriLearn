@@ -1,4 +1,5 @@
 const prisma = require('../utils/prisma')
+const { ensureDepartmentExists } = require('./department.controller')
 
 const buildSubjectVisibilityFilter = async (user, filters = {}) => {
   if (user.role === 'INSTRUCTOR') {
@@ -70,6 +71,7 @@ const getEnrollmentTargetStudents = async (subject) => prisma.student.findMany({
 const createSubject = async (req, res) => {
   try {
     const { name, code, description, semester, department, instructorId } = req.body
+    const normalizedDepartment = department?.trim() || null
 
     const existingSubject = await prisma.subject.findUnique({
       where: { code }
@@ -79,13 +81,20 @@ const createSubject = async (req, res) => {
       return res.status(400).json({ message: 'Subject code already exists' })
     }
 
+    if (normalizedDepartment) {
+      const validDepartment = await ensureDepartmentExists(normalizedDepartment)
+      if (!validDepartment) {
+        return res.status(400).json({ message: 'Please select a valid department' })
+      }
+    }
+
     const subject = await prisma.subject.create({
       data: {
         name,
         code,
         description,
         semester,
-        department,
+        department: normalizedDepartment,
         instructorId
       },
       include: subjectListInclude
@@ -212,15 +221,23 @@ const updateSubject = async (req, res) => {
   try {
     const { id } = req.params
     const { name, description, semester, department, instructorId } = req.body
+    const normalizedDepartment = department?.trim() || null
 
     const subject = await prisma.subject.findUnique({ where: { id } })
     if (!subject) {
       return res.status(404).json({ message: 'Subject not found' })
     }
 
+    if (normalizedDepartment) {
+      const validDepartment = await ensureDepartmentExists(normalizedDepartment)
+      if (!validDepartment) {
+        return res.status(400).json({ message: 'Please select a valid department' })
+      }
+    }
+
     const updatedSubject = await prisma.subject.update({
       where: { id },
-      data: { name, description, semester, department, instructorId },
+      data: { name, description, semester, department: normalizedDepartment, instructorId },
       include: subjectListInclude
     })
 
@@ -247,7 +264,41 @@ const deleteSubject = async (req, res) => {
       return res.status(404).json({ message: 'Subject not found' })
     }
 
-    await prisma.subject.delete({ where: { id } })
+    const assignments = await prisma.assignment.findMany({
+      where: { subjectId: id },
+      select: { id: true }
+    })
+
+    const assignmentIds = assignments.map((assignment) => assignment.id)
+
+    await prisma.$transaction([
+      prisma.submission.deleteMany({
+        where: {
+          assignmentId: { in: assignmentIds }
+        }
+      }),
+      prisma.assignment.deleteMany({
+        where: { subjectId: id }
+      }),
+      prisma.attendance.deleteMany({
+        where: { subjectId: id }
+      }),
+      prisma.mark.deleteMany({
+        where: { subjectId: id }
+      }),
+      prisma.studyMaterial.deleteMany({
+        where: { subjectId: id }
+      }),
+      prisma.routine.deleteMany({
+        where: { subjectId: id }
+      }),
+      prisma.subjectEnrollment.deleteMany({
+        where: { subjectId: id }
+      }),
+      prisma.subject.delete({
+        where: { id }
+      })
+    ])
 
     res.json({ message: 'Subject deleted successfully!' })
 

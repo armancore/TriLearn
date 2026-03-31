@@ -5,6 +5,7 @@ import Login from './pages/auth/Login'
 // Admin pages
 import AdminDashboard from './pages/admin/Dashboard'
 import Users from './pages/admin/Users'
+import Departments from './pages/admin/Departments'
 import Subjects from './pages/admin/Subjects'
 import Notices from './pages/admin/Notices'
 import AdminRoutine from './pages/admin/Routine'
@@ -51,6 +52,7 @@ const AppRoutes = () => {
       {/* Admin Routes */}
       <Route path="/admin" element={<ProtectedRoute allowedRoles={['ADMIN']}><AdminDashboard /></ProtectedRoute>} />
       <Route path="/admin/users" element={<ProtectedRoute allowedRoles={['ADMIN']}><Users /></ProtectedRoute>} />
+      <Route path="/admin/departments" element={<ProtectedRoute allowedRoles={['ADMIN']}><Departments /></ProtectedRoute>} />
       <Route path="/admin/subjects" element={<ProtectedRoute allowedRoles={['ADMIN']}><Subjects /></ProtectedRoute>} />
       <Route path="/admin/notices" element={<ProtectedRoute allowedRoles={['ADMIN']}><Notices /></ProtectedRoute>} />
       <Route path="/admin/routine" element={<ProtectedRoute allowedRoles={['ADMIN']}><AdminRoutine /></ProtectedRoute>} />

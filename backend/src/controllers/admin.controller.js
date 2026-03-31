@@ -1,5 +1,7 @@
 const prisma = require('../utils/prisma')
 const bcrypt = require('bcryptjs')
+const { enrollStudentInMatchingSubjects } = require('../utils/enrollment')
+const { ensureDepartmentExists } = require('./department.controller')
 
 // ================================
 // GET ALL USERS
@@ -80,10 +82,18 @@ const getUserById = async (req, res) => {
 const createInstructor = async (req, res) => {
   try {
     const { name, email, password, phone, address, department } = req.body
+    const normalizedDepartment = department?.trim() || null
 
     const existingUser = await prisma.user.findUnique({ where: { email } })
     if (existingUser) {
       return res.status(400).json({ message: 'Email already exists' })
+    }
+
+    if (normalizedDepartment) {
+      const validDepartment = await ensureDepartmentExists(normalizedDepartment)
+      if (!validDepartment) {
+        return res.status(400).json({ message: 'Please select a valid department' })
+      }
     }
 
     const hashedPassword = await bcrypt.hash(password, 10)
@@ -97,7 +107,7 @@ const createInstructor = async (req, res) => {
         phone,
         address,
         instructor: {
-          create: { department }
+          create: { department: normalizedDepartment }
         }
       },
       include: { instructor: true }
@@ -126,10 +136,18 @@ const createInstructor = async (req, res) => {
 const createStudent = async (req, res) => {
   try {
     const { name, email, password, phone, address, semester, section, department } = req.body
+    const normalizedDepartment = department?.trim() || null
 
     const existingUser = await prisma.user.findUnique({ where: { email } })
     if (existingUser) {
       return res.status(400).json({ message: 'Email already exists' })
+    }
+
+    if (normalizedDepartment) {
+      const validDepartment = await ensureDepartmentExists(normalizedDepartment)
+      if (!validDepartment) {
+        return res.status(400).json({ message: 'Please select a valid department' })
+      }
     }
 
     const hashedPassword = await bcrypt.hash(password, 10)
@@ -148,15 +166,21 @@ const createStudent = async (req, res) => {
             rollNumber,
             semester: semester || 1,
             section,
-            department
+            department: normalizedDepartment
           }
         }
       },
       include: { student: true }
     })
 
+    await enrollStudentInMatchingSubjects({
+      studentId: user.student.id,
+      semester: user.student.semester,
+      department: user.student.department
+    })
+
     res.status(201).json({
-      message: 'Student created successfully!',
+      message: 'Student created and enrolled in matching semester subjects successfully!',
       user: {
         id: user.id,
         name: user.name,
@@ -180,10 +204,18 @@ const updateUser = async (req, res) => {
   try {
     const { id } = req.params
     const { name, phone, address, department, semester, section } = req.body
+    const normalizedDepartment = department?.trim() || null
 
     const user = await prisma.user.findUnique({ where: { id } })
     if (!user) {
       return res.status(404).json({ message: 'User not found' })
+    }
+
+    if (normalizedDepartment) {
+      const validDepartment = await ensureDepartmentExists(normalizedDepartment)
+      if (!validDepartment) {
+        return res.status(400).json({ message: 'Please select a valid department' })
+      }
     }
 
     const updatedUser = await prisma.user.update({
@@ -191,17 +223,23 @@ const updateUser = async (req, res) => {
       data: { name, phone, address }
     })
 
-    if (user.role === 'INSTRUCTOR' && department) {
+    if (user.role === 'INSTRUCTOR' && normalizedDepartment) {
       await prisma.instructor.update({
         where: { userId: id },
-        data: { department }
+        data: { department: normalizedDepartment }
       })
     }
 
     if (user.role === 'STUDENT') {
-      await prisma.student.update({
+      const updatedStudent = await prisma.student.update({
         where: { userId: id },
-        data: { semester, section, department }
+        data: { semester, section, department: normalizedDepartment }
+      })
+
+      await enrollStudentInMatchingSubjects({
+        studentId: updatedStudent.id,
+        semester: updatedStudent.semester,
+        department: updatedStudent.department
       })
     }
 

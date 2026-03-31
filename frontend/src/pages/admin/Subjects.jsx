@@ -5,6 +5,7 @@ import api from '../../utils/api'
 const Subjects = () => {
   const [subjects, setSubjects] = useState([])
   const [instructors, setInstructors] = useState([])
+  const [departments, setDepartments] = useState([])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
   const [editSubject, setEditSubject] = useState(null)
@@ -23,6 +24,7 @@ const Subjects = () => {
   useEffect(() => {
     fetchSubjects()
     fetchInstructors()
+    fetchDepartments()
   }, [])
 
   const fetchSubjects = async () => {
@@ -98,6 +100,15 @@ const Subjects = () => {
     setForm({ name: '', code: '', description: '', semester: 1, department: '', instructorId: '' })
     setError('')
     setShowModal(true)
+  }
+
+  const fetchDepartments = async () => {
+    try {
+      const res = await api.get('/departments')
+      setDepartments(res.data.departments)
+    } catch (error) {
+      console.error(error)
+    }
   }
 
   const openEnrollmentModal = async (subject) => {
@@ -337,13 +348,18 @@ const Subjects = () => {
                   onChange={(e) => setForm({ ...form, semester: parseInt(e.target.value) })}
                   className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
-                <input
-                  type="text"
-                  placeholder="Department"
+                <select
                   value={form.department}
                   onChange={(e) => setForm({ ...form, department: e.target.value })}
                   className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
+                >
+                  <option value="">Select Department</option>
+                  {departments.map((department) => (
+                    <option key={department.id} value={department.name}>
+                      {department.name} ({department.code})
+                    </option>
+                  ))}
+                </select>
               </div>
 
               {/* Instructor dropdown */}

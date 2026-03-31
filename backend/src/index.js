@@ -21,6 +21,7 @@ const noticeRoutes = require('./routes/notice.routes')
 const marksRoutes = require('./routes/marks.routes')
 const studyMaterialRoutes = require('./routes/studyMaterial.routes')
 const routineRoutes = require('./routes/routine.routes')
+const departmentRoutes = require('./routes/department.routes')
 
 app.use('/api/auth', authRoutes)
 app.use('/api/admin', adminRoutes)
@@ -31,6 +32,7 @@ app.use('/api/notices', noticeRoutes)
 app.use('/api/marks', marksRoutes)
 app.use('/api/materials', studyMaterialRoutes)
 app.use('/api/routines', routineRoutes)
+app.use('/api/departments', departmentRoutes)
 
 app.get('/', (req, res) => {
   res.json({ message: 'EduNexus backend is running! 🚀' })

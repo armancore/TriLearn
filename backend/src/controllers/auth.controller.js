@@ -1,6 +1,7 @@
 const bcrypt = require('bcryptjs')
 const jwt = require('jsonwebtoken')
 const prisma = require('../utils/prisma')
+const { enrollStudentInMatchingSubjects } = require('../utils/enrollment')
 
 // ================================
 // REGISTER
@@ -35,12 +36,18 @@ const register = async (req, res) => {
 
     // Create role profile
     if (user.role === 'STUDENT') {
-      await prisma.student.create({
+      const student = await prisma.student.create({
         data: {
           userId: user.id,
           rollNumber: `STU${Date.now()}`,
           semester: 1,
         }
+      })
+
+      await enrollStudentInMatchingSubjects({
+        studentId: student.id,
+        semester: student.semester,
+        department: student.department
       })
     } else if (user.role === 'INSTRUCTOR') {
       await prisma.instructor.create({

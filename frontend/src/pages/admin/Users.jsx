@@ -4,6 +4,7 @@ import api from '../../utils/api'
 
 const Users = () => {
   const [users, setUsers] = useState([])
+  const [departments, setDepartments] = useState([])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
   const [modalType, setModalType] = useState('instructor') // 'instructor' or 'student'
@@ -19,6 +20,10 @@ const Users = () => {
     fetchUsers()
   }, [filterRole])
 
+  useEffect(() => {
+    fetchDepartments()
+  }, [])
+
   const fetchUsers = async () => {
     try {
       setLoading(true)
@@ -29,6 +34,15 @@ const Users = () => {
       console.error(error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const fetchDepartments = async () => {
+    try {
+      const res = await api.get('/departments')
+      setDepartments(res.data.departments)
+    } catch (fetchError) {
+      console.error(fetchError)
     }
   }
 
@@ -259,13 +273,18 @@ const Users = () => {
                 onChange={(e) => setForm({ ...form, phone: e.target.value })}
                 className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
-              <input
-                type="text"
-                placeholder="Department"
+              <select
                 value={form.department}
                 onChange={(e) => setForm({ ...form, department: e.target.value })}
                 className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
+              >
+                <option value="">Select Department</option>
+                {departments.map((department) => (
+                  <option key={department.id} value={department.name}>
+                    {department.name} ({department.code})
+                  </option>
+                ))}
+              </select>
 
               {modalType === 'student' && (
                 <div className="flex gap-3">
