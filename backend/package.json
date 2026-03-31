@@ -4,6 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
+    "prisma:generate": "prisma generate",
+    "postinstall": "prisma generate",
     "start": "node src/index.js",
     "dev": "nodemon src/index.js"
   },

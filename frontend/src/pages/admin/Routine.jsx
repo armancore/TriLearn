@@ -251,7 +251,9 @@ const AdminRoutine = () => {
               <select required value={form.instructorId} onChange={(e) => setForm({ ...form, instructorId: e.target.value })}
                 className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
                 <option value="">Select Instructor</option>
-                {instructors.map(i => <option key={i.instructor?.id} value={i.instructor?.id}>{i.name}</option>)}
+                {instructors.filter(i => i.instructor?.id).map(i => (
+  <option key={i.instructor.id} value={i.instructor.id}>{i.name}</option>
+))}
               </select>
               <select value={form.dayOfWeek} onChange={(e) => setForm({ ...form, dayOfWeek: e.target.value })}
                 className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">

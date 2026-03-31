@@ -17,6 +17,7 @@ import Assignments from './pages/instructor/Assignments'
 import Marks from './pages/instructor/Marks'
 import InstructorNotices from './pages/instructor/Notices'
 import InstructorMaterials from './pages/instructor/Materials'
+import InstructorRoutine from './pages/instructor/Routine'
 
 // Student pages
 import StudentDashboard from './pages/student/Dashboard'
@@ -62,6 +63,7 @@ const AppRoutes = () => {
       <Route path="/instructor/marks" element={<ProtectedRoute allowedRoles={['INSTRUCTOR']}><Marks /></ProtectedRoute>} />
       <Route path="/instructor/notices" element={<ProtectedRoute allowedRoles={['INSTRUCTOR']}><InstructorNotices /></ProtectedRoute>} />
       <Route path="/instructor/materials" element={<ProtectedRoute allowedRoles={['INSTRUCTOR']}><InstructorMaterials /></ProtectedRoute>} />
+      <Route path="/instructor/routine" element={<ProtectedRoute allowedRoles={['INSTRUCTOR']}><InstructorRoutine /></ProtectedRoute>} />
 
       {/* Student Routes */}
       <Route path="/student" element={<ProtectedRoute allowedRoles={['STUDENT']}><StudentDashboard /></ProtectedRoute>} />
