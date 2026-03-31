@@ -1,11 +1,18 @@
 const prisma = require('../utils/prisma')
 
+const buildUploadedFileUrl = (req, file) => {
+  if (!file) return undefined
+  return `/uploads/${file.filename}`
+}
+
 // ================================
 // CREATE STUDY MATERIAL (Instructor)
 // ================================
 const createMaterial = async (req, res) => {
   try {
     const { title, description, fileUrl, subjectId } = req.body
+    const uploadedFileUrl = buildUploadedFileUrl(req, req.file)
+    const finalFileUrl = uploadedFileUrl || fileUrl
 
     const instructor = await prisma.instructor.findUnique({
       where: { userId: req.user.id }
@@ -23,11 +30,15 @@ const createMaterial = async (req, res) => {
       return res.status(404).json({ message: 'Subject not found' })
     }
 
+    if (!finalFileUrl) {
+      return res.status(400).json({ message: 'Please upload a PDF or provide a file URL' })
+    }
+
     const material = await prisma.studyMaterial.create({
       data: {
         title,
         description,
-        fileUrl,
+        fileUrl: finalFileUrl,
         subjectId,
         instructorId: instructor.id
       },

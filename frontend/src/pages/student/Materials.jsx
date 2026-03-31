@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react'
 import StudentLayout from '../../layouts/StudentLayout'
-import api from '../../utils/api'
+import api, { resolveFileUrl } from '../../utils/api'
 
 const StudentMaterials = () => {
   const [materials, setMaterials] = useState([])
   const [subjects, setSubjects] = useState([])
   const [loading, setLoading] = useState(true)
   const [filterSubject, setFilterSubject] = useState('')
+  const [previewFile, setPreviewFile] = useState(null)
 
   useEffect(() => {
     fetchMaterials()
@@ -48,6 +49,11 @@ const StudentMaterials = () => {
     if (['mp4', 'mov', 'avi'].includes(ext)) return '🎬'
     if (['zip', 'rar'].includes(ext)) return '🗜️'
     return '📄'
+  }
+
+  const isPdfFile = (url) => {
+    if (!url) return false
+    return url.toLowerCase().includes('.pdf') || url.toLowerCase().includes('/uploads/')
   }
 
   return (
@@ -117,14 +123,27 @@ const StudentMaterials = () => {
                       {new Date(mat.createdAt).toLocaleDateString()}
                     </span>
                   </div>
-                  <a
-                    href={mat.fileUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="block text-center text-xs bg-purple-600 text-white py-2 rounded-lg hover:bg-purple-700 transition font-medium"
-                  >
-                    📥 Open Material
-                  </a>
+                  {isPdfFile(mat.fileUrl) ? (
+                    <button
+                      type="button"
+                      onClick={() => setPreviewFile({
+                        title: mat.title,
+                        url: resolveFileUrl(mat.fileUrl)
+                      })}
+                      className="block w-full text-center text-xs bg-purple-600 text-white py-2 rounded-lg hover:bg-purple-700 transition font-medium"
+                    >
+                      View PDF
+                    </button>
+                  ) : (
+                    <a
+                      href={resolveFileUrl(mat.fileUrl)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="block text-center text-xs bg-purple-600 text-white py-2 rounded-lg hover:bg-purple-700 transition font-medium"
+                    >
+                      Open Material
+                    </a>
+                  )}
                 </div>
               ))}
               {filtered.length === 0 && (
@@ -136,6 +155,38 @@ const StudentMaterials = () => {
           </>
         )}
       </div>
+
+      {previewFile && (
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-5xl h-[85vh] shadow-xl flex flex-col overflow-hidden">
+            <div className="flex justify-between items-center px-6 py-4 border-b">
+              <h2 className="text-lg font-semibold text-gray-800">{previewFile.title}</h2>
+              <div className="flex items-center gap-3">
+                <a
+                  href={previewFile.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-sm text-purple-600 hover:underline"
+                >
+                  Open in new tab
+                </a>
+                <button
+                  type="button"
+                  onClick={() => setPreviewFile(null)}
+                  className="text-gray-400 hover:text-gray-600 text-xl"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+            <iframe
+              src={previewFile.url}
+              title={previewFile.title}
+              className="w-full flex-1"
+            />
+          </div>
+        </div>
+      )}
     </StudentLayout>
   )
 }

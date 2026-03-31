@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import InstructorLayout from '../../layouts/InstructorLayout'
-import api from '../../utils/api'
+import api, { resolveFileUrl } from '../../utils/api'
 
 const InstructorMaterials = () => {
   const [materials, setMaterials] = useState([])
@@ -8,9 +8,11 @@ const InstructorMaterials = () => {
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
   const [form, setForm] = useState({ title: '', description: '', fileUrl: '', subjectId: '' })
+  const [materialPdf, setMaterialPdf] = useState(null)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [filterSubject, setFilterSubject] = useState('')
+  const [previewFile, setPreviewFile] = useState(null)
 
   useEffect(() => {
     fetchMaterials()
@@ -42,10 +44,23 @@ const InstructorMaterials = () => {
     e.preventDefault()
     setError('')
     try {
-      await api.post('/materials', form)
+      if (!materialPdf && !form.fileUrl.trim()) {
+        setError('Please upload a PDF or provide a file URL')
+        return
+      }
+
+      const payload = new FormData()
+      payload.append('title', form.title)
+      payload.append('description', form.description)
+      payload.append('subjectId', form.subjectId)
+      if (form.fileUrl.trim()) payload.append('fileUrl', form.fileUrl.trim())
+      if (materialPdf) payload.append('materialPdf', materialPdf)
+
+      await api.post('/materials', payload)
       setSuccess('Material uploaded successfully!')
       setShowModal(false)
       setForm({ title: '', description: '', fileUrl: '', subjectId: '' })
+      setMaterialPdf(null)
       fetchMaterials()
       setTimeout(() => setSuccess(''), 3000)
     } catch (err) {
@@ -80,6 +95,11 @@ const InstructorMaterials = () => {
     if (['mp4', 'mov', 'avi'].includes(ext)) return '🎬'
     if (['zip', 'rar'].includes(ext)) return '🗜️'
     return '📄'
+  }
+
+  const isPdfFile = (url) => {
+    if (!url) return false
+    return url.toLowerCase().includes('.pdf') || url.toLowerCase().includes('/uploads/')
   }
 
   return (
@@ -152,14 +172,27 @@ const InstructorMaterials = () => {
                     {new Date(mat.createdAt).toLocaleDateString()}
                   </span>
                 </div>
-                <a
-                  href={mat.fileUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="mt-3 block text-center text-xs bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 transition font-medium"
-                >
-                  📥 Open / Download
-                </a>
+                {isPdfFile(mat.fileUrl) ? (
+                  <button
+                    type="button"
+                    onClick={() => setPreviewFile({
+                      title: mat.title,
+                      url: resolveFileUrl(mat.fileUrl)
+                    })}
+                    className="mt-3 block w-full text-center text-xs bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 transition font-medium"
+                  >
+                    View PDF
+                  </button>
+                ) : (
+                  <a
+                    href={resolveFileUrl(mat.fileUrl)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-3 block text-center text-xs bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 transition font-medium"
+                  >
+                    Open / Download
+                  </a>
+                )}
               </div>
             ))}
             {filtered.length === 0 && (
@@ -191,13 +224,23 @@ const InstructorMaterials = () => {
                 value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })}
                 className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
               />
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">Upload PDF</label>
+                <input
+                  type="file"
+                  accept="application/pdf,.pdf"
+                  onChange={(e) => setMaterialPdf(e.target.files?.[0] || null)}
+                  className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm"
+                />
+                <p className="text-xs text-gray-400 mt-1">Optional. Upload a PDF directly from your device.</p>
+              </div>
               <input
-                type="url" placeholder="File URL (Google Drive, Dropbox, etc.)" required
+                type="url" placeholder="Or paste a file URL (Google Drive, Dropbox, etc.)"
                 value={form.fileUrl} onChange={(e) => setForm({ ...form, fileUrl: e.target.value })}
                 className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
               />
               <p className="text-xs text-gray-400 -mt-2">
-                💡 Tip: Upload to Google Drive and paste the shareable link
+                Use either an uploaded PDF or an external file link.
               </p>
               <select
                 required value={form.subjectId} onChange={(e) => setForm({ ...form, subjectId: e.target.value })}
@@ -219,6 +262,38 @@ const InstructorMaterials = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {previewFile && (
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[60] p-4">
+          <div className="bg-white rounded-2xl w-full max-w-5xl h-[85vh] shadow-xl flex flex-col overflow-hidden">
+            <div className="flex justify-between items-center px-6 py-4 border-b">
+              <h2 className="text-lg font-semibold text-gray-800">{previewFile.title}</h2>
+              <div className="flex items-center gap-3">
+                <a
+                  href={previewFile.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-sm text-green-600 hover:underline"
+                >
+                  Open in new tab
+                </a>
+                <button
+                  type="button"
+                  onClick={() => setPreviewFile(null)}
+                  className="text-gray-400 hover:text-gray-600 text-xl"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+            <iframe
+              src={previewFile.url}
+              title={previewFile.title}
+              className="w-full flex-1"
+            />
           </div>
         </div>
       )}
