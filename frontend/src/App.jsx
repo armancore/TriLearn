@@ -7,6 +7,7 @@ import AdminDashboard from './pages/admin/Dashboard'
 import Users from './pages/admin/Users'
 import Subjects from './pages/admin/Subjects'
 import Notices from './pages/admin/Notices'
+import AdminRoutine from './pages/admin/Routine'
 
 // Instructor pages
 import InstructorDashboard from './pages/instructor/Dashboard'
@@ -15,6 +16,7 @@ import Attendance from './pages/instructor/Attendance'
 import Assignments from './pages/instructor/Assignments'
 import Marks from './pages/instructor/Marks'
 import InstructorNotices from './pages/instructor/Notices'
+import InstructorMaterials from './pages/instructor/Materials'
 
 // Student pages
 import StudentDashboard from './pages/student/Dashboard'
@@ -23,6 +25,9 @@ import StudentAttendance from './pages/student/Attendance'
 import StudentAssignments from './pages/student/Assignments'
 import StudentMarks from './pages/student/Marks'
 import StudentNotices from './pages/student/Notices'
+import StudentMaterials from './pages/student/Materials'
+import StudentRoutine from './pages/student/Routine'
+
 
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const { user, loading } = useAuth()
@@ -47,6 +52,7 @@ const AppRoutes = () => {
       <Route path="/admin/users" element={<ProtectedRoute allowedRoles={['ADMIN']}><Users /></ProtectedRoute>} />
       <Route path="/admin/subjects" element={<ProtectedRoute allowedRoles={['ADMIN']}><Subjects /></ProtectedRoute>} />
       <Route path="/admin/notices" element={<ProtectedRoute allowedRoles={['ADMIN']}><Notices /></ProtectedRoute>} />
+      <Route path="/admin/routine" element={<ProtectedRoute allowedRoles={['ADMIN']}><AdminRoutine /></ProtectedRoute>} />
 
       {/* Instructor Routes */}
       <Route path="/instructor" element={<ProtectedRoute allowedRoles={['INSTRUCTOR']}><InstructorDashboard /></ProtectedRoute>} />
@@ -55,6 +61,7 @@ const AppRoutes = () => {
       <Route path="/instructor/assignments" element={<ProtectedRoute allowedRoles={['INSTRUCTOR']}><Assignments /></ProtectedRoute>} />
       <Route path="/instructor/marks" element={<ProtectedRoute allowedRoles={['INSTRUCTOR']}><Marks /></ProtectedRoute>} />
       <Route path="/instructor/notices" element={<ProtectedRoute allowedRoles={['INSTRUCTOR']}><InstructorNotices /></ProtectedRoute>} />
+      <Route path="/instructor/materials" element={<ProtectedRoute allowedRoles={['INSTRUCTOR']}><InstructorMaterials /></ProtectedRoute>} />
 
       {/* Student Routes */}
       <Route path="/student" element={<ProtectedRoute allowedRoles={['STUDENT']}><StudentDashboard /></ProtectedRoute>} />
@@ -63,6 +70,9 @@ const AppRoutes = () => {
       <Route path="/student/assignments" element={<ProtectedRoute allowedRoles={['STUDENT']}><StudentAssignments /></ProtectedRoute>} />
       <Route path="/student/marks" element={<ProtectedRoute allowedRoles={['STUDENT']}><StudentMarks /></ProtectedRoute>} />
       <Route path="/student/notices" element={<ProtectedRoute allowedRoles={['STUDENT']}><StudentNotices /></ProtectedRoute>} />
+      <Route path="/student/materials" element={<ProtectedRoute allowedRoles={['STUDENT']}><StudentMaterials /></ProtectedRoute>} />
+      <Route path="/student/routine" element={<ProtectedRoute allowedRoles={['STUDENT']}><StudentRoutine /></ProtectedRoute>} />
+      
 
       <Route path="*" element={<Navigate to="/login" />} />
     </Routes>

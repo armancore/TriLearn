@@ -7,6 +7,7 @@ const menuItems = [
   { path: '/admin/users', label: 'Users', icon: '👥' },
   { path: '/admin/subjects', label: 'Subjects', icon: '📚' },
   { path: '/admin/notices', label: 'Notices', icon: '📢' },
+  { path: '/admin/routine', label: 'Routine', icon: '🗓️' }
 ]
 
 const AdminLayout = ({ children }) => {
@@ -34,6 +35,7 @@ const AdminLayout = ({ children }) => {
           >
             {sidebarOpen ? '◀' : '▶'}
           </button>
+          
         </div>
 
         {/* Menu */}

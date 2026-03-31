@@ -9,6 +9,7 @@ const menuItems = [
   { path: '/instructor/assignments', label: 'Assignments', icon: '📝' },
   { path: '/instructor/marks', label: 'Marks', icon: '🎯' },
   { path: '/instructor/notices', label: 'Notices', icon: '📢' },
+  { path: '/instructor/materials', label: 'Materials', icon: '📁' }
 ]
 
 const InstructorLayout = ({ children }) => {
