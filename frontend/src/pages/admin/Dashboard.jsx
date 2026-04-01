@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import AdminLayout from '../../layouts/AdminLayout'
+import api from '../../utils/api'
 import logger from '../../utils/logger'
 const StatCard = ({ title, value, icon, color }) => (
   <div className={`bg-white rounded-2xl p-6 shadow-sm border-l-4 ${color}`}>
