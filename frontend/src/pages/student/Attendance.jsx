@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import StudentLayout from '../../layouts/StudentLayout'
+import Alert from '../../components/Alert'
+import LoadingSpinner from '../../components/LoadingSpinner'
+import StatusBadge from '../../components/StatusBadge'
 import api from '../../utils/api'
 
 const StudentAttendance = () => {
@@ -153,8 +156,8 @@ const StudentAttendance = () => {
           </p>
         </div>
 
-        {success && <div className="bg-green-50 text-green-600 px-4 py-3 rounded-lg mb-4 text-sm">{success}</div>}
-        {error && <div className="bg-red-50 text-red-600 px-4 py-3 rounded-lg mb-4 text-sm">{error}</div>}
+        <Alert type="success" message={success} />
+        <Alert type="error" message={error} />
 
         <div className="bg-white rounded-2xl shadow-sm p-6 mb-8">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
@@ -216,7 +219,7 @@ const StudentAttendance = () => {
         </div>
 
         {loading ? (
-          <div className="text-center text-gray-500 py-8">Loading...</div>
+          <LoadingSpinner text="Loading attendance..." />
         ) : (
           <>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
@@ -282,12 +285,7 @@ const StudentAttendance = () => {
                           {new Date(record.date).toLocaleDateString()}
                         </td>
                         <td className="px-6 py-4">
-                          <span className={`text-xs px-2 py-1 rounded-full font-medium
-                            ${record.status === 'PRESENT' ? 'bg-green-100 text-green-700' :
-                              record.status === 'ABSENT' ? 'bg-red-100 text-red-700' :
-                              'bg-orange-100 text-orange-700'}`}>
-                            {record.status}
-                          </span>
+                          <StatusBadge status={record.status} />
                         </td>
                       </tr>
                     ))}

@@ -1,14 +1,10 @@
 import { useState, useEffect } from 'react'
 import AdminLayout from '../../layouts/AdminLayout'
+import Alert from '../../components/Alert'
+import LoadingSpinner from '../../components/LoadingSpinner'
+import Modal from '../../components/Modal'
+import StatusBadge from '../../components/StatusBadge'
 import api from '../../utils/api'
-
-const typeColors = {
-  GENERAL: 'bg-gray-100 text-gray-700',
-  EXAM: 'bg-red-100 text-red-700',
-  HOLIDAY: 'bg-green-100 text-green-700',
-  EVENT: 'bg-blue-100 text-blue-700',
-  URGENT: 'bg-orange-100 text-orange-700',
-}
 
 const Notices = () => {
   const [notices, setNotices] = useState([])
@@ -99,12 +95,12 @@ const Notices = () => {
         </div>
 
         {/* Success/Error */}
-        {success && <div className="bg-green-50 text-green-600 px-4 py-3 rounded-lg mb-4 text-sm">{success}</div>}
-        {error && <div className="bg-red-50 text-red-600 px-4 py-3 rounded-lg mb-4 text-sm">{error}</div>}
+        <Alert type="success" message={success} />
+        <Alert type="error" message={error} />
 
         {/* Notices List */}
         {loading ? (
-          <div className="text-center text-gray-500 py-8">Loading...</div>
+          <LoadingSpinner text="Loading notices..." />
         ) : (
           <div className="space-y-4">
             {notices.map((notice) => (
@@ -112,9 +108,7 @@ const Notices = () => {
                 <div className="flex justify-between items-start">
                   <div className="flex-1">
                     <div className="flex items-center gap-3 mb-2">
-                      <span className={`text-xs font-medium px-2 py-1 rounded-full ${typeColors[notice.type]}`}>
-                        {notice.type}
-                      </span>
+                      <StatusBadge status={notice.type} />
                       <span className="text-xs text-gray-400">
                         {new Date(notice.createdAt).toLocaleDateString()}
                       </span>
@@ -154,16 +148,8 @@ const Notices = () => {
 
       {/* Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl p-8 w-full max-w-md shadow-xl">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-bold text-gray-800">
-                {editNotice ? 'Edit Notice' : 'Post Notice'}
-              </h2>
-              <button onClick={() => setShowModal(false)} className="text-gray-400 hover:text-gray-600 text-xl">✕</button>
-            </div>
-
-            {error && <div className="bg-red-50 text-red-600 px-4 py-3 rounded-lg mb-4 text-sm">{error}</div>}
+        <Modal title={editNotice ? 'Edit Notice' : 'Post Notice'} onClose={() => setShowModal(false)}>
+            <Alert type="error" message={error} />
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <input
@@ -209,8 +195,7 @@ const Notices = () => {
                 </button>
               </div>
             </form>
-          </div>
-        </div>
+        </Modal>
       )}
 
     </AdminLayout>

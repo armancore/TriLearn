@@ -1,5 +1,9 @@
 import { useState, useEffect } from 'react'
 import InstructorLayout from '../../layouts/InstructorLayout'
+import Alert from '../../components/Alert'
+import LoadingSpinner from '../../components/LoadingSpinner'
+import Modal from '../../components/Modal'
+import StatusBadge from '../../components/StatusBadge'
 import api from '../../utils/api'
 
 const Marks = () => {
@@ -92,13 +96,6 @@ const Marks = () => {
     }
   }
 
-  const examTypeColors = {
-    INTERNAL: 'bg-blue-100 text-blue-700',
-    MIDTERM: 'bg-purple-100 text-purple-700',
-    FINAL: 'bg-red-100 text-red-700',
-    PRACTICAL: 'bg-green-100 text-green-700',
-  }
-
   return (
     <InstructorLayout>
       <div className="p-8">
@@ -123,8 +120,8 @@ const Marks = () => {
           </button>
         </div>
 
-        {success && <div className="bg-green-50 text-green-600 px-4 py-3 rounded-lg mb-4 text-sm">{success}</div>}
-        {error && <div className="bg-red-50 text-red-600 px-4 py-3 rounded-lg mb-4 text-sm">{error}</div>}
+        <Alert type="success" message={success} />
+        <Alert type="error" message={error} />
 
         {/* Subject Filter */}
         <div className="bg-white rounded-2xl shadow-sm p-4 mb-6">
@@ -144,7 +141,7 @@ const Marks = () => {
         {selectedSubject && (
           <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
             {loading ? (
-              <div className="p-8 text-center text-gray-500">Loading...</div>
+              <LoadingSpinner text="Loading marks..." />
             ) : (
               <table className="w-full">
                 <thead className="bg-gray-50">
@@ -164,9 +161,7 @@ const Marks = () => {
                         {mark.student?.user?.name}
                       </td>
                       <td className="px-6 py-4">
-                        <span className={`text-xs px-2 py-1 rounded-full font-medium ${examTypeColors[mark.examType]}`}>
-                          {mark.examType}
-                        </span>
+                        <StatusBadge status={mark.examType} />
                       </td>
                       <td className="px-6 py-4 text-gray-700 font-medium">{mark.obtainedMarks}</td>
                       <td className="px-6 py-4 text-gray-500">{mark.totalMarks}</td>
@@ -198,13 +193,8 @@ const Marks = () => {
 
       {/* Add Marks Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl p-8 w-full max-w-md shadow-xl">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-bold text-gray-800">Add Marks</h2>
-              <button onClick={() => setShowModal(false)} className="text-gray-400 hover:text-gray-600 text-xl">✕</button>
-            </div>
-            {error && <div className="bg-red-50 text-red-600 px-4 py-3 rounded-lg mb-4 text-sm">{error}</div>}
+        <Modal title="Add Marks" onClose={() => setShowModal(false)}>
+            <Alert type="error" message={error} />
             <form onSubmit={handleSubmit} className="space-y-4">
               <select required value={form.studentId} onChange={(e) => setForm({ ...form, studentId: e.target.value })}
                 className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500">
@@ -248,8 +238,7 @@ const Marks = () => {
                   className="flex-1 bg-green-600 text-white py-2 rounded-lg text-sm hover:bg-green-700 font-medium">Add Marks</button>
               </div>
             </form>
-          </div>
-        </div>
+        </Modal>
       )}
 
     </InstructorLayout>

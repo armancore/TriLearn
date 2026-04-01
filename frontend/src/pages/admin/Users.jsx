@@ -1,5 +1,9 @@
 import { useState, useEffect } from 'react'
 import AdminLayout from '../../layouts/AdminLayout'
+import Alert from '../../components/Alert'
+import LoadingSpinner from '../../components/LoadingSpinner'
+import Modal from '../../components/Modal'
+import StatusBadge from '../../components/StatusBadge'
 import api from '../../utils/api'
 
 const Users = () => {
@@ -129,16 +133,8 @@ const Users = () => {
         </div>
 
         {/* Success/Error messages */}
-        {success && (
-          <div className="bg-green-50 text-green-600 px-4 py-3 rounded-lg mb-4 text-sm">
-            {success}
-          </div>
-        )}
-        {error && (
-          <div className="bg-red-50 text-red-600 px-4 py-3 rounded-lg mb-4 text-sm">
-            {error}
-          </div>
-        )}
+        <Alert type="success" message={success} />
+        <Alert type="error" message={error} />
 
         {/* Filter */}
         <div className="flex gap-3 mb-6">
@@ -160,7 +156,7 @@ const Users = () => {
         {/* Users Table */}
         <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
           {loading ? (
-            <div className="p-8 text-center text-gray-500">Loading...</div>
+            <LoadingSpinner text="Loading users..." />
           ) : (
             <table className="w-full">
               <thead className="bg-gray-50">
@@ -179,13 +175,7 @@ const Users = () => {
                     <td className="px-6 py-4 font-medium text-gray-800">{user.name}</td>
                     <td className="px-6 py-4 text-gray-500 text-sm">{user.email}</td>
                     <td className="px-6 py-4">
-                      <span className={`text-xs px-2 py-1 rounded-full font-medium
-                        ${user.role === 'ADMIN' ? 'bg-blue-100 text-blue-700' :
-                          user.role === 'GATEKEEPER' ? 'bg-amber-100 text-amber-700' :
-                          user.role === 'INSTRUCTOR' ? 'bg-purple-100 text-purple-700' :
-                          'bg-green-100 text-green-700'}`}>
-                        {user.role}
-                      </span>
+                      <StatusBadge status={user.role} />
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-500">
                       {user.student && `Sem ${user.student.semester} · ${user.student.rollNumber}`}
@@ -194,10 +184,7 @@ const Users = () => {
                       {user.admin && 'Administrator'}
                     </td>
                     <td className="px-6 py-4">
-                      <span className={`text-xs px-2 py-1 rounded-full font-medium
-                        ${user.isActive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                        {user.isActive ? 'Active' : 'Disabled'}
-                      </span>
+                      <StatusBadge status={user.isActive ? 'ACTIVE' : 'DISABLED'} />
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex gap-2">
@@ -230,26 +217,11 @@ const Users = () => {
 
       {/* Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl p-8 w-full max-w-md shadow-xl">
-
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-bold text-gray-800">
-                Add {modalType === 'instructor' ? 'Instructor' : modalType === 'gatekeeper' ? 'Gate Account' : 'Student'}
-              </h2>
-              <button
-                onClick={() => setShowModal(false)}
-                className="text-gray-400 hover:text-gray-600 text-xl"
-              >
-                ✕
-              </button>
-            </div>
-
-            {error && (
-              <div className="bg-red-50 text-red-600 px-4 py-3 rounded-lg mb-4 text-sm">
-                {error}
-              </div>
-            )}
+        <Modal
+          title={`Add ${modalType === 'instructor' ? 'Instructor' : modalType === 'gatekeeper' ? 'Gate Account' : 'Student'}`}
+          onClose={() => setShowModal(false)}
+        >
+            <Alert type="error" message={error} />
 
             <form onSubmit={handleCreateUser} className="space-y-4">
               <input
@@ -335,9 +307,7 @@ const Users = () => {
                 </button>
               </div>
             </form>
-
-          </div>
-        </div>
+        </Modal>
       )}
 
     </AdminLayout>
