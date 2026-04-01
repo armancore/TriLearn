@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import AdminLayout from '../../layouts/AdminLayout'
+import api from '../../utils/api'
 import logger from '../../utils/logger'
 const Subjects = () => {
   const [subjects, setSubjects] = useState([])

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import StudentLayout from '../../layouts/StudentLayout'
+import api from '../../utils/api'
 import LoadingSpinner from '../../components/LoadingSpinner'
 import Pagination from '../../components/Pagination'
 import StatusBadge from '../../components/StatusBadge'

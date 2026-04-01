@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import InstructorLayout from '../../layouts/InstructorLayout'
+import api from '../../utils/api'
 import logger from '../../utils/logger'
 const DEFAULT_STATUS = 'PRESENT'
 const STATUSES = ['PRESENT', 'ABSENT', 'LATE']

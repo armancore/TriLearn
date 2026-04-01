@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import InstructorLayout from '../../layouts/InstructorLayout'
+import api from '../../utils/api'
 import logger from '../../utils/logger'
 const InstructorSubjects = () => {
   const [subjects, setSubjects] = useState([])
