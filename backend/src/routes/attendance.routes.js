@@ -10,6 +10,8 @@ const {
   markDailyAttendanceQR,
   markAttendanceManual,
   getAttendanceBySubject,
+  getCoordinatorDepartmentAttendanceReport,
+  getMonthlyAttendanceReport,
   exportAttendanceBySubject,
   getMyAttendance,
   getSubjectRoster
@@ -21,6 +23,8 @@ router.use(protect)
 router.post('/generate-daily-qr', allowRoles('GATEKEEPER'), generateDailyAttendanceQR)
 router.post('/generate-qr', allowRoles('INSTRUCTOR', 'COORDINATOR'), validate(schemas.attendance.generateQr), generateQR)
 router.post('/manual', allowRoles('INSTRUCTOR', 'COORDINATOR'), validate(schemas.attendance.manual), markAttendanceManual)
+router.get('/coordinator/department-report', allowRoles('COORDINATOR'), validate(schemas.attendance.coordinatorReport), getCoordinatorDepartmentAttendanceReport)
+router.get('/subject/:subjectId/monthly-report', allowRoles('COORDINATOR', 'ADMIN'), validate(schemas.attendance.monthlyReport), getMonthlyAttendanceReport)
 router.get('/subject/:subjectId/export', allowRoles('INSTRUCTOR', 'COORDINATOR', 'ADMIN'), validate(schemas.attendance.export), exportAttendanceBySubject)
 router.get('/subject/:subjectId/roster', allowRoles('INSTRUCTOR', 'COORDINATOR', 'ADMIN'), validate(schemas.attendance.getBySubject), getSubjectRoster)
 router.get('/subject/:subjectId', allowRoles('INSTRUCTOR', 'COORDINATOR', 'ADMIN'), validate(schemas.attendance.getBySubject), getAttendanceBySubject)

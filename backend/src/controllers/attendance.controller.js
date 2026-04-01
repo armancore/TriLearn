@@ -26,11 +26,34 @@ const getDayRange = (dateValue) => {
   return { start, end }
 }
 
+const getMonthRange = (monthValue) => {
+  if (!monthValue || !/^\d{4}-\d{2}$/.test(monthValue)) {
+    return null
+  }
+
+  const [year, month] = monthValue.split('-').map((value) => parseInt(value, 10))
+  const start = new Date(year, month - 1, 1)
+
+  if (Number.isNaN(start.getTime())) {
+    return null
+  }
+
+  start.setHours(0, 0, 0, 0)
+  const end = new Date(year, month, 1)
+  end.setHours(0, 0, 0, 0)
+
+  return { start, end }
+}
+
 const getInstructorProfile = (userId) => prisma.instructor.findUnique({
   where: { userId }
 })
 
 const getStudentProfile = (userId) => prisma.student.findUnique({
+  where: { userId }
+})
+
+const getCoordinatorProfile = (userId) => prisma.coordinator.findUnique({
   where: { userId }
 })
 
@@ -178,10 +201,15 @@ const parseQrPayload = (qrData) => {
 }
 
 const formatDisplayDate = (dateValue) => new Date(dateValue).toLocaleDateString('en-CA')
+const formatMonthLabel = (monthValue) => {
+  const range = getMonthRange(monthValue)
+  if (!range) return monthValue
+  return range.start.toLocaleString('en-US', { month: 'long', year: 'numeric' })
+}
 
 const sanitizeFilenamePart = (value) => String(value || 'report').replace(/[^a-z0-9-_]+/gi, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').toLowerCase()
 
-const getAttendanceExportPayload = async ({ subjectId, date, user }) => {
+const getAttendanceExportPayload = async ({ subjectId, date, month, user }) => {
   const access = await getOwnedSubject(subjectId, user)
   if (access.error) {
     return { error: access.error }
@@ -189,13 +217,24 @@ const getAttendanceExportPayload = async ({ subjectId, date, user }) => {
 
   const filters = { subjectId }
   const dayRange = date ? getDayRange(date) : null
+  const monthRange = month ? getMonthRange(month) : null
 
   if (date && !dayRange) {
     return { error: { status: 400, message: 'Please provide a valid date filter' } }
   }
 
+  if (month && !monthRange) {
+    return { error: { status: 400, message: 'Please provide a valid month filter' } }
+  }
+
+  if (dayRange && monthRange) {
+    return { error: { status: 400, message: 'Use either a date or a month filter, not both' } }
+  }
+
   if (dayRange) {
     filters.date = { gte: dayRange.start, lt: dayRange.end }
+  } else if (monthRange) {
+    filters.date = { gte: monthRange.start, lt: monthRange.end }
   }
 
   const [attendance, groupedSummary] = await Promise.all([
@@ -225,7 +264,7 @@ const getAttendanceExportPayload = async ({ subjectId, date, user }) => {
     attendance,
     summary: buildStatusSummary(groupedSummary),
     subject: access.subject,
-    dateLabel: dayRange ? formatDisplayDate(dayRange.start) : 'All dates'
+    dateLabel: dayRange ? formatDisplayDate(dayRange.start) : monthRange ? formatMonthLabel(month) : 'All dates'
   }
 }
 
@@ -727,14 +766,241 @@ const getSubjectRoster = async (req, res) => {
   }
 }
 
+const getCoordinatorDepartmentAttendanceReport = async (req, res) => {
+  try {
+    const { month, semester, section } = req.query
+    const coordinator = await getCoordinatorProfile(req.user.id)
+
+    if (!coordinator || !coordinator.department) {
+      return res.status(403).json({ message: 'Coordinator department is not configured yet' })
+    }
+
+    const monthRange = getMonthRange(month)
+    if (!monthRange) {
+      return res.status(400).json({ message: 'Please provide a valid month in YYYY-MM format' })
+    }
+
+    const studentFilters = {
+      department: coordinator.department,
+      semester: parseInt(semester, 10),
+      user: { isActive: true }
+    }
+
+    if (section) {
+      studentFilters.section = section
+    }
+
+    const students = await prisma.student.findMany({
+      where: studentFilters,
+      include: {
+        user: {
+          select: {
+            name: true,
+            email: true
+          }
+        }
+      },
+      orderBy: [
+        { rollNumber: 'asc' },
+        { enrolledAt: 'asc' }
+      ]
+    })
+
+    const studentIds = students.map((student) => student.id)
+    const attendance = studentIds.length > 0
+      ? await prisma.attendance.findMany({
+          where: {
+            studentId: { in: studentIds },
+            date: { gte: monthRange.start, lt: monthRange.end }
+          },
+          include: {
+            subject: { select: { name: true, code: true } },
+            student: {
+              include: {
+                user: { select: { name: true, email: true } }
+              }
+            }
+          },
+          orderBy: [
+            { date: 'desc' },
+            { subject: { code: 'asc' } },
+            { student: { rollNumber: 'asc' } }
+          ]
+        })
+      : []
+
+    const attendanceByStudent = new Map()
+    attendance.forEach((record) => {
+      const list = attendanceByStudent.get(record.studentId) || []
+      list.push(record)
+      attendanceByStudent.set(record.studentId, list)
+    })
+
+    const studentSummaries = students.map((student) => {
+      const records = attendanceByStudent.get(student.id) || []
+      const counts = records.reduce((acc, record) => {
+        acc.total += 1
+        acc[record.status] += 1
+        return acc
+      }, { total: 0, PRESENT: 0, ABSENT: 0, LATE: 0 })
+
+      return {
+        id: student.id,
+        name: student.user.name,
+        email: student.user.email,
+        rollNumber: student.rollNumber,
+        semester: student.semester,
+        section: student.section,
+        present: counts.PRESENT,
+        absent: counts.ABSENT,
+        late: counts.LATE,
+        totalRecords: counts.total,
+        monthlyAverage: counts.total > 0 ? ((counts.PRESENT / counts.total) * 100).toFixed(1) : '0.0'
+      }
+    })
+
+    res.json({
+      department: coordinator.department,
+      month,
+      monthLabel: formatMonthLabel(month),
+      semester: parseInt(semester, 10),
+      section: section || '',
+      totalStudents: students.length,
+      summary: buildAttendanceSummary(attendance),
+      students: studentSummaries,
+      records: attendance.map((record) => ({
+        id: record.id,
+        date: record.date,
+        status: record.status,
+        subject: record.subject,
+        student: {
+          id: record.student.id,
+          name: record.student.user.name,
+          email: record.student.user.email,
+          rollNumber: record.student.rollNumber,
+          section: record.student.section
+        }
+      }))
+    })
+  } catch (error) {
+    res.internalError(error)
+  }
+}
+
+const getMonthlyAttendanceReport = async (req, res) => {
+  try {
+    const { subjectId } = req.params
+    const { month } = req.query
+
+    const access = await getOwnedSubject(subjectId, req.user)
+    if (access.error) {
+      return res.status(access.error.status).json({ message: access.error.message })
+    }
+
+    const monthRange = getMonthRange(month)
+    if (!monthRange) {
+      return res.status(400).json({ message: 'Please provide a valid month in YYYY-MM format' })
+    }
+
+    const [students, attendance] = await Promise.all([
+      getSubjectStudents(access.subject),
+      prisma.attendance.findMany({
+        where: {
+          subjectId,
+          date: { gte: monthRange.start, lt: monthRange.end }
+        },
+        include: {
+          student: {
+            include: {
+              user: { select: { name: true, email: true } }
+            }
+          }
+        },
+        orderBy: [
+          { date: 'asc' },
+          { student: { rollNumber: 'asc' } }
+        ]
+      })
+    ])
+
+    const daysInMonth = new Date(monthRange.start.getFullYear(), monthRange.start.getMonth() + 1, 0).getDate()
+    const attendanceMap = new Map()
+    attendance.forEach((record) => {
+      const key = `${record.studentId}:${formatDisplayDate(record.date)}`
+      attendanceMap.set(key, record.status)
+    })
+
+    const studentReports = students.map((student) => {
+      const dailyStatuses = []
+      let present = 0
+      let absent = 0
+      let late = 0
+      let totalRecorded = 0
+
+      for (let day = 1; day <= daysInMonth; day += 1) {
+        const currentDate = new Date(monthRange.start)
+        currentDate.setDate(day)
+        const dateKey = formatDisplayDate(currentDate)
+        const status = attendanceMap.get(`${student.id}:${dateKey}`) || null
+
+        if (status) {
+          totalRecorded += 1
+          if (status === 'PRESENT') present += 1
+          if (status === 'ABSENT') absent += 1
+          if (status === 'LATE') late += 1
+        }
+
+        dailyStatuses.push({
+          day,
+          date: dateKey,
+          status
+        })
+      }
+
+      return {
+        id: student.id,
+        name: student.user.name,
+        email: student.user.email,
+        rollNumber: student.rollNumber,
+        semester: student.semester,
+        section: student.section,
+        department: student.department,
+        present,
+        absent,
+        late,
+        totalRecorded,
+        percentage: totalRecorded > 0 ? ((present / totalRecorded) * 100).toFixed(1) : '0.0',
+        dailyStatuses
+      }
+    })
+
+    res.json({
+      subject: access.subject,
+      month,
+      monthLabel: formatMonthLabel(month),
+      summary: buildAttendanceSummary(attendance),
+      totalStudents: students.length,
+      totalRecords: attendance.length,
+      days: Array.from({ length: daysInMonth }, (_, index) => ({
+        day: index + 1,
+        date: formatDisplayDate(new Date(monthRange.start.getFullYear(), monthRange.start.getMonth(), index + 1))
+      })),
+      students: studentReports
+    })
+  } catch (error) {
+    res.internalError(error)
+  }
+}
+
 const exportAttendanceBySubject = async (req, res) => {
   try {
     const { subjectId } = req.params
-    const { date, format = 'xlsx' } = req.query
+    const { date, month, format = 'xlsx' } = req.query
 
     const report = await getAttendanceExportPayload({
       subjectId,
       date,
+      month,
       user: req.user
     })
 
@@ -940,6 +1206,8 @@ module.exports = {
   markDailyAttendanceQR,
   markAttendanceManual,
   getAttendanceBySubject,
+  getCoordinatorDepartmentAttendanceReport,
+  getMonthlyAttendanceReport,
   exportAttendanceBySubject,
   getMyAttendance,
   getSubjectRoster

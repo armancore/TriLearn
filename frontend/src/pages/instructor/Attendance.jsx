@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import InstructorLayout from '../../layouts/InstructorLayout'
+import { useAuth } from '../../context/AuthContext'
 import api from '../../utils/api'
 import EmptyState from '../../components/EmptyState'
 import LoadingSkeleton from '../../components/LoadingSkeleton'
@@ -10,6 +11,7 @@ const DEFAULT_STATUS = 'PRESENT'
 const STATUSES = ['PRESENT', 'ABSENT', 'LATE']
 
 const getToday = () => new Date().toISOString().slice(0, 10)
+const getCurrentMonth = () => new Date().toISOString().slice(0, 7)
 
 const statusClasses = {
   PRESENT: 'bg-green-100 text-green-700 border-green-200',
@@ -18,9 +20,14 @@ const statusClasses = {
 }
 
 const Attendance = () => {
+  const { user } = useAuth()
+  const isCoordinator = user?.role === 'COORDINATOR'
   const [subjects, setSubjects] = useState([])
   const [selectedSubject, setSelectedSubject] = useState('')
   const [selectedDate, setSelectedDate] = useState(getToday())
+  const [selectedMonth, setSelectedMonth] = useState(getCurrentMonth())
+  const [selectedSemester, setSelectedSemester] = useState('1')
+  const [selectedSection, setSelectedSection] = useState('')
   const [qrCode, setQrCode] = useState(null)
   const [qrExpiry, setQrExpiry] = useState('')
   const [loading, setLoading] = useState(false)
@@ -30,6 +37,10 @@ const Attendance = () => {
   const [roster, setRoster] = useState([])
   const [attendance, setAttendance] = useState([])
   const [summary, setSummary] = useState({ total: 0, present: 0, absent: 0, late: 0 })
+  const [monthlyDays, setMonthlyDays] = useState([])
+  const [monthlyStudents, setMonthlyStudents] = useState([])
+  const [monthlyMeta, setMonthlyMeta] = useState({ monthLabel: '', totalStudents: 0, totalRecords: 0, department: '', semester: '', section: '' })
+  const [coordinatorRecords, setCoordinatorRecords] = useState([])
   const [search, setSearch] = useState('')
   const [exportingFormat, setExportingFormat] = useState('')
   const debouncedSearch = useDebouncedValue(search, 250)
@@ -39,15 +50,24 @@ const Attendance = () => {
   }, [])
 
   useEffect(() => {
+    if (isCoordinator) {
+      setSelectedSubject('')
+      fetchCoordinatorDepartmentReport()
+      return
+    }
+
     if (!selectedSubject) {
       setRoster([])
       setAttendance([])
+      setMonthlyDays([])
+      setMonthlyStudents([])
+      setMonthlyMeta({ monthLabel: '', totalStudents: 0, totalRecords: 0, department: '', semester: '', section: '' })
       setSummary({ total: 0, present: 0, absent: 0, late: 0 })
       return
     }
 
     fetchAttendanceWorkspace()
-  }, [selectedSubject, selectedDate])
+  }, [isCoordinator, selectedSubject, selectedDate, selectedMonth, selectedSemester, selectedSection])
 
   const fetchSubjects = async () => {
     try {
@@ -75,6 +95,68 @@ const Attendance = () => {
     } catch (fetchError) {
       logger.error(fetchError)
       setError(getFriendlyErrorMessage(fetchError, 'Unable to load attendance data.'))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const fetchMonthlyAttendanceReport = async () => {
+    try {
+      setLoading(true)
+      setError('')
+
+      const res = await api.get(`/attendance/subject/${selectedSubject}/monthly-report`, {
+        params: { month: selectedMonth }
+      })
+
+      setMonthlyDays(res.data.days)
+      setMonthlyStudents(res.data.students)
+      setMonthlyMeta({
+        monthLabel: res.data.monthLabel,
+        totalStudents: res.data.totalStudents,
+        totalRecords: res.data.totalRecords
+      })
+      setSummary(res.data.summary)
+      setRoster([])
+      setAttendance([])
+    } catch (fetchError) {
+      logger.error(fetchError)
+      setError(getFriendlyErrorMessage(fetchError, 'Unable to load the monthly attendance report.'))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const fetchCoordinatorDepartmentReport = async () => {
+    try {
+      setLoading(true)
+      setError('')
+
+      const res = await api.get('/attendance/coordinator/department-report', {
+        params: {
+          month: selectedMonth,
+          semester: selectedSemester,
+          section: selectedSection || undefined
+        }
+      })
+
+      setMonthlyStudents(res.data.students)
+      setCoordinatorRecords(res.data.records)
+      setMonthlyMeta({
+        monthLabel: res.data.monthLabel,
+        totalStudents: res.data.totalStudents,
+        totalRecords: res.data.records.length,
+        department: res.data.department,
+        semester: String(res.data.semester),
+        section: res.data.section
+      })
+      setSummary(res.data.summary)
+      setMonthlyDays([])
+      setRoster([])
+      setAttendance([])
+    } catch (fetchError) {
+      logger.error(fetchError)
+      setError(getFriendlyErrorMessage(fetchError, 'Unable to load the department attendance report.'))
     } finally {
       setLoading(false)
     }
@@ -148,17 +230,32 @@ const Attendance = () => {
 
   const exportAttendanceReport = async (format) => {
     if (!selectedSubject) {
-      setError('Please select a subject first')
-      return
+      if (!isCoordinator) {
+        setError('Please select a subject first')
+        return
+      }
     }
 
     try {
       setExportingFormat(format)
       setError('')
-      const response = await api.get(`/attendance/subject/${selectedSubject}/export`, {
-        params: { date: selectedDate, format },
-        responseType: 'blob'
-      })
+      const response = isCoordinator
+        ? await api.get('/attendance/coordinator/department-report', {
+            params: {
+              month: selectedMonth,
+              semester: selectedSemester,
+              section: selectedSection || undefined
+            }
+          }).then((res) => res)
+        : await api.get(`/attendance/subject/${selectedSubject}/export`, {
+            params: { date: selectedDate, format },
+            responseType: 'blob'
+          })
+
+      if (isCoordinator) {
+        setError('Department report export is not wired yet. The on-screen report is ready, and I can add Excel/PDF export next.')
+        return
+      }
 
       const contentDisposition = response.headers['content-disposition'] || ''
       const matchedName = contentDisposition.match(/filename="?(.*?)"?$/i)
@@ -191,66 +288,138 @@ const Attendance = () => {
     ].some((value) => value.toLowerCase().includes(keyword))
   })
 
+  const filteredMonthlyStudents = monthlyStudents.filter((student) => {
+    const keyword = debouncedSearch.trim().toLowerCase()
+    if (!keyword) return true
+
+    return [
+      student.name,
+      student.rollNumber,
+      student.email,
+      student.section || '',
+      student.department || ''
+    ].some((value) => value.toLowerCase().includes(keyword))
+  })
+
+  const filteredCoordinatorRecords = coordinatorRecords.filter((record) => {
+    const keyword = debouncedSearch.trim().toLowerCase()
+    if (!keyword) return true
+
+    return [
+      record.student.name,
+      record.student.rollNumber,
+      record.student.email,
+      record.subject.name,
+      record.subject.code,
+      record.student.section || ''
+    ].some((value) => value.toLowerCase().includes(keyword))
+  })
+
   return (
     <InstructorLayout>
       <div className="p-8">
         <div className="mb-8">
           <h1 className="text-2xl font-bold text-gray-800">Attendance</h1>
-          <p className="text-gray-500 text-sm mt-1">Manage daily attendance with a proper subject roster, QR access, and date-wise records.</p>
+          <p className="text-gray-500 text-sm mt-1">
+            {isCoordinator
+              ? 'Review department attendance by semester and section with monthly averages and a full record list.'
+              : 'Manage daily attendance with a proper subject roster, QR access, and date-wise records.'}
+          </p>
         </div>
 
         {success && <div className="bg-green-50 text-green-600 px-4 py-3 rounded-lg mb-4 text-sm">{success}</div>}
         {error && <div className="bg-red-50 text-red-600 px-4 py-3 rounded-lg mb-4 text-sm">{error}</div>}
 
         <div className="bg-white rounded-2xl shadow-sm p-6 mb-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <label className="block text-sm text-gray-600 mb-2">Subject</label>
-              <select
-                value={selectedSubject}
-                onChange={(e) => {
-                  setSelectedSubject(e.target.value)
-                  setQrCode(null)
-                  setError('')
-                }}
-                className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-              >
-                <option value="">Select Subject</option>
-                {subjects.map((subject) => (
-                  <option key={subject.id} value={subject.id}>
-                    {subject.name} - {subject.code}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm text-gray-600 mb-2">Attendance Date</label>
-              <input
-                type="date"
-                value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-              />
-            </div>
+          <div className={`grid grid-cols-1 gap-4 ${isCoordinator ? 'md:grid-cols-4' : 'md:grid-cols-3'}`}>
+            {isCoordinator ? (
+              <>
+                <div>
+                  <label className="block text-sm text-gray-600 mb-2">Semester</label>
+                  <select
+                    value={selectedSemester}
+                    onChange={(e) => setSelectedSemester(e.target.value)}
+                    className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                  >
+                    {Array.from({ length: 8 }, (_, index) => (
+                      <option key={index + 1} value={String(index + 1)}>
+                        Semester {index + 1}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-600 mb-2">Section</label>
+                  <input
+                    type="text"
+                    value={selectedSection}
+                    onChange={(e) => setSelectedSection(e.target.value.toUpperCase())}
+                    placeholder="All sections or A/B/C"
+                    className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                  />
+                </div>
+              </>
+            ) : (
+              <div>
+                <label className="block text-sm text-gray-600 mb-2">Subject</label>
+                <select
+                  value={selectedSubject}
+                  onChange={(e) => {
+                    setSelectedSubject(e.target.value)
+                    setQrCode(null)
+                    setError('')
+                  }}
+                  className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                >
+                  <option value="">Select Subject</option>
+                  {subjects.map((subject) => (
+                    <option key={subject.id} value={subject.id}>
+                      {subject.name} - {subject.code}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+            {isCoordinator ? (
+              <div>
+                <label className="block text-sm text-gray-600 mb-2">Report Month</label>
+                <input
+                  type="month"
+                  value={selectedMonth}
+                  onChange={(e) => setSelectedMonth(e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                />
+              </div>
+            ) : (
+              <div>
+                <label className="block text-sm text-gray-600 mb-2">Attendance Date</label>
+                <input
+                  type="date"
+                  value={selectedDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                />
+              </div>
+            )}
             <div className="flex items-end">
               <button
                 type="button"
-                onClick={fetchAttendanceWorkspace}
-                disabled={!selectedSubject}
+                onClick={isCoordinator ? fetchCoordinatorDepartmentReport : fetchAttendanceWorkspace}
+                disabled={isCoordinator ? !selectedSemester : !selectedSubject}
                 className="w-full bg-gray-900 text-white py-2.5 rounded-lg hover:bg-black transition text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Refresh Attendance
+                {isCoordinator ? 'Load Department Report' : 'Refresh Attendance'}
               </button>
             </div>
           </div>
         </div>
 
-        {selectedSubject && (
+        {(isCoordinator || selectedSubject) && (
           <>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
               <div className="bg-white rounded-2xl shadow-sm p-5">
                 <p className="text-sm text-gray-500">Students</p>
-                <p className="text-2xl font-bold text-gray-800 mt-1">{roster.length}</p>
+                <p className="text-2xl font-bold text-gray-800 mt-1">{isCoordinator ? monthlyMeta.totalStudents : roster.length}</p>
               </div>
               <div className="bg-white rounded-2xl shadow-sm p-5">
                 <p className="text-sm text-gray-500">Present</p>
@@ -261,11 +430,12 @@ const Attendance = () => {
                 <p className="text-2xl font-bold text-red-600 mt-1">{summary.absent}</p>
               </div>
               <div className="bg-white rounded-2xl shadow-sm p-5">
-                <p className="text-sm text-gray-500">Late</p>
-                <p className="text-2xl font-bold text-orange-500 mt-1">{summary.late}</p>
+                <p className="text-sm text-gray-500">{isCoordinator ? 'Recorded Entries' : 'Late'}</p>
+                <p className="text-2xl font-bold text-orange-500 mt-1">{isCoordinator ? monthlyMeta.totalRecords : summary.late}</p>
               </div>
             </div>
 
+            {!isCoordinator && (
             <div className="grid grid-cols-1 xl:grid-cols-[360px_minmax(0,1fr)] gap-6 mb-6">
               <div className="bg-white rounded-2xl shadow-sm p-6">
                 <h2 className="text-lg font-semibold text-gray-800 mb-3">QR Attendance</h2>
@@ -384,16 +554,112 @@ const Attendance = () => {
                 )}
               </div>
             </div>
+            )}
 
             <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
               <div className="p-6 border-b">
-                <h2 className="text-lg font-semibold text-gray-800">Saved Records</h2>
-                <p className="text-sm text-gray-500 mt-1">Showing records for {selectedDate}.</p>
+                <h2 className="text-lg font-semibold text-gray-800">{isCoordinator ? 'Monthly Attendance Report' : 'Saved Records'}</h2>
+                <p className="text-sm text-gray-500 mt-1">
+                  {isCoordinator
+                    ? `Showing ${monthlyMeta.department || 'department'} attendance for semester ${monthlyMeta.semester || selectedSemester}${monthlyMeta.section ? `, section ${monthlyMeta.section}` : ''} in ${monthlyMeta.monthLabel || selectedMonth}.`
+                    : `Showing records for ${selectedDate}.`}
+                </p>
               </div>
               {loading ? (
                 <div className="p-6">
                   <LoadingSkeleton rows={4} itemClassName="h-14" />
                 </div>
+              ) : isCoordinator ? (
+                filteredMonthlyStudents.length === 0 ? (
+                  <div className="p-6">
+                    <EmptyState
+                      icon="📅"
+                      title="No monthly records found"
+                      description="Select a subject and month with recorded attendance to review the full student report."
+                    />
+                  </div>
+                ) : (
+                  <div className="p-6">
+                    <div className="flex flex-col md:flex-row gap-3 mb-4">
+                      <input
+                        type="text"
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        placeholder="Search by name, roll number, email, section..."
+                        className="flex-1 border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                      />
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full min-w-[980px]">
+                        <thead className="bg-gray-50">
+                          <tr className="text-left text-sm text-gray-500">
+                            <th className="px-4 py-3">Student</th>
+                            <th className="px-4 py-3">Roll</th>
+                            <th className="px-4 py-3">Section</th>
+                            <th className="px-4 py-3">Present</th>
+                            <th className="px-4 py-3">Absent</th>
+                            <th className="px-4 py-3">Late</th>
+                            <th className="px-4 py-3">Monthly Average</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {filteredMonthlyStudents.map((student) => (
+                            <tr key={student.id} className="border-t hover:bg-gray-50">
+                              <td className="px-4 py-4">
+                                <p className="font-medium text-gray-800">{student.name}</p>
+                                <p className="text-xs text-gray-500 mt-1">{student.email}</p>
+                              </td>
+                              <td className="px-4 py-4 text-sm text-gray-600">{student.rollNumber}</td>
+                              <td className="px-4 py-4 text-sm text-gray-600">{student.section || '-'}</td>
+                              <td className="px-4 py-4 text-sm font-semibold text-green-600">{student.present}</td>
+                              <td className="px-4 py-4 text-sm font-semibold text-red-600">{student.absent}</td>
+                              <td className="px-4 py-4 text-sm font-semibold text-orange-500">{student.late}</td>
+                              <td className="px-4 py-4 text-sm font-semibold text-gray-800">{student.monthlyAverage}%</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    <div className="mt-6 border-t pt-6">
+                      <h3 className="text-base font-semibold text-gray-800">Attendance Record List</h3>
+                      <p className="text-sm text-gray-500 mt-1">Detailed monthly entries for every student in the selected department group.</p>
+                      <div className="overflow-x-auto mt-4">
+                        <table className="w-full min-w-[980px]">
+                          <thead className="bg-gray-50">
+                            <tr className="text-left text-sm text-gray-500">
+                              <th className="px-4 py-3">Student</th>
+                              <th className="px-4 py-3">Roll</th>
+                              <th className="px-4 py-3">Subject</th>
+                              <th className="px-4 py-3">Date</th>
+                              <th className="px-4 py-3">Status</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {filteredCoordinatorRecords.map((record) => (
+                              <tr key={record.id} className="border-t hover:bg-gray-50">
+                                <td className="px-4 py-4">
+                                  <p className="font-medium text-gray-800">{record.student.name}</p>
+                                  <p className="text-xs text-gray-500 mt-1">{record.student.email}</p>
+                                </td>
+                                <td className="px-4 py-4 text-sm text-gray-600">{record.student.rollNumber}</td>
+                                <td className="px-4 py-4 text-sm text-gray-600">
+                                  {record.subject.name}
+                                  <span className="text-xs text-gray-400 ml-2">{record.subject.code}</span>
+                                </td>
+                                <td className="px-4 py-4 text-sm text-gray-600">{new Date(record.date).toLocaleDateString()}</td>
+                                <td className="px-4 py-4">
+                                  <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${statusClasses[record.status]}`}>
+                                    {record.status}
+                                  </span>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                )
               ) : attendance.length === 0 ? (
                 <div className="p-6">
                   <EmptyState

@@ -253,10 +253,24 @@ const schemas = {
     generateQr: { body: z.object({ subjectId: z.string().uuid() }) },
     manual: { body: attendanceManualBody },
     scanQr: { body: qrBody },
+    monthlyReport: {
+      params: z.object({ subjectId: z.string().uuid() }),
+      query: z.object({
+        month: z.string().regex(/^\d{4}-\d{2}$/, 'Month must be in YYYY-MM format')
+      })
+    },
+    coordinatorReport: {
+      query: z.object({
+        month: z.string().regex(/^\d{4}-\d{2}$/, 'Month must be in YYYY-MM format'),
+        semester: z.coerce.number().int().min(1).max(12),
+        section: optionalString(20)
+      })
+    },
     export: {
       params: z.object({ subjectId: z.string().uuid() }),
       query: z.object({
         date: optionalString(50),
+        month: z.string().regex(/^\d{4}-\d{2}$/, 'Month must be in YYYY-MM format').optional(),
         format: exportFormatEnum.optional()
       })
     },
