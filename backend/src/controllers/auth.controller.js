@@ -315,24 +315,15 @@ const forgotPassword = async (req, res) => {
       }
     })
 
-    const resetPayload = {
-      message: 'If the account exists, password reset instructions have been prepared.'
-    }
-
-    if (process.env.NODE_ENV !== 'production') {
-      resetPayload.resetToken = resetToken
-      resetPayload.resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-password?token=${resetToken}`
-    }
-
     logger.info('Password reset requested', {
       userId: user.id,
       email: user.email,
-      resetPreview: process.env.NODE_ENV !== 'production'
-        ? resetPayload.resetUrl
-        : 'hidden'
+      deliveryStatus: 'pending_email_integration'
     })
 
-    res.json(resetPayload)
+    res.json({
+      message: 'If the account exists, a password reset email will be sent when email delivery is configured.'
+    })
   } catch (error) {
     res.internalError(error)
   }

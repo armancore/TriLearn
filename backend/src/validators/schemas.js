@@ -206,6 +206,7 @@ const schemas = {
     createStudent: {
       body: z.object({
         name: z.string().trim().min(2).max(100),
+        email: z.string().trim().email(),
         studentId: z.string().trim().min(3).max(50),
         phone: optionalString(30),
         address: optionalString(255),

@@ -7,9 +7,6 @@ const { ensureDepartmentExists } = require('./department.controller')
 const { recordAuditLog } = require('../utils/audit')
 
 const DEFAULT_STUDENT_PASSWORD = process.env.DEFAULT_STUDENT_PASSWORD || 'password'
-const STUDENT_EMAIL_DOMAIN = process.env.STUDENT_EMAIL_DOMAIN || 'student.edunexus.local'
-
-const buildStudentEmail = (studentId) => `${studentId.trim().toLowerCase()}@${STUDENT_EMAIL_DOMAIN}`
 
 // ================================
 // GET ALL USERS
@@ -274,13 +271,13 @@ const createInstructor = async (req, res) => {
 // ================================
 const createStudent = async (req, res) => {
   try {
-    const { name, studentId, phone, address, semester, section, department } = req.body
+    const { name, email, studentId, phone, address, semester, section, department } = req.body
     const normalizedDepartment = department?.trim() || null
     const normalizedStudentId = studentId.trim().toUpperCase()
-    const generatedEmail = buildStudentEmail(normalizedStudentId)
+    const normalizedEmail = email.trim().toLowerCase()
 
     const [existingUser, existingStudent] = await Promise.all([
-      prisma.user.findUnique({ where: { email: generatedEmail } }),
+      prisma.user.findUnique({ where: { email: normalizedEmail } }),
       prisma.student.findUnique({ where: { rollNumber: normalizedStudentId } })
     ])
     if (existingUser) {
@@ -303,7 +300,7 @@ const createStudent = async (req, res) => {
     const user = await prisma.user.create({
       data: {
         name,
-        email: generatedEmail,
+        email: normalizedEmail,
         password: hashedPassword,
         role: 'STUDENT',
         phone,

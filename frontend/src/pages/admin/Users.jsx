@@ -45,6 +45,8 @@ const Users = () => {
 
     if (!values.name.trim()) validationErrors.name = 'Name is required'
     if (modalType === 'student') {
+      if (!values.email.trim()) validationErrors.email = 'Personal email is required'
+      else if (!/\S+@\S+\.\S+/.test(values.email)) validationErrors.email = 'Enter a valid personal email address'
       if (!values.studentId.trim()) validationErrors.studentId = 'Student ID is required'
     } else {
       if (!values.email.trim()) validationErrors.email = 'Email is required'
@@ -130,6 +132,7 @@ const Users = () => {
       const payload = modalType === 'student'
         ? {
             name: values.name,
+            email: values.email,
             studentId: values.studentId,
             phone: values.phone,
             address: '',
@@ -379,6 +382,16 @@ const Users = () => {
               {modalType === 'student' ? (
                 <>
                   <input
+                    name="email"
+                    type="email"
+                    placeholder="Student Personal Email"
+                    required
+                    value={values.email}
+                    onChange={handleChange}
+                    className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  {errors.email && <p className="text-xs text-red-600 -mt-2">{errors.email}</p>}
+                  <input
                     name="studentId"
                     type="text"
                     placeholder="Student ID / Roll Number"
@@ -389,7 +402,7 @@ const Users = () => {
                   />
                   {errors.studentId && <p className="text-xs text-red-600 -mt-2">{errors.studentId}</p>}
                   <div className="rounded-lg bg-blue-50 px-4 py-3 text-sm text-blue-700">
-                    The student will sign in using the generated student email and will be forced to change the default password on first login.
+                    The student will sign in using their personal email address and will be forced to change the default password on first login.
                   </div>
                 </>
               ) : (

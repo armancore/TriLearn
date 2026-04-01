@@ -9,7 +9,6 @@ const ForgotPassword = () => {
   const navigate = useNavigate()
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
-  const [devResetUrl, setDevResetUrl] = useState('')
   const [loading, setLoading] = useState(false)
   const { values, errors, handleChange, handleSubmit } = useForm({ email: '' }, (formValues) => {
     const validationErrors = {}
@@ -22,12 +21,8 @@ const ForgotPassword = () => {
       setLoading(true)
       setError('')
       setSuccess('')
-      setDevResetUrl('')
       const res = await api.post('/auth/forgot-password', values)
       setSuccess(res.data.message)
-      if (res.data.resetUrl) {
-        setDevResetUrl(res.data.resetUrl)
-      }
     } catch (requestError) {
       setError(getFriendlyErrorMessage(requestError, 'Unable to start password reset.'))
     } finally {
@@ -39,12 +34,9 @@ const ForgotPassword = () => {
     <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
       <div className="bg-white p-8 rounded-2xl shadow-md w-full max-w-md">
         <h1 className="text-2xl font-bold text-gray-800 mb-2">Forgot Password</h1>
-        <p className="text-sm text-gray-500 mb-6">Enter your email and we&apos;ll prepare a reset link.</p>
+        <p className="text-sm text-gray-500 mb-6">Enter your personal email address. Password reset emails will work once mail delivery is connected.</p>
         <Alert type="success" message={success} />
         <Alert type="error" message={error} />
-        {devResetUrl ? (
-          <Alert type="info" message={`Development reset link: ${devResetUrl}`} />
-        ) : null}
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <input
             name="email"
