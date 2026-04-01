@@ -4,12 +4,16 @@ import StudentLayout from '../../layouts/StudentLayout'
 import api from '../../utils/api'
 import Alert from '../../components/Alert'
 import LoadingSpinner from '../../components/LoadingSpinner'
+import Pagination from '../../components/Pagination'
 import StatusBadge from '../../components/StatusBadge'
 import logger from '../../utils/logger'
 const StudentAttendance = () => {
   const location = useLocation()
   const [attendance, setAttendance] = useState([])
   const [summary, setSummary] = useState([])
+  const [page, setPage] = useState(1)
+  const [limit] = useState(10)
+  const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
@@ -25,7 +29,7 @@ const StudentAttendance = () => {
 
   useEffect(() => {
     fetchAttendance()
-  }, [])
+  }, [page])
 
   useEffect(() => {
     setScannerSupported(
@@ -51,9 +55,10 @@ const StudentAttendance = () => {
   const fetchAttendance = async () => {
     try {
       setError('')
-      const res = await api.get('/attendance/my')
+      const res = await api.get(`/attendance/my?page=${page}&limit=${limit}`)
       setAttendance(res.data.attendance)
       setSummary(res.data.summary)
+      setTotal(res.data.total)
     } catch (fetchError) {
       logger.error(fetchError)
       setError(fetchError.response?.data?.message || 'Unable to load attendance')
@@ -151,7 +156,7 @@ const StudentAttendance = () => {
           <h1 className="text-2xl font-bold text-gray-800">{location.pathname === '/student/scan' ? 'Scan Gate QR' : 'My Attendance'}</h1>
           <p className="text-gray-500 text-sm mt-1">
             {location.pathname === '/student/scan'
-              ? 'Your camera opens here for mobile phones and laptops so you can scan the gate QR quickly.'
+              ? 'Use your phone camera here to scan the gate QR quickly when you arrive at college.'
               : 'Track your attendance and scan the daily entry QR from your phone.'}
           </p>
         </div>
@@ -266,7 +271,8 @@ const StudentAttendance = () => {
                 <div className="p-6 border-b">
                   <h2 className="text-lg font-semibold text-gray-800">Detailed Records</h2>
                 </div>
-                <table className="w-full">
+                <div className="overflow-x-auto">
+                <table className="w-full min-w-[640px]">
                   <thead className="bg-gray-50">
                     <tr className="text-left text-sm text-gray-500">
                       <th className="px-6 py-4">Subject</th>
@@ -291,6 +297,8 @@ const StudentAttendance = () => {
                     ))}
                   </tbody>
                 </table>
+                </div>
+                <Pagination page={page} total={total} limit={limit} onPageChange={setPage} />
               </div>
             )}
           </>

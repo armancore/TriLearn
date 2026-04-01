@@ -1,19 +1,24 @@
 import { useState, useEffect } from 'react'
 import StudentLayout from '../../layouts/StudentLayout'
 import api from '../../utils/api'
+import Pagination from '../../components/Pagination'
 import logger from '../../utils/logger'
 const StudentMarks = () => {
   const [marks, setMarks] = useState([])
   const [summary, setSummary] = useState([])
+  const [page, setPage] = useState(1)
+  const [limit] = useState(10)
+  const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => { fetchMarks() }, [])
+  useEffect(() => { fetchMarks() }, [page])
 
   const fetchMarks = async () => {
     try {
-      const res = await api.get('/marks/my')
+      const res = await api.get(`/marks/my?page=${page}&limit=${limit}`)
       setMarks(res.data.marks)
       setSummary(res.data.summary)
+      setTotal(res.data.total)
     } catch (error) {
       logger.error(error)
     } finally {
@@ -83,7 +88,8 @@ const StudentMarks = () => {
                 <div className="p-6 border-b">
                   <h2 className="text-lg font-semibold text-gray-800">All Results</h2>
                 </div>
-                <table className="w-full">
+                <div className="overflow-x-auto">
+                <table className="w-full min-w-[760px]">
                   <thead className="bg-gray-50">
                     <tr className="text-left text-sm text-gray-500">
                       <th className="px-6 py-4">Subject</th>
@@ -121,6 +127,8 @@ const StudentMarks = () => {
                     ))}
                   </tbody>
                 </table>
+                </div>
+                <Pagination page={page} total={total} limit={limit} onPageChange={setPage} />
               </div>
             )}
           </>

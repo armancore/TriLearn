@@ -1,6 +1,7 @@
 const prisma = require('../utils/prisma')
 const logger = require('../utils/logger')
 const { getPagination } = require('../utils/pagination')
+const { recordAuditLog } = require('../utils/audit')
 
 const getInstructorProfile = (userId) => prisma.instructor.findUnique({
   where: { userId }
@@ -94,6 +95,19 @@ const addMarks = async (req, res) => {
 
     res.status(201).json({ message: 'Marks added successfully!', mark })
 
+    await recordAuditLog({
+      actorId: req.user.id,
+      actorRole: req.user.role,
+      action: 'MARK_CREATED',
+      entityType: 'Mark',
+      entityId: mark.id,
+      metadata: {
+        subjectId,
+        studentId,
+        examType
+      }
+    })
+
   } catch (error) {
     res.internalError(error)
   }
@@ -118,6 +132,17 @@ const updateMarks = async (req, res) => {
     })
 
     res.json({ message: 'Marks updated successfully!', mark: updated })
+
+    await recordAuditLog({
+      actorId: req.user.id,
+      actorRole: req.user.role,
+      action: 'MARK_UPDATED',
+      entityType: 'Mark',
+      entityId: updated.id,
+      metadata: {
+        obtainedMarks: updated.obtainedMarks
+      }
+    })
 
   } catch (error) {
     res.internalError(error)
@@ -285,6 +310,19 @@ const deleteMarks = async (req, res) => {
     await prisma.mark.delete({ where: { id } })
 
     res.json({ message: 'Mark deleted successfully!' })
+
+    await recordAuditLog({
+      actorId: req.user.id,
+      actorRole: req.user.role,
+      action: 'MARK_DELETED',
+      entityType: 'Mark',
+      entityId: id,
+      metadata: {
+        studentId: mark.studentId,
+        subjectId: mark.subjectId,
+        examType: mark.examType
+      }
+    })
 
   } catch (error) {
     res.internalError(error)

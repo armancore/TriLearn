@@ -99,7 +99,7 @@ const StudentDashboard = () => {
             <div>
               <h2 className="text-xl font-bold">Scan Gate QR</h2>
               <p className="text-sm text-purple-100 mt-1">
-                Open your camera directly from here on mobile phones or laptops to mark today&apos;s attendance.
+                Open your phone camera from here to scan the college gate QR and mark today&apos;s attendance quickly.
               </p>
             </div>
             <div className="text-5xl">📷</div>

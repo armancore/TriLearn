@@ -4,6 +4,7 @@ const { enrollStudentInMatchingSubjects } = require('../utils/enrollment')
 const { getPagination } = require('../utils/pagination')
 const logger = require('../utils/logger')
 const { ensureDepartmentExists } = require('./department.controller')
+const { recordAuditLog } = require('../utils/audit')
 
 // ================================
 // GET ALL USERS
@@ -116,6 +117,15 @@ const createGatekeeper = async (req, res) => {
         role: user.role
       }
     })
+
+    await recordAuditLog({
+      actorId: req.user.id,
+      actorRole: req.user.role,
+      action: 'USER_CREATED',
+      entityType: 'User',
+      entityId: user.id,
+      metadata: { role: user.role }
+    })
   } catch (error) {
     res.internalError(error)
   }
@@ -164,6 +174,18 @@ const createInstructor = async (req, res) => {
         id: user.id,
         name: user.name,
         email: user.email,
+        role: user.role,
+        department: user.instructor.department
+      }
+    })
+
+    await recordAuditLog({
+      actorId: req.user.id,
+      actorRole: req.user.role,
+      action: 'USER_CREATED',
+      entityType: 'User',
+      entityId: user.id,
+      metadata: {
         role: user.role,
         department: user.instructor.department
       }
@@ -235,6 +257,20 @@ const createStudent = async (req, res) => {
       }
     })
 
+    await recordAuditLog({
+      actorId: req.user.id,
+      actorRole: req.user.role,
+      action: 'USER_CREATED',
+      entityType: 'User',
+      entityId: user.id,
+      metadata: {
+        role: user.role,
+        department: user.student.department,
+        semester: user.student.semester,
+        section: user.student.section
+      }
+    })
+
   } catch (error) {
     res.internalError(error)
   }
@@ -288,6 +324,20 @@ const updateUser = async (req, res) => {
 
     res.json({ message: 'User updated successfully!', user: updatedUser })
 
+    await recordAuditLog({
+      actorId: req.user.id,
+      actorRole: req.user.role,
+      action: 'USER_UPDATED',
+      entityType: 'User',
+      entityId: id,
+      metadata: {
+        role: user.role,
+        department: normalizedDepartment,
+        semester,
+        section
+      }
+    })
+
   } catch (error) {
     res.internalError(error)
   }
@@ -317,6 +367,17 @@ const toggleUserStatus = async (req, res) => {
     res.json({
       message: `User ${updatedUser.isActive ? 'enabled' : 'disabled'} successfully!`,
       isActive: updatedUser.isActive
+    })
+
+    await recordAuditLog({
+      actorId: req.user.id,
+      actorRole: req.user.role,
+      action: updatedUser.isActive ? 'USER_ENABLED' : 'USER_DISABLED',
+      entityType: 'User',
+      entityId: id,
+      metadata: {
+        role: user.role
+      }
     })
 
   } catch (error) {
@@ -352,6 +413,18 @@ const deleteUser = async (req, res) => {
     await prisma.user.delete({ where: { id } })
 
     res.json({ message: 'User deleted successfully!' })
+
+    await recordAuditLog({
+      actorId: req.user.id,
+      actorRole: req.user.role,
+      action: 'USER_DELETED',
+      entityType: 'User',
+      entityId: id,
+      metadata: {
+        role: user.role,
+        email: user.email
+      }
+    })
 
   } catch (error) {
     res.internalError(error)

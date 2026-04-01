@@ -2,6 +2,7 @@ const prisma = require('../utils/prisma')
 const QRCode = require('qrcode')
 const logger = require('../utils/logger')
 const { getPagination } = require('../utils/pagination')
+const { recordAuditLog } = require('../utils/audit')
 
 const ATTENDANCE_STATUSES = ['PRESENT', 'ABSENT', 'LATE']
 const QR_VALIDITY_MINUTES = 15
@@ -297,6 +298,18 @@ const markAttendanceQR = async (req, res) => {
       }
     })
 
+    await recordAuditLog({
+      actorId: req.user.id,
+      actorRole: req.user.role,
+      action: 'ATTENDANCE_MARKED_BY_QR',
+      entityType: 'Attendance',
+      entityId: attendance.id,
+      metadata: {
+        subjectId,
+        attendanceDate: todayRange.start
+      }
+    })
+
   } catch (error) {
     res.internalError(error)
   }
@@ -377,6 +390,19 @@ const markAttendanceManual = async (req, res) => {
       total: records.length,
       records,
       date: dayRange.start
+    })
+
+    await recordAuditLog({
+      actorId: req.user.id,
+      actorRole: req.user.role,
+      action: 'ATTENDANCE_MARKED_MANUALLY',
+      entityType: 'Attendance',
+      entityId: subjectId,
+      metadata: {
+        subjectId,
+        attendanceDate: dayRange.start,
+        totalRecords: records.length
+      }
     })
 
   } catch (error) {
@@ -674,6 +700,18 @@ const markDailyAttendanceQR = async (req, res) => {
       date: gateWindow.dayRange.start,
       cutoffAt: gateWindow.cutoffAt
     })
+
+    await recordAuditLog({
+      actorId: req.user.id,
+      actorRole: req.user.role,
+      action: 'DAILY_GATE_ATTENDANCE_MARKED',
+      entityType: 'Attendance',
+      metadata: {
+        date: gateWindow.dayRange.start,
+        markedSubjectIds: routinesToMark,
+        skippedSubjectIds: skippedSubjects.map((subject) => subject.id)
+      }
+    })
   } catch (error) {
     res.internalError(error)
   }
@@ -712,6 +750,18 @@ const generateDailyAttendanceQR = async (req, res) => {
       dayOfWeek: gateWindow.dayOfWeek,
       firstClassStart: gateWindow.firstRoutine.startTime,
       cutoffAt: gateWindow.cutoffAt
+    })
+
+    await recordAuditLog({
+      actorId: req.user.id,
+      actorRole: req.user.role,
+      action: 'DAILY_GATE_QR_GENERATED',
+      entityType: 'Attendance',
+      metadata: {
+        dayOfWeek: gateWindow.dayOfWeek,
+        firstClassStart: gateWindow.firstRoutine.startTime,
+        cutoffAt: gateWindow.cutoffAt
+      }
     })
   } catch (error) {
     res.internalError(error)

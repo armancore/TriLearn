@@ -29,6 +29,7 @@ model User {
   admin      Admin?
   notices    Notice[]
   refreshTokens RefreshToken[]
+  auditLogs  AuditLog[]
 
   @@index([role])
   @@index([isActive])
@@ -308,6 +309,23 @@ model Department {
   description String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  actorId    String?
+  actorRole  Role?
+  action     String
+  entityType String
+  entityId   String?
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  actor User? @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([actorId])
+  @@index([entityType, entityId])
+  @@index([createdAt])
 }
 
 model RefreshToken {

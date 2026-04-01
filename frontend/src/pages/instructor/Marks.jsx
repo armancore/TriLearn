@@ -4,6 +4,7 @@ import api from '../../utils/api'
 import Alert from '../../components/Alert'
 import LoadingSpinner from '../../components/LoadingSpinner'
 import Modal from '../../components/Modal'
+import Pagination from '../../components/Pagination'
 import StatusBadge from '../../components/StatusBadge'
 import logger from '../../utils/logger'
 const Marks = () => {
@@ -11,6 +12,9 @@ const Marks = () => {
   const [marks, setMarks] = useState([])
   const [students, setStudents] = useState([])
   const [selectedSubject, setSelectedSubject] = useState('')
+  const [page, setPage] = useState(1)
+  const [limit] = useState(10)
+  const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(false)
   const [showModal, setShowModal] = useState(false)
   const [form, setForm] = useState({
@@ -28,7 +32,7 @@ const Marks = () => {
     if (selectedSubject) {
       fetchMarks()
     }
-  }, [selectedSubject])
+  }, [selectedSubject, page])
 
   useEffect(() => {
     if (!showModal) return
@@ -68,8 +72,9 @@ const Marks = () => {
   const fetchMarks = async () => {
     try {
       setLoading(true)
-      const res = await api.get(`/marks/subject/${selectedSubject}`)
+      const res = await api.get(`/marks/subject/${selectedSubject}?page=${page}&limit=${limit}`)
       setMarks(res.data.marks)
+      setTotal(res.data.total)
     } catch (error) {
       logger.error(error)
     } finally {
@@ -127,7 +132,10 @@ const Marks = () => {
         <div className="bg-white rounded-2xl shadow-sm p-4 mb-6">
           <select
             value={selectedSubject}
-            onChange={(e) => setSelectedSubject(e.target.value)}
+            onChange={(e) => {
+              setSelectedSubject(e.target.value)
+              setPage(1)
+            }}
             className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
           >
             <option value="">Select a subject to view marks</option>
@@ -143,7 +151,9 @@ const Marks = () => {
             {loading ? (
               <LoadingSpinner text="Loading marks..." />
             ) : (
-              <table className="w-full">
+              <>
+              <div className="overflow-x-auto">
+              <table className="w-full min-w-[760px]">
                 <thead className="bg-gray-50">
                   <tr className="text-left text-sm text-gray-500">
                     <th className="px-6 py-4">Student</th>
@@ -185,6 +195,9 @@ const Marks = () => {
                   )}
                 </tbody>
               </table>
+              </div>
+              <Pagination page={page} total={total} limit={limit} onPageChange={setPage} />
+              </>
             )}
           </div>
         )}

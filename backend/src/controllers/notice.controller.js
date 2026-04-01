@@ -1,6 +1,7 @@
 const prisma = require('../utils/prisma')
 const { getPagination } = require('../utils/pagination')
 const logger = require('../utils/logger')
+const { recordAuditLog } = require('../utils/audit')
 
 // ================================
 // CREATE NOTICE (Admin/Instructor)
@@ -24,6 +25,15 @@ const createNotice = async (req, res) => {
     res.status(201).json({
       message: 'Notice created successfully!',
       notice
+    })
+
+    await recordAuditLog({
+      actorId: req.user.id,
+      actorRole: req.user.role,
+      action: 'NOTICE_CREATED',
+      entityType: 'Notice',
+      entityId: notice.id,
+      metadata: { type: notice.type }
     })
 
   } catch (error) {
@@ -112,6 +122,15 @@ const updateNotice = async (req, res) => {
 
     res.json({ message: 'Notice updated successfully!', notice: updated })
 
+    await recordAuditLog({
+      actorId: req.user.id,
+      actorRole: req.user.role,
+      action: 'NOTICE_UPDATED',
+      entityType: 'Notice',
+      entityId: updated.id,
+      metadata: { type: updated.type }
+    })
+
   } catch (error) {
     res.internalError(error)
   }
@@ -136,6 +155,15 @@ const deleteNotice = async (req, res) => {
     await prisma.notice.delete({ where: { id } })
 
     res.json({ message: 'Notice deleted successfully!' })
+
+    await recordAuditLog({
+      actorId: req.user.id,
+      actorRole: req.user.role,
+      action: 'NOTICE_DELETED',
+      entityType: 'Notice',
+      entityId: id,
+      metadata: { type: notice.type }
+    })
 
   } catch (error) {
     res.internalError(error)

@@ -216,6 +216,7 @@ const schemas = {
     getBySubject: {
       params: z.object({ subjectId: z.string().uuid() }),
       query: z.object({
+        ...paginationQuery,
         date: optionalString(50)
       })
     }
@@ -237,6 +238,7 @@ const schemas = {
     bySubject: {
       params: z.object({ subjectId: z.string().uuid() }),
       query: z.object({
+        ...paginationQuery,
         examType: examTypeEnum.optional()
       })
     },
