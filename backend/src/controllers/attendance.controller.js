@@ -192,8 +192,7 @@ const generateQR = async (req, res) => {
     })
 
   } catch (error) {
-    logger.error(error.message, { stack: error.stack })
-    res.status(500).json({ message: 'Something went wrong', error: error.message })
+    res.internalError(error)
   }
 }
 
@@ -283,8 +282,7 @@ const markAttendanceQR = async (req, res) => {
     })
 
   } catch (error) {
-    logger.error(error.message, { stack: error.stack })
-    res.status(500).json({ message: 'Something went wrong', error: error.message })
+    res.internalError(error)
   }
 }
 
@@ -366,8 +364,7 @@ const markAttendanceManual = async (req, res) => {
     })
 
   } catch (error) {
-    logger.error(error.message, { stack: error.stack })
-    res.status(500).json({ message: 'Something went wrong', error: error.message })
+    res.internalError(error)
   }
 }
 
@@ -419,8 +416,7 @@ const getAttendanceBySubject = async (req, res) => {
     })
 
   } catch (error) {
-    logger.error(error.message, { stack: error.stack })
-    res.status(500).json({ message: 'Something went wrong', error: error.message })
+    res.internalError(error)
   }
 }
 
@@ -469,8 +465,7 @@ const getMyAttendance = async (req, res) => {
     res.json({ attendance, summary })
 
   } catch (error) {
-    logger.error(error.message, { stack: error.stack })
-    res.status(500).json({ message: 'Something went wrong', error: error.message })
+    res.internalError(error)
   }
 }
 
@@ -520,8 +515,7 @@ const getSubjectRoster = async (req, res) => {
       summary: buildAttendanceSummary(attendance)
     })
   } catch (error) {
-    logger.error(error.message, { stack: error.stack })
-    res.status(500).json({ message: 'Something went wrong', error: error.message })
+    res.internalError(error)
   }
 }
 
@@ -638,8 +632,7 @@ const markDailyAttendanceQR = async (req, res) => {
       cutoffAt: gateWindow.cutoffAt
     })
   } catch (error) {
-    logger.error(error.message, { stack: error.stack })
-    res.status(500).json({ message: 'Something went wrong', error: error.message })
+    res.internalError(error)
   }
 }
 
@@ -678,8 +671,7 @@ const generateDailyAttendanceQR = async (req, res) => {
       cutoffAt: gateWindow.cutoffAt
     })
   } catch (error) {
-    logger.error(error.message, { stack: error.stack })
-    res.status(500).json({ message: 'Something went wrong', error: error.message })
+    res.internalError(error)
   }
 }
 
@@ -693,4 +685,5 @@ module.exports = {
   getMyAttendance,
   getSubjectRoster
 }
+
 

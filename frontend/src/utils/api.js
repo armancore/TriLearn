@@ -31,6 +31,29 @@ const refreshClient = axios.create({
 })
 
 let refreshPromise = null
+const RETRYABLE_METHODS = new Set(['get', 'head', 'options'])
+const MAX_NETWORK_RETRIES = 2
+
+const wait = (ms) => new Promise((resolve) => {
+  window.setTimeout(resolve, ms)
+})
+
+const shouldRetryRequest = (error) => {
+  const method = error.config?.method?.toLowerCase()
+  if (!RETRYABLE_METHODS.has(method)) {
+    return false
+  }
+
+  if (error.code === 'ERR_CANCELED') {
+    return false
+  }
+
+  if (!error.response) {
+    return true
+  }
+
+  return [502, 503, 504].includes(error.response.status)
+}
 
 // Automatically add token to every request
 api.interceptors.request.use((config) => {
@@ -46,6 +69,19 @@ api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config
+
+    if (
+      originalRequest &&
+      shouldRetryRequest(error)
+    ) {
+      originalRequest._retryCount = originalRequest._retryCount || 0
+
+      if (originalRequest._retryCount < MAX_NETWORK_RETRIES) {
+        originalRequest._retryCount += 1
+        await wait(300 * originalRequest._retryCount)
+        return api(originalRequest)
+      }
+    }
 
     if (
       error.response?.status === 401 &&

@@ -126,8 +126,7 @@ const createSubject = async (req, res) => {
     })
 
   } catch (error) {
-    logger.error(error.message, { stack: error.stack })
-    res.status(500).json({ message: 'Something went wrong', error: error.message })
+    res.internalError(error)
   }
 }
 
@@ -159,8 +158,7 @@ const getAllSubjects = async (req, res) => {
     res.json({ total, page, limit, subjects })
 
   } catch (error) {
-    logger.error(error.message, { stack: error.stack })
-    res.status(500).json({ message: 'Something went wrong', error: error.message })
+    res.internalError(error)
   }
 }
 
@@ -217,8 +215,7 @@ const getSubjectById = async (req, res) => {
     res.json({ subject })
 
   } catch (error) {
-    logger.error(error.message, { stack: error.stack })
-    res.status(500).json({ message: 'Something went wrong', error: error.message })
+    res.internalError(error)
   }
 }
 
@@ -255,8 +252,7 @@ const updateSubject = async (req, res) => {
     })
 
   } catch (error) {
-    logger.error(error.message, { stack: error.stack })
-    res.status(500).json({ message: 'Something went wrong', error: error.message })
+    res.internalError(error)
   }
 }
 
@@ -311,8 +307,7 @@ const deleteSubject = async (req, res) => {
     res.json({ message: 'Subject deleted successfully!' })
 
   } catch (error) {
-    logger.error(error.message, { stack: error.stack })
-    res.status(500).json({ message: 'Something went wrong', error: error.message })
+    res.internalError(error)
   }
 }
 
@@ -348,8 +343,7 @@ const assignInstructor = async (req, res) => {
     })
 
   } catch (error) {
-    logger.error(error.message, { stack: error.stack })
-    res.status(500).json({ message: 'Something went wrong', error: error.message })
+    res.internalError(error)
   }
 }
 
@@ -447,8 +441,7 @@ const getSubjectEnrollments = async (req, res) => {
       students: studentOptions
     })
   } catch (error) {
-    logger.error(error.message, { stack: error.stack })
-    res.status(500).json({ message: 'Something went wrong', error: error.message })
+    res.internalError(error)
   }
 }
 
@@ -502,8 +495,7 @@ const updateSubjectEnrollments = async (req, res) => {
       total: enrollmentCount
     })
   } catch (error) {
-    logger.error(error.message, { stack: error.stack })
-    res.status(500).json({ message: 'Something went wrong', error: error.message })
+    res.internalError(error)
   }
 }
 
@@ -517,4 +509,5 @@ module.exports = {
   getSubjectEnrollments,
   updateSubjectEnrollments
 }
+
 

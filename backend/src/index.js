@@ -29,6 +29,16 @@ app.use(cors({
 }))
 app.use(cookieParser())
 app.use(express.json())
+app.use((req, res, next) => {
+  res.internalError = (error, fallbackMessage = 'Something went wrong') => {
+    logger.error(error.message, { stack: error.stack })
+    return res.status(500).json({
+      message: process.env.NODE_ENV === 'production' ? fallbackMessage : (error.message || fallbackMessage)
+    })
+  }
+
+  next()
+})
 app.use(apiLimiter)
 app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')))
 
@@ -61,7 +71,11 @@ app.get('/', (req, res) => {
 
 app.use((error, _req, res, _next) => {
   logger.error(error.message, { stack: error.stack })
-  res.status(400).json({ message: error.message || 'Something went wrong' })
+  res.status(400).json({
+    message: process.env.NODE_ENV === 'production'
+      ? 'Request failed'
+      : (error.message || 'Something went wrong')
+  })
 })
 
 const PORT = process.env.PORT || 5000

@@ -113,8 +113,7 @@ const register = async (req, res) => {
     })
 
   } catch (error) {
-    logger.error(error.message, { stack: error.stack })
-    res.status(500).json({ message: 'Something went wrong', error: error.message })
+    res.internalError(error)
   }
 }
 
@@ -155,8 +154,7 @@ const login = async (req, res) => {
     })
 
   } catch (error) {
-    logger.error(error.message, { stack: error.stack })
-    res.status(500).json({ message: 'Something went wrong', error: error.message })
+    res.internalError(error)
   }
 }
 
@@ -254,9 +252,9 @@ const logout = async (req, res) => {
 
     res.json({ message: 'Logged out successfully' })
   } catch (error) {
-    logger.error(error.message, { stack: error.stack })
-    res.status(500).json({ message: 'Something went wrong', error: error.message })
+    res.internalError(error)
   }
 }
 
 module.exports = { register, login, refresh, logout, getMe }
+

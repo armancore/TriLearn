@@ -94,8 +94,7 @@ const addMarks = async (req, res) => {
     res.status(201).json({ message: 'Marks added successfully!', mark })
 
   } catch (error) {
-    logger.error(error.message, { stack: error.stack })
-    res.status(500).json({ message: 'Something went wrong', error: error.message })
+    res.internalError(error)
   }
 }
 
@@ -120,8 +119,7 @@ const updateMarks = async (req, res) => {
     res.json({ message: 'Marks updated successfully!', mark: updated })
 
   } catch (error) {
-    logger.error(error.message, { stack: error.stack })
-    res.status(500).json({ message: 'Something went wrong', error: error.message })
+    res.internalError(error)
   }
 }
 
@@ -153,8 +151,7 @@ const getMarksBySubject = async (req, res) => {
     res.json({ total: marks.length, marks, subject: access.subject })
 
   } catch (error) {
-    logger.error(error.message, { stack: error.stack })
-    res.status(500).json({ message: 'Something went wrong', error: error.message })
+    res.internalError(error)
   }
 }
 
@@ -207,8 +204,7 @@ const getEnrolledStudentsBySubject = async (req, res) => {
     res.json({ total: students.length, students, subject: access.subject })
 
   } catch (error) {
-    logger.error(error.message, { stack: error.stack })
-    res.status(500).json({ message: 'Something went wrong', error: error.message })
+    res.internalError(error)
   }
 }
 
@@ -251,8 +247,7 @@ const getMyMarks = async (req, res) => {
     res.json({ marks, summary: Object.values(summary) })
 
   } catch (error) {
-    logger.error(error.message, { stack: error.stack })
-    res.status(500).json({ message: 'Something went wrong', error: error.message })
+    res.internalError(error)
   }
 }
 
@@ -273,8 +268,7 @@ const deleteMarks = async (req, res) => {
     res.json({ message: 'Mark deleted successfully!' })
 
   } catch (error) {
-    logger.error(error.message, { stack: error.stack })
-    res.status(500).json({ message: 'Something went wrong', error: error.message })
+    res.internalError(error)
   }
 }
 
@@ -286,4 +280,5 @@ module.exports = {
   getMyMarks,
   deleteMarks
 }
+
 

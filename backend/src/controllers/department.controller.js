@@ -33,8 +33,7 @@ const createDepartment = async (req, res) => {
       department
     })
   } catch (error) {
-    logger.error(error.message, { stack: error.stack })
-    res.status(500).json({ message: 'Something went wrong', error: error.message })
+    res.internalError(error)
   }
 }
 
@@ -61,8 +60,7 @@ const getAllDepartments = async (_req, res) => {
 
     res.json({ total: enriched.length, departments: enriched })
   } catch (error) {
-    logger.error(error.message, { stack: error.stack })
-    res.status(500).json({ message: 'Something went wrong', error: error.message })
+    res.internalError(error)
   }
 }
 
@@ -104,8 +102,7 @@ const updateDepartment = async (req, res) => {
       department: updated
     })
   } catch (error) {
-    logger.error(error.message, { stack: error.stack })
-    res.status(500).json({ message: 'Something went wrong', error: error.message })
+    res.internalError(error)
   }
 }
 
@@ -132,8 +129,7 @@ const deleteDepartment = async (req, res) => {
 
     res.json({ message: 'Department deleted successfully!' })
   } catch (error) {
-    logger.error(error.message, { stack: error.stack })
-    res.status(500).json({ message: 'Something went wrong', error: error.message })
+    res.internalError(error)
   }
 }
 
@@ -144,4 +140,5 @@ module.exports = {
   deleteDepartment,
   ensureDepartmentExists
 }
+
 

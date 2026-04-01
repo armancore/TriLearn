@@ -61,8 +61,7 @@ const createAssignment = async (req, res) => {
     })
 
   } catch (error) {
-    logger.error(error.message, { stack: error.stack })
-    res.status(500).json({ message: 'Something went wrong', error: error.message })
+    res.internalError(error)
   }
 }
 
@@ -97,8 +96,7 @@ const getAllAssignments = async (req, res) => {
     res.json({ total: assignments.length, assignments })
 
   } catch (error) {
-    logger.error(error.message, { stack: error.stack })
-    res.status(500).json({ message: 'Something went wrong', error: error.message })
+    res.internalError(error)
   }
 }
 
@@ -129,8 +127,7 @@ const getAssignmentById = async (req, res) => {
     res.json({ assignment })
 
   } catch (error) {
-    logger.error(error.message, { stack: error.stack })
-    res.status(500).json({ message: 'Something went wrong', error: error.message })
+    res.internalError(error)
   }
 }
 
@@ -175,8 +172,7 @@ const updateAssignment = async (req, res) => {
     res.json({ message: 'Assignment updated successfully!', assignment: updated })
 
   } catch (error) {
-    logger.error(error.message, { stack: error.stack })
-    res.status(500).json({ message: 'Something went wrong', error: error.message })
+    res.internalError(error)
   }
 }
 
@@ -197,8 +193,7 @@ const deleteAssignment = async (req, res) => {
     res.json({ message: 'Assignment deleted successfully!' })
 
   } catch (error) {
-    logger.error(error.message, { stack: error.stack })
-    res.status(500).json({ message: 'Something went wrong', error: error.message })
+    res.internalError(error)
   }
 }
 
@@ -260,8 +255,7 @@ const submitAssignment = async (req, res) => {
     })
 
   } catch (error) {
-    logger.error(error.message, { stack: error.stack })
-    res.status(500).json({ message: 'Something went wrong', error: error.message })
+    res.internalError(error)
   }
 }
 
@@ -293,8 +287,7 @@ const getMySubmissions = async (req, res) => {
     res.json({ total: submissions.length, submissions })
 
   } catch (error) {
-    logger.error(error.message, { stack: error.stack })
-    res.status(500).json({ message: 'Something went wrong', error: error.message })
+    res.internalError(error)
   }
 }
 
@@ -332,8 +325,7 @@ const gradeSubmission = async (req, res) => {
     res.json({ message: 'Submission graded successfully!', submission: updated })
 
   } catch (error) {
-    logger.error(error.message, { stack: error.stack })
-    res.status(500).json({ message: 'Something went wrong', error: error.message })
+    res.internalError(error)
   }
 }
 
@@ -347,4 +339,5 @@ module.exports = {
   getMySubmissions,
   gradeSubmission
 }
+
 

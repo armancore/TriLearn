@@ -42,8 +42,7 @@ const getAllUsers = async (req, res) => {
     res.json({ total, page, limit, users })
 
   } catch (error) {
-    logger.error(error.message, { stack: error.stack })
-    res.status(500).json({ message: 'Something went wrong', error: error.message })
+    res.internalError(error)
   }
 }
 
@@ -79,8 +78,7 @@ const getUserById = async (req, res) => {
     res.json({ user })
 
   } catch (error) {
-    logger.error(error.message, { stack: error.stack })
-    res.status(500).json({ message: 'Something went wrong', error: error.message })
+    res.internalError(error)
   }
 }
 
@@ -119,8 +117,7 @@ const createGatekeeper = async (req, res) => {
       }
     })
   } catch (error) {
-    logger.error(error.message, { stack: error.stack })
-    res.status(500).json({ message: 'Something went wrong', error: error.message })
+    res.internalError(error)
   }
 }
 
@@ -173,8 +170,7 @@ const createInstructor = async (req, res) => {
     })
 
   } catch (error) {
-    logger.error(error.message, { stack: error.stack })
-    res.status(500).json({ message: 'Something went wrong', error: error.message })
+    res.internalError(error)
   }
 }
 
@@ -240,8 +236,7 @@ const createStudent = async (req, res) => {
     })
 
   } catch (error) {
-    logger.error(error.message, { stack: error.stack })
-    res.status(500).json({ message: 'Something went wrong', error: error.message })
+    res.internalError(error)
   }
 }
 
@@ -294,8 +289,7 @@ const updateUser = async (req, res) => {
     res.json({ message: 'User updated successfully!', user: updatedUser })
 
   } catch (error) {
-    logger.error(error.message, { stack: error.stack })
-    res.status(500).json({ message: 'Something went wrong', error: error.message })
+    res.internalError(error)
   }
 }
 
@@ -326,8 +320,7 @@ const toggleUserStatus = async (req, res) => {
     })
 
   } catch (error) {
-    logger.error(error.message, { stack: error.stack })
-    res.status(500).json({ message: 'Something went wrong', error: error.message })
+    res.internalError(error)
   }
 }
 
@@ -361,8 +354,7 @@ const deleteUser = async (req, res) => {
     res.json({ message: 'User deleted successfully!' })
 
   } catch (error) {
-    logger.error(error.message, { stack: error.stack })
-    res.status(500).json({ message: 'Something went wrong', error: error.message })
+    res.internalError(error)
   }
 }
 
@@ -376,4 +368,5 @@ module.exports = {
   toggleUserStatus,
   deleteUser
 }
+
 

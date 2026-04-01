@@ -27,8 +27,7 @@ const createNotice = async (req, res) => {
     })
 
   } catch (error) {
-    logger.error(error.message, { stack: error.stack })
-    res.status(500).json({ message: 'Something went wrong', error: error.message })
+    res.internalError(error)
   }
 }
 
@@ -59,8 +58,7 @@ const getAllNotices = async (req, res) => {
     res.json({ total, page, limit, notices })
 
   } catch (error) {
-    logger.error(error.message, { stack: error.stack })
-    res.status(500).json({ message: 'Something went wrong', error: error.message })
+    res.internalError(error)
   }
 }
 
@@ -85,8 +83,7 @@ const getNoticeById = async (req, res) => {
     res.json({ notice })
 
   } catch (error) {
-    logger.error(error.message, { stack: error.stack })
-    res.status(500).json({ message: 'Something went wrong', error: error.message })
+    res.internalError(error)
   }
 }
 
@@ -116,8 +113,7 @@ const updateNotice = async (req, res) => {
     res.json({ message: 'Notice updated successfully!', notice: updated })
 
   } catch (error) {
-    logger.error(error.message, { stack: error.stack })
-    res.status(500).json({ message: 'Something went wrong', error: error.message })
+    res.internalError(error)
   }
 }
 
@@ -142,8 +138,7 @@ const deleteNotice = async (req, res) => {
     res.json({ message: 'Notice deleted successfully!' })
 
   } catch (error) {
-    logger.error(error.message, { stack: error.stack })
-    res.status(500).json({ message: 'Something went wrong', error: error.message })
+    res.internalError(error)
   }
 }
 
@@ -154,4 +149,5 @@ module.exports = {
   updateNotice,
   deleteNotice
 }
+
 
