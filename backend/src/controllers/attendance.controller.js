@@ -1,4 +1,6 @@
 const prisma = require('../utils/prisma')
+const ExcelJS = require('exceljs')
+const PDFDocument = require('pdfkit')
 const QRCode = require('qrcode')
 const logger = require('../utils/logger')
 const { getPagination } = require('../utils/pagination')
@@ -173,6 +175,143 @@ const parseQrPayload = (qrData) => {
   } catch {
     return null
   }
+}
+
+const formatDisplayDate = (dateValue) => new Date(dateValue).toLocaleDateString('en-CA')
+
+const sanitizeFilenamePart = (value) => String(value || 'report').replace(/[^a-z0-9-_]+/gi, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').toLowerCase()
+
+const getAttendanceExportPayload = async ({ subjectId, date, user }) => {
+  const access = await getOwnedSubject(subjectId, user)
+  if (access.error) {
+    return { error: access.error }
+  }
+
+  const filters = { subjectId }
+  const dayRange = date ? getDayRange(date) : null
+
+  if (date && !dayRange) {
+    return { error: { status: 400, message: 'Please provide a valid date filter' } }
+  }
+
+  if (dayRange) {
+    filters.date = { gte: dayRange.start, lt: dayRange.end }
+  }
+
+  const [attendance, groupedSummary] = await Promise.all([
+    prisma.attendance.findMany({
+      where: filters,
+      include: {
+        student: {
+          include: {
+            user: { select: { name: true, email: true } }
+          }
+        },
+        subject: { select: { name: true, code: true } }
+      },
+      orderBy: [
+        { date: 'desc' },
+        { student: { rollNumber: 'asc' } }
+      ]
+    }),
+    prisma.attendance.groupBy({
+      by: ['status'],
+      where: filters,
+      _count: { _all: true }
+    })
+  ])
+
+  return {
+    attendance,
+    summary: buildStatusSummary(groupedSummary),
+    subject: access.subject,
+    dateLabel: dayRange ? formatDisplayDate(dayRange.start) : 'All dates'
+  }
+}
+
+const exportAttendancePdf = ({ res, attendance, summary, subject, dateLabel }) => {
+  const fileName = `attendance-${sanitizeFilenamePart(subject.code || subject.name)}-${sanitizeFilenamePart(dateLabel)}.pdf`
+  const doc = new PDFDocument({ margin: 40, size: 'A4' })
+
+  res.setHeader('Content-Type', 'application/pdf')
+  res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`)
+
+  doc.pipe(res)
+  doc.fontSize(18).text('Attendance Report', { align: 'center' })
+  doc.moveDown(0.5)
+  doc.fontSize(12).text(`Subject: ${subject.name} (${subject.code})`)
+  doc.text(`Date: ${dateLabel}`)
+  doc.text(`Generated: ${formatDisplayDate(new Date())}`)
+  doc.moveDown()
+
+  doc.fontSize(12).text(`Total Records: ${summary.total}`)
+  doc.text(`Present: ${summary.present}`)
+  doc.text(`Absent: ${summary.absent}`)
+  doc.text(`Late: ${summary.late}`)
+  doc.moveDown()
+
+  attendance.forEach((record, index) => {
+    if (doc.y > 730) {
+      doc.addPage()
+    }
+
+    const studentName = record.student?.user?.name || 'Unknown Student'
+    const rollNumber = record.student?.rollNumber || '-'
+    const studentEmail = record.student?.user?.email || '-'
+
+    doc
+      .fontSize(10)
+      .text(`${index + 1}. ${studentName}`)
+      .text(`Roll: ${rollNumber} | Email: ${studentEmail}`)
+      .text(`Date: ${formatDisplayDate(record.date)} | Status: ${record.status}`)
+      .moveDown(0.5)
+  })
+
+  doc.end()
+}
+
+const exportAttendanceWorkbook = async ({ res, attendance, summary, subject, dateLabel }) => {
+  const workbook = new ExcelJS.Workbook()
+  const summarySheet = workbook.addWorksheet('Summary')
+  const recordsSheet = workbook.addWorksheet('Records')
+  const fileName = `attendance-${sanitizeFilenamePart(subject.code || subject.name)}-${sanitizeFilenamePart(dateLabel)}.xlsx`
+
+  summarySheet.columns = [
+    { header: 'Metric', key: 'metric', width: 24 },
+    { header: 'Value', key: 'value', width: 32 }
+  ]
+  summarySheet.addRows([
+    { metric: 'Subject', value: `${subject.name} (${subject.code})` },
+    { metric: 'Date', value: dateLabel },
+    { metric: 'Total Records', value: summary.total },
+    { metric: 'Present', value: summary.present },
+    { metric: 'Absent', value: summary.absent },
+    { metric: 'Late', value: summary.late }
+  ])
+
+  recordsSheet.columns = [
+    { header: 'S.N.', key: 'sn', width: 8 },
+    { header: 'Student Name', key: 'name', width: 28 },
+    { header: 'Roll Number', key: 'rollNumber', width: 20 },
+    { header: 'Email', key: 'email', width: 32 },
+    { header: 'Date', key: 'date', width: 16 },
+    { header: 'Status', key: 'status', width: 14 }
+  ]
+  attendance.forEach((record, index) => {
+    recordsSheet.addRow({
+      sn: index + 1,
+      name: record.student?.user?.name || 'Unknown Student',
+      rollNumber: record.student?.rollNumber || '-',
+      email: record.student?.user?.email || '-',
+      date: formatDisplayDate(record.date),
+      status: record.status
+    })
+  })
+
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+  res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`)
+  await workbook.xlsx.write(res)
+  res.end()
 }
 
 // ================================
@@ -588,6 +727,32 @@ const getSubjectRoster = async (req, res) => {
   }
 }
 
+const exportAttendanceBySubject = async (req, res) => {
+  try {
+    const { subjectId } = req.params
+    const { date, format = 'xlsx' } = req.query
+
+    const report = await getAttendanceExportPayload({
+      subjectId,
+      date,
+      user: req.user
+    })
+
+    if (report.error) {
+      return res.status(report.error.status).json({ message: report.error.message })
+    }
+
+    if (format === 'pdf') {
+      exportAttendancePdf({ res, ...report })
+      return
+    }
+
+    await exportAttendanceWorkbook({ res, ...report })
+  } catch (error) {
+    res.internalError(error)
+  }
+}
+
 // ================================
 // MARK ATTENDANCE FOR TODAY'S ROUTINE (Student)
 // ================================
@@ -775,6 +940,7 @@ module.exports = {
   markDailyAttendanceQR,
   markAttendanceManual,
   getAttendanceBySubject,
+  exportAttendanceBySubject,
   getMyAttendance,
   getSubjectRoster
 }

@@ -37,15 +37,15 @@ const StudentMarks = () => {
     <StudentLayout>
       <div className="p-8">
         <div className="mb-8">
-          <h1 className="text-2xl font-bold text-gray-800">My Marks</h1>
-          <p className="text-gray-500 text-sm mt-1">View your exam results</p>
+          <h1 className="text-2xl font-bold text-gray-800">Examination Results</h1>
+          <p className="text-gray-500 text-sm mt-1">Review your published examination performance by subject and assessment.</p>
         </div>
 
         {loading ? (
           <div className="text-center text-gray-500 py-8">Loading...</div>
         ) : (
           <>
-            {/* Summary by Subject */}
+            {/* Result Summary by Subject */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
               {summary.map((item, index) => (
                 <div key={index} className="bg-white rounded-2xl shadow-sm p-6">
@@ -77,16 +77,17 @@ const StudentMarks = () => {
               ))}
               {summary.length === 0 && (
                 <div className="col-span-2 text-center py-12 text-gray-400">
-                  No marks added yet
+                  No examination results have been published yet
                 </div>
               )}
             </div>
 
-            {/* Detailed Marks Table */}
+            {/* Detailed Result Ledger */}
             {marks.length > 0 && (
               <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
                 <div className="p-6 border-b">
-                  <h2 className="text-lg font-semibold text-gray-800">All Results</h2>
+                  <h2 className="text-lg font-semibold text-gray-800">Detailed Result Ledger</h2>
+                  <p className="text-sm text-gray-500 mt-1">Official assessment records for each published examination component.</p>
                 </div>
                 <div className="overflow-x-auto">
                 <table className="w-full min-w-[760px]">

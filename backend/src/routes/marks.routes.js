@@ -15,12 +15,12 @@ const {
 router.use(protect)
 
 // Instructor routes
-router.post('/', allowRoles('INSTRUCTOR'), validate(schemas.marks.create), addMarks)
-router.put('/:id', allowRoles('INSTRUCTOR'), validate(schemas.marks.update), updateMarks)
+router.post('/', allowRoles('INSTRUCTOR', 'COORDINATOR'), validate(schemas.marks.create), addMarks)
+router.put('/:id', allowRoles('INSTRUCTOR', 'COORDINATOR'), validate(schemas.marks.update), updateMarks)
 
 // Admin + Instructor
-router.get('/subject/:subjectId', allowRoles('ADMIN', 'INSTRUCTOR'), validate(schemas.marks.bySubject), getMarksBySubject)
-router.get('/subject/:subjectId/students', allowRoles('ADMIN', 'INSTRUCTOR'), validate(schemas.marks.bySubject), getEnrolledStudentsBySubject)
+router.get('/subject/:subjectId', allowRoles('ADMIN', 'COORDINATOR', 'INSTRUCTOR'), validate(schemas.marks.bySubject), getMarksBySubject)
+router.get('/subject/:subjectId/students', allowRoles('ADMIN', 'COORDINATOR', 'INSTRUCTOR'), validate(schemas.marks.bySubject), getEnrolledStudentsBySubject)
 router.delete('/:id', allowRoles('ADMIN'), validate(schemas.marks.id), deleteMarks)
 
 // Student

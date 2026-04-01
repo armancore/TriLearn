@@ -8,7 +8,7 @@ const menuItems = [
   { path: '/student/subjects', label: 'My Subjects', icon: '📚' },
   { path: '/student/attendance', label: 'My Attendance', icon: '✅' },
   { path: '/student/assignments', label: 'Assignments', icon: '📝' },
-  { path: '/student/marks', label: 'My Marks', icon: '🎯' },
+  { path: '/student/marks', label: 'Exam Results', icon: '🎯' },
   { path: '/student/notices', label: 'Notices', icon: '📢' },
   { path: '/student/materials', label: 'Materials', icon: '📁' },
   { path: '/student/routine', label: 'Routine', icon: '🗓️' }

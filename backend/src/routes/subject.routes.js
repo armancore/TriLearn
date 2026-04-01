@@ -18,15 +18,15 @@ const {
 router.use(protect)
 
 // Admin only
-router.post('/', allowRoles('ADMIN'), validate(schemas.subjects.create), createSubject)
-router.put('/:id', allowRoles('ADMIN'), validate(schemas.subjects.update), updateSubject)
-router.delete('/:id', allowRoles('ADMIN'), validate(schemas.subjects.id), deleteSubject)
-router.patch('/:id/assign-instructor', allowRoles('ADMIN'), validate(schemas.subjects.assignInstructor), assignInstructor)
-router.get('/:id/enrollments', allowRoles('ADMIN', 'INSTRUCTOR'), validate(schemas.subjects.id), getSubjectEnrollments)
-router.put('/:id/enrollments', allowRoles('ADMIN'), validate(schemas.subjects.updateEnrollments), updateSubjectEnrollments)
+router.post('/', allowRoles('ADMIN', 'COORDINATOR'), validate(schemas.subjects.create), createSubject)
+router.put('/:id', allowRoles('ADMIN', 'COORDINATOR'), validate(schemas.subjects.update), updateSubject)
+router.delete('/:id', allowRoles('ADMIN', 'COORDINATOR'), validate(schemas.subjects.id), deleteSubject)
+router.patch('/:id/assign-instructor', allowRoles('ADMIN', 'COORDINATOR'), validate(schemas.subjects.assignInstructor), assignInstructor)
+router.get('/:id/enrollments', allowRoles('ADMIN', 'COORDINATOR', 'INSTRUCTOR'), validate(schemas.subjects.id), getSubjectEnrollments)
+router.put('/:id/enrollments', allowRoles('ADMIN', 'COORDINATOR'), validate(schemas.subjects.updateEnrollments), updateSubjectEnrollments)
 
 // Admin + Instructor + Student can view
-router.get('/', allowRoles('ADMIN', 'INSTRUCTOR', 'STUDENT'), validate(schemas.subjects.getAll), getAllSubjects)
-router.get('/:id', allowRoles('ADMIN', 'INSTRUCTOR', 'STUDENT'), validate(schemas.subjects.id), getSubjectById)
+router.get('/', allowRoles('ADMIN', 'COORDINATOR', 'INSTRUCTOR', 'STUDENT'), validate(schemas.subjects.getAll), getAllSubjects)
+router.get('/:id', allowRoles('ADMIN', 'COORDINATOR', 'INSTRUCTOR', 'STUDENT'), validate(schemas.subjects.id), getSubjectById)
 
 module.exports = router

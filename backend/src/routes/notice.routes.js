@@ -14,12 +14,12 @@ const {
 router.use(protect)
 
 // Admin + Instructor can create/update/delete
-router.post('/', allowRoles('ADMIN', 'INSTRUCTOR'), validate(schemas.notices.create), createNotice)
-router.put('/:id', allowRoles('ADMIN', 'INSTRUCTOR'), validate(schemas.notices.update), updateNotice)
-router.delete('/:id', allowRoles('ADMIN', 'INSTRUCTOR'), validate(schemas.notices.id), deleteNotice)
+router.post('/', allowRoles('ADMIN', 'COORDINATOR', 'INSTRUCTOR'), validate(schemas.notices.create), createNotice)
+router.put('/:id', allowRoles('ADMIN', 'COORDINATOR', 'INSTRUCTOR'), validate(schemas.notices.update), updateNotice)
+router.delete('/:id', allowRoles('ADMIN', 'COORDINATOR', 'INSTRUCTOR'), validate(schemas.notices.id), deleteNotice)
 
 // Everyone can view
-router.get('/', allowRoles('ADMIN', 'INSTRUCTOR', 'STUDENT'), validate(schemas.notices.getAll), getAllNotices)
-router.get('/:id', allowRoles('ADMIN', 'INSTRUCTOR', 'STUDENT'), validate(schemas.notices.id), getNoticeById)
+router.get('/', allowRoles('ADMIN', 'COORDINATOR', 'INSTRUCTOR', 'STUDENT'), validate(schemas.notices.getAll), getAllNotices)
+router.get('/:id', allowRoles('ADMIN', 'COORDINATOR', 'INSTRUCTOR', 'STUDENT'), validate(schemas.notices.id), getNoticeById)
 
 module.exports = router

@@ -31,6 +31,7 @@ const Attendance = () => {
   const [attendance, setAttendance] = useState([])
   const [summary, setSummary] = useState({ total: 0, present: 0, absent: 0, late: 0 })
   const [search, setSearch] = useState('')
+  const [exportingFormat, setExportingFormat] = useState('')
   const debouncedSearch = useDebouncedValue(search, 250)
 
   useEffect(() => {
@@ -142,6 +143,38 @@ const Attendance = () => {
       setError(getFriendlyErrorMessage(requestError, 'Unable to save attendance right now.'))
     } finally {
       setSaving(false)
+    }
+  }
+
+  const exportAttendanceReport = async (format) => {
+    if (!selectedSubject) {
+      setError('Please select a subject first')
+      return
+    }
+
+    try {
+      setExportingFormat(format)
+      setError('')
+      const response = await api.get(`/attendance/subject/${selectedSubject}/export`, {
+        params: { date: selectedDate, format },
+        responseType: 'blob'
+      })
+
+      const contentDisposition = response.headers['content-disposition'] || ''
+      const matchedName = contentDisposition.match(/filename="?(.*?)"?$/i)
+      const fileName = matchedName?.[1] || `attendance-report.${format}`
+      const blobUrl = window.URL.createObjectURL(new Blob([response.data]))
+      const link = document.createElement('a')
+      link.href = blobUrl
+      link.download = fileName
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.URL.revokeObjectURL(blobUrl)
+    } catch (requestError) {
+      setError(getFriendlyErrorMessage(requestError, 'Unable to export the attendance report right now.'))
+    } finally {
+      setExportingFormat('')
     }
   }
 
@@ -289,6 +322,22 @@ const Attendance = () => {
                     className="bg-blue-600 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {saving ? 'Saving...' : 'Save Attendance'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => exportAttendanceReport('xlsx')}
+                    disabled={loading || !attendance.length || !!exportingFormat}
+                    className="bg-emerald-600 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-emerald-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {exportingFormat === 'xlsx' ? 'Exporting...' : 'Export Excel'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => exportAttendanceReport('pdf')}
+                    disabled={loading || !attendance.length || !!exportingFormat}
+                    className="bg-slate-700 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-slate-800 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {exportingFormat === 'pdf' ? 'Exporting...' : 'Export PDF'}
                   </button>
                 </div>
 

@@ -9,6 +9,7 @@ import LoadingSpinner from '../../components/LoadingSpinner'
 import Modal from '../../components/Modal'
 import Pagination from '../../components/Pagination'
 import StatusBadge from '../../components/StatusBadge'
+import { useAuth } from '../../context/AuthContext'
 import useForm from '../../hooks/useForm'
 import { getFriendlyErrorMessage } from '../../utils/errors'
 import logger from '../../utils/logger'
@@ -16,6 +17,7 @@ const initialUserValues = {
   name: '',
   email: '',
   password: '',
+  studentId: '',
   phone: '',
   department: '',
   semester: '1',
@@ -23,6 +25,8 @@ const initialUserValues = {
 }
 
 const Users = () => {
+  const { user: currentUser } = useAuth()
+  const isCoordinator = currentUser?.role === 'COORDINATOR'
   const [users, setUsers] = useState([])
   const [departments, setDepartments] = useState([])
   const [page, setPage] = useState(1)
@@ -40,10 +44,17 @@ const Users = () => {
     const validationErrors = {}
 
     if (!values.name.trim()) validationErrors.name = 'Name is required'
-    if (!values.email.trim()) validationErrors.email = 'Email is required'
-    else if (!/\S+@\S+\.\S+/.test(values.email)) validationErrors.email = 'Enter a valid email address'
-    if (!values.password) validationErrors.password = 'Password is required'
-    else if (values.password.length < 6) validationErrors.password = 'Password must be at least 6 characters'
+    if (modalType === 'student') {
+      if (!values.studentId.trim()) validationErrors.studentId = 'Student ID is required'
+    } else {
+      if (!values.email.trim()) validationErrors.email = 'Email is required'
+      else if (!/\S+@\S+\.\S+/.test(values.email)) validationErrors.email = 'Enter a valid email address'
+      if (!values.password) validationErrors.password = 'Password is required'
+      else if (values.password.length < 8) validationErrors.password = 'Password must be at least 8 characters'
+      else if (!/[A-Z]/.test(values.password)) validationErrors.password = 'Password must include at least one uppercase letter'
+      else if (!/[a-z]/.test(values.password)) validationErrors.password = 'Password must include at least one lowercase letter'
+      else if (!/[0-9]/.test(values.password)) validationErrors.password = 'Password must include at least one number'
+    }
 
     if (modalType !== 'gatekeeper' && !values.department.trim()) {
       validationErrors.department = 'Department is required'
@@ -109,16 +120,41 @@ const Users = () => {
   const handleCreateUser = async (e) => {
     setError('')
     try {
-      const endpoint = modalType === 'instructor'
-        ? '/admin/users/instructor'
-        : modalType === 'gatekeeper'
-          ? '/admin/users/gatekeeper'
-        : '/admin/users/student'
-      await api.post(endpoint, {
-        ...values,
-        semester: modalType === 'student' ? parseInt(values.semester, 10) : undefined
+      const endpoint = modalType === 'coordinator'
+        ? '/admin/users/coordinator'
+        : modalType === 'instructor'
+          ? '/admin/users/instructor'
+          : modalType === 'gatekeeper'
+            ? '/admin/users/gatekeeper'
+            : '/admin/users/student'
+      const payload = modalType === 'student'
+        ? {
+            name: values.name,
+            studentId: values.studentId,
+            phone: values.phone,
+            address: '',
+            department: values.department,
+            semester: parseInt(values.semester, 10),
+            section: values.section
+          }
+        : {
+            name: values.name,
+            email: values.email,
+            password: values.password,
+            phone: values.phone,
+            address: '',
+            department: modalType === 'gatekeeper' ? undefined : values.department
+          }
+      const res = await api.post(endpoint, {
+        ...payload
       })
-      setSuccess(`${modalType} created successfully!`)
+      if (modalType === 'student') {
+        const loginEmail = res.data.user?.email
+        const defaultPassword = res.data.user?.defaultPassword
+        setSuccess(`Student account created. Login email: ${loginEmail}${defaultPassword ? ` | Default password: ${defaultPassword}` : ''}`)
+      } else {
+        setSuccess(`${modalType} created successfully!`)
+      }
       setShowModal(false)
       setValues(initialUserValues)
       setErrors({})
@@ -186,18 +222,28 @@ const Users = () => {
             <p className="text-gray-500 text-sm mt-1">Manage all users in EduNexus</p>
           </div>
           <div className="flex flex-wrap gap-3">
-            <button
-              onClick={() => openModal('instructor')}
-              className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition text-sm font-medium"
-            >
-              + Add Instructor
-            </button>
-            <button
-              onClick={() => openModal('gatekeeper')}
-              className="bg-amber-600 text-white px-4 py-2 rounded-lg hover:bg-amber-700 transition text-sm font-medium"
-            >
-              + Add Gate Account
-            </button>
+            {!isCoordinator && (
+              <>
+                <button
+                  onClick={() => openModal('coordinator')}
+                  className="bg-sky-600 text-white px-4 py-2 rounded-lg hover:bg-sky-700 transition text-sm font-medium"
+                >
+                  + Add Coordinator
+                </button>
+                <button
+                  onClick={() => openModal('instructor')}
+                  className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition text-sm font-medium"
+                >
+                  + Add Instructor
+                </button>
+                <button
+                  onClick={() => openModal('gatekeeper')}
+                  className="bg-amber-600 text-white px-4 py-2 rounded-lg hover:bg-amber-700 transition text-sm font-medium"
+                >
+                  + Add Gate Account
+                </button>
+              </>
+            )}
             <button
               onClick={() => openModal('student')}
               className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition text-sm font-medium"
@@ -213,7 +259,7 @@ const Users = () => {
 
         {/* Filter */}
         <div className="flex gap-3 mb-6">
-          {['', 'ADMIN', 'GATEKEEPER', 'INSTRUCTOR', 'STUDENT'].map((role) => (
+          {['', 'ADMIN', 'COORDINATOR', 'GATEKEEPER', 'INSTRUCTOR', 'STUDENT'].map((role) => (
             <button
               key={role}
               onClick={() => setFilterRole(role)}
@@ -268,8 +314,10 @@ const Users = () => {
                       <td className="px-6 py-4 text-sm text-gray-500">
                         {user.student && `Sem ${user.student.semester} · ${user.student.rollNumber}`}
                         {user.instructor && `${user.instructor.department || 'No dept'}`}
+                        {user.coordinator && `${user.coordinator.department || 'No dept'} coordinator`}
                         {user.role === 'GATEKEEPER' && 'Gate QR operator'}
                         {user.admin && 'Administrator'}
+                        {user.mustChangePassword && ' · Password reset pending'}
                       </td>
                       <td className="px-6 py-4">
                         <StatusBadge status={user.isActive ? 'ACTIVE' : 'DISABLED'} />
@@ -286,12 +334,14 @@ const Users = () => {
                           >
                             {user.isActive ? 'Disable' : 'Enable'}
                           </button>
-                          <button
-                            onClick={() => setUserToDelete(user)}
-                            className="text-xs px-3 py-1 rounded-lg font-medium bg-red-100 text-red-700 hover:bg-red-200 transition"
-                          >
-                            Delete
-                          </button>
+                          {!isCoordinator && (
+                            <button
+                              onClick={() => setUserToDelete(user)}
+                              className="text-xs px-3 py-1 rounded-lg font-medium bg-red-100 text-red-700 hover:bg-red-200 transition"
+                            >
+                              Delete
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -310,7 +360,7 @@ const Users = () => {
       {/* Modal */}
       {showModal && (
         <Modal
-          title={`Add ${modalType === 'instructor' ? 'Instructor' : modalType === 'gatekeeper' ? 'Gate Account' : 'Student'}`}
+          title={`Add ${modalType === 'coordinator' ? 'Coordinator' : modalType === 'instructor' ? 'Instructor' : modalType === 'gatekeeper' ? 'Gate Account' : 'Student'}`}
           onClose={() => setShowModal(false)}
         >
             <Alert type="error" message={error} />
@@ -326,26 +376,49 @@ const Users = () => {
                 className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
               {errors.name && <p className="text-xs text-red-600 -mt-2">{errors.name}</p>}
-              <input
-                name="email"
-                type="email"
-                placeholder="Email"
-                required
-                value={values.email}
-                onChange={handleChange}
-                className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-              {errors.email && <p className="text-xs text-red-600 -mt-2">{errors.email}</p>}
-              <input
-                name="password"
-                type="password"
-                placeholder="Password"
-                required
-                value={values.password}
-                onChange={handleChange}
-                className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-              {errors.password && <p className="text-xs text-red-600 -mt-2">{errors.password}</p>}
+              {modalType === 'student' ? (
+                <>
+                  <input
+                    name="studentId"
+                    type="text"
+                    placeholder="Student ID / Roll Number"
+                    required
+                    value={values.studentId}
+                    onChange={handleChange}
+                    className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  {errors.studentId && <p className="text-xs text-red-600 -mt-2">{errors.studentId}</p>}
+                  <div className="rounded-lg bg-blue-50 px-4 py-3 text-sm text-blue-700">
+                    The student will sign in using the generated student email and will be forced to change the default password on first login.
+                  </div>
+                </>
+              ) : (
+                <>
+                  <input
+                    name="email"
+                    type="email"
+                    placeholder="Email"
+                    required
+                    value={values.email}
+                    onChange={handleChange}
+                    className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  {errors.email && <p className="text-xs text-red-600 -mt-2">{errors.email}</p>}
+                  <input
+                    name="password"
+                    type="password"
+                    placeholder="Password"
+                    required
+                    value={values.password}
+                    onChange={handleChange}
+                    className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  {errors.password && <p className="text-xs text-red-600 -mt-2">{errors.password}</p>}
+                  <p className="text-xs text-gray-500 -mt-2">
+                    Use at least 8 characters with uppercase, lowercase, and a number.
+                  </p>
+                </>
+              )}
               <input
                 name="phone"
                 type="text"
@@ -410,7 +483,7 @@ const Users = () => {
                   type="submit"
                   className="flex-1 bg-blue-600 text-white py-2 rounded-lg text-sm hover:bg-blue-700 font-medium"
                 >
-                  Create {modalType === 'instructor' ? 'Instructor' : modalType === 'gatekeeper' ? 'Gate Account' : 'Student'}
+                  Create {modalType === 'coordinator' ? 'Coordinator' : modalType === 'instructor' ? 'Instructor' : modalType === 'gatekeeper' ? 'Gate Account' : 'Student'}
                 </button>
               </div>
             </form>

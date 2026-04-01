@@ -2,8 +2,36 @@ const prisma = require('../utils/prisma')
 const logger = require('../utils/logger')
 const { buildUploadedFileUrl } = require('../utils/fileStorage')
 
+const resolveMaterialManager = async (user, subjectId) => {
+  const subject = await prisma.subject.findUnique({
+    where: { id: subjectId }
+  })
+
+  if (!subject) {
+    return { error: { status: 404, message: 'Subject not found' } }
+  }
+
+  if (user.role === 'COORDINATOR' || user.role === 'ADMIN') {
+    if (!subject.instructorId) {
+      return { error: { status: 400, message: 'Assign an instructor to this subject before uploading materials' } }
+    }
+
+    return { subject, instructorId: subject.instructorId }
+  }
+
+  const instructor = await prisma.instructor.findUnique({
+    where: { userId: user.id }
+  })
+
+  if (!instructor) {
+    return { error: { status: 403, message: 'Only instructors can upload materials' } }
+  }
+
+  return { subject, instructorId: instructor.id }
+}
+
 // ================================
-// CREATE STUDY MATERIAL (Instructor)
+// CREATE STUDY MATERIAL
 // ================================
 const createMaterial = async (req, res) => {
   try {
@@ -11,20 +39,9 @@ const createMaterial = async (req, res) => {
     const uploadedFileUrl = buildUploadedFileUrl(req.file)
     const finalFileUrl = uploadedFileUrl || fileUrl
 
-    const instructor = await prisma.instructor.findUnique({
-      where: { userId: req.user.id }
-    })
-
-    if (!instructor) {
-      return res.status(403).json({ message: 'Only instructors can upload materials' })
-    }
-
-    const subject = await prisma.subject.findUnique({
-      where: { id: subjectId }
-    })
-
-    if (!subject) {
-      return res.status(404).json({ message: 'Subject not found' })
+    const access = await resolveMaterialManager(req.user, subjectId)
+    if (access.error) {
+      return res.status(access.error.status).json({ message: access.error.message })
     }
 
     if (!finalFileUrl) {
@@ -37,7 +54,7 @@ const createMaterial = async (req, res) => {
         description,
         fileUrl: finalFileUrl,
         subjectId,
-        instructorId: instructor.id
+        instructorId: access.instructorId
       },
       include: {
         subject: { select: { name: true, code: true } },
@@ -49,7 +66,6 @@ const createMaterial = async (req, res) => {
       message: 'Study material uploaded successfully!',
       material
     })
-
   } catch (error) {
     res.internalError(error)
   }
@@ -72,7 +88,6 @@ const getMaterialsBySubject = async (req, res) => {
     })
 
     res.json({ total: materials.length, materials })
-
   } catch (error) {
     res.internalError(error)
   }
@@ -92,14 +107,13 @@ const getAllMaterials = async (req, res) => {
     })
 
     res.json({ total: materials.length, materials })
-
   } catch (error) {
     res.internalError(error)
   }
 }
 
 // ================================
-// DELETE MATERIAL (Instructor/Admin)
+// DELETE MATERIAL
 // ================================
 const deleteMaterial = async (req, res) => {
   try {
@@ -110,10 +124,19 @@ const deleteMaterial = async (req, res) => {
       return res.status(404).json({ message: 'Material not found' })
     }
 
+    if (req.user.role === 'INSTRUCTOR') {
+      const instructor = await prisma.instructor.findUnique({
+        where: { userId: req.user.id }
+      })
+
+      if (material.instructorId !== instructor?.id) {
+        return res.status(403).json({ message: 'You can only delete your own materials' })
+      }
+    }
+
     await prisma.studyMaterial.delete({ where: { id } })
 
     res.json({ message: 'Material deleted successfully!' })
-
   } catch (error) {
     res.internalError(error)
   }
@@ -125,5 +148,3 @@ module.exports = {
   getAllMaterials,
   deleteMaterial
 }
-
-

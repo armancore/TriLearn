@@ -15,11 +15,11 @@ const {
 router.use(protect)
 
 // Instructor routes
-router.post('/', allowRoles('INSTRUCTOR'), uploadLimiter, uploadPdf.single('materialPdf'), validateUploadedPdf, validate(schemas.materials.create), createMaterial)
-router.delete('/:id', allowRoles('INSTRUCTOR', 'ADMIN'), validate(schemas.materials.id), deleteMaterial)
+router.post('/', allowRoles('INSTRUCTOR', 'COORDINATOR'), uploadLimiter, uploadPdf.single('materialPdf'), validateUploadedPdf, validate(schemas.materials.create), createMaterial)
+router.delete('/:id', allowRoles('INSTRUCTOR', 'COORDINATOR', 'ADMIN'), validate(schemas.materials.id), deleteMaterial)
 
 // All roles can view
-router.get('/', allowRoles('ADMIN', 'INSTRUCTOR', 'STUDENT'), getAllMaterials)
-router.get('/subject/:subjectId', allowRoles('ADMIN', 'INSTRUCTOR', 'STUDENT'), validate(schemas.materials.bySubject), getMaterialsBySubject)
+router.get('/', allowRoles('ADMIN', 'COORDINATOR', 'INSTRUCTOR', 'STUDENT'), getAllMaterials)
+router.get('/subject/:subjectId', allowRoles('ADMIN', 'COORDINATOR', 'INSTRUCTOR', 'STUDENT'), validate(schemas.materials.bySubject), getMaterialsBySubject)
 
 module.exports = router

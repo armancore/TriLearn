@@ -1,15 +1,6 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-
-const menuItems = [
-  { path: '/admin', label: 'Dashboard', icon: '📊' },
-  { path: '/admin/users', label: 'Users', icon: '👥' },
-  { path: '/admin/departments', label: 'Departments', icon: '🏛️' },
-  { path: '/admin/subjects', label: 'Subjects', icon: '📚' },
-  { path: '/admin/notices', label: 'Notices', icon: '📢' },
-  { path: '/admin/routine', label: 'Routine', icon: '🗓️' }
-]
 
 const AdminLayout = ({ children }) => {
   const { user, logout } = useAuth()
@@ -22,6 +13,32 @@ const AdminLayout = ({ children }) => {
     logout()
     navigate('/login')
   }
+
+  const isCoordinator = user?.role === 'COORDINATOR'
+  const basePath = isCoordinator ? '/coordinator' : '/admin'
+  const panelLabel = isCoordinator ? 'Coordinator Panel' : 'Admin Panel'
+  const menuItems = useMemo(() => (
+    isCoordinator
+      ? [
+          { path: `${basePath}`, label: 'Dashboard', icon: '📊' },
+          { path: `${basePath}/users`, label: 'Students', icon: '👥' },
+          { path: `${basePath}/subjects`, label: 'Subjects', icon: '📚' },
+          { path: `${basePath}/attendance`, label: 'Attendance', icon: '✅' },
+          { path: `${basePath}/assignments`, label: 'Assignments', icon: '📝' },
+          { path: `${basePath}/marks`, label: 'Exam Results', icon: '🎯' },
+          { path: `${basePath}/notices`, label: 'Notices', icon: '📢' },
+          { path: `${basePath}/materials`, label: 'Materials', icon: '📁' },
+          { path: `${basePath}/routine`, label: 'Routine', icon: '🗓️' }
+        ]
+      : [
+          { path: `${basePath}`, label: 'Dashboard', icon: '📊' },
+          { path: `${basePath}/users`, label: 'Users', icon: '👥' },
+          { path: `${basePath}/departments`, label: 'Departments', icon: '🏛️' },
+          { path: `${basePath}/subjects`, label: 'Subjects', icon: '📚' },
+          { path: `${basePath}/notices`, label: 'Notices', icon: '📢' },
+          { path: `${basePath}/routine`, label: 'Routine', icon: '🗓️' }
+        ]
+  ), [basePath, isCoordinator])
 
   return (
     <div className="min-h-screen bg-gray-100 md:flex">
@@ -37,7 +54,7 @@ const AdminLayout = ({ children }) => {
       <div className="sticky top-0 z-20 flex items-center justify-between border-b bg-white px-4 py-3 shadow-sm md:hidden">
         <div>
           <h1 className="text-lg font-bold text-gray-800">EduNexus</h1>
-          <p className="text-xs text-gray-500">Admin Panel</p>
+          <p className="text-xs text-gray-500">{panelLabel}</p>
         </div>
         <button
           type="button"
@@ -56,7 +73,7 @@ const AdminLayout = ({ children }) => {
           {(sidebarOpen || mobileMenuOpen) && (
             <div>
               <h1 className="text-xl font-bold">EduNexus</h1>
-              <p className="text-blue-200 text-xs">Admin Panel</p>
+              <p className="text-blue-200 text-xs">{panelLabel}</p>
             </div>
           )}
           <div className="flex gap-2">

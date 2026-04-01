@@ -20,6 +20,12 @@ model User {
   address   String?
   avatar    String?
   isActive  Boolean  @default(true)
+  mustChangePassword Boolean @default(false)
+  profileCompleted Boolean @default(false)
+  passwordResetTokenHash String?
+  passwordResetExpiresAt DateTime?
+  suspensionReason String?
+  suspendedAt DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -27,6 +33,7 @@ model User {
   student    Student?
   instructor Instructor?
   admin      Admin?
+  coordinator Coordinator?
   notices    Notice[]
   refreshTokens RefreshToken[]
   auditLogs  AuditLog[]
@@ -37,6 +44,7 @@ model User {
 
 enum Role {
   ADMIN
+  COORDINATOR
   GATEKEEPER
   INSTRUCTOR
   STUDENT
@@ -67,6 +75,13 @@ model Instructor {
   @@index([department])
 }
 
+model Coordinator {
+  id         String   @id @default(uuid())
+  userId     String   @unique
+  user       User     @relation(fields: [userId], references: [id])
+  department String?
+}
+
 model Student {
   id           String   @id @default(uuid())
   userId       String   @unique
@@ -75,6 +90,9 @@ model Student {
   semester     Int
   section      String?
   department   String?
+  guardianName String?
+  guardianPhone String?
+  dateOfBirth  DateTime?
   enrolledAt   DateTime @default(now())
   attendances  Attendance[]
   submissions  Submission[]

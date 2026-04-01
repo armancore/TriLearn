@@ -6,6 +6,11 @@ const logger = require('../utils/logger')
 const { ensureDepartmentExists } = require('./department.controller')
 const { recordAuditLog } = require('../utils/audit')
 
+const DEFAULT_STUDENT_PASSWORD = process.env.DEFAULT_STUDENT_PASSWORD || 'password'
+const STUDENT_EMAIL_DOMAIN = process.env.STUDENT_EMAIL_DOMAIN || 'student.edunexus.local'
+
+const buildStudentEmail = (studentId) => `${studentId.trim().toLowerCase()}@${STUDENT_EMAIL_DOMAIN}`
+
 // ================================
 // GET ALL USERS
 // ================================
@@ -23,17 +28,20 @@ const getAllUsers = async (req, res) => {
         where: filters,
         skip,
         take: limit,
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          role: true,
-          phone: true,
-          isActive: true,
-          createdAt: true,
-          student: true,
-          instructor: true,
-          admin: true,
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        phone: true,
+        isActive: true,
+        mustChangePassword: true,
+        profileCompleted: true,
+        createdAt: true,
+        student: true,
+        instructor: true,
+        admin: true,
+        coordinator: true
         },
         orderBy: { createdAt: 'desc' }
       }),
@@ -69,6 +77,7 @@ const getUserById = async (req, res) => {
         student: true,
         instructor: true,
         admin: true,
+        coordinator: true,
       }
     })
 
@@ -78,6 +87,70 @@ const getUserById = async (req, res) => {
 
     res.json({ user })
 
+  } catch (error) {
+    res.internalError(error)
+  }
+}
+
+// ================================
+// CREATE COORDINATOR
+// ================================
+const createCoordinator = async (req, res) => {
+  try {
+    const { name, email, password, phone, address, department } = req.body
+    const normalizedDepartment = department?.trim() || null
+
+    const existingUser = await prisma.user.findUnique({ where: { email } })
+    if (existingUser) {
+      return res.status(400).json({ message: 'Email already exists' })
+    }
+
+    if (normalizedDepartment) {
+      const validDepartment = await ensureDepartmentExists(normalizedDepartment)
+      if (!validDepartment) {
+        return res.status(400).json({ message: 'Please select a valid department' })
+      }
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10)
+
+    const user = await prisma.user.create({
+      data: {
+        name,
+        email,
+        password: hashedPassword,
+        role: 'COORDINATOR',
+        phone,
+        address,
+        coordinator: {
+          create: { department: normalizedDepartment }
+        }
+      },
+      include: { coordinator: true }
+    })
+
+    res.status(201).json({
+      message: 'Coordinator created successfully!',
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        department: user.coordinator.department
+      }
+    })
+
+    await recordAuditLog({
+      actorId: req.user.id,
+      actorRole: req.user.role,
+      action: 'USER_CREATED',
+      entityType: 'User',
+      entityId: user.id,
+      metadata: {
+        role: user.role,
+        department: user.coordinator.department
+      }
+    })
   } catch (error) {
     res.internalError(error)
   }
@@ -201,12 +274,21 @@ const createInstructor = async (req, res) => {
 // ================================
 const createStudent = async (req, res) => {
   try {
-    const { name, email, password, phone, address, semester, section, department } = req.body
+    const { name, studentId, phone, address, semester, section, department } = req.body
     const normalizedDepartment = department?.trim() || null
+    const normalizedStudentId = studentId.trim().toUpperCase()
+    const generatedEmail = buildStudentEmail(normalizedStudentId)
 
-    const existingUser = await prisma.user.findUnique({ where: { email } })
+    const [existingUser, existingStudent] = await Promise.all([
+      prisma.user.findUnique({ where: { email: generatedEmail } }),
+      prisma.student.findUnique({ where: { rollNumber: normalizedStudentId } })
+    ])
     if (existingUser) {
-      return res.status(400).json({ message: 'Email already exists' })
+      return res.status(400).json({ message: 'Student email already exists' })
+    }
+
+    if (existingStudent) {
+      return res.status(400).json({ message: 'Student ID already exists' })
     }
 
     if (normalizedDepartment) {
@@ -216,20 +298,21 @@ const createStudent = async (req, res) => {
       }
     }
 
-    const hashedPassword = await bcrypt.hash(password, 10)
-    const rollNumber = `STU${Date.now()}`
+    const hashedPassword = await bcrypt.hash(DEFAULT_STUDENT_PASSWORD, 10)
 
     const user = await prisma.user.create({
       data: {
         name,
-        email,
+        email: generatedEmail,
         password: hashedPassword,
         role: 'STUDENT',
         phone,
         address,
+        mustChangePassword: true,
+        profileCompleted: false,
         student: {
           create: {
-            rollNumber,
+            rollNumber: normalizedStudentId,
             semester: semester || 1,
             section,
             department: normalizedDepartment
@@ -253,7 +336,8 @@ const createStudent = async (req, res) => {
         email: user.email,
         role: user.role,
         rollNumber: user.student.rollNumber,
-        semester: user.student.semester
+        semester: user.student.semester,
+        defaultPassword: process.env.NODE_ENV !== 'production' ? DEFAULT_STUDENT_PASSWORD : undefined
       }
     })
 
@@ -267,7 +351,8 @@ const createStudent = async (req, res) => {
         role: user.role,
         department: user.student.department,
         semester: user.student.semester,
-        section: user.student.section
+        section: user.student.section,
+        mustChangePassword: true
       }
     })
 
@@ -304,6 +389,13 @@ const updateUser = async (req, res) => {
 
     if (user.role === 'INSTRUCTOR' && normalizedDepartment) {
       await prisma.instructor.update({
+        where: { userId: id },
+        data: { department: normalizedDepartment }
+      })
+    }
+
+    if (user.role === 'COORDINATOR') {
+      await prisma.coordinator.update({
         where: { userId: id },
         data: { department: normalizedDepartment }
       })
@@ -408,6 +500,8 @@ const deleteUser = async (req, res) => {
       await prisma.instructor.delete({ where: { userId: id } })
     } else if (user.role === 'ADMIN') {
       await prisma.admin.delete({ where: { userId: id } })
+    } else if (user.role === 'COORDINATOR') {
+      await prisma.coordinator.delete({ where: { userId: id } })
     }
 
     await prisma.user.delete({ where: { id } })
@@ -435,6 +529,7 @@ module.exports = {
   getAllUsers,
   getUserById,
   createGatekeeper,
+  createCoordinator,
   createInstructor,
   createStudent,
   updateUser,

@@ -1,3 +1,4 @@
+const crypto = require('crypto')
 const bcrypt = require('bcryptjs')
 const prisma = require('../utils/prisma')
 const { enrollStudentInMatchingSubjects } = require('../utils/enrollment')
@@ -15,7 +16,9 @@ const buildAuthUser = (user) => ({
   id: user.id,
   name: user.name,
   email: user.email,
-  role: user.role
+  role: user.role,
+  mustChangePassword: !!user.mustChangePassword,
+  profileCompleted: !!user.profileCompleted
 })
 
 const issueAuthSession = async (user, res, previousRefreshToken) => {
@@ -47,15 +50,19 @@ const issueAuthSession = async (user, res, previousRefreshToken) => {
   return accessToken
 }
 
+const getResetTokenExpiry = () => {
+  const expiresAt = new Date()
+  expiresAt.setMinutes(expiresAt.getMinutes() + 30)
+  return expiresAt
+}
+
 // ================================
 // REGISTER
 // ================================
 const register = async (req, res) => {
   try {
     const { name, email, password, phone, address } = req.body
-    const role = 'STUDENT'
 
-    // Check if user already exists
     const existingUser = await prisma.user.findUnique({
       where: { email }
     })
@@ -64,45 +71,32 @@ const register = async (req, res) => {
       return res.status(400).json({ message: 'User already exists with this email' })
     }
 
-    // Hash the password
     const hashedPassword = await bcrypt.hash(password, 10)
 
-    // Create the user
     const user = await prisma.user.create({
       data: {
         name,
         email,
         password: hashedPassword,
-        role: role || 'STUDENT',
+        role: 'STUDENT',
         phone,
         address
       }
     })
 
-    // Create role profile
-    if (user.role === 'STUDENT') {
-      const student = await prisma.student.create({
-        data: {
-          userId: user.id,
-          rollNumber: `STU${Date.now()}`,
-          semester: 1,
-        }
-      })
+    const student = await prisma.student.create({
+      data: {
+        userId: user.id,
+        rollNumber: `STU${Date.now()}`,
+        semester: 1
+      }
+    })
 
-      await enrollStudentInMatchingSubjects({
-        studentId: student.id,
-        semester: student.semester,
-        department: student.department
-      })
-    } else if (user.role === 'INSTRUCTOR') {
-      await prisma.instructor.create({
-        data: { userId: user.id }
-      })
-    } else if (user.role === 'ADMIN') {
-      await prisma.admin.create({
-        data: { userId: user.id }
-      })
-    }
+    await enrollStudentInMatchingSubjects({
+      studentId: student.id,
+      semester: student.semester,
+      department: student.department
+    })
 
     const token = await issueAuthSession(user, res)
 
@@ -111,7 +105,6 @@ const register = async (req, res) => {
       token,
       user: buildAuthUser(user)
     })
-
   } catch (error) {
     res.internalError(error)
   }
@@ -124,7 +117,6 @@ const login = async (req, res) => {
   try {
     const { email, password } = req.body
 
-    // Find user
     const user = await prisma.user.findUnique({
       where: { email }
     })
@@ -133,33 +125,35 @@ const login = async (req, res) => {
       return res.status(404).json({ message: 'User not found' })
     }
 
-    // Check password
     const isPasswordValid = await bcrypt.compare(password, user.password)
-
     if (!isPasswordValid) {
       return res.status(401).json({ message: 'Invalid password' })
     }
 
-    // Check if user is active
     if (!user.isActive) {
-      return res.status(403).json({ message: 'Your account is disabled' })
+      return res.status(403).json({
+        message: user.suspensionReason
+          ? `Your account is suspended. Reason: ${user.suspensionReason}`
+          : 'Your account is disabled'
+      })
     }
 
     const token = await issueAuthSession(user, res)
 
     res.json({
-      message: 'Login successful!',
+      message: user.mustChangePassword
+        ? 'Login successful. Please change your password to continue.'
+        : 'Login successful!',
       token,
       user: buildAuthUser(user)
     })
-
   } catch (error) {
     res.internalError(error)
   }
 }
 
 // ================================
-// GET CURRENT USER (me)
+// GET CURRENT USER
 // ================================
 const getMe = async (req, res) => {
   try {
@@ -173,15 +167,213 @@ const getMe = async (req, res) => {
         phone: true,
         address: true,
         avatar: true,
-        createdAt: true
+        createdAt: true,
+        mustChangePassword: true,
+        profileCompleted: true,
+        student: {
+          select: {
+            rollNumber: true,
+            semester: true,
+            section: true,
+            department: true,
+            guardianName: true,
+            guardianPhone: true,
+            dateOfBirth: true
+          }
+        }
       }
     })
 
     res.json({ user })
-
   } catch (error) {
     logger.error(error.message, { stack: error.stack })
     res.status(500).json({ message: 'Something went wrong' })
+  }
+}
+
+// ================================
+// CHANGE PASSWORD
+// ================================
+const changePassword = async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body
+
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.id }
+    })
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' })
+    }
+
+    const isPasswordValid = await bcrypt.compare(currentPassword, user.password)
+    if (!isPasswordValid) {
+      return res.status(400).json({ message: 'Current password is incorrect' })
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10)
+    const updatedUser = await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        password: hashedPassword,
+        mustChangePassword: false
+      }
+    })
+
+    res.json({
+      message: 'Password changed successfully!',
+      user: buildAuthUser(updatedUser)
+    })
+  } catch (error) {
+    res.internalError(error)
+  }
+}
+
+// ================================
+// COMPLETE STUDENT PROFILE
+// ================================
+const completeProfile = async (req, res) => {
+  try {
+    if (req.user.role !== 'STUDENT') {
+      return res.status(403).json({ message: 'Only students can complete this profile form' })
+    }
+
+    const {
+      name,
+      phone,
+      address,
+      guardianName,
+      guardianPhone,
+      dateOfBirth,
+      section
+    } = req.body
+
+    const student = await prisma.student.findUnique({
+      where: { userId: req.user.id }
+    })
+
+    if (!student) {
+      return res.status(404).json({ message: 'Student profile not found' })
+    }
+
+    const [updatedUser] = await prisma.$transaction([
+      prisma.user.update({
+        where: { id: req.user.id },
+        data: {
+          name,
+          phone,
+          address,
+          profileCompleted: true
+        }
+      }),
+      prisma.student.update({
+        where: { userId: req.user.id },
+        data: {
+          guardianName,
+          guardianPhone,
+          section,
+          dateOfBirth: new Date(dateOfBirth)
+        }
+      })
+    ])
+
+    res.json({
+      message: 'Profile submitted successfully!',
+      user: buildAuthUser(updatedUser)
+    })
+  } catch (error) {
+    res.internalError(error)
+  }
+}
+
+// ================================
+// FORGOT PASSWORD
+// ================================
+const forgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body
+
+    const user = await prisma.user.findUnique({
+      where: { email }
+    })
+
+    if (!user) {
+      return res.json({
+        message: 'If the account exists, password reset instructions have been prepared.'
+      })
+    }
+
+    const resetToken = crypto.randomBytes(32).toString('hex')
+    const resetTokenHash = hashToken(resetToken)
+    const expiresAt = getResetTokenExpiry()
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        passwordResetTokenHash: resetTokenHash,
+        passwordResetExpiresAt: expiresAt
+      }
+    })
+
+    const resetPayload = {
+      message: 'If the account exists, password reset instructions have been prepared.'
+    }
+
+    if (process.env.NODE_ENV !== 'production') {
+      resetPayload.resetToken = resetToken
+      resetPayload.resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-password?token=${resetToken}`
+    }
+
+    logger.info('Password reset requested', {
+      userId: user.id,
+      email: user.email,
+      resetPreview: process.env.NODE_ENV !== 'production'
+        ? resetPayload.resetUrl
+        : 'hidden'
+    })
+
+    res.json(resetPayload)
+  } catch (error) {
+    res.internalError(error)
+  }
+}
+
+// ================================
+// RESET PASSWORD
+// ================================
+const resetPassword = async (req, res) => {
+  try {
+    const { token, password } = req.body
+    const tokenHash = hashToken(token)
+
+    const user = await prisma.user.findFirst({
+      where: {
+        passwordResetTokenHash: tokenHash,
+        passwordResetExpiresAt: {
+          gt: new Date()
+        }
+      }
+    })
+
+    if (!user) {
+      return res.status(400).json({ message: 'Password reset link is invalid or expired' })
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10)
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        password: hashedPassword,
+        mustChangePassword: false,
+        passwordResetTokenHash: null,
+        passwordResetExpiresAt: null
+      }
+    })
+
+    res.json({ message: 'Password reset successfully!' })
+  } catch (error) {
+    res.internalError(error)
   }
 }
 
@@ -208,7 +400,9 @@ const refresh = async (req, res) => {
             name: true,
             email: true,
             role: true,
-            isActive: true
+            isActive: true,
+            mustChangePassword: true,
+            profileCompleted: true
           }
         }
       }
@@ -256,5 +450,14 @@ const logout = async (req, res) => {
   }
 }
 
-module.exports = { register, login, refresh, logout, getMe }
-
+module.exports = {
+  register,
+  login,
+  getMe,
+  changePassword,
+  completeProfile,
+  forgotPassword,
+  resetPassword,
+  refresh,
+  logout
+}

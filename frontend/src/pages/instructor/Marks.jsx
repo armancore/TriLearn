@@ -91,7 +91,7 @@ const Marks = () => {
         totalMarks: parseInt(form.totalMarks),
         obtainedMarks: parseInt(form.obtainedMarks)
       })
-      setSuccess('Marks added successfully!')
+      setSuccess('Result record added successfully!')
       setShowModal(false)
       setForm({ studentId: '', subjectId: '', examType: 'INTERNAL', totalMarks: 100, obtainedMarks: '', remarks: '' })
       if (selectedSubject) fetchMarks()
@@ -107,8 +107,8 @@ const Marks = () => {
 
         <div className="flex justify-between items-center mb-8">
           <div>
-            <h1 className="text-2xl font-bold text-gray-800">Marks</h1>
-            <p className="text-gray-500 text-sm mt-1">Add and view student exam marks</p>
+            <h1 className="text-2xl font-bold text-gray-800">Examination Results</h1>
+            <p className="text-gray-500 text-sm mt-1">Publish and review student examination results with a cleaner academic presentation.</p>
           </div>
           <button
             onClick={() => {
@@ -121,7 +121,7 @@ const Marks = () => {
             }}
             className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition text-sm font-medium"
           >
-            + Add Marks
+            + Add Result
           </button>
         </div>
 
@@ -138,20 +138,24 @@ const Marks = () => {
             }}
             className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
           >
-            <option value="">Select a subject to view marks</option>
+            <option value="">Select a subject to view examination results</option>
             {subjects.map((s) => (
               <option key={s.id} value={s.id}>{s.name} - {s.code}</option>
             ))}
           </select>
         </div>
 
-        {/* Marks Table */}
+        {/* Results Table */}
         {selectedSubject && (
           <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
             {loading ? (
-              <LoadingSpinner text="Loading marks..." />
+              <LoadingSpinner text="Loading examination results..." />
             ) : (
               <>
+              <div className="px-6 py-4 border-b bg-gray-50/70">
+                <h2 className="text-lg font-semibold text-gray-800">Published Result Records</h2>
+                <p className="text-sm text-gray-500 mt-1">Each row represents an assessment component recorded for the selected subject.</p>
+              </div>
               <div className="overflow-x-auto">
               <table className="w-full min-w-[760px]">
                 <thead className="bg-gray-50">
@@ -190,6 +194,7 @@ const Marks = () => {
                     <tr>
                       <td colSpan={6} className="px-6 py-8 text-center text-gray-400">
                         No marks added for this subject yet
+                      
                       </td>
                     </tr>
                   )}
@@ -204,9 +209,9 @@ const Marks = () => {
 
       </div>
 
-      {/* Add Marks Modal */}
+      {/* Add Result Modal */}
       {showModal && (
-        <Modal title="Add Marks" onClose={() => setShowModal(false)}>
+        <Modal title="Publish Examination Result" onClose={() => setShowModal(false)}>
             <Alert type="error" message={error} />
             <form onSubmit={handleSubmit} className="space-y-4">
               <select required value={form.studentId} onChange={(e) => setForm({ ...form, studentId: e.target.value })}
@@ -231,16 +236,16 @@ const Marks = () => {
                 <option value="PRACTICAL">Practical</option>
               </select>
               <div className="flex gap-3">
-                <input type="number" placeholder="Total Marks" required
+                <input type="number" placeholder="Full Marks" required
                   value={form.totalMarks} onChange={(e) => setForm({ ...form, totalMarks: e.target.value })}
                   className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
                 />
-                <input type="number" placeholder="Obtained Marks" required
+                <input type="number" placeholder="Obtained Score" required
                   value={form.obtainedMarks} onChange={(e) => setForm({ ...form, obtainedMarks: e.target.value })}
                   className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
                 />
               </div>
-              <input type="text" placeholder="Remarks (optional)"
+              <input type="text" placeholder="Result Remarks (optional)"
                 value={form.remarks} onChange={(e) => setForm({ ...form, remarks: e.target.value })}
                 className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
               />
@@ -248,7 +253,7 @@ const Marks = () => {
                 <button type="button" onClick={() => setShowModal(false)}
                   className="flex-1 border border-gray-300 text-gray-600 py-2 rounded-lg text-sm hover:bg-gray-50">Cancel</button>
                 <button type="submit"
-                  className="flex-1 bg-green-600 text-white py-2 rounded-lg text-sm hover:bg-green-700 font-medium">Add Marks</button>
+                  className="flex-1 bg-green-600 text-white py-2 rounded-lg text-sm hover:bg-green-700 font-medium">Publish Result</button>
               </div>
             </form>
         </Modal>

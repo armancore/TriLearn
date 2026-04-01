@@ -4,6 +4,7 @@ import Alert from '../../components/Alert'
 import { useAuth } from '../../context/AuthContext'
 import useForm from '../../hooks/useForm'
 import api from '../../utils/api'
+import { getHomeRouteForUser } from '../../utils/auth'
 import { getFriendlyErrorMessage } from '../../utils/errors'
 
 const validateLogin = (values) => {
@@ -42,12 +43,7 @@ const Login = () => {
       const res = await api.post('/auth/login', formValues)
       const { user, token } = res.data
       login(user, token)
-
-      // Redirect based on role
-      if (user.role === 'ADMIN') navigate('/admin')
-      else if (user.role === 'GATEKEEPER') navigate('/gate')
-      else if (user.role === 'INSTRUCTOR') navigate('/instructor')
-      else navigate('/student')
+      navigate(getHomeRouteForUser(user))
 
     } catch (err) {
       setError(getFriendlyErrorMessage(err, 'Login failed. Please try again.'))
@@ -111,6 +107,15 @@ const Login = () => {
             {loading ? 'Logging in...' : 'Login'}
           </button>
         </form>
+        <div className="mt-4 text-center">
+          <button
+            type="button"
+            onClick={() => navigate('/forgot-password')}
+            className="text-sm text-blue-600 hover:text-blue-700"
+          >
+            Forgot password?
+          </button>
+        </div>
 
       </div>
     </div>

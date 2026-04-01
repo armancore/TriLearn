@@ -4,6 +4,14 @@ export const getFriendlyErrorMessage = (error, fallbackMessage = 'Something went
   }
 
   const { status, data } = error.response
+  const fieldErrors = data?.errors?.fieldErrors
+
+  if (fieldErrors) {
+    const firstFieldMessage = Object.values(fieldErrors).flat().find(Boolean)
+    if (firstFieldMessage) {
+      return firstFieldMessage
+    }
+  }
 
   if (status === 400) {
     return data?.message || fallbackMessage

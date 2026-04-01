@@ -20,11 +20,12 @@ const paginationQuery = {
   limit: z.coerce.number().int().min(1).max(100).optional()
 }
 
-const roleEnum = z.enum(['ADMIN', 'GATEKEEPER', 'INSTRUCTOR', 'STUDENT'])
+const roleEnum = z.enum(['ADMIN', 'COORDINATOR', 'GATEKEEPER', 'INSTRUCTOR', 'STUDENT'])
 const noticeTypeEnum = z.enum(['GENERAL', 'EXAM', 'HOLIDAY', 'EVENT', 'URGENT'])
 const dayOfWeekEnum = z.enum(['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'])
 const attendanceStatusEnum = z.enum(['PRESENT', 'ABSENT', 'LATE'])
 const examTypeEnum = z.enum(['INTERNAL', 'MIDTERM', 'FINAL', 'PRACTICAL'])
+const exportFormatEnum = z.enum(['pdf', 'xlsx'])
 
 const strongPasswordSchema = z.string()
   .min(8, 'Password must be at least 8 characters')
@@ -40,6 +41,16 @@ const userBaseSchema = z.object({
   password: strongPasswordSchema,
   phone: optionalString(30),
   address: optionalString(255)
+})
+
+const selfProfileBody = z.object({
+  name: z.string().trim().min(2).max(100),
+  phone: z.string().trim().min(7).max(30),
+  address: z.string().trim().min(5).max(255),
+  guardianName: z.string().trim().min(2).max(100),
+  guardianPhone: z.string().trim().min(7).max(30),
+  dateOfBirth: z.string().trim().min(1),
+  section: z.string().trim().min(1).max(20)
 })
 
 const createNoticeBody = z.object({
@@ -150,6 +161,26 @@ const schemas = {
         email: z.string().trim().email(),
         password: z.string().min(1)
       })
+    },
+    changePassword: {
+      body: z.object({
+        currentPassword: z.string().min(1),
+        newPassword: strongPasswordSchema
+      })
+    },
+    forgotPassword: {
+      body: z.object({
+        email: z.string().trim().email()
+      })
+    },
+    resetPassword: {
+      body: z.object({
+        token: z.string().trim().min(10),
+        password: strongPasswordSchema
+      })
+    },
+    completeProfile: {
+      body: selfProfileBody
     }
   },
   admin: {
@@ -161,6 +192,11 @@ const schemas = {
       })
     },
     userId: { params: uuidParam },
+    createCoordinator: {
+      body: userBaseSchema.extend({
+        department: optionalString(100)
+      })
+    },
     createGatekeeper: { body: userBaseSchema },
     createInstructor: {
       body: userBaseSchema.extend({
@@ -168,7 +204,11 @@ const schemas = {
       })
     },
     createStudent: {
-      body: userBaseSchema.extend({
+      body: z.object({
+        name: z.string().trim().min(2).max(100),
+        studentId: z.string().trim().min(3).max(50),
+        phone: optionalString(30),
+        address: optionalString(255),
         department: z.string().trim().min(2).max(100),
         semester: z.coerce.number().int().min(1).max(8),
         section: z.string().trim().min(1).max(20)
@@ -213,6 +253,13 @@ const schemas = {
     generateQr: { body: z.object({ subjectId: z.string().uuid() }) },
     manual: { body: attendanceManualBody },
     scanQr: { body: qrBody },
+    export: {
+      params: z.object({ subjectId: z.string().uuid() }),
+      query: z.object({
+        date: optionalString(50),
+        format: exportFormatEnum.optional()
+      })
+    },
     getBySubject: {
       params: z.object({ subjectId: z.string().uuid() }),
       query: z.object({
