@@ -1,10 +1,5 @@
 import { useState } from 'react'
-
-const getErrorMessage = (error, fallbackMessage) => (
-  error?.response?.data?.message ||
-  error?.message ||
-  fallbackMessage
-)
+import { getFriendlyErrorMessage } from '../utils/errors'
 
 const useApi = ({ initialData = null, initialLoading = false } = {}) => {
   const [data, setData] = useState(initialData)
@@ -36,7 +31,7 @@ const useApi = ({ initialData = null, initialLoading = false } = {}) => {
 
       return response
     } catch (requestError) {
-      const message = getErrorMessage(requestError, fallbackMessage)
+      const message = getFriendlyErrorMessage(requestError, fallbackMessage)
       setError(message)
 
       if (onError) {

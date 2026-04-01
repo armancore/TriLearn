@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import GateLayout from '../../layouts/GateLayout'
 import api from '../../utils/api'
+import { getFriendlyErrorMessage } from '../../utils/errors'
 import logger from '../../utils/logger'
 const GateDashboard = () => {
   const [dailyQrCode, setDailyQrCode] = useState('')
@@ -21,7 +22,7 @@ const GateDashboard = () => {
       setCutoffAt(new Date(res.data.cutoffAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }))
     } catch (requestError) {
       logger.error(requestError)
-      setError(requestError.response?.data?.message || 'Unable to generate gate QR')
+      setError(getFriendlyErrorMessage(requestError, 'Unable to generate the gate QR right now.'))
     } finally {
       setLoading(false)
     }

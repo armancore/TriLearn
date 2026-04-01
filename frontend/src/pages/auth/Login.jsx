@@ -4,6 +4,7 @@ import Alert from '../../components/Alert'
 import { useAuth } from '../../context/AuthContext'
 import useForm from '../../hooks/useForm'
 import api from '../../utils/api'
+import { getFriendlyErrorMessage } from '../../utils/errors'
 
 const validateLogin = (values) => {
   const errors = {}
@@ -49,7 +50,7 @@ const Login = () => {
       else navigate('/student')
 
     } catch (err) {
-      setError(err.response?.data?.message || 'Login failed')
+      setError(getFriendlyErrorMessage(err, 'Login failed. Please try again.'))
     } finally {
       setLoading(false)
     }
