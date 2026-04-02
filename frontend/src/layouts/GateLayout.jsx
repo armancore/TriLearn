@@ -9,7 +9,7 @@ const GateLayout = ({ children }) => {
   const navigate = useNavigate()
 
   const sidebarItems = [
-    { path: '/gate', label: 'Attendance', icon: Percent, meta: 'Gate QR attendance' },
+    { path: '/gate', label: 'Live QR', icon: Percent, meta: 'Active gate attendance' },
     { label: 'Profile', icon: UserCircle2, meta: 'My account', disabled: true },
     { label: 'Overview', icon: LayoutDashboard, meta: 'More gate tools', disabled: true }
   ]

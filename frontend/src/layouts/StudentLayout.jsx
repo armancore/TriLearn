@@ -24,6 +24,7 @@ const StudentLayout = ({ children, noticesCount = 4 }) => {
     { path: '/student', label: 'Learnings', icon: BookOpenText, meta: 'Enrolled modules' },
     { path: '/student/assignments', label: 'Tasks', icon: ClipboardList, meta: 'Assignments and deadlines' },
     { path: '/student/attendance', label: 'Attendance', icon: Percent, meta: 'Attendance records' },
+    { path: '/student/tickets', label: 'Tickets', icon: FileText, meta: 'Absence explanations' },
     { path: '/student/marks', label: 'Results', icon: FileText, meta: 'Exam results' },
     { path: '/student/materials', label: 'Books', icon: FolderOpen, meta: 'Books and materials' },
     { label: 'Staff Info', icon: Users, meta: 'Faculty contacts', disabled: true },

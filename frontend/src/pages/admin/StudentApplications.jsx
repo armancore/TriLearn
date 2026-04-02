@@ -101,7 +101,7 @@ const StudentApplications = () => {
         semester: parseInt(accountForm.semester, 10),
         section: accountForm.section
       })
-      setSuccess(`Student account created. Login email: ${res.data.user.email}${res.data.user.defaultPassword ? ` | Default password: ${res.data.user.defaultPassword}` : ''}`)
+      setSuccess(`Student account created. Login email: ${res.data.user.email}. The student must change the temporary password on first login.`)
       setSelectedApplication(null)
       fetchApplications()
     } catch (requestError) {

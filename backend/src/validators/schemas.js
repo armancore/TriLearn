@@ -27,6 +27,7 @@ const attendanceStatusEnum = z.enum(['PRESENT', 'ABSENT', 'LATE'])
 const examTypeEnum = z.enum(['INTERNAL', 'MIDTERM', 'FINAL', 'PRACTICAL'])
 const exportFormatEnum = z.enum(['pdf', 'xlsx'])
 const applicationStatusEnum = z.enum(['PENDING', 'REVIEWED', 'CONVERTED'])
+const absenceTicketStatusEnum = z.enum(['PENDING', 'APPROVED', 'REJECTED'])
 
 const strongPasswordSchema = z.string()
   .min(8, 'Password must be at least 8 characters')
@@ -141,6 +142,16 @@ const departmentBody = z.object({
 
 const qrBody = z.object({
   qrData: z.string().trim().min(10)
+})
+
+const absenceTicketBody = z.object({
+  attendanceId: z.string().uuid(),
+  reason: z.string().trim().min(10).max(1000)
+})
+
+const reviewAbsenceTicketBody = z.object({
+  status: absenceTicketStatusEnum,
+  response: optionalString(1000)
 })
 
 const marksBody = z.object({
@@ -326,6 +337,12 @@ const schemas = {
     generateQr: { body: z.object({ subjectId: z.string().uuid() }) },
     manual: { body: attendanceManualBody },
     scanQr: { body: qrBody },
+    createTicket: { body: absenceTicketBody },
+    reviewTicket: {
+      params: uuidParam,
+      body: reviewAbsenceTicketBody
+    },
+    ticketId: { params: uuidParam },
     monthlyReport: {
       params: z.object({ subjectId: z.string().uuid() }),
       query: z.object({

@@ -111,6 +111,7 @@ model Student {
   dateOfBirth  DateTime?
   enrolledAt   DateTime @default(now())
   attendances  Attendance[]
+  absenceTickets AbsenceTicket[]
   submissions  Submission[]
   marks        Mark[]
   subjectEnrollments SubjectEnrollment[]
@@ -176,8 +177,8 @@ model Attendance {
   status       AttendanceStatus @default(PRESENT)
   qrCode       String?
   createdAt    DateTime @default(now())
+  absenceTicket AbsenceTicket?
 
-  @@index([studentId, subjectId, date])
   @@index([subjectId, date])
   @@unique([studentId, subjectId, date])
 }
@@ -186,6 +187,30 @@ enum AttendanceStatus {
   PRESENT
   ABSENT
   LATE
+}
+
+model AbsenceTicket {
+  id           String   @id @default(uuid())
+  attendanceId String   @unique
+  attendance   Attendance @relation(fields: [attendanceId], references: [id], onDelete: Cascade)
+  studentId    String
+  student      Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  reason       String
+  status       AbsenceTicketStatus @default(PENDING)
+  response     String?
+  reviewedBy   String?
+  reviewedAt   DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([studentId, status])
+  @@index([status, createdAt])
+}
+
+enum AbsenceTicketStatus {
+  PENDING
+  APPROVED
+  REJECTED
 }
 
 // ================================

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { Camera, Square, Upload } from 'lucide-react'
-import { useLocation } from 'react-router-dom'
+import { AlertCircle, Camera, FileText, Square, Upload } from 'lucide-react'
+import { Link, useLocation } from 'react-router-dom'
 import StudentLayout from '../../layouts/StudentLayout'
 import api from '../../utils/api'
 import Alert from '../../components/Alert'
@@ -44,6 +44,7 @@ const StudentAttendance = () => {
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [pendingTicketCount, setPendingTicketCount] = useState(0)
   const { showToast } = useToast()
   const [scannerOpen, setScannerOpen] = useState(false)
   const [manualQrData, setManualQrData] = useState('')
@@ -83,10 +84,14 @@ const StudentAttendance = () => {
   const fetchAttendance = async () => {
     try {
       setError('')
-      const res = await api.get(`/attendance/my?page=${page}&limit=${limit}`)
-      setAttendance(res.data.attendance)
-      setSummary(res.data.summary)
-      setTotal(res.data.total)
+      const [attendanceRes, ticketsRes] = await Promise.all([
+        api.get(`/attendance/my?page=${page}&limit=${limit}`),
+        api.get('/attendance/tickets/my')
+      ])
+      setAttendance(attendanceRes.data.attendance)
+      setSummary(attendanceRes.data.summary)
+      setTotal(attendanceRes.data.total)
+      setPendingTicketCount(ticketsRes.data.absencesWithoutTicket?.length || 0)
     } catch (fetchError) {
       logger.error(fetchError)
       setError(fetchError.response?.data?.message || 'Unable to load attendance')
@@ -185,24 +190,50 @@ const StudentAttendance = () => {
         <PageHeader
           title={location.pathname === '/student/scan' ? 'Scan Gate QR' : 'My Attendance'}
           subtitle={location.pathname === '/student/scan'
-            ? 'Use your phone camera here to scan the gate QR quickly when you arrive at college.'
-            : 'Track your attendance and scan the daily entry QR from your phone.'}
+            ? 'Use your phone camera here to scan the live rotating gate QR during your active class window.'
+            : 'Track your attendance, scan the live gate QR, and review any absence tickets that need your response.'}
           breadcrumbs={['Student', 'Attendance']}
           actions={[
             { label: 'Start Scanner', icon: Camera, variant: 'primary', onClick: startScanner, disabled: submittingScan },
             { label: 'Stop', icon: Square, variant: 'secondary', onClick: () => { stopScanner(); setScannerOpen(false); setScannerStatus('Scanner stopped.') } },
-            { label: submittingScan ? 'Submitting...' : 'Submit QR', icon: Upload, variant: 'secondary', onClick: () => submitDailyQr(manualQrData), disabled: !manualQrData.trim() || submittingScan }
+            { label: submittingScan ? 'Submitting...' : 'Submit QR', icon: Upload, variant: 'secondary', onClick: () => submitDailyQr(manualQrData), disabled: !manualQrData.trim() || submittingScan },
+            { label: 'Open Tickets', icon: FileText, variant: 'secondary', to: '/student/tickets' }
           ]}
         />
 
         <Alert type="error" message={error} />
 
+        {pendingTicketCount > 0 ? (
+          <div className="mb-6 rounded-2xl border border-amber-100 bg-amber-50 px-5 py-4">
+            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+              <div className="flex items-start gap-3">
+                <div className="mt-0.5 flex h-10 w-10 items-center justify-center rounded-2xl bg-white text-amber-600 shadow-sm">
+                  <AlertCircle className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="font-semibold text-amber-900">You have {pendingTicketCount} absence ticket{pendingTicketCount === 1 ? '' : 's'} waiting.</p>
+                  <p className="mt-1 text-sm text-amber-700">
+                    These absences were auto-recorded after the scan window closed. Open your tickets page to add the reason.
+                  </p>
+                </div>
+              </div>
+              <Link
+                to="/student/tickets"
+                className="inline-flex items-center gap-2 rounded-lg border border-amber-200 bg-white px-4 py-2 text-sm font-medium text-amber-800 transition hover:bg-amber-100"
+              >
+                <FileText className="h-4 w-4" />
+                <span>Review Tickets</span>
+              </Link>
+            </div>
+          </div>
+        ) : null}
+
         <div className="bg-white rounded-2xl shadow-sm p-6 mb-8">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
             <div>
-              <h2 className="text-lg font-semibold text-gray-800">Daily QR Attendance</h2>
+              <h2 className="text-lg font-semibold text-gray-800">Live Gate QR Attendance</h2>
               <p className="text-sm text-gray-500 mt-1">
-                Scan the entrance QR and we&apos;ll mark attendance for all of your enrolled routine subjects scheduled today.
+                Scan the active gate QR during your class window. The code rotates every minute and only works for your scheduled routine period.
               </p>
             </div>
             <div className="flex gap-3">

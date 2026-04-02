@@ -32,6 +32,7 @@ import InstructorRoutine from './pages/instructor/Routine'
 import Learnings from './pages/Learnings'
 import StudentSubjects from './pages/student/Subjects'
 import StudentAttendance from './pages/student/Attendance'
+import StudentTickets from './pages/student/Tickets'
 import StudentAssignments from './pages/student/Assignments'
 import StudentMarks from './pages/student/Marks'
 import StudentNotices from './pages/student/Notices'
@@ -134,6 +135,7 @@ const AppRoutes = () => {
       <Route path="/student/scan" element={<ProtectedRoute allowedRoles={['STUDENT']}><StudentAttendance /></ProtectedRoute>} />
       <Route path="/student/subjects" element={<ProtectedRoute allowedRoles={['STUDENT']}><StudentSubjects /></ProtectedRoute>} />
       <Route path="/student/attendance" element={<ProtectedRoute allowedRoles={['STUDENT']}><StudentAttendance /></ProtectedRoute>} />
+      <Route path="/student/tickets" element={<ProtectedRoute allowedRoles={['STUDENT']}><StudentTickets /></ProtectedRoute>} />
       <Route path="/student/assignments" element={<ProtectedRoute allowedRoles={['STUDENT']}><StudentAssignments /></ProtectedRoute>} />
       <Route path="/student/marks" element={<ProtectedRoute allowedRoles={['STUDENT']}><StudentMarks /></ProtectedRoute>} />
       <Route path="/student/notices" element={<ProtectedRoute allowedRoles={['STUDENT']}><StudentNotices /></ProtectedRoute>} />

@@ -1,4 +1,5 @@
 const prisma = require('../utils/prisma')
+const crypto = require('crypto')
 const ExcelJS = require('exceljs')
 const PDFDocument = require('pdfkit')
 const QRCode = require('qrcode')
@@ -9,6 +10,7 @@ const { recordAuditLog } = require('../utils/audit')
 const ATTENDANCE_STATUSES = ['PRESENT', 'ABSENT', 'LATE']
 const QR_VALIDITY_MINUTES = 15
 const DAYS = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY']
+const QR_SIGNING_SECRET = process.env.QR_SIGNING_SECRET || process.env.JWT_SECRET || process.env.ACCESS_TOKEN_SECRET || 'edunexus-qr-secret'
 
 const getDayRange = (dateValue) => {
   const baseDate = dateValue ? new Date(dateValue) : new Date()
@@ -179,12 +181,170 @@ const getTodayGateWindow = async () => {
   }
 }
 
+const getRoutineScanWindow = (baseDate, routine) => {
+  const startsAt = buildDateWithTime(baseDate, routine.startTime)
+  const endsAt = new Date(startsAt)
+  endsAt.setMinutes(endsAt.getMinutes() + 15)
+
+  return { startsAt, endsAt }
+}
+
+const getActiveRoutineWindows = async (referenceDate = new Date()) => {
+  const dayRange = getDayRange(referenceDate)
+  const dayOfWeek = getCurrentDayName(dayRange.start)
+
+  const routines = await prisma.routine.findMany({
+    where: { dayOfWeek },
+    include: {
+      subject: {
+        select: {
+          id: true,
+          name: true,
+          code: true,
+          semester: true,
+          department: true
+        }
+      }
+    },
+    orderBy: { startTime: 'asc' }
+  })
+
+  const active = []
+  let nextWindow = null
+
+  routines.forEach((routine) => {
+    const window = getRoutineScanWindow(dayRange.start, routine)
+    const enriched = {
+      ...routine,
+      startsAt: window.startsAt,
+      endsAt: window.endsAt
+    }
+
+    if (referenceDate >= window.startsAt && referenceDate <= window.endsAt) {
+      active.push(enriched)
+      return
+    }
+
+    if (referenceDate < window.startsAt) {
+      if (!nextWindow || window.startsAt < nextWindow.startsAt) {
+        nextWindow = enriched
+      }
+    }
+  })
+
+  return { dayRange, dayOfWeek, active, nextWindow }
+}
+
+const syncClosedRoutineAbsences = async (referenceDate = new Date()) => {
+  const { dayRange, dayOfWeek } = await getActiveRoutineWindows(referenceDate)
+
+  const routines = await prisma.routine.findMany({
+    where: { dayOfWeek },
+    include: {
+      subject: {
+        select: {
+          id: true,
+          enrollments: {
+            select: {
+              studentId: true
+            }
+          }
+        }
+      }
+    },
+    orderBy: { startTime: 'asc' }
+  })
+
+  const closedRoutines = routines.filter((routine) => {
+    const { endsAt } = getRoutineScanWindow(dayRange.start, routine)
+    return referenceDate > endsAt
+  })
+
+  if (!closedRoutines.length) {
+    return
+  }
+
+  const subjectIds = closedRoutines.map((routine) => routine.subjectId)
+  const existingAttendance = await prisma.attendance.findMany({
+    where: {
+      subjectId: { in: subjectIds },
+      date: { gte: dayRange.start, lt: dayRange.end }
+    },
+    select: {
+      studentId: true,
+      subjectId: true
+    }
+  })
+
+  const existingKeys = new Set(existingAttendance.map((record) => `${record.studentId}:${record.subjectId}`))
+  const absencesToCreate = []
+
+  closedRoutines.forEach((routine) => {
+    routine.subject.enrollments.forEach((enrollment) => {
+      const key = `${enrollment.studentId}:${routine.subjectId}`
+      if (existingKeys.has(key)) {
+        return
+      }
+
+      existingKeys.add(key)
+      absencesToCreate.push({
+        studentId: enrollment.studentId,
+        subjectId: routine.subjectId,
+        instructorId: routine.instructorId,
+        status: 'ABSENT',
+        date: dayRange.start
+      })
+    })
+  })
+
+  if (absencesToCreate.length > 0) {
+    await prisma.attendance.createMany({
+      data: absencesToCreate,
+      skipDuplicates: true
+    })
+  }
+}
+
 const parseQrPayload = (qrData) => {
   try {
-    return JSON.parse(qrData)
+    const parsed = JSON.parse(qrData)
+    if (!parsed || typeof parsed !== 'object') return null
+
+    const payload = parsed.payload
+    const signature = parsed.signature
+
+    if (!payload || typeof payload !== 'object' || typeof signature !== 'string') {
+      return null
+    }
+
+    const expectedSignature = crypto
+      .createHmac('sha256', QR_SIGNING_SECRET)
+      .update(JSON.stringify(payload))
+      .digest('hex')
+
+    const receivedSignature = Buffer.from(signature, 'hex')
+    const expectedBuffer = Buffer.from(expectedSignature, 'hex')
+
+    if (
+      receivedSignature.length !== expectedBuffer.length ||
+      !crypto.timingSafeEqual(receivedSignature, expectedBuffer)
+    ) {
+      return null
+    }
+
+    return payload
   } catch {
     return null
   }
+}
+
+const createSignedQrPayload = (payload) => {
+  const signature = crypto
+    .createHmac('sha256', QR_SIGNING_SECRET)
+    .update(JSON.stringify(payload))
+    .digest('hex')
+
+  return JSON.stringify({ payload, signature })
 }
 
 const formatDisplayDate = (dateValue) => new Date(dateValue).toLocaleDateString('en-CA')
@@ -599,7 +759,7 @@ const generateQR = async (req, res) => {
     }
 
     // Create QR data with timestamp (valid for 10 minutes)
-    const qrData = JSON.stringify({
+    const qrData = createSignedQrPayload({
       subjectId,
       instructorId,
       date: new Date().toISOString(),
@@ -819,6 +979,8 @@ const getAttendanceBySubject = async (req, res) => {
     const { date } = req.query
     const { page, limit, skip } = getPagination(req.query)
 
+    await syncClosedRoutineAbsences(date ? new Date(date) : new Date())
+
     const access = await getOwnedSubject(subjectId, req)
     if (access.error) {
       return res.status(access.error.status).json({ message: access.error.message })
@@ -887,6 +1049,8 @@ const getMyAttendance = async (req, res) => {
       return res.status(403).json({ message: 'Student profile not found' })
     }
 
+    await syncClosedRoutineAbsences()
+
     const [attendance, total, allAttendance] = await Promise.all([
       prisma.attendance.findMany({
         where: { studentId: student.id },
@@ -943,6 +1107,8 @@ const getSubjectRoster = async (req, res) => {
     const { subjectId } = req.params
     const { date } = req.query
 
+    await syncClosedRoutineAbsences(date ? new Date(date) : new Date())
+
     const access = await getOwnedSubject(subjectId, req)
     if (access.error) {
       return res.status(access.error.status).json({ message: access.error.message })
@@ -991,6 +1157,7 @@ const getSubjectRoster = async (req, res) => {
 const getCoordinatorDepartmentAttendanceReport = async (req, res) => {
   try {
     const { month, semester, section } = req.query
+    await syncClosedRoutineAbsences()
     const report = await getCoordinatorDepartmentReportPayload({
       coordinator: req.coordinator,
       month,
@@ -1037,6 +1204,8 @@ const getMonthlyAttendanceReport = async (req, res) => {
   try {
     const { subjectId } = req.params
     const { month } = req.query
+
+    await syncClosedRoutineAbsences()
 
     const access = await getOwnedSubject(subjectId, req)
     if (access.error) {
@@ -1143,6 +1312,8 @@ const exportAttendanceBySubject = async (req, res) => {
     const { subjectId } = req.params
     const { date, month, format = 'xlsx' } = req.query
 
+    await syncClosedRoutineAbsences(date ? new Date(date) : new Date())
+
     const report = await getAttendanceExportPayload({
       subjectId,
       date,
@@ -1177,27 +1348,36 @@ const markDailyAttendanceQR = async (req, res) => {
       return res.status(403).json({ message: 'Student profile not found' })
     }
 
+    await syncClosedRoutineAbsences()
+
     const parsedQR = parseQrPayload(qrData)
-    if (!parsedQR || parsedQR.type !== 'DAILY_ATTENDANCE') {
-      return res.status(400).json({ message: 'Invalid daily attendance QR code' })
+    if (!parsedQR || parsedQR.type !== 'GATE_PERIOD' || !Array.isArray(parsedQR.routineIds)) {
+      return res.status(400).json({ message: 'Invalid gate attendance QR code' })
     }
 
-    const gateWindow = await getTodayGateWindow()
-    if (!gateWindow) {
-      return res.status(400).json({ message: 'No routine is scheduled for today' })
+    const now = new Date()
+    if (new Date(parsedQR.expiresAt) <= now) {
+      return res.status(400).json({ message: 'This gate QR has already rotated. Please scan the latest QR.' })
     }
 
-    if (parsedQR.dayOfWeek !== gateWindow.dayOfWeek) {
-      return res.status(400).json({ message: 'QR code is not valid for today' })
+    const activeWindows = await getActiveRoutineWindows(now)
+    if (!activeWindows.active.length) {
+      return res.status(400).json({ message: 'There is no active attendance window right now.' })
     }
 
-    if (new Date() > new Date(parsedQR.expiresAt) || new Date() > gateWindow.cutoffAt) {
-      return res.status(400).json({ message: 'Gate QR scan time is over. Please contact your instructor for manual attendance.' })
+    const activeMap = new Map(activeWindows.active.map((routine) => [routine.id, routine]))
+    const eligibleRoutines = parsedQR.routineIds
+      .map((routineId) => activeMap.get(routineId))
+      .filter(Boolean)
+
+    if (!eligibleRoutines.length) {
+      return res.status(400).json({ message: 'This gate QR is not valid for the current routine window.' })
     }
 
+    const routineIds = eligibleRoutines.map((routine) => routine.id)
     const routines = await prisma.routine.findMany({
       where: {
-        dayOfWeek: gateWindow.dayOfWeek,
+        id: { in: routineIds },
         subject: {
           enrollments: {
             some: {
@@ -1212,42 +1392,34 @@ const markDailyAttendanceQR = async (req, res) => {
       orderBy: { startTime: 'asc' }
     })
 
-    if (routines.length === 0) {
-      return res.status(400).json({ message: 'No enrolled classes are scheduled for you today' })
+    if (!routines.length) {
+      return res.status(400).json({ message: 'You do not have any class scheduled in this active attendance window.' })
     }
 
-    const uniqueBySubject = new Map()
-    routines.forEach((routine) => {
-      if (!uniqueBySubject.has(routine.subjectId)) {
-        uniqueBySubject.set(routine.subjectId, routine)
-      }
-    })
-
-    const subjectIds = [...uniqueBySubject.keys()]
+    const subjectIds = routines.map((routine) => routine.subjectId)
     const existingAttendance = await prisma.attendance.findMany({
       where: {
         studentId: student.id,
         subjectId: { in: subjectIds },
-        date: { gte: gateWindow.dayRange.start, lt: gateWindow.dayRange.end }
+        date: { gte: activeWindows.dayRange.start, lt: activeWindows.dayRange.end }
       }
     })
 
     const existingMap = new Map(existingAttendance.map((record) => [record.subjectId, record]))
-    const routinesToMark = subjectIds.filter((subjectId) => !existingMap.has(subjectId))
+    const routinesToMark = routines.filter((routine) => !existingMap.has(routine.subjectId))
 
-    if (routinesToMark.length === 0) {
-      return res.status(400).json({ message: "Attendance already marked for all of today's classes" })
+    if (!routinesToMark.length) {
+      return res.status(400).json({ message: 'Attendance has already been recorded for all of your classes in this period.' })
     }
 
     const upsertedAttendance = await prisma.$transaction(
-      routinesToMark.map((subjectId) => {
-        const routine = uniqueBySubject.get(subjectId)
-        return prisma.attendance.upsert({
+      routinesToMark.map((routine) => (
+        prisma.attendance.upsert({
           where: {
             studentId_subjectId_date: {
               studentId: student.id,
-              subjectId,
-              date: gateWindow.dayRange.start
+              subjectId: routine.subjectId,
+              date: activeWindows.dayRange.start
             }
           },
           update: {
@@ -1257,41 +1429,32 @@ const markDailyAttendanceQR = async (req, res) => {
           },
           create: {
             studentId: student.id,
-            subjectId,
+            subjectId: routine.subjectId,
             instructorId: routine.instructorId,
             status: 'PRESENT',
             qrCode: qrData,
-            date: gateWindow.dayRange.start
+            date: activeWindows.dayRange.start
           }
         })
-      })
+      ))
     )
 
-    const markedSubjectIds = upsertedAttendance
-      .map((record) => record.subjectId)
-      .filter((subjectId) => !existingMap.has(subjectId))
-
-    const markedSubjects = markedSubjectIds.map((subjectId) => ({
-      id: subjectId,
-      name: uniqueBySubject.get(subjectId).subject.name,
-      code: uniqueBySubject.get(subjectId).subject.code,
-      startTime: uniqueBySubject.get(subjectId).startTime
-    }))
-
-    const skippedSubjects = subjectIds
-      .filter((subjectId) => existingMap.has(subjectId) || !markedSubjectIds.includes(subjectId))
-      .map((subjectId) => ({
-        id: subjectId,
-        name: uniqueBySubject.get(subjectId).subject.name,
-        code: uniqueBySubject.get(subjectId).subject.code
-      }))
+    const markedSubjects = upsertedAttendance.map((record) => {
+      const routine = routinesToMark.find((item) => item.subjectId === record.subjectId)
+      return {
+        id: record.subjectId,
+        name: routine.subject.name,
+        code: routine.subject.code,
+        startTime: routine.startTime,
+        endTime: routine.endTime
+      }
+    })
 
     res.status(201).json({
-      message: `Attendance marked for ${markedSubjects.length} class${markedSubjects.length > 1 ? 'es' : ''}!`,
+      message: `Attendance marked for ${markedSubjects.length} class${markedSubjects.length > 1 ? 'es' : ''}.`,
       markedSubjects,
-      skippedSubjects,
-      date: gateWindow.dayRange.start,
-      cutoffAt: gateWindow.cutoffAt
+      date: activeWindows.dayRange.start,
+      expiresAt: parsedQR.expiresAt
     })
 
     await recordAuditLog({
@@ -1300,9 +1463,9 @@ const markDailyAttendanceQR = async (req, res) => {
       action: 'DAILY_GATE_ATTENDANCE_MARKED',
       entityType: 'Attendance',
       metadata: {
-        date: gateWindow.dayRange.start,
-        markedSubjectIds,
-        skippedSubjectIds: skippedSubjects.map((subject) => subject.id)
+        date: activeWindows.dayRange.start,
+        routineIds,
+        markedSubjectIds: markedSubjects.map((subject) => subject.id)
       }
     })
   } catch (error) {
@@ -1310,39 +1473,101 @@ const markDailyAttendanceQR = async (req, res) => {
   }
 }
 
+const getLiveGateAttendanceQrPayload = async (req) => {
+  await syncClosedRoutineAbsences()
+
+  const now = new Date()
+  const windows = await getActiveRoutineWindows(now)
+  if (!windows.active.length) {
+    return {
+      active: false,
+      dayOfWeek: windows.dayOfWeek,
+      serverTime: now.toISOString(),
+      nextWindow: windows.nextWindow
+        ? {
+            id: windows.nextWindow.id,
+            subject: windows.nextWindow.subject,
+            startTime: windows.nextWindow.startTime,
+            endTime: windows.nextWindow.endTime,
+            startsAt: windows.nextWindow.startsAt.toISOString(),
+            scanClosesAt: windows.nextWindow.endsAt.toISOString()
+          }
+        : null
+    }
+  }
+
+  const expiresAt = new Date(Math.min(
+    now.getTime() + (60 * 1000),
+    ...windows.active.map((routine) => routine.endsAt.getTime())
+  ))
+
+  const qrData = createSignedQrPayload({
+    type: 'GATE_PERIOD',
+    issuedBy: req.user.id,
+    issuedAt: now.toISOString(),
+    expiresAt: expiresAt.toISOString(),
+    dayOfWeek: windows.dayOfWeek,
+    routineIds: windows.active.map((routine) => routine.id)
+  })
+
+  const qrCode = await QRCode.toDataURL(qrData)
+
+  return {
+    active: true,
+    qrCode,
+    qrData,
+    dayOfWeek: windows.dayOfWeek,
+    serverTime: now.toISOString(),
+    expiresAt: expiresAt.toISOString(),
+    refreshInSeconds: Math.max(1, Math.ceil((expiresAt.getTime() - now.getTime()) / 1000)),
+    periods: windows.active.map((routine) => ({
+      id: routine.id,
+      subject: routine.subject,
+      startTime: routine.startTime,
+      endTime: routine.endTime,
+      startsAt: routine.startsAt.toISOString(),
+      scanClosesAt: routine.endsAt.toISOString()
+    })),
+    nextWindow: windows.nextWindow
+      ? {
+          id: windows.nextWindow.id,
+          subject: windows.nextWindow.subject,
+          startTime: windows.nextWindow.startTime,
+          endTime: windows.nextWindow.endTime,
+          startsAt: windows.nextWindow.startsAt.toISOString(),
+          scanClosesAt: windows.nextWindow.endsAt.toISOString()
+        }
+      : null
+  }
+}
+
+const getLiveGateAttendanceQr = async (req, res) => {
+  try {
+    const payload = await getLiveGateAttendanceQrPayload(req)
+    res.json(payload)
+  } catch (error) {
+    res.internalError(error)
+  }
+}
+
 // ================================
-// GENERATE DAILY ENTRY QR (Admin/Instructor)
+// GENERATE DAILY ENTRY QR (Gatekeeper)
 // ================================
 const generateDailyAttendanceQR = async (req, res) => {
   try {
-    const gateWindow = await getTodayGateWindow()
-    if (!gateWindow) {
-      return res.status(400).json({ message: 'No routine is scheduled for today, so no gate QR is needed.' })
+    const payload = await getLiveGateAttendanceQrPayload(req)
+
+    if (!payload.active) {
+      return res.status(400).json({
+        message: payload.nextWindow
+          ? 'There is no active attendance period right now. Please wait for the next scheduled class window.'
+          : 'No routine is scheduled for today.'
+      })
     }
 
-    const issuedAt = new Date()
-    const expiresAt = gateWindow.cutoffAt
-
-    const qrData = JSON.stringify({
-      type: 'DAILY_ATTENDANCE',
-      issuedBy: req.user.id,
-      issuedAt: issuedAt.toISOString(),
-      expiresAt: expiresAt.toISOString(),
-      dayOfWeek: gateWindow.dayOfWeek,
-      firstClassStart: gateWindow.firstRoutine.startTime,
-      cutoffAt: gateWindow.cutoffAt.toISOString()
-    })
-
-    const qrCode = await QRCode.toDataURL(qrData)
-
     res.json({
-      message: 'Daily attendance QR generated successfully!',
-      qrCode,
-      qrData,
-      expiresIn: `${gateWindow.firstRoutine.startTime} to ${gateWindow.cutoffAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`,
-      dayOfWeek: gateWindow.dayOfWeek,
-      firstClassStart: gateWindow.firstRoutine.startTime,
-      cutoffAt: gateWindow.cutoffAt
+      message: 'Rotating gate attendance QR generated successfully!',
+      ...payload
     })
 
     await recordAuditLog({
@@ -1351,10 +1576,200 @@ const generateDailyAttendanceQR = async (req, res) => {
       action: 'DAILY_GATE_QR_GENERATED',
       entityType: 'Attendance',
       metadata: {
-        dayOfWeek: gateWindow.dayOfWeek,
-        firstClassStart: gateWindow.firstRoutine.startTime,
-        cutoffAt: gateWindow.cutoffAt
+        routineIds: payload.periods.map((period) => period.id),
+        expiresAt: payload.expiresAt
       }
+    })
+  } catch (error) {
+    res.internalError(error)
+  }
+}
+
+const getMyAbsenceTickets = async (req, res) => {
+  try {
+    const student = req.student
+    if (!student) {
+      return res.status(403).json({ message: 'Student profile not found' })
+    }
+
+    await syncClosedRoutineAbsences()
+
+    const [tickets, absencesWithoutTicket] = await Promise.all([
+      prisma.absenceTicket.findMany({
+        where: { studentId: student.id },
+        include: {
+          attendance: {
+            include: {
+              subject: { select: { id: true, name: true, code: true } }
+            }
+          }
+        },
+        orderBy: { createdAt: 'desc' }
+      }),
+      prisma.attendance.findMany({
+        where: {
+          studentId: student.id,
+          status: 'ABSENT',
+          absenceTicket: null
+        },
+        include: {
+          subject: { select: { id: true, name: true, code: true } }
+        },
+        orderBy: { date: 'desc' }
+      })
+    ])
+
+    res.json({ tickets, absencesWithoutTicket })
+  } catch (error) {
+    res.internalError(error)
+  }
+}
+
+const createAbsenceTicket = async (req, res) => {
+  try {
+    const student = req.student
+    if (!student) {
+      return res.status(403).json({ message: 'Student profile not found' })
+    }
+
+    const { attendanceId, reason } = req.body
+    const attendance = await prisma.attendance.findFirst({
+      where: {
+        id: attendanceId,
+        studentId: student.id,
+        status: 'ABSENT'
+      }
+    })
+
+    if (!attendance) {
+      return res.status(404).json({ message: 'Absent attendance record not found' })
+    }
+
+    const existingTicket = await prisma.absenceTicket.findUnique({
+      where: { attendanceId }
+    })
+
+    if (existingTicket) {
+      return res.status(400).json({ message: 'A ticket already exists for this absence.' })
+    }
+
+    const ticket = await prisma.absenceTicket.create({
+      data: {
+        attendanceId,
+        studentId: student.id,
+        reason
+      },
+      include: {
+        attendance: {
+          include: {
+            subject: { select: { id: true, name: true, code: true } }
+          }
+        }
+      }
+    })
+
+    res.status(201).json({
+      message: 'Absence ticket submitted successfully.',
+      ticket
+    })
+  } catch (error) {
+    res.internalError(error)
+  }
+}
+
+const getAbsenceTicketsForStaff = async (req, res) => {
+  try {
+    const where = {}
+
+    if (req.user.role === 'INSTRUCTOR') {
+      if (!req.instructor) {
+        return res.status(403).json({ message: 'Instructor profile not found' })
+      }
+
+      where.attendance = {
+        instructorId: req.instructor.id
+      }
+    }
+
+    if (req.user.role === 'COORDINATOR') {
+      if (!req.coordinator?.department) {
+        return res.status(403).json({ message: 'Coordinator department is not configured yet' })
+      }
+
+      where.attendance = {
+        student: {
+          department: req.coordinator.department
+        }
+      }
+    }
+
+    const tickets = await prisma.absenceTicket.findMany({
+      where,
+      include: {
+        student: {
+          include: {
+            user: { select: { name: true, email: true } }
+          }
+        },
+        attendance: {
+          include: {
+            subject: { select: { id: true, name: true, code: true } }
+          }
+        }
+      },
+      orderBy: [
+        { status: 'asc' },
+        { createdAt: 'desc' }
+      ]
+    })
+
+    res.json({ tickets })
+  } catch (error) {
+    res.internalError(error)
+  }
+}
+
+const reviewAbsenceTicket = async (req, res) => {
+  try {
+    const { id } = req.params
+    const { status, response } = req.body
+
+    const existing = await prisma.absenceTicket.findUnique({
+      where: { id },
+      include: {
+        attendance: {
+          include: {
+            student: true
+          }
+        }
+      }
+    })
+
+    if (!existing) {
+      return res.status(404).json({ message: 'Absence ticket not found' })
+    }
+
+    if (req.user.role === 'INSTRUCTOR' && existing.attendance.instructorId !== req.instructor?.id) {
+      return res.status(403).json({ message: 'You can only review tickets for your own classes' })
+    }
+
+    if (req.user.role === 'COORDINATOR' && existing.attendance.student.department !== req.coordinator?.department) {
+      return res.status(403).json({ message: 'You can only review tickets for your department' })
+    }
+
+    const ticket = await prisma.absenceTicket.update({
+      where: { id },
+      data: {
+        status,
+        response,
+        reviewedBy: req.user.id,
+        reviewedAt: new Date()
+      }
+    })
+
+    res.json({
+      message: 'Absence ticket reviewed successfully.',
+      ticket
     })
   } catch (error) {
     res.internalError(error)
@@ -1363,6 +1778,7 @@ const generateDailyAttendanceQR = async (req, res) => {
 
 module.exports = {
   generateDailyAttendanceQR,
+  getLiveGateAttendanceQr,
   generateQR,
   markAttendanceQR,
   markDailyAttendanceQR,
@@ -1373,7 +1789,11 @@ module.exports = {
   getMonthlyAttendanceReport,
   exportAttendanceBySubject,
   getMyAttendance,
-  getSubjectRoster
+  getSubjectRoster,
+  getMyAbsenceTickets,
+  createAbsenceTicket,
+  getAbsenceTicketsForStaff,
+  reviewAbsenceTicket
 }
 
 

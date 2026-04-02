@@ -150,10 +150,9 @@ const Users = () => {
       })
       if (modalType === 'student') {
         const loginEmail = res.data.user?.email
-        const defaultPassword = res.data.user?.defaultPassword
         showToast({
           title: 'Student account created.',
-          description: `Login email: ${loginEmail}${defaultPassword ? ` | Default password: ${defaultPassword}` : ''}`
+          description: `Login email: ${loginEmail}. The student must change the temporary password on first login.`
         })
       } else {
         showToast({ title: `${modalType} created successfully.` })

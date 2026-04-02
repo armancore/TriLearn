@@ -86,17 +86,15 @@ const Subjects = () => {
 
   const handleDelete = async () => {
     if (!subjectToDelete) return
-    const previousSubjects = subjects
     try {
       setDeletingSubject(true)
-      const target = subjectToDelete
+      const targetId = subjectToDelete.id
       setSubjectToDelete(null)
-      setSubjects((current) => current.filter((subject) => subject.id !== target.id))
-      await api.delete(`/subjects/${target.id}`)
+      await api.delete(`/subjects/${targetId}`)
       setSuccess('Subject deleted successfully!')
+      await fetchSubjects()
       setTimeout(() => setSuccess(''), 3000)
     } catch (err) {
-      setSubjects(previousSubjects)
       setError(getFriendlyErrorMessage(err, 'Unable to delete the subject right now.'))
     } finally {
       setDeletingSubject(false)

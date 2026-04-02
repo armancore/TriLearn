@@ -334,7 +334,6 @@ const createStudent = async (req, res) => {
         role: user.role,
         rollNumber: user.student.rollNumber,
         semester: user.student.semester,
-        defaultPassword: process.env.NODE_ENV !== 'production' ? DEFAULT_STUDENT_PASSWORD : undefined
       }
     })
 
@@ -488,17 +487,6 @@ const deleteUser = async (req, res) => {
 
     if (user.id === req.user.id) {
       return res.status(400).json({ message: 'You cannot delete yourself' })
-    }
-
-    // Delete role profile first then user
-    if (user.role === 'STUDENT') {
-      await prisma.student.delete({ where: { userId: id } })
-    } else if (user.role === 'INSTRUCTOR') {
-      await prisma.instructor.delete({ where: { userId: id } })
-    } else if (user.role === 'ADMIN') {
-      await prisma.admin.delete({ where: { userId: id } })
-    } else if (user.role === 'COORDINATOR') {
-      await prisma.coordinator.delete({ where: { userId: id } })
     }
 
     await prisma.user.delete({ where: { id } })
@@ -673,7 +661,6 @@ const createStudentFromApplication = async (req, res) => {
         role: user.role,
         rollNumber: user.student.rollNumber,
         semester: user.student.semester,
-        defaultPassword: process.env.NODE_ENV !== 'production' ? DEFAULT_STUDENT_PASSWORD : undefined
       }
     })
 
