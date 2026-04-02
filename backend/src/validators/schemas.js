@@ -22,6 +22,7 @@ const paginationQuery = {
 
 const roleEnum = z.enum(['ADMIN', 'COORDINATOR', 'GATEKEEPER', 'INSTRUCTOR', 'STUDENT'])
 const noticeTypeEnum = z.enum(['GENERAL', 'EXAM', 'HOLIDAY', 'EVENT', 'URGENT'])
+const noticeAudienceEnum = z.enum(['ALL', 'STUDENTS', 'INSTRUCTORS_ONLY'])
 const dayOfWeekEnum = z.enum(['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'])
 const attendanceStatusEnum = z.enum(['PRESENT', 'ABSENT', 'LATE'])
 const examTypeEnum = z.enum(['INTERNAL', 'MIDTERM', 'FINAL', 'PRACTICAL'])
@@ -103,13 +104,19 @@ const profileUpdateBody = z.object({
 const createNoticeBody = z.object({
   title: z.string().trim().min(3).max(150),
   content: z.string().trim().min(10).max(5000),
-  type: noticeTypeEnum.optional()
+  type: noticeTypeEnum.optional(),
+  audience: noticeAudienceEnum.optional(),
+  targetDepartment: optionalString(100),
+  targetSemester: z.preprocess(emptyToUndefined, z.coerce.number().int().min(1).max(12).optional())
 })
 
 const updateNoticeBody = z.object({
   title: z.string().trim().min(3).max(150),
   content: z.string().trim().min(10).max(5000),
-  type: noticeTypeEnum
+  type: noticeTypeEnum,
+  audience: noticeAudienceEnum,
+  targetDepartment: optionalString(100),
+  targetSemester: z.preprocess(emptyToUndefined, z.coerce.number().int().min(1).max(12).optional())
 })
 
 const subjectBody = z.object({
@@ -429,7 +436,8 @@ const schemas = {
     getAll: {
       query: z.object({
         ...paginationQuery,
-        type: noticeTypeEnum.optional()
+        type: noticeTypeEnum.optional(),
+        audience: noticeAudienceEnum.optional()
       })
     },
     id: { params: uuidParam }

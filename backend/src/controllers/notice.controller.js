@@ -18,12 +18,128 @@ const validateSanitizedNotice = ({ title, content }, res) => {
   return true
 }
 
+const getStudentNoticeVisibilityFilters = (student) => {
+  if (!student) {
+    return {
+      id: { equals: '__no_visible_notice__' }
+    }
+  }
+
+  const departmentFilter = student.department
+    ? { OR: [{ targetDepartment: null }, { targetDepartment: student.department }] }
+    : { targetDepartment: null }
+
+  return {
+    AND: [
+      { audience: { in: ['ALL', 'STUDENTS'] } },
+      departmentFilter,
+      {
+        OR: [
+          { targetSemester: null },
+          { targetSemester: student.semester }
+        ]
+      }
+    ]
+  }
+}
+
+const getVisibleNoticeFilters = (req, { type, audience } = {}) => {
+  const filters = {}
+
+  if (type) {
+    filters.type = type
+  }
+
+  if (req.user.role === 'STUDENT') {
+    Object.assign(filters, getStudentNoticeVisibilityFilters(req.student))
+    return filters
+  }
+
+  if (audience) {
+    filters.audience = audience
+  }
+
+  return filters
+}
+
+const resolveNoticeTargeting = (req, { audience, targetDepartment, targetSemester }) => {
+  const normalizedAudience = audience || 'ALL'
+  const normalizedTarget = {
+    audience: normalizedAudience,
+    targetDepartment: targetDepartment || null,
+    targetSemester: Number.isInteger(targetSemester) ? targetSemester : null
+  }
+
+  if (normalizedAudience === 'INSTRUCTORS_ONLY') {
+    normalizedTarget.targetSemester = null
+  }
+
+  if (req.user.role === 'COORDINATOR') {
+    if (!req.coordinator?.department) {
+      return {
+        error: { status: 403, message: 'Coordinator department is not configured yet' }
+      }
+    }
+
+    normalizedTarget.targetDepartment = req.coordinator.department
+  }
+
+  if (req.user.role === 'INSTRUCTOR') {
+    if (normalizedAudience === 'INSTRUCTORS_ONLY') {
+      return {
+        error: { status: 403, message: 'Only admins and coordinators can post instructor-only notices' }
+      }
+    }
+
+    if (req.instructor?.department) {
+      normalizedTarget.targetDepartment = req.instructor.department
+    }
+  }
+
+  if (
+    normalizedTarget.targetDepartment &&
+    req.user.role === 'ADMIN' &&
+    typeof normalizedTarget.targetDepartment === 'string'
+  ) {
+    normalizedTarget.targetDepartment = normalizedTarget.targetDepartment.trim()
+  }
+
+  if (
+    req.user.role === 'COORDINATOR' &&
+    targetDepartment &&
+    targetDepartment !== req.coordinator?.department
+  ) {
+    return {
+      error: { status: 403, message: 'Coordinators can only target notices to their own department' }
+    }
+  }
+
+  if (
+    req.user.role === 'INSTRUCTOR' &&
+    req.instructor?.department &&
+    targetDepartment &&
+    targetDepartment !== req.instructor.department
+  ) {
+    return {
+      error: { status: 403, message: 'Instructors can only target notices to their own department' }
+    }
+  }
+
+  if (normalizedAudience === 'INSTRUCTORS_ONLY' && !['ADMIN', 'COORDINATOR'].includes(req.user.role)) {
+    return {
+      error: { status: 403, message: 'Only admins and coordinators can post instructor-only notices' }
+    }
+  }
+
+  return { data: normalizedTarget }
+}
+
 // ================================
 // CREATE NOTICE (Admin/Instructor)
 // ================================
 const createNotice = async (req, res) => {
   try {
-    const { title, content, type } = req.body
+    const { title, content, type, audience, targetDepartment, targetSemester } = req.body
     const sanitizedTitle = sanitizePlainText(title)
     const sanitizedContent = sanitizePlainText(content)
 
@@ -31,11 +147,19 @@ const createNotice = async (req, res) => {
       return
     }
 
+    const targeting = resolveNoticeTargeting(req, { audience, targetDepartment, targetSemester })
+    if (targeting.error) {
+      return res.status(targeting.error.status).json({ message: targeting.error.message })
+    }
+
     const notice = await prisma.notice.create({
       data: {
         title: sanitizedTitle,
         content: sanitizedContent,
         type: type || 'GENERAL',
+        audience: targeting.data.audience,
+        targetDepartment: targeting.data.targetDepartment,
+        targetSemester: targeting.data.targetSemester,
         postedBy: req.user.id
       },
       include: {
@@ -54,7 +178,12 @@ const createNotice = async (req, res) => {
       action: 'NOTICE_CREATED',
       entityType: 'Notice',
       entityId: notice.id,
-      metadata: { type: notice.type }
+      metadata: {
+        type: notice.type,
+        audience: notice.audience,
+        targetDepartment: notice.targetDepartment,
+        targetSemester: notice.targetSemester
+      }
     })
 
   } catch (error) {
@@ -67,11 +196,10 @@ const createNotice = async (req, res) => {
 // ================================
 const getAllNotices = async (req, res) => {
   try {
-    const { type } = req.query
+    const { type, audience } = req.query
     const { page, limit, skip } = getPagination(req.query)
 
-    const filters = {}
-    if (type) filters.type = type
+    const filters = getVisibleNoticeFilters(req, { type, audience })
 
     const [notices, total] = await Promise.all([
       prisma.notice.findMany({
@@ -100,8 +228,11 @@ const getNoticeById = async (req, res) => {
   try {
     const { id } = req.params
 
-    const notice = await prisma.notice.findUnique({
-      where: { id },
+    const notice = await prisma.notice.findFirst({
+      where: {
+        id,
+        ...getVisibleNoticeFilters(req)
+      },
       include: {
         user: { select: { name: true, role: true } }
       }
@@ -124,7 +255,7 @@ const getNoticeById = async (req, res) => {
 const updateNotice = async (req, res) => {
   try {
     const { id } = req.params
-    const { title, content, type } = req.body
+    const { title, content, type, audience, targetDepartment, targetSemester } = req.body
     const sanitizedTitle = sanitizePlainText(title)
     const sanitizedContent = sanitizePlainText(content)
 
@@ -142,12 +273,20 @@ const updateNotice = async (req, res) => {
       return res.status(403).json({ message: 'You can only update your own notices' })
     }
 
+    const targeting = resolveNoticeTargeting(req, { audience, targetDepartment, targetSemester })
+    if (targeting.error) {
+      return res.status(targeting.error.status).json({ message: targeting.error.message })
+    }
+
     const updated = await prisma.notice.update({
       where: { id },
       data: {
         title: sanitizedTitle,
         content: sanitizedContent,
-        type
+        type,
+        audience: targeting.data.audience,
+        targetDepartment: targeting.data.targetDepartment,
+        targetSemester: targeting.data.targetSemester
       }
     })
 
@@ -159,7 +298,12 @@ const updateNotice = async (req, res) => {
       action: 'NOTICE_UPDATED',
       entityType: 'Notice',
       entityId: updated.id,
-      metadata: { type: updated.type }
+      metadata: {
+        type: updated.type,
+        audience: updated.audience,
+        targetDepartment: updated.targetDepartment,
+        targetSemester: updated.targetSemester
+      }
     })
 
   } catch (error) {

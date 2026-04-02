@@ -15,6 +15,19 @@ const noticeToneClasses = {
   HOLIDAY: 'border-l-green-500'
 }
 
+const audienceLabelMap = {
+  ALL: 'Everyone',
+  STUDENTS: 'Students',
+  INSTRUCTORS_ONLY: 'Instructors Only'
+}
+
+const buildNoticeTargetSummary = (notice) => {
+  const parts = [audienceLabelMap[notice.audience] || 'Everyone']
+  if (notice.targetDepartment) parts.push(notice.targetDepartment)
+  if (notice.targetSemester) parts.push(`Semester ${notice.targetSemester}`)
+  return parts.join(' • ')
+}
+
 const relativeDate = (value) => {
   const date = new Date(value)
   const diffMs = Date.now() - date.getTime()
@@ -97,6 +110,9 @@ const StudentNotices = () => {
                   </div>
                   <div className="flex items-center gap-3 mb-3">
                     <StatusBadge status={notice.type} />
+                    <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-600">
+                      {buildNoticeTargetSummary(notice)}
+                    </span>
                     <span className="text-xs text-gray-400">
                       {new Date(notice.createdAt).toLocaleDateString()}
                     </span>

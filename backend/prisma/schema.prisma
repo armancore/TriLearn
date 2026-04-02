@@ -343,11 +343,16 @@ model Notice {
   title     String
   content   String
   type      NoticeType @default(GENERAL)
+  audience  NoticeAudience @default(ALL)
+  targetDepartment String?
+  targetSemester Int?
   postedBy  String
   user      User       @relation(fields: [postedBy], references: [id], onDelete: Cascade)
   createdAt DateTime   @default(now())
 
   @@index([type])
+  @@index([audience])
+  @@index([targetDepartment, targetSemester])
   @@index([createdAt])
 }
 
@@ -357,6 +362,12 @@ enum NoticeType {
   HOLIDAY
   EVENT
   URGENT
+}
+
+enum NoticeAudience {
+  ALL
+  STUDENTS
+  INSTRUCTORS_ONLY
 }
 // ================================
 // CLASS ROUTINE

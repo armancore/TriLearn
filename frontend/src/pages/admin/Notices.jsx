@@ -11,15 +11,30 @@ import PageHeader from '../../components/PageHeader'
 import StatusBadge from '../../components/StatusBadge'
 import EmptyState from '../../components/EmptyState'
 import { useToast } from '../../components/Toast'
+import { useAuth } from '../../context/AuthContext'
+import { useReferenceData } from '../../context/ReferenceDataContext'
 import useForm from '../../hooks/useForm'
 import logger from '../../utils/logger'
-const initialNoticeValues = { title: '', content: '', type: 'GENERAL' }
+const initialNoticeValues = { title: '', content: '', type: 'GENERAL', audience: 'ALL', targetDepartment: '', targetSemester: '' }
 const noticeToneClasses = {
   URGENT: 'border-l-red-500',
   EXAM: 'border-l-orange-500',
   GENERAL: 'border-l-slate-400',
   EVENT: 'border-l-blue-500',
   HOLIDAY: 'border-l-green-500'
+}
+
+const audienceLabelMap = {
+  ALL: 'Everyone',
+  STUDENTS: 'Students',
+  INSTRUCTORS_ONLY: 'Instructors Only'
+}
+
+const buildNoticeTargetSummary = (notice) => {
+  const parts = [audienceLabelMap[notice.audience] || 'Everyone']
+  if (notice.targetDepartment) parts.push(notice.targetDepartment)
+  if (notice.targetSemester) parts.push(`Semester ${notice.targetSemester}`)
+  return parts.join(' • ')
 }
 
 const relativeDate = (value) => {
@@ -45,6 +60,8 @@ const initialsFromName = (name = '') =>
     .join('') || 'UN'
 
 const Notices = () => {
+  const { user } = useAuth()
+  const { departments, loadDepartments } = useReferenceData()
   const [notices, setNotices] = useState([])
   const [page, setPage] = useState(1)
   const [limit] = useState(10)
@@ -57,12 +74,18 @@ const Notices = () => {
   const [expandedNoticeIds, setExpandedNoticeIds] = useState([])
   const [error, setError] = useState('')
   const { showToast } = useToast()
+  const isCoordinator = user?.role === 'COORDINATOR'
+  const canPostInstructorOnly = user?.role === 'ADMIN' || user?.role === 'COORDINATOR'
+
   const validateNotice = (values) => {
     const validationErrors = {}
     if (!values.title.trim()) validationErrors.title = 'Title is required'
     else if (values.title.trim().length < 3) validationErrors.title = 'Title must be at least 3 characters'
     if (!values.content.trim()) validationErrors.content = 'Content is required'
     else if (values.content.trim().length < 10) validationErrors.content = 'Content must be at least 10 characters'
+    if (values.targetSemester && (!Number.isInteger(Number(values.targetSemester)) || Number(values.targetSemester) < 1 || Number(values.targetSemester) > 12)) {
+      validationErrors.targetSemester = 'Semester must be between 1 and 12'
+    }
     return validationErrors
   }
   const { values, errors, handleChange, handleSubmit, setValues, setErrors } = useForm(initialNoticeValues, validateNotice)
@@ -84,14 +107,28 @@ const Notices = () => {
     void fetchNotices()
   }, [fetchNotices])
 
+  useEffect(() => {
+    if (!isCoordinator) {
+      void loadDepartments()
+    }
+  }, [isCoordinator, loadDepartments])
+
   const saveNotice = async (formValues) => {
     setError('')
     try {
+      const payload = {
+        ...formValues,
+        targetDepartment: formValues.targetDepartment || undefined,
+        targetSemester: formValues.audience === 'INSTRUCTORS_ONLY'
+          ? undefined
+          : (formValues.targetSemester ? Number(formValues.targetSemester) : undefined)
+      }
+
       if (editNotice) {
-        await api.put(`/notices/${editNotice.id}`, formValues)
+        await api.put(`/notices/${editNotice.id}`, payload)
         showToast({ title: 'Notice updated successfully.' })
       } else {
-        await api.post('/notices', formValues)
+        await api.post('/notices', payload)
         showToast({ title: 'Notice created successfully.' })
       }
       setShowModal(false)
@@ -121,7 +158,14 @@ const Notices = () => {
 
   const openEditModal = (notice) => {
     setEditNotice(notice)
-    setValues({ title: notice.title, content: notice.content, type: notice.type })
+    setValues({
+      title: notice.title,
+      content: notice.content,
+      type: notice.type,
+      audience: notice.audience || 'ALL',
+      targetDepartment: notice.targetDepartment || '',
+      targetSemester: notice.targetSemester ? String(notice.targetSemester) : ''
+    })
     setErrors({})
     setError('')
     setShowModal(true)
@@ -149,8 +193,8 @@ const Notices = () => {
 
         <PageHeader
           title="Notices"
-          subtitle="Post and manage notices for everyone"
-          breadcrumbs={['Admin', 'Notices']}
+          subtitle={isCoordinator ? 'Post and manage targeted notices for your department or instructors' : 'Post and manage targeted notices across departments and semesters'}
+          breadcrumbs={[isCoordinator ? 'Coordinator' : 'Admin', 'Notices']}
           actions={[{ label: 'Post Notice', icon: Plus, variant: 'primary', onClick: openCreateModal }]}
         />
 
@@ -178,6 +222,9 @@ const Notices = () => {
                       </div>
                       <div className="flex items-center gap-3 mb-2">
                         <StatusBadge status={notice.type} />
+                        <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-600">
+                          {buildNoticeTargetSummary(notice)}
+                        </span>
                         <span className="text-xs text-gray-400">{new Date(notice.createdAt).toLocaleDateString()}</span>
                       </div>
                       <h3 className="font-semibold text-gray-800 mb-2">{notice.title}</h3>
@@ -278,6 +325,58 @@ const Notices = () => {
                   <option value="EVENT">Event</option>
                   <option value="URGENT">Urgent</option>
                 </select>
+              </div>
+              <div>
+                <label className="ui-form-label">Audience</label>
+                <select
+                  name="audience"
+                  value={values.audience}
+                  onChange={handleChange}
+                  className="ui-form-input"
+                >
+                  <option value="ALL">Everyone</option>
+                  <option value="STUDENTS">Students</option>
+                  {canPostInstructorOnly ? <option value="INSTRUCTORS_ONLY">Instructors Only</option> : null}
+                </select>
+              </div>
+              <div>
+                <label className="ui-form-label">Target Department</label>
+                {isCoordinator ? (
+                  <input
+                    type="text"
+                    value={values.targetDepartment || 'Managed automatically for your department'}
+                    disabled
+                    className="ui-form-input bg-slate-100 text-slate-500"
+                  />
+                ) : (
+                  <select
+                    name="targetDepartment"
+                    value={values.targetDepartment}
+                    onChange={handleChange}
+                    className="ui-form-input"
+                  >
+                    <option value="">All Departments</option>
+                    {departments.map((department) => (
+                      <option key={department.id} value={department.code}>{department.code}</option>
+                    ))}
+                  </select>
+                )}
+              </div>
+              <div>
+                <label className="ui-form-label">Target Semester</label>
+                <select
+                  name="targetSemester"
+                  value={values.targetSemester}
+                  onChange={handleChange}
+                  disabled={values.audience === 'INSTRUCTORS_ONLY'}
+                  className="ui-form-input disabled:bg-slate-100 disabled:text-slate-500"
+                >
+                  <option value="">All Semesters</option>
+                  {Array.from({ length: 12 }, (_, index) => index + 1).map((semester) => (
+                    <option key={semester} value={semester}>{`Semester ${semester}`}</option>
+                  ))}
+                </select>
+                {errors.targetSemester && <p className="ui-form-helper-error">{errors.targetSemester}</p>}
               </div>
               <div className="ui-modal-footer">
                 <button

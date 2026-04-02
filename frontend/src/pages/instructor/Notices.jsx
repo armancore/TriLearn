@@ -12,7 +12,20 @@ import EmptyState from '../../components/EmptyState'
 import { useToast } from '../../components/Toast'
 import useForm from '../../hooks/useForm'
 import logger from '../../utils/logger'
-const initialNoticeValues = { title: '', content: '', type: 'GENERAL' }
+const initialNoticeValues = { title: '', content: '', type: 'GENERAL', audience: 'STUDENTS', targetSemester: '' }
+
+const audienceLabelMap = {
+  ALL: 'Everyone',
+  STUDENTS: 'Students',
+  INSTRUCTORS_ONLY: 'Instructors Only'
+}
+
+const buildNoticeTargetSummary = (notice) => {
+  const parts = [audienceLabelMap[notice.audience] || 'Everyone']
+  if (notice.targetDepartment) parts.push(notice.targetDepartment)
+  if (notice.targetSemester) parts.push(`Semester ${notice.targetSemester}`)
+  return parts.join(' • ')
+}
 
 const InstructorNotices = () => {
   const [notices, setNotices] = useState([])
@@ -29,6 +42,9 @@ const InstructorNotices = () => {
     else if (values.title.trim().length < 3) validationErrors.title = 'Title must be at least 3 characters'
     if (!values.content.trim()) validationErrors.content = 'Content is required'
     else if (values.content.trim().length < 10) validationErrors.content = 'Content must be at least 10 characters'
+    if (values.targetSemester && (!Number.isInteger(Number(values.targetSemester)) || Number(values.targetSemester) < 1 || Number(values.targetSemester) > 12)) {
+      validationErrors.targetSemester = 'Semester must be between 1 and 12'
+    }
     return validationErrors
   }
   const { values, errors, handleChange, handleSubmit, setValues, setErrors } = useForm(initialNoticeValues, validateNotice)
@@ -51,7 +67,10 @@ const InstructorNotices = () => {
   const saveNotice = async (formValues) => {
     setError('')
     try {
-      await api.post('/notices', formValues)
+      await api.post('/notices', {
+        ...formValues,
+        targetSemester: formValues.targetSemester ? Number(formValues.targetSemester) : undefined
+      })
       showToast({ title: 'Notice posted successfully.' })
       setShowModal(false)
       setValues(initialNoticeValues)
@@ -67,7 +86,7 @@ const InstructorNotices = () => {
       <div className="p-4 md:p-8">
         <PageHeader
           title="Notices"
-          subtitle="View and post notices"
+          subtitle="View notices and post updates for your department or selected semester"
           breadcrumbs={['Instructor', 'Notices']}
           actions={[{ label: 'Post Notice', icon: Plus, variant: 'primary', onClick: () => { setShowModal(true); setError(''); setValues(initialNoticeValues); setErrors({}) } }]}
         />
@@ -83,6 +102,9 @@ const InstructorNotices = () => {
                 <div key={notice.id} className="bg-white rounded-2xl shadow-sm p-6">
                   <div className="flex items-center gap-3 mb-2">
                     <StatusBadge status={notice.type} />
+                    <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-600">
+                      {buildNoticeTargetSummary(notice)}
+                    </span>
                     <span className="text-xs text-gray-400">{new Date(notice.createdAt).toLocaleDateString()}</span>
                     <span className="text-xs text-gray-400">by {notice.user?.name}</span>
                   </div>
@@ -123,6 +145,28 @@ const InstructorNotices = () => {
                 <option value="EVENT">Event</option>
                 <option value="URGENT">Urgent</option>
               </select>
+              <select
+                name="audience"
+                value={values.audience}
+                onChange={handleChange}
+                className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+              >
+                <option value="STUDENTS">Students</option>
+                <option value="ALL">Everyone</option>
+              </select>
+              <select
+                name="targetSemester"
+                value={values.targetSemester}
+                onChange={handleChange}
+                className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+              >
+                <option value="">All Semesters</option>
+                {Array.from({ length: 12 }, (_, index) => index + 1).map((semester) => (
+                  <option key={semester} value={semester}>{`Semester ${semester}`}</option>
+                ))}
+              </select>
+              {errors.targetSemester && <p className="text-xs text-red-600 -mt-2">{errors.targetSemester}</p>}
+              <p className="text-xs text-slate-500 -mt-1">Your department will be applied automatically to student-facing notices.</p>
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => setShowModal(false)}
                   className="flex-1 border border-gray-300 text-gray-600 py-2 rounded-lg text-sm hover:bg-gray-50">Cancel</button>
