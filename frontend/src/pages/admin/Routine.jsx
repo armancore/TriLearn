@@ -144,10 +144,20 @@ const AdminRoutine = () => {
     }
   })
 
+  const normalizeValue = (value) => String(value || '').trim().toLowerCase()
+
   const filteredSubjects = subjects.filter((subject) => {
     const semesterMatches = Number(subject.semester) === Number(form.semester)
-    const departmentMatches = (subject.department || '') === form.department
-    return semesterMatches && departmentMatches
+
+    if (!semesterMatches) {
+      return false
+    }
+
+    if (!form.department.trim()) {
+      return true
+    }
+
+    return normalizeValue(subject.department) === normalizeValue(form.department)
   })
 
   const handleSubjectChange = (subjectId) => {
@@ -324,7 +334,11 @@ const AdminRoutine = () => {
                 <label className="ui-form-label">Subject</label>
                 <select required value={form.subjectId} onChange={(e) => handleSubjectChange(e.target.value)} className="ui-form-input">
                   <option value="">Select Subject</option>
-                  {filteredSubjects.map(s => <option key={s.id} value={s.id}>{s.name} — {s.code}</option>)}
+                  {filteredSubjects.map(s => (
+                    <option key={s.id} value={s.id}>
+                      {s.name} — {s.code} — {s.department || 'General'} — Semester {s.semester}
+                    </option>
+                  ))}
                 </select>
                 {form.department && filteredSubjects.length === 0 ? (
                   <p className="mt-2 text-xs text-amber-600">No subjects match this department and semester yet.</p>
