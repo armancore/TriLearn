@@ -1,13 +1,16 @@
 import { useState, useEffect } from 'react'
 import LoadingSpinner from '../../components/LoadingSpinner'
+import EmptyState from '../../components/EmptyState'
 import PageHeader from '../../components/PageHeader'
 import StudentLayout from '../../layouts/StudentLayout'
 import useApi from '../../hooks/useApi'
+import { useToast } from '../../components/Toast'
 import api, { resolveFileUrl } from '../../utils/api'
 
 const StudentMaterials = () => {
   const [filterSubject, setFilterSubject] = useState('')
   const [previewFile, setPreviewFile] = useState(null)
+  const { showToast } = useToast()
   const {
     data: materials = [],
     loading,
@@ -71,6 +74,20 @@ const StudentMaterials = () => {
     if (['jpg', 'jpeg', 'png', 'gif'].includes(ext)) return 'bg-emerald-50 text-emerald-700'
     if (['mp4', 'mov', 'avi'].includes(ext)) return 'bg-violet-50 text-violet-700'
     return 'bg-slate-100 text-slate-700'
+  }
+
+  const openPreview = (title, fileUrl) => {
+    const resolvedUrl = resolveFileUrl(fileUrl)
+    if (!resolvedUrl) {
+      showToast({
+        title: 'Preview unavailable',
+        description: 'This file link is invalid, so the preview cannot be opened.',
+        type: 'error'
+      })
+      return
+    }
+
+    setPreviewFile({ title, url: resolvedUrl })
   }
 
   return (
@@ -147,29 +164,48 @@ const StudentMaterials = () => {
                   {isPdfFile(mat.fileUrl) ? (
                     <button
                       type="button"
-                      onClick={() => setPreviewFile({
-                        title: mat.title,
-                        url: resolveFileUrl(mat.fileUrl)
-                      })}
-                    className="block w-full text-center text-xs bg-purple-600 text-white py-2 rounded-lg hover:bg-purple-700 transition font-medium"
-                  >
-                    View PDF
+                      onClick={() => openPreview(mat.title, mat.fileUrl)}
+                      className="block w-full text-center text-xs bg-purple-600 text-white py-2 rounded-lg hover:bg-purple-700 transition font-medium"
+                    >
+                      View PDF
                     </button>
                   ) : (
-                    <a
-                      href={resolveFileUrl(mat.fileUrl)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    className="block text-center text-xs bg-purple-600 text-white py-2 rounded-lg hover:bg-purple-700 transition font-medium"
-                  >
-                    Open Material
-                  </a>
-                )}
+                    (() => {
+                      const materialUrl = resolveFileUrl(mat.fileUrl)
+
+                      if (!materialUrl) {
+                        return (
+                          <button
+                            type="button"
+                            disabled
+                            className="block w-full cursor-not-allowed text-center text-xs bg-slate-200 text-slate-500 py-2 rounded-lg font-medium"
+                          >
+                            Invalid File Link
+                          </button>
+                        )
+                      }
+
+                      return (
+                        <a
+                          href={materialUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="block text-center text-xs bg-purple-600 text-white py-2 rounded-lg hover:bg-purple-700 transition font-medium"
+                        >
+                          Open Material
+                        </a>
+                      )
+                    })()
+                  )}
               </div>
             ))}
               {filtered.length === 0 && (
-                <div className="col-span-3 text-center py-12 text-gray-400">
-                  No materials available yet
+                <div className="col-span-3">
+                  <EmptyState
+                    icon="📚"
+                    title="No materials available yet"
+                    description="Materials shared by your instructors will appear here once they are uploaded."
+                  />
                 </div>
               )}
             </div>
@@ -204,6 +240,8 @@ const StudentMaterials = () => {
               src={previewFile.url}
               title={previewFile.title}
               className="w-full flex-1"
+              sandbox="allow-downloads"
+              referrerPolicy="no-referrer"
             />
           </div>
         </div>

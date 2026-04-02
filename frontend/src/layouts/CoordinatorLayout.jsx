@@ -9,31 +9,28 @@ import {
   FolderOpen,
   LayoutDashboard,
   Percent,
-  ShieldUser,
   UserCircle2,
   Users
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import AppShell from '../components/AppShell'
-import CoordinatorLayout from './CoordinatorLayout'
 
-const AdminLayout = ({ children }) => {
+const CoordinatorLayout = ({ children }) => {
   const { user, logout } = useAuth()
   const location = useLocation()
   const navigate = useNavigate()
-  const basePath = '/admin'
-
-  if (user?.role === 'COORDINATOR') {
-    return <CoordinatorLayout>{children}</CoordinatorLayout>
-  }
+  const basePath = '/coordinator'
 
   const sidebarItems = useMemo(() => ([
     { path: `${basePath}`, label: 'Dashboard', icon: LayoutDashboard, meta: 'Overview' },
-    { path: `${basePath}/users`, label: 'Users', icon: Users, meta: 'People and roles' },
-    { path: `${basePath}/applications`, label: 'Admissions', icon: FileText, meta: 'Application review' },
-    { path: `${basePath}/departments`, label: 'Departments', icon: ShieldUser, meta: 'Department setup' },
+    { path: `${basePath}/users`, label: 'Students', icon: Users, meta: 'People and access' },
+    { path: `${basePath}/applications`, label: 'Admissions', icon: FileText, meta: 'Applications' },
     { path: `${basePath}/subjects`, label: 'Subjects', icon: BookOpenText, meta: 'Academic setup' },
     { path: `${basePath}/student-qr`, label: 'Student QR', icon: Percent, meta: 'Gate scan windows' },
+    { path: `${basePath}/attendance`, label: 'Attendance', icon: Percent, meta: 'Department attendance' },
+    { path: `${basePath}/assignments`, label: 'Assignments', icon: ClipboardList, meta: 'Task tracking' },
+    { path: `${basePath}/marks`, label: 'Results', icon: FileText, meta: 'Assessment data' },
+    { path: `${basePath}/materials`, label: 'Books', icon: FolderOpen, meta: 'Learning materials' },
     { path: `${basePath}/profile`, label: 'Profile', icon: UserCircle2, meta: 'My account' }
   ]), [])
 
@@ -54,7 +51,7 @@ const AdminLayout = ({ children }) => {
 
   return (
     <AppShell
-      roleLabel="Admin Panel"
+      roleLabel="Coordinator Panel"
       roleTheme="admin"
       user={user}
       sidebarItems={sidebarItems}
@@ -67,4 +64,4 @@ const AdminLayout = ({ children }) => {
   )
 }
 
-export default AdminLayout
+export default CoordinatorLayout

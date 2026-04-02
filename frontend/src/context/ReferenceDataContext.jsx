@@ -6,14 +6,12 @@ const ReferenceDataContext = createContext(null)
 export const ReferenceDataProvider = ({ children }) => {
   const [subjects, setSubjects] = useState([])
   const [departments, setDepartments] = useState([])
-  const subjectsRef = useRef([])
-  const departmentsRef = useRef([])
   const subjectRequestRef = useRef(null)
   const departmentRequestRef = useRef(null)
 
   const loadSubjects = useCallback(async ({ force = false } = {}) => {
-    if (!force && subjectsRef.current.length > 0) {
-      return subjectsRef.current
+    if (!force && subjects.length > 0) {
+      return subjects
     }
 
     if (!force && subjectRequestRef.current) {
@@ -23,7 +21,6 @@ export const ReferenceDataProvider = ({ children }) => {
     subjectRequestRef.current = api.get('/subjects')
       .then((response) => {
         const nextSubjects = response.data.subjects || []
-        subjectsRef.current = nextSubjects
         setSubjects(nextSubjects)
         return nextSubjects
       })
@@ -32,11 +29,11 @@ export const ReferenceDataProvider = ({ children }) => {
       })
 
     return subjectRequestRef.current
-  }, [])
+  }, [subjects])
 
   const loadDepartments = useCallback(async ({ force = false } = {}) => {
-    if (!force && departmentsRef.current.length > 0) {
-      return departmentsRef.current
+    if (!force && departments.length > 0) {
+      return departments
     }
 
     if (!force && departmentRequestRef.current) {
@@ -46,7 +43,6 @@ export const ReferenceDataProvider = ({ children }) => {
     departmentRequestRef.current = api.get('/departments')
       .then((response) => {
         const nextDepartments = response.data.departments || []
-        departmentsRef.current = nextDepartments
         setDepartments(nextDepartments)
         return nextDepartments
       })
@@ -55,7 +51,7 @@ export const ReferenceDataProvider = ({ children }) => {
       })
 
     return departmentRequestRef.current
-  }, [])
+  }, [departments])
 
   const value = useMemo(() => ({
     subjects,

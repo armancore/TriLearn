@@ -130,6 +130,16 @@ const InstructorMaterials = () => {
     return 'bg-slate-100 text-slate-700'
   }
 
+  const openPreview = (title, fileUrl) => {
+    const resolvedUrl = resolveFileUrl(fileUrl)
+    if (!resolvedUrl) {
+      setError('This file preview is unavailable because the file link is invalid.')
+      return
+    }
+
+    setPreviewFile({ title, url: resolvedUrl })
+  }
+
   return (
     <InstructorLayout>
       <div className="p-4 md:p-8">
@@ -202,23 +212,38 @@ const InstructorMaterials = () => {
                 {isPdfFile(mat.fileUrl) ? (
                   <button
                     type="button"
-                    onClick={() => setPreviewFile({
-                      title: mat.title,
-                      url: resolveFileUrl(mat.fileUrl)
-                    })}
+                    onClick={() => openPreview(mat.title, mat.fileUrl)}
                     className="mt-3 block w-full text-center text-xs bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 transition font-medium"
                   >
                     View PDF
                   </button>
                 ) : (
-                  <a
-                    href={resolveFileUrl(mat.fileUrl)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="mt-3 block text-center text-xs bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 transition font-medium"
-                  >
-                    Open / Download
-                  </a>
+                  (() => {
+                    const materialUrl = resolveFileUrl(mat.fileUrl)
+
+                    if (!materialUrl) {
+                      return (
+                        <button
+                          type="button"
+                          disabled
+                          className="mt-3 block w-full cursor-not-allowed text-center text-xs bg-slate-200 text-slate-500 py-2 rounded-lg font-medium"
+                        >
+                          Invalid File Link
+                        </button>
+                      )
+                    }
+
+                    return (
+                      <a
+                        href={materialUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="mt-3 block text-center text-xs bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 transition font-medium"
+                      >
+                        Open / Download
+                      </a>
+                    )
+                  })()
                 )}
               </div>
             ))}
@@ -318,6 +343,8 @@ const InstructorMaterials = () => {
               src={previewFile.url}
               title={previewFile.title}
               className="w-full flex-1"
+              sandbox="allow-downloads"
+              referrerPolicy="no-referrer"
             />
           </div>
         </div>

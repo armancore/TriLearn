@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Pencil, Plus, Trash2, Users } from 'lucide-react'
+import { LoaderCircle, Pencil, Plus, Trash2, Users } from 'lucide-react'
 import AdminLayout from '../../layouts/AdminLayout'
 import api from '../../utils/api'
 import ConfirmDialog from '../../components/ConfirmDialog'
@@ -517,7 +517,12 @@ const Subjects = () => {
                 disabled={savingEnrollments || loadingEnrollments}
                 className="flex-1 bg-indigo-600 text-white py-2 rounded-lg text-sm hover:bg-indigo-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {savingEnrollments ? 'Saving...' : 'Save Enrollments'}
+                {savingEnrollments ? (
+                  <span className="inline-flex items-center gap-2">
+                    <LoaderCircle className="h-4 w-4 animate-spin" />
+                    <span>Saving...</span>
+                  </span>
+                ) : 'Save Enrollments'}
               </button>
             </div>
           </div>

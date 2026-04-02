@@ -17,6 +17,16 @@ const StudentAssignments = () => {
   const { showToast } = useToast()
   const [previewFile, setPreviewFile] = useState(null)
 
+  const openPreview = (title, fileUrl) => {
+    const resolvedUrl = resolveFileUrl(fileUrl)
+    if (!resolvedUrl) {
+      setError('This file preview is unavailable because the file link is invalid.')
+      return
+    }
+
+    setPreviewFile({ title, url: resolvedUrl })
+  }
+
   useEffect(() => {
     void fetchData()
   }, [])
@@ -109,10 +119,7 @@ const StudentAssignments = () => {
                         {assignment.questionPdfUrl && (
                           <button
                             type="button"
-                            onClick={() => setPreviewFile({
-                              title: `${assignment.title} - Question PDF`,
-                              url: resolveFileUrl(assignment.questionPdfUrl)
-                            })}
+                            onClick={() => openPreview(`${assignment.title} - Question PDF`, assignment.questionPdfUrl)}
                             className="text-blue-600 font-medium hover:underline"
                           >
                             View Question PDF
@@ -183,10 +190,7 @@ const StudentAssignments = () => {
                       {submission.fileUrl && (
                         <button
                           type="button"
-                          onClick={() => setPreviewFile({
-                            title: `${assignment.title} - Submitted PDF`,
-                            url: resolveFileUrl(submission.fileUrl)
-                          })}
+                          onClick={() => openPreview(`${assignment.title} - Submitted PDF`, submission.fileUrl)}
                           className="text-sm text-purple-600 hover:underline mt-1 inline-block"
                         >
                           View Submitted PDF
@@ -238,6 +242,8 @@ const StudentAssignments = () => {
               src={previewFile.url}
               title={previewFile.title}
               className="w-full flex-1"
+              sandbox="allow-downloads"
+              referrerPolicy="no-referrer"
             />
           </div>
         </div>

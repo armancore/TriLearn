@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { CreditCard, MapPin, Phone, QrCode } from 'lucide-react'
 import AdminLayout from '../../layouts/AdminLayout'
+import CoordinatorLayout from '../../layouts/CoordinatorLayout'
 import InstructorLayout from '../../layouts/InstructorLayout'
 import StudentLayout from '../../layouts/StudentLayout'
 import Alert from '../../components/Alert'
@@ -93,6 +94,7 @@ const ProfilePage = () => {
 
   const renderLayout = (content) => {
     if (user?.role === 'STUDENT') return <StudentLayout>{content}</StudentLayout>
+    if (user?.role === 'COORDINATOR') return <CoordinatorLayout>{content}</CoordinatorLayout>
     if (user?.role === 'INSTRUCTOR') return <InstructorLayout>{content}</InstructorLayout>
     return <AdminLayout>{content}</AdminLayout>
   }

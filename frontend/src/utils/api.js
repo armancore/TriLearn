@@ -56,10 +56,10 @@ export const clearAuthState = () => {
 }
 
 export const resolveFileUrl = (fileUrl) => {
-  if (!fileUrl) return ''
+  if (!fileUrl) return null
 
   const normalizedFileUrl = String(fileUrl).trim()
-  if (!normalizedFileUrl) return ''
+  if (!normalizedFileUrl) return null
 
   if (/^(https?:\/\/|data:|blob:)/i.test(normalizedFileUrl)) {
     return normalizedFileUrl
@@ -68,7 +68,7 @@ export const resolveFileUrl = (fileUrl) => {
   try {
     return new URL(normalizedFileUrl, `${API_ORIGIN}/`).toString()
   } catch {
-    return ''
+    return null
   }
 }
 

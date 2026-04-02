@@ -13,36 +13,27 @@ import {
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import AppShell from '../components/AppShell'
+import CoordinatorLayout from './CoordinatorLayout'
 
 const InstructorLayout = ({ children }) => {
   const { user, logout } = useAuth()
   const location = useLocation()
   const navigate = useNavigate()
-  const isCoordinator = user?.role === 'COORDINATOR'
-  const basePath = isCoordinator ? '/coordinator' : '/instructor'
-  const roleLabel = isCoordinator ? 'Coordinator Panel' : 'Instructor Panel'
+  const basePath = '/instructor'
 
-  const sidebarItems = useMemo(() => (
-    isCoordinator
-      ? [
-          { path: `${basePath}`, label: 'Dashboard', icon: LayoutDashboard, meta: 'Overview' },
-          { path: `${basePath}/attendance`, label: 'Attendance', icon: Percent, meta: 'Department attendance' },
-          { path: `${basePath}/assignments`, label: 'Assignments', icon: ClipboardList, meta: 'Assignment tracking' },
-          { path: `${basePath}/marks`, label: 'Results', icon: FileText, meta: 'Assessment results' },
-          { path: `${basePath}/materials`, label: 'Books', icon: FolderOpen, meta: 'Learning materials' },
-          { path: `${basePath}/applications`, label: 'Admissions', icon: FileText, meta: 'Application review' },
-          { path: `${basePath}/profile`, label: 'Profile', icon: UserCircle2, meta: 'My account' }
-        ]
-      : [
-          { path: `${basePath}`, label: 'Dashboard', icon: LayoutDashboard, meta: 'Overview' },
-          { path: `${basePath}/subjects`, label: 'Learnings', icon: BookOpenText, meta: 'Assigned subjects' },
-          { path: `${basePath}/assignments`, label: 'Tasks', icon: ClipboardList, meta: 'Class assignments' },
-          { path: `${basePath}/attendance`, label: 'Attendance', icon: Percent, meta: 'Attendance records' },
-          { path: `${basePath}/marks`, label: 'Results', icon: FileText, meta: 'Assessment results' },
-          { path: `${basePath}/materials`, label: 'Books', icon: FolderOpen, meta: 'Learning materials' },
-          { path: `${basePath}/profile`, label: 'Profile', icon: UserCircle2, meta: 'My account' }
-        ]
-  ), [basePath, isCoordinator])
+  if (user?.role === 'COORDINATOR') {
+    return <CoordinatorLayout>{children}</CoordinatorLayout>
+  }
+
+  const sidebarItems = useMemo(() => ([
+    { path: `${basePath}`, label: 'Dashboard', icon: LayoutDashboard, meta: 'Overview' },
+    { path: `${basePath}/subjects`, label: 'Learnings', icon: BookOpenText, meta: 'Assigned subjects' },
+    { path: `${basePath}/assignments`, label: 'Tasks', icon: ClipboardList, meta: 'Class assignments' },
+    { path: `${basePath}/attendance`, label: 'Attendance', icon: Percent, meta: 'Attendance records' },
+    { path: `${basePath}/marks`, label: 'Results', icon: FileText, meta: 'Assessment results' },
+    { path: `${basePath}/materials`, label: 'Books', icon: FolderOpen, meta: 'Learning materials' },
+    { path: `${basePath}/profile`, label: 'Profile', icon: UserCircle2, meta: 'My account' }
+  ]), [])
 
   const topItems = [
     { path: `${basePath}/routine`, label: 'Routine', icon: CalendarDays },
@@ -61,7 +52,7 @@ const InstructorLayout = ({ children }) => {
 
   return (
     <AppShell
-      roleLabel={roleLabel}
+      roleLabel="Instructor Panel"
       roleTheme="instructor"
       user={user}
       sidebarItems={sidebarItems}

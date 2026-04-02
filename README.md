@@ -46,6 +46,7 @@ The project is currently strong for local development, demos, and iterative prod
 ### `COORDINATOR`
 
 - academic operations and department-level support
+- uses a dedicated coordinator navigation shell that combines academic setup and attendance oversight tools
 - reviews applications and creates student accounts from them
 - manages Student QR windows and holidays
 - reviews attendance by semester and section
@@ -418,6 +419,14 @@ Whenever schema changes are made:
 3. restart the backend dev server if it is already running
 
 This is especially important after adding new Prisma models or fields.
+
+### PostgreSQL Pooling
+
+The backend Prisma setup uses the Prisma PostgreSQL adapter with a shared `pg.Pool`.
+
+- `PGPOOL_MAX_USES=0` means connections are reused indefinitely
+- that is acceptable for local development
+- for production, prefer a finite `PGPOOL_MAX_USES` so long-running processes recycle connections periodically and are less likely to hold stale connections forever
 
 ## Why This Fits A Nepal College Workflow
 

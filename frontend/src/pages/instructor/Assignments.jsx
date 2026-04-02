@@ -31,6 +31,16 @@ const Assignments = () => {
     execute: executeSubjects
   } = useApi({ initialData: [] })
 
+  const openPreview = (title, fileUrl) => {
+    const resolvedUrl = resolveFileUrl(fileUrl)
+    if (!resolvedUrl) {
+      setError('This file preview is unavailable because the file link is invalid.')
+      return
+    }
+
+    setPreviewFile({ title, url: resolvedUrl })
+  }
+
   useEffect(() => {
     fetchAssignments()
     fetchSubjects()
@@ -133,10 +143,7 @@ const Assignments = () => {
                       {assignment.questionPdfUrl && (
                         <button
                           type="button"
-                          onClick={() => setPreviewFile({
-                            title: `${assignment.title} - Question PDF`,
-                            url: resolveFileUrl(assignment.questionPdfUrl)
-                          })}
+                          onClick={() => openPreview(`${assignment.title} - Question PDF`, assignment.questionPdfUrl)}
                           className="text-green-600 font-medium hover:underline"
                         >
                           View Question PDF
@@ -256,10 +263,7 @@ const Assignments = () => {
                       {sub.fileUrl && (
                         <button
                           type="button"
-                          onClick={() => setPreviewFile({
-                            title: `${sub.student?.user?.name || 'Student'} - Answer PDF`,
-                            url: resolveFileUrl(sub.fileUrl)
-                          })}
+                          onClick={() => openPreview(`${sub.student?.user?.name || 'Student'} - Answer PDF`, sub.fileUrl)}
                           className="text-sm text-green-600 hover:underline mt-2 inline-block"
                         >
                           View Answer PDF
@@ -337,6 +341,8 @@ const Assignments = () => {
               src={previewFile.url}
               title={previewFile.title}
               className="w-full flex-1"
+              sandbox="allow-downloads"
+              referrerPolicy="no-referrer"
             />
           </div>
         </div>
