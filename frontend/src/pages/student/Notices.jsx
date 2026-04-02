@@ -6,12 +6,44 @@ import PageHeader from '../../components/PageHeader'
 import Pagination from '../../components/Pagination'
 import StatusBadge from '../../components/StatusBadge'
 import logger from '../../utils/logger'
+
+const noticeToneClasses = {
+  URGENT: 'border-l-red-500',
+  EXAM: 'border-l-orange-500',
+  GENERAL: 'border-l-slate-400',
+  EVENT: 'border-l-blue-500',
+  HOLIDAY: 'border-l-green-500'
+}
+
+const relativeDate = (value) => {
+  const date = new Date(value)
+  const diffMs = Date.now() - date.getTime()
+  const days = Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)))
+  if (days === 0) return 'today'
+  if (days === 1) return '1 day ago'
+  if (days < 30) return `${days} days ago`
+  const months = Math.floor(days / 30)
+  if (months === 1) return '1 month ago'
+  if (months < 12) return `${months} months ago`
+  const years = Math.floor(months / 12)
+  return years === 1 ? '1 year ago' : `${years} years ago`
+}
+
+const initialsFromName = (name = '') =>
+  name
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join('') || 'UN'
+
 const StudentNotices = () => {
   const [notices, setNotices] = useState([])
   const [page, setPage] = useState(1)
   const [limit] = useState(10)
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
+  const [expandedNoticeIds, setExpandedNoticeIds] = useState([])
 
   const fetchNotices = useCallback(async () => {
     try {
@@ -30,6 +62,14 @@ const StudentNotices = () => {
     void fetchNotices()
   }, [fetchNotices])
 
+  const toggleExpanded = (noticeId) => {
+    setExpandedNoticeIds((current) => (
+      current.includes(noticeId)
+        ? current.filter((id) => id !== noticeId)
+        : [...current, noticeId]
+    ))
+  }
+
   return (
     <StudentLayout>
       <div className="p-8">
@@ -45,16 +85,33 @@ const StudentNotices = () => {
           <>
             <div className="space-y-4">
               {notices.map((notice) => (
-                <div key={notice.id} className="bg-white rounded-2xl shadow-sm p-6 hover:shadow-md transition">
+                <div key={notice.id} className={`ui-card rounded-2xl border-l-4 p-6 hover:shadow-md transition ${noticeToneClasses[notice.type] || noticeToneClasses.GENERAL}`}>
+                  <div className="mb-3 flex items-center gap-3">
+                    <div className="ui-role-fill flex h-10 w-10 items-center justify-center rounded-full text-xs font-black text-white">
+                      {initialsFromName(notice.user?.name)}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-slate-900">{notice.user?.name || 'Unknown author'}</p>
+                      <p className="text-xs text-slate-400">{relativeDate(notice.createdAt)}</p>
+                    </div>
+                  </div>
                   <div className="flex items-center gap-3 mb-3">
                     <StatusBadge status={notice.type} />
                     <span className="text-xs text-gray-400">
                       {new Date(notice.createdAt).toLocaleDateString()}
                     </span>
-                    <span className="text-xs text-gray-400">by {notice.user?.name}</span>
                   </div>
                   <h3 className="font-semibold text-gray-800 mb-2">{notice.title}</h3>
-                  <p className="text-sm text-gray-600">{notice.content}</p>
+                  <p className={`text-sm text-gray-600 ${expandedNoticeIds.includes(notice.id) ? '' : 'line-clamp-2'}`}>{notice.content}</p>
+                  {notice.content.length > 140 ? (
+                    <button
+                      type="button"
+                      onClick={() => toggleExpanded(notice.id)}
+                      className="mt-3 text-sm font-medium text-[var(--color-role-accent)]"
+                    >
+                      {expandedNoticeIds.includes(notice.id) ? 'Read Less' : 'Read More'}
+                    </button>
+                  ) : null}
                 </div>
               ))}
               {notices.length === 0 && (

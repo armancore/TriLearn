@@ -120,6 +120,16 @@ const InstructorMaterials = () => {
     return url.toLowerCase().includes('.pdf') || url.toLowerCase().includes('/uploads/')
   }
 
+  const fileTypeTone = (url = '') => {
+    const ext = (url.split('.').pop() || '').toLowerCase()
+    if (ext === 'pdf') return 'bg-rose-50 text-rose-700'
+    if (['doc', 'docx'].includes(ext)) return 'bg-blue-50 text-blue-700'
+    if (['ppt', 'pptx'].includes(ext)) return 'bg-amber-50 text-amber-700'
+    if (['jpg', 'jpeg', 'png', 'gif'].includes(ext)) return 'bg-emerald-50 text-emerald-700'
+    if (['mp4', 'mov', 'avi'].includes(ext)) return 'bg-violet-50 text-violet-700'
+    return 'bg-slate-100 text-slate-700'
+  }
+
   return (
     <InstructorLayout>
       <div className="p-8">
@@ -161,9 +171,17 @@ const InstructorMaterials = () => {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
             {filtered.map((mat) => (
-              <div key={mat.id} className="bg-white rounded-2xl shadow-sm p-5 hover:shadow-md transition">
-                <div className="flex items-start justify-between mb-3">
-                  <span className="text-3xl">{getFileIcon(mat.fileUrl)}</span>
+              <div key={mat.id} className="ui-card ui-card-hover rounded-2xl p-5">
+                <div className="mb-4 flex items-start justify-between">
+                  <div className="flex-1">
+                    <div className={`mb-3 inline-flex rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] ${fileTypeTone(mat.fileUrl)}`}>
+                      {(mat.fileUrl.split('.').pop() || 'file').toUpperCase()}
+                    </div>
+                    <div className="text-center">
+                      <div className="mb-3 text-5xl">{getFileIcon(mat.fileUrl)}</div>
+                      <h3 className="font-semibold text-gray-800 mb-1">{mat.title}</h3>
+                    </div>
+                  </div>
                   <button
                     onClick={() => setMaterialToDelete(mat)}
                     className="text-xs bg-red-50 text-red-600 px-2 py-1 rounded-lg hover:bg-red-100 transition"
@@ -171,7 +189,6 @@ const InstructorMaterials = () => {
                     Delete
                   </button>
                 </div>
-                <h3 className="font-semibold text-gray-800 mb-1">{mat.title}</h3>
                 {mat.description && (
                   <p className="text-xs text-gray-500 mb-3 line-clamp-2">{mat.description}</p>
                 )}

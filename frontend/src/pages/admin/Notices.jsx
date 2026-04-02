@@ -12,6 +12,35 @@ import StatusBadge from '../../components/StatusBadge'
 import useForm from '../../hooks/useForm'
 import logger from '../../utils/logger'
 const initialNoticeValues = { title: '', content: '', type: 'GENERAL' }
+const noticeToneClasses = {
+  URGENT: 'border-l-red-500',
+  EXAM: 'border-l-orange-500',
+  GENERAL: 'border-l-slate-400',
+  EVENT: 'border-l-blue-500',
+  HOLIDAY: 'border-l-green-500'
+}
+
+const relativeDate = (value) => {
+  const date = new Date(value)
+  const diffMs = Date.now() - date.getTime()
+  const days = Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)))
+  if (days === 0) return 'today'
+  if (days === 1) return '1 day ago'
+  if (days < 30) return `${days} days ago`
+  const months = Math.floor(days / 30)
+  if (months === 1) return '1 month ago'
+  if (months < 12) return `${months} months ago`
+  const years = Math.floor(months / 12)
+  return years === 1 ? '1 year ago' : `${years} years ago`
+}
+
+const initialsFromName = (name = '') =>
+  name
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join('') || 'UN'
 
 const Notices = () => {
   const [notices, setNotices] = useState([])
@@ -23,6 +52,7 @@ const Notices = () => {
   const [editNotice, setEditNotice] = useState(null)
   const [noticeToDelete, setNoticeToDelete] = useState(null)
   const [deletingNotice, setDeletingNotice] = useState(false)
+  const [expandedNoticeIds, setExpandedNoticeIds] = useState([])
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const validateNotice = (values) => {
@@ -105,6 +135,14 @@ const Notices = () => {
     setShowModal(true)
   }
 
+  const toggleExpanded = (noticeId) => {
+    setExpandedNoticeIds((current) => (
+      current.includes(noticeId)
+        ? current.filter((id) => id !== noticeId)
+        : [...current, noticeId]
+    ))
+  }
+
   return (
     <AdminLayout>
       <div className="p-8">
@@ -127,20 +165,33 @@ const Notices = () => {
           <>
             <div className="space-y-4">
               {notices.map((notice) => (
-                <div key={notice.id} className="bg-white rounded-2xl shadow-sm p-6 hover:shadow-md transition">
+                <div key={notice.id} className={`ui-card rounded-2xl border-l-4 p-6 transition hover:shadow-md ${noticeToneClasses[notice.type] || noticeToneClasses.GENERAL}`}>
                   <div className="flex justify-between items-start">
                     <div className="flex-1">
+                      <div className="mb-3 flex items-center gap-3">
+                        <div className="ui-role-fill flex h-10 w-10 items-center justify-center rounded-full text-xs font-black text-white">
+                          {initialsFromName(notice.user?.name)}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-semibold text-slate-900">{notice.user?.name || 'Unknown author'}</p>
+                          <p className="text-xs text-slate-400">{relativeDate(notice.createdAt)}</p>
+                        </div>
+                      </div>
                       <div className="flex items-center gap-3 mb-2">
                         <StatusBadge status={notice.type} />
-                        <span className="text-xs text-gray-400">
-                          {new Date(notice.createdAt).toLocaleDateString()}
-                        </span>
-                        <span className="text-xs text-gray-400">
-                          by {notice.user?.name}
-                        </span>
+                        <span className="text-xs text-gray-400">{new Date(notice.createdAt).toLocaleDateString()}</span>
                       </div>
                       <h3 className="font-semibold text-gray-800 mb-2">{notice.title}</h3>
-                      <p className="text-sm text-gray-500">{notice.content}</p>
+                      <p className={`text-sm text-gray-500 ${expandedNoticeIds.includes(notice.id) ? '' : 'line-clamp-2'}`}>{notice.content}</p>
+                      {notice.content.length > 140 ? (
+                        <button
+                          type="button"
+                          onClick={() => toggleExpanded(notice.id)}
+                          className="mt-3 text-sm font-medium text-[var(--color-role-accent)]"
+                        >
+                          {expandedNoticeIds.includes(notice.id) ? 'Read Less' : 'Read More'}
+                        </button>
+                      ) : null}
                     </div>
                     <div className="flex gap-2 ml-4">
                       <button
