@@ -10,9 +10,10 @@ const {
   deleteDepartment
 } = require('../controllers/department.controller')
 
+router.get('/', getAllDepartments)
+
 router.use(protect)
 
-router.get('/', allowRoles('ADMIN', 'COORDINATOR', 'INSTRUCTOR', 'STUDENT'), getAllDepartments)
 router.post('/', allowRoles('ADMIN'), validate(schemas.departments.create), createDepartment)
 router.put('/:id', allowRoles('ADMIN'), validate(schemas.departments.update), updateDepartment)
 router.delete('/:id', allowRoles('ADMIN'), validate(schemas.departments.id), deleteDepartment)

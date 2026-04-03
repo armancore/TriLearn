@@ -29,6 +29,9 @@ const initialUserValues = {
   section: ''
 }
 
+const coordinatorVisibleRoles = ['', 'INSTRUCTOR', 'STUDENT']
+const allVisibleRoles = ['', 'ADMIN', 'COORDINATOR', 'GATEKEEPER', 'INSTRUCTOR', 'STUDENT']
+
 const Users = () => {
   const { user: currentUser } = useAuth()
   const { departments, loadDepartments } = useReferenceData()
@@ -46,6 +49,7 @@ const Users = () => {
   const [error, setError] = useState('')
   const { showToast } = useToast()
   const [filterRole, setFilterRole] = useState('')
+  const visibleRoles = isCoordinator ? coordinatorVisibleRoles : allVisibleRoles
   const validateUserForm = (values) => {
     const validationErrors = {}
 
@@ -212,6 +216,18 @@ const Users = () => {
     setShowModal(true)
   }
 
+  const canToggleStatus = (targetUser) => {
+    if (!targetUser || targetUser.id === currentUser?.id) {
+      return false
+    }
+
+    if (!isCoordinator) {
+      return true
+    }
+
+    return ['STUDENT', 'INSTRUCTOR'].includes(targetUser.role)
+  }
+
   return (
     <Layout>
       <div className="p-4 md:p-8">
@@ -235,9 +251,10 @@ const Users = () => {
 
         {/* Filter */}
         <div className="flex gap-3 mb-6">
-          {['', 'ADMIN', 'COORDINATOR', 'GATEKEEPER', 'INSTRUCTOR', 'STUDENT'].map((role) => (
+          {visibleRoles.map((role) => (
             <button
               key={role}
+              type="button"
               onClick={() => setFilterRole(role)}
               className={`px-4 py-2 rounded-lg text-sm font-medium transition
                 ${filterRole === role
@@ -321,19 +338,23 @@ const Users = () => {
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex gap-2">
-                          <button
-                            onClick={() => handleToggleStatus(user.id, user.isActive)}
-                            className={`inline-flex h-9 w-9 items-center justify-center rounded-lg transition
-                              ${user.isActive
-                                ? 'bg-orange-100 text-orange-700 hover:bg-orange-200'
-                                : 'bg-green-100 text-green-700 hover:bg-green-200'
-                              }`}
-                            aria-label={user.isActive ? `Disable ${user.name}` : `Enable ${user.name}`}
-                          >
-                            <Power className="h-4 w-4" />
-                          </button>
+                          {canToggleStatus(user) ? (
+                            <button
+                              type="button"
+                              onClick={() => handleToggleStatus(user.id, user.isActive)}
+                              className={`inline-flex h-9 w-9 items-center justify-center rounded-lg transition
+                                ${user.isActive
+                                  ? 'bg-orange-100 text-orange-700 hover:bg-orange-200'
+                                  : 'bg-green-100 text-green-700 hover:bg-green-200'
+                                }`}
+                              aria-label={user.isActive ? `Disable ${user.name}` : `Enable ${user.name}`}
+                            >
+                              <Power className="h-4 w-4" />
+                            </button>
+                          ) : null}
                           {!isCoordinator && (
                             <button
+                              type="button"
                               onClick={() => setUserToDelete(user)}
                               className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-red-100 text-red-700 transition hover:bg-red-200"
                               aria-label={`Delete ${user.name}`}

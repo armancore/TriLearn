@@ -34,7 +34,7 @@ const Attendance = () => {
   const [selectedSubject, setSelectedSubject] = useState(searchParams.get('subject') || '')
   const [selectedDate, setSelectedDate] = useState(getToday())
   const [selectedMonth, setSelectedMonth] = useState(getCurrentMonth())
-  const [selectedSemester, setSelectedSemester] = useState(searchParams.get('semester') || '')
+  const [selectedSemester, setSelectedSemester] = useState(searchParams.get('semester') || (isCoordinator ? '1' : ''))
   const [selectedSection, setSelectedSection] = useState(searchParams.get('section') || '')
   const [qrCode, setQrCode] = useState(null)
   const [qrExpiry, setQrExpiry] = useState('')
@@ -61,6 +61,13 @@ const Attendance = () => {
   useEffect(() => {
     if (isCoordinator) {
       setSelectedSubject('')
+      if (!selectedSemester) {
+        setCoordinatorRecords([])
+        setMonthlyStudents([])
+        setMonthlyMeta({ monthLabel: '', totalStudents: 0, totalRecords: 0, department: '', semester: '', section: '' })
+        setSummary({ total: 0, present: 0, absent: 0, late: 0 })
+        return
+      }
       fetchCoordinatorDepartmentReport()
       return
     }
@@ -149,6 +156,11 @@ const Attendance = () => {
   }
 
   const fetchCoordinatorDepartmentReport = async () => {
+    if (!selectedSemester) {
+      setError('Please select a semester to load the department report.')
+      return
+    }
+
     try {
       setLoading(true)
       setError('')

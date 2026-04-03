@@ -8,6 +8,40 @@ const { recordAuditLog } = require('../utils/audit')
 
 const DEFAULT_STUDENT_PASSWORD = process.env.DEFAULT_STUDENT_PASSWORD || 'password'
 
+const getManagedDepartmentForUser = (user) => (
+  user.student?.department ||
+  user.instructor?.department ||
+  user.coordinator?.department ||
+  null
+)
+
+const getDepartmentAliases = async (departmentValue) => {
+  const normalizedDepartment = String(departmentValue || '').trim()
+  if (!normalizedDepartment) {
+    return []
+  }
+
+  const department = await prisma.department.findFirst({
+    where: {
+      OR: [
+        { name: normalizedDepartment },
+        { code: normalizedDepartment.toUpperCase() }
+      ]
+    },
+    select: {
+      name: true,
+      code: true
+    }
+  })
+
+  return Array.from(new Set([
+    normalizedDepartment,
+    normalizedDepartment.toUpperCase(),
+    department?.name,
+    department?.code
+  ].filter(Boolean)))
+}
+
 const getAdminStats = async (req, res) => {
   try {
     const [totalUsers, totalStudents, totalInstructors, totalCoordinators, totalGatekeepers, totalSubjects] = await Promise.all([
@@ -45,6 +79,18 @@ const getAllUsers = async (req, res) => {
     const filters = {}
     if (role) filters.role = role
     if (isActive !== undefined) filters.isActive = isActive === 'true'
+
+    if (req.user.role === 'COORDINATOR') {
+      const allowedRoles = ['STUDENT', 'INSTRUCTOR']
+
+      if (role && !allowedRoles.includes(role)) {
+        return res.json({ total: 0, page, limit, users: [] })
+      }
+
+      if (!role) {
+        filters.role = { in: allowedRoles }
+      }
+    }
 
     const [users, total] = await Promise.all([
       prisma.user.findMany({
@@ -464,13 +510,47 @@ const toggleUserStatus = async (req, res) => {
   try {
     const { id } = req.params
 
-    const user = await prisma.user.findUnique({ where: { id } })
+    const user = await prisma.user.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        role: true,
+        isActive: true,
+        email: true,
+        student: {
+          select: { department: true }
+        },
+        instructor: {
+          select: { department: true }
+        },
+        coordinator: {
+          select: { department: true }
+        }
+      }
+    })
+
     if (!user) {
       return res.status(404).json({ message: 'User not found' })
     }
 
     if (user.id === req.user.id) {
       return res.status(400).json({ message: 'You cannot disable yourself' })
+    }
+
+    if (req.user.role === 'COORDINATOR') {
+      if (!req.coordinator?.department) {
+        return res.status(403).json({ message: 'Coordinator department is not configured yet' })
+      }
+
+      if (!['STUDENT', 'INSTRUCTOR'].includes(user.role)) {
+        return res.status(403).json({ message: 'Coordinators can only manage students and instructors in their department' })
+      }
+
+      const managedDepartment = getManagedDepartmentForUser(user)
+      const departmentAliases = await getDepartmentAliases(req.coordinator.department)
+      if (!departmentAliases.includes(String(managedDepartment || '').trim())) {
+        return res.status(403).json({ message: 'You can only manage users in your own department' })
+      }
     }
 
     const updatedUser = await prisma.user.update({

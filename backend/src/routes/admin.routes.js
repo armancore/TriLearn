@@ -1,6 +1,7 @@
 const express = require('express')
 const router = express.Router()
 const { protect, allowRoles } = require('../middleware/auth.middleware')
+const { attachActorProfiles } = require('../middleware/profile.middleware')
 const { validate } = require('../middleware/validate.middleware')
 const { schemas } = require('../validators/schemas')
 const {
@@ -21,6 +22,7 @@ const {
 } = require('../controllers/admin.controller')
 
 router.use(protect)
+router.use(attachActorProfiles)
 
 router.get('/stats', allowRoles('ADMIN'), getAdminStats)
 router.get('/users', allowRoles('ADMIN', 'COORDINATOR'), validate(schemas.admin.getAllUsers), getAllUsers)
