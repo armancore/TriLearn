@@ -4,6 +4,7 @@ import api from '../../utils/api'
 import PageHeader from '../../components/PageHeader'
 import Pagination from '../../components/Pagination'
 import EmptyState from '../../components/EmptyState'
+import SimpleBarChart from '../../components/SimpleBarChart'
 import logger from '../../utils/logger'
 
 const examTypeLabels = {
@@ -191,28 +192,7 @@ const StudentMarks = () => {
                       </span>
                     </div>
 
-                    <div className="mt-6 space-y-4">
-                      {summary.analytics.chartData.map((subject) => (
-                        <div key={subject.subjectCode}>
-                          <div className="mb-2 flex items-center justify-between gap-3">
-                            <div className="min-w-0">
-                              <p className="truncate text-sm font-semibold text-slate-900">{subject.subjectName}</p>
-                              <p className="text-xs text-slate-500">{subject.subjectCode}</p>
-                            </div>
-                            <div className="shrink-0 text-right">
-                              <p className="text-sm font-semibold text-slate-900">{subject.percentage}%</p>
-                              <p className="text-xs text-slate-500">GPA {subject.gradePoint.toFixed(1)} • {subject.grade}</p>
-                            </div>
-                          </div>
-                          <div className="h-3 overflow-hidden rounded-full bg-slate-100">
-                            <div
-                              className="h-full rounded-full bg-[linear-gradient(90deg,#2563eb_0%,#0f766e_100%)]"
-                              style={{ width: `${Math.max(6, Math.min(subject.percentage, 100))}%` }}
-                            />
-                          </div>
-                        </div>
-                      ))}
-                    </div>
+                    <SimpleBarChart data={summary.analytics.chartData} />
                   </div>
 
                   <div className="space-y-4">

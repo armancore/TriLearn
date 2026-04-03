@@ -35,6 +35,7 @@ model User {
   admin      Admin?
   coordinator Coordinator?
   notices    Notice[]
+  notifications Notification[]
   refreshTokens RefreshToken[]
   auditLogs  AuditLog[]
 
@@ -362,6 +363,24 @@ model Notice {
   @@index([createdAt])
 }
 
+model Notification {
+  id        String           @id @default(uuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      NotificationType
+  title     String
+  message   String
+  link      String?
+  metadata  Json?
+  dedupeKey String?          @unique
+  isRead    Boolean          @default(false)
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
+
+  @@index([userId, isRead, createdAt])
+  @@index([type, createdAt])
+}
+
 enum NoticeType {
   GENERAL
   EXAM
@@ -374,6 +393,13 @@ enum NoticeAudience {
   ALL
   STUDENTS
   INSTRUCTORS_ONLY
+}
+
+enum NotificationType {
+  NOTICE_POSTED
+  ASSIGNMENT_DUE
+  ABSENCE_TICKET_REVIEWED
+  MARKS_PUBLISHED
 }
 // ================================
 // CLASS ROUTINE

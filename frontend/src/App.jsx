@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { ReferenceDataProvider } from './context/ReferenceDataContext'
+import { ThemeProvider } from './context/ThemeContext'
 import Login from './pages/auth/Login'
 import ForgotPassword from './pages/auth/ForgotPassword'
 import ResetPassword from './pages/auth/ResetPassword'
@@ -160,13 +161,15 @@ const AppRoutes = () => {
 
 const App = () => (
   <BrowserRouter>
-    <AuthProvider>
-      <ReferenceDataProvider>
-        <ToastProvider>
-          <AppRoutes />
-        </ToastProvider>
-      </ReferenceDataProvider>
-    </AuthProvider>
+    <ThemeProvider>
+      <AuthProvider>
+        <ReferenceDataProvider>
+          <ToastProvider>
+            <AppRoutes />
+          </ToastProvider>
+        </ReferenceDataProvider>
+      </AuthProvider>
+    </ThemeProvider>
   </BrowserRouter>
 )
 

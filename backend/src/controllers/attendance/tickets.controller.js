@@ -4,6 +4,7 @@ const {
   respondAttendanceTicketUnavailable,
   syncClosedRoutineAbsences
 } = require('./shared')
+const { createNotification } = require('../../utils/notifications')
 
 const getMyAbsenceTickets = async (req, res) => {
   try {
@@ -163,6 +164,20 @@ const reviewAbsenceTicket = async (req, res) => {
     })
 
     res.json({ message: 'Absence ticket reviewed successfully.', ticket })
+
+    await createNotification({
+      userId: existing.attendance.student.userId,
+      type: 'ABSENCE_TICKET_REVIEWED',
+      title: `Absence ticket ${status.toLowerCase()}`,
+      message: response || `Your absence ticket has been ${status.toLowerCase()}.`,
+      link: '/student/tickets',
+      metadata: {
+        ticketId: ticket.id,
+        status,
+        attendanceId: ticket.attendanceId
+      },
+      dedupeKey: `absence-ticket:${ticket.id}:${status}:${ticket.updatedAt?.toISOString?.() || new Date().toISOString()}`
+    })
   } catch (error) {
     res.internalError(error)
   }

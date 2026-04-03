@@ -1,6 +1,7 @@
 const prisma = require('../utils/prisma')
 const { getPagination } = require('../utils/pagination')
 const { recordAuditLog } = require('../utils/audit')
+const { createNotifications } = require('../utils/notifications')
 
 const EXAM_TYPES = ['INTERNAL', 'MIDTERM', 'FINAL', 'PREBOARD', 'PRACTICAL']
 const STUDENT_VISIBLE_EXAM_TYPES = EXAM_TYPES.filter((type) => type !== 'PRACTICAL')
@@ -766,6 +767,39 @@ const publishMarks = async (req, res) => {
     res.json({
       message: `${examType} results published successfully for the selected ${scopeLabel}.`,
       count: result.count
+    })
+
+    const publishedMarks = await prisma.mark.findMany({
+      where,
+      select: {
+        student: {
+          select: {
+            userId: true
+          }
+        },
+        subject: {
+          select: {
+            name: true
+          }
+        }
+      },
+      distinct: ['studentId']
+    })
+
+    await createNotifications({
+      userIds: publishedMarks.map((mark) => mark.student.userId),
+      type: 'MARKS_PUBLISHED',
+      title: `${examType} results published`,
+      message: subjectId
+        ? `Your ${examType.toLowerCase()} result for ${publishedMarks[0]?.subject?.name || 'the selected module'} is now available.`
+        : `Your ${examType.toLowerCase()} results are now available.`,
+      link: '/student/marks',
+      metadata: {
+        examType,
+        subjectId: subjectId || null,
+        department: req.coordinator.department
+      },
+      dedupeKeyFactory: (userId) => `marks-published:${userId}:${examType}:${subjectId || req.coordinator.department}`
     })
 
     await recordAuditLog({
