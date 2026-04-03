@@ -1,5 +1,5 @@
 import { Bell, CheckCheck, LogOut, Menu, Moon, PanelLeftClose, PanelLeftOpen, SunMedium } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import api, { resolveFileUrl } from '../utils/api'
 import { useTheme } from '../context/ThemeContext'
@@ -36,6 +36,7 @@ const AppShell = ({
   const [notificationsLoading, setNotificationsLoading] = useState(false)
   const [notifications, setNotifications] = useState([])
   const [unreadCount, setUnreadCount] = useState(0)
+  const notificationsRef = useRef(null)
   const navigate = useNavigate()
   const { resolvedTheme, toggleTheme } = useTheme()
   const roleThemeClass = roleThemeClasses[roleTheme] || roleThemeClasses.admin
@@ -71,6 +72,32 @@ const AppShell = ({
       window.clearInterval(intervalId)
     }
   }, [activePath, user?.id])
+
+  useEffect(() => {
+    if (!notificationsOpen) {
+      return undefined
+    }
+
+    const handlePointerDown = (event) => {
+      if (!notificationsRef.current?.contains(event.target)) {
+        setNotificationsOpen(false)
+      }
+    }
+
+    const handleEscape = (event) => {
+      if (event.key === 'Escape') {
+        setNotificationsOpen(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handlePointerDown)
+    document.addEventListener('keydown', handleEscape)
+
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown)
+      document.removeEventListener('keydown', handleEscape)
+    }
+  }, [notificationsOpen])
 
   const computedTopItems = useMemo(() => (
     topItems.map((item) => {
@@ -299,7 +326,7 @@ const AppShell = ({
                     {resolvedTheme === 'dark' ? <SunMedium className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
                   </button>
 
-                  <div className="relative">
+                  <div ref={notificationsRef} className="relative">
                     <button
                       type="button"
                       onClick={async () => {
@@ -381,7 +408,7 @@ const AppShell = ({
                     ) : null}
                   </div>
 
-                <div className="flex items-center gap-3 rounded-2xl bg-slate-50 px-3 py-2">
+                <div className="flex items-center gap-3 rounded-2xl bg-slate-50 px-3 py-2 shadow-sm">
                   <div className="text-right">
                     <p className="text-sm font-semibold text-slate-900">{user?.name}</p>
                     <p className="text-xs text-slate-500">{user?.email}</p>

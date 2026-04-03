@@ -5,6 +5,7 @@ import LoadingSpinner from '../../components/LoadingSpinner'
 import PageHeader from '../../components/PageHeader'
 import Pagination from '../../components/Pagination'
 import StatusBadge from '../../components/StatusBadge'
+import EmptyState from '../../components/EmptyState'
 import logger from '../../utils/logger'
 
 const noticeToneClasses = {
@@ -131,7 +132,11 @@ const StudentNotices = () => {
                 </div>
               ))}
               {notices.length === 0 && (
-                <div className="text-center py-12 text-gray-400">No notices yet</div>
+                <EmptyState
+                  icon="📣"
+                  title="No notices yet"
+                  description="New campus and classroom updates will appear here once they are published."
+                />
               )}
             </div>
             <Pagination page={page} total={total} limit={limit} onPageChange={setPage} />

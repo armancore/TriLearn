@@ -3,6 +3,7 @@ import { BookOpenText, ClipboardList, Files, GraduationCap, Percent, Users } fro
 import { Link } from 'react-router-dom'
 import InstructorLayout from '../../layouts/InstructorLayout'
 import PageHeader from '../../components/PageHeader'
+import EmptyState from '../../components/EmptyState'
 import api from '../../utils/api'
 import logger from '../../utils/logger'
 
@@ -133,8 +134,12 @@ const InstructorSubjects = () => {
               </div>
             ))}
             {subjects.length === 0 && (
-              <div className="col-span-3 text-center py-12 text-gray-400">
-                No subjects assigned yet
+              <div className="col-span-3">
+                <EmptyState
+                  icon="📚"
+                  title="No subjects assigned yet"
+                  description="Assigned modules will appear here once an admin or coordinator links them to your account."
+                />
               </div>
             )}
           </div>

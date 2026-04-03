@@ -2,25 +2,16 @@
 @import "./styles/design-tokens.css";
 
 :root {
-  color: #0f172a;
-  background: #f1f5f9;
-}
-
-html[data-theme="dark"] {
-  color: #e2e8f0;
-  background: #020617;
+  color: var(--color-page-text);
+  background: var(--color-page-bg);
 }
 
 body {
   min-width: 320px;
-  background: #f1f5f9;
-  color: #0f172a;
+  background: var(--color-page-bg);
+  color: var(--color-page-text);
   font-family: var(--font-sans-base);
-}
-
-html[data-theme="dark"] body {
-  background: #020617;
-  color: #e2e8f0;
+  transition: background-color 180ms ease, color 180ms ease;
 }
 
 #root {
@@ -51,47 +42,132 @@ h6 {
   background: rgba(148, 163, 184, 0.35);
 }
 
-html[data-theme="dark"] .bg-white,
-html[data-theme="dark"] .ui-card {
-  background-color: #0f172a !important;
+html[data-theme="dark"] * {
+  scrollbar-color: rgba(100, 116, 139, 0.65) transparent;
 }
 
+html[data-theme="dark"] *::-webkit-scrollbar-thumb {
+  background: rgba(100, 116, 139, 0.55);
+}
+
+html[data-theme="dark"] .bg-white,
+html[data-theme="dark"] .ui-card,
 html[data-theme="dark"] .bg-slate-50,
 html[data-theme="dark"] .bg-slate-50\/70,
-html[data-theme="dark"] .bg-slate-100 {
-  background-color: #111827 !important;
+html[data-theme="dark"] .bg-slate-100,
+html[data-theme="dark"] .bg-gray-50,
+html[data-theme="dark"] .bg-gray-100 {
+  background-color: var(--color-card-surface) !important;
 }
 
-html[data-theme="dark"] .border-slate-200,
+html[data-theme="dark"] .bg-slate-200,
+html[data-theme="dark"] .bg-slate-200\/80,
+html[data-theme="dark"] .bg-slate-300,
+html[data-theme="dark"] .bg-gray-200 {
+  background-color: var(--color-surface-subtle) !important;
+}
+
+html[data-theme="dark"] .border,
+html[data-theme="dark"] .border-slate-50,
 html[data-theme="dark"] .border-slate-100,
-html[data-theme="dark"] .border-gray-300,
-html[data-theme="dark"] .border {
-  border-color: rgba(148, 163, 184, 0.22) !important;
+html[data-theme="dark"] .border-slate-200,
+html[data-theme="dark"] .border-slate-300,
+html[data-theme="dark"] .border-gray-200,
+html[data-theme="dark"] .border-gray-300 {
+  border-color: var(--color-card-border) !important;
 }
 
+html[data-theme="dark"] .text-slate-950,
 html[data-theme="dark"] .text-slate-900,
+html[data-theme="dark"] .text-slate-800,
+html[data-theme="dark"] .text-gray-900,
 html[data-theme="dark"] .text-gray-800,
 html[data-theme="dark"] .text-gray-700,
-html[data-theme="dark"] .text-gray-600 {
-  color: #e2e8f0 !important;
+html[data-theme="dark"] .text-gray-600,
+html[data-theme="dark"] .text-black {
+  color: var(--color-heading) !important;
 }
 
 html[data-theme="dark"] .text-slate-700,
 html[data-theme="dark"] .text-slate-600,
 html[data-theme="dark"] .text-slate-500,
+html[data-theme="dark"] .text-slate-400,
 html[data-theme="dark"] .text-gray-500,
-html[data-theme="dark"] .text-gray-400 {
-  color: #94a3b8 !important;
+html[data-theme="dark"] .text-gray-400,
+html[data-theme="dark"] .text-gray-300 {
+  color: var(--color-text-muted) !important;
 }
 
-html[data-theme="dark"] .bg-slate-100 text-slate-600 {
-  color: #cbd5e1 !important;
+html[data-theme="dark"] .hover\:bg-slate-50:hover,
+html[data-theme="dark"] .hover\:bg-slate-100:hover,
+html[data-theme="dark"] .hover\:bg-gray-50:hover,
+html[data-theme="dark"] .hover\:bg-gray-100:hover {
+  background-color: var(--color-surface-subtle) !important;
+}
+
+html[data-theme="dark"] .hover\:text-white:hover {
+  color: #ffffff !important;
+}
+
+html[data-theme="dark"] .bg-red-50,
+html[data-theme="dark"] .bg-orange-50,
+html[data-theme="dark"] .bg-amber-50,
+html[data-theme="dark"] .bg-yellow-50,
+html[data-theme="dark"] .bg-green-50,
+html[data-theme="dark"] .bg-emerald-50,
+html[data-theme="dark"] .bg-blue-50,
+html[data-theme="dark"] .bg-indigo-50,
+html[data-theme="dark"] .bg-violet-50,
+html[data-theme="dark"] .bg-purple-50,
+html[data-theme="dark"] .bg-rose-50 {
+  background-color: color-mix(in srgb, var(--color-card-surface) 82%, white 18%) !important;
+}
+
+html[data-theme="dark"] .bg-red-100,
+html[data-theme="dark"] .bg-orange-100,
+html[data-theme="dark"] .bg-amber-100,
+html[data-theme="dark"] .bg-green-100,
+html[data-theme="dark"] .bg-emerald-100,
+html[data-theme="dark"] .bg-blue-100,
+html[data-theme="dark"] .bg-indigo-100,
+html[data-theme="dark"] .bg-violet-100,
+html[data-theme="dark"] .bg-purple-100,
+html[data-theme="dark"] .bg-rose-100 {
+  background-color: color-mix(in srgb, var(--color-card-surface) 70%, white 30%) !important;
+}
+
+html[data-theme="dark"] .shadow-sm,
+html[data-theme="dark"] .shadow,
+html[data-theme="dark"] .shadow-md,
+html[data-theme="dark"] .shadow-lg,
+html[data-theme="dark"] .shadow-xl {
+  box-shadow: var(--shadow-card-sm) !important;
 }
 
 html[data-theme="dark"] .ui-form-input,
 html[data-theme="dark"] input,
 html[data-theme="dark"] textarea,
 html[data-theme="dark"] select {
-  background-color: #111827;
-  color: #e2e8f0;
+  background-color: var(--color-card-surface);
+  color: var(--color-page-text);
+  border-color: var(--color-card-border);
+}
+
+html[data-theme="dark"] input::placeholder,
+html[data-theme="dark"] textarea::placeholder {
+  color: var(--color-text-soft);
+}
+
+html[data-theme="dark"] .bg-black\/50,
+html[data-theme="dark"] .bg-black\/60,
+html[data-theme="dark"] .bg-slate-950\/40 {
+  background-color: rgba(2, 6, 23, 0.72) !important;
+}
+
+html[data-theme="dark"] table thead {
+  background-color: var(--color-surface-subtle) !important;
+}
+
+html[data-theme="dark"] tr:hover {
+  background-color: color-mix(in srgb, var(--color-surface-subtle) 86%, white 14%) !important;
 }
