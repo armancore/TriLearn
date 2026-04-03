@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { Camera, UserRound } from 'lucide-react'
 import AdminLayout from '../../layouts/AdminLayout'
 import CoordinatorLayout from '../../layouts/CoordinatorLayout'
 import InstructorLayout from '../../layouts/InstructorLayout'
@@ -6,17 +7,21 @@ import StudentLayout from '../../layouts/StudentLayout'
 import Alert from '../../components/Alert'
 import LoadingSpinner from '../../components/LoadingSpinner'
 import PageHeader from '../../components/PageHeader'
+import { useToast } from '../../components/Toast'
 import { useAuth } from '../../context/AuthContext'
-import api from '../../utils/api'
+import api, { resolveFileUrl } from '../../utils/api'
 import { getFriendlyErrorMessage } from '../../utils/errors'
 
 const ProfilePage = () => {
   const { user, updateUser } = useAuth()
+  const { showToast } = useToast()
   const [profile, setProfile] = useState(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [uploadingAvatar, setUploadingAvatar] = useState(false)
   const [success, setSuccess] = useState('')
   const [error, setError] = useState('')
+  const [selectedAvatarFile, setSelectedAvatarFile] = useState(null)
   const [form, setForm] = useState({
     phone: '',
     address: '',
@@ -34,9 +39,25 @@ const ProfilePage = () => {
     section: ''
   })
 
+  const avatarPreviewUrl = useMemo(() => {
+    if (selectedAvatarFile) {
+      return URL.createObjectURL(selectedAvatarFile)
+    }
+
+    return resolveFileUrl(profile?.avatar || user?.avatar)
+  }, [profile?.avatar, selectedAvatarFile, user?.avatar])
+
   useEffect(() => {
     fetchProfile()
   }, [])
+
+  useEffect(() => {
+    return () => {
+      if (selectedAvatarFile) {
+        window.URL.revokeObjectURL(avatarPreviewUrl)
+      }
+    }
+  }, [avatarPreviewUrl, selectedAvatarFile])
 
   const fetchProfile = async () => {
     try {
@@ -84,6 +105,52 @@ const ProfilePage = () => {
     }
   }
 
+  const handleAvatarFileChange = (event) => {
+    const nextFile = event.target.files?.[0] || null
+    if (!nextFile) {
+      setSelectedAvatarFile(null)
+      return
+    }
+
+    if (!nextFile.type.startsWith('image/')) {
+      setError('Please choose a valid image file for your profile photo.')
+      event.target.value = ''
+      return
+    }
+
+    setError('')
+    setSelectedAvatarFile(nextFile)
+  }
+
+  const uploadAvatar = async () => {
+    if (!selectedAvatarFile) {
+      setError('Please choose an image before uploading.')
+      return
+    }
+
+    try {
+      setUploadingAvatar(true)
+      setError('')
+      const payload = new FormData()
+      payload.append('avatar', selectedAvatarFile)
+
+      const res = await api.post('/auth/avatar', payload, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      })
+
+      setProfile(res.data.user)
+      updateUser(res.data.authUser || res.data.user)
+      setSelectedAvatarFile(null)
+      showToast({ title: 'Profile photo updated.' })
+    } catch (requestError) {
+      setError(getFriendlyErrorMessage(requestError, 'Unable to upload your profile photo right now.'))
+    } finally {
+      setUploadingAvatar(false)
+    }
+  }
+
   const renderLayout = (content) => {
     if (user?.role === 'STUDENT') return <StudentLayout>{content}</StudentLayout>
     if (user?.role === 'COORDINATOR') return <CoordinatorLayout>{content}</CoordinatorLayout>
@@ -107,6 +174,37 @@ const ProfilePage = () => {
       <Alert type="error" message={error} />
 
       <form onSubmit={saveProfile} className="rounded-3xl bg-white p-6 shadow-sm md:p-8">
+        <div className="mb-8 flex flex-col gap-5 rounded-2xl border border-slate-200 bg-slate-50 p-5 md:flex-row md:items-center md:justify-between">
+          <div className="flex items-center gap-4">
+            <div className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-3xl bg-slate-200 text-slate-500">
+              {avatarPreviewUrl ? (
+                <img src={avatarPreviewUrl} alt={`${profile?.name || 'User'} avatar`} className="h-full w-full object-cover" />
+              ) : (
+                <UserRound className="h-10 w-10" />
+              )}
+            </div>
+            <div>
+              <p className="text-base font-semibold text-slate-900">Profile photo</p>
+              <p className="mt-1 text-sm text-slate-500">Upload a clear square image for your account profile.</p>
+            </div>
+          </div>
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+              <Camera className="h-4 w-4" />
+              <span>{selectedAvatarFile ? 'Change photo' : 'Choose photo'}</span>
+              <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" className="hidden" onChange={handleAvatarFileChange} />
+            </label>
+            <button
+              type="button"
+              onClick={uploadAvatar}
+              disabled={!selectedAvatarFile || uploadingAvatar}
+              className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-black disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {uploadingAvatar ? 'Uploading...' : 'Upload photo'}
+            </button>
+          </div>
+        </div>
+
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div>
             <label className="mb-1 block text-sm font-medium text-gray-600">Full Name</label>

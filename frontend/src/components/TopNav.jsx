@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 import { useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
+import { resolveFileUrl } from '../utils/api'
 
 const topItems = [
   { key: 'routine', label: 'Routine', icon: CalendarDays },
@@ -33,6 +34,7 @@ const initialsFromName = (name = '') =>
 const TopNav = ({ user, noticesCount = 0, links = {}, onOpenSidebar, onLogout }) => {
   const location = useLocation()
   const [menuOpen, setMenuOpen] = useState(false)
+  const avatarUrl = resolveFileUrl(user?.avatar)
 
   return (
     <div className="rounded-[2rem] border border-white/10 bg-white/[0.07] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_24px_80px_rgba(0,0,0,0.32)] backdrop-blur-xl">
@@ -59,9 +61,17 @@ const TopNav = ({ user, noticesCount = 0, links = {}, onOpenSidebar, onLogout })
               onClick={() => setMenuOpen((open) => !open)}
               className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/8 px-3 py-2 text-left text-white transition hover:bg-white/14"
             >
-              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#8b5cf6_0%,#2563eb_100%)] text-sm font-black shadow-[0_16px_45px_rgba(79,70,229,0.35)]">
-                {initialsFromName(user?.name)}
-              </div>
+              {avatarUrl ? (
+                <img
+                  src={avatarUrl}
+                  alt={`${user?.name || 'User'} avatar`}
+                  className="h-11 w-11 rounded-2xl object-cover shadow-[0_16px_45px_rgba(79,70,229,0.35)]"
+                />
+              ) : (
+                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#8b5cf6_0%,#2563eb_100%)] text-sm font-black shadow-[0_16px_45px_rgba(79,70,229,0.35)]">
+                  {initialsFromName(user?.name)}
+                </div>
+              )}
               <div className="hidden sm:block">
                 <p className="text-sm font-semibold">{user?.name || 'Student User'}</p>
                 <p className="text-xs text-slate-300">{user?.email || 'student@edunexus.edu'}</p>

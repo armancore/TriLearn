@@ -53,6 +53,11 @@ const subjectListInclude = {
   }
 }
 
+const buildContainsSearch = (search) => ({
+  contains: search,
+  mode: 'insensitive'
+})
+
 const getEnrollmentTargetStudents = async (subject) => prisma.student.findMany({
   where: {
     user: { isActive: true },
@@ -129,12 +134,21 @@ const createSubject = async (req, res) => {
 // ================================
 const getAllSubjects = async (req, res) => {
   try {
-    const { semester, department } = req.query
+    const { semester, department, search } = req.query
     const { page, limit, skip } = getPagination(req.query)
 
     const filters = {}
     if (semester) filters.semester = parseInt(semester)
     if (department) filters.department = department
+    if (search) {
+      filters.OR = [
+        { name: buildContainsSearch(search) },
+        { code: buildContainsSearch(search) },
+        { description: buildContainsSearch(search) },
+        { department: buildContainsSearch(search) },
+        { instructor: { is: { user: { is: { name: buildContainsSearch(search) } } } } }
+      ]
+    }
 
     const visibleFilters = await buildSubjectVisibilityFilter(req.user, filters)
 

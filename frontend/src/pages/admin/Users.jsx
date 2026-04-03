@@ -15,6 +15,7 @@ import StatusBadge from '../../components/StatusBadge'
 import { useToast } from '../../components/Toast'
 import { useAuth } from '../../context/AuthContext'
 import { useReferenceData } from '../../context/ReferenceDataContext'
+import useDebouncedValue from '../../hooks/useDebouncedValue'
 import useForm from '../../hooks/useForm'
 import { getFriendlyErrorMessage } from '../../utils/errors'
 import logger from '../../utils/logger'
@@ -49,6 +50,8 @@ const Users = () => {
   const [error, setError] = useState('')
   const { showToast } = useToast()
   const [filterRole, setFilterRole] = useState('')
+  const [searchTerm, setSearchTerm] = useState('')
+  const debouncedSearchTerm = useDebouncedValue(searchTerm, 300)
   const visibleRoles = isCoordinator ? coordinatorVisibleRoles : allVisibleRoles
   const validateUserForm = (values) => {
     const validationErrors = {}
@@ -88,11 +91,11 @@ const Users = () => {
 
   useEffect(() => {
     fetchUsers()
-  }, [filterRole, page])
+  }, [filterRole, page, debouncedSearchTerm])
 
   useEffect(() => {
     setPage(1)
-  }, [filterRole])
+  }, [filterRole, debouncedSearchTerm])
 
   useEffect(() => {
     void loadDepartments().catch((fetchError) => {
@@ -110,6 +113,9 @@ const Users = () => {
 
       if (filterRole) {
         params.set('role', filterRole)
+      }
+      if (debouncedSearchTerm.trim()) {
+        params.set('search', debouncedSearchTerm.trim())
       }
 
       const res = await api.get(`/admin/users?${params.toString()}`)
@@ -250,21 +256,33 @@ const Users = () => {
         <Alert type="error" message={error} />
 
         {/* Filter */}
-        <div className="flex gap-3 mb-6">
-          {visibleRoles.map((role) => (
-            <button
-              key={role}
-              type="button"
-              onClick={() => setFilterRole(role)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition
-                ${filterRole === role
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-white text-gray-600 hover:bg-gray-50 border'
-                }`}
-            >
-              {role || 'All'}
-            </button>
-          ))}
+        <div className="mb-6 space-y-4">
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <label className="mb-2 block text-sm font-medium text-slate-700">Search users</label>
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+              placeholder="Search by name, email, phone, roll number, or department"
+              className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <div className="flex flex-wrap gap-3">
+            {visibleRoles.map((role) => (
+              <button
+                key={role}
+                type="button"
+                onClick={() => setFilterRole(role)}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition
+                  ${filterRole === role
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-white text-gray-600 hover:bg-gray-50 border'
+                  }`}
+              >
+                {role || 'All'}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Users Table */}

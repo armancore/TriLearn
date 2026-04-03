@@ -1,4 +1,5 @@
 import { Link, useLocation } from 'react-router-dom'
+import { resolveFileUrl } from '../utils/api'
 
 const navItems = [
   { key: 'learnings', label: 'Learnings' },
@@ -27,6 +28,7 @@ const UserTopNavbar = ({
   accent = 'emerald'
 }) => {
   const location = useLocation()
+  const avatarUrl = resolveFileUrl(user?.avatar)
 
   const accentStyles = {
     emerald: {
@@ -70,9 +72,17 @@ const UserTopNavbar = ({
       <div className={`rounded-[1.9rem] border p-4 shadow-[0_18px_50px_rgba(15,23,42,0.05)] backdrop-blur ${styles.shell}`}>
         <div className="mb-4 flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
           <div className="flex items-center gap-4">
-            <div className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br text-base font-black tracking-[0.18em] ${styles.profile}`}>
-              {getInitials(user?.name)}
-            </div>
+            {avatarUrl ? (
+              <img
+                src={avatarUrl}
+                alt={`${user?.name || 'User'} avatar`}
+                className="h-14 w-14 shrink-0 rounded-2xl object-cover"
+              />
+            ) : (
+              <div className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br text-base font-black tracking-[0.18em] ${styles.profile}`}>
+                {getInitials(user?.name)}
+              </div>
+            )}
             <div className="min-w-0">
               <p className="text-lg font-black tracking-tight text-slate-900">{title}</p>
               <p className="truncate text-sm text-slate-500">{subtitle}</p>

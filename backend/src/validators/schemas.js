@@ -10,6 +10,7 @@ const optionalString = (max = 255) => z.preprocess(
   emptyToUndefined,
   z.string().trim().max(max).optional()
 )
+const searchQuery = optionalString(100)
 
 const uuidParam = z.object({
   id: z.string().uuid()
@@ -288,7 +289,8 @@ const schemas = {
       query: z.object({
         ...paginationQuery,
         role: roleEnum.optional(),
-        isActive: z.enum(['true', 'false']).optional()
+        isActive: z.enum(['true', 'false']).optional(),
+        search: searchQuery
       })
     },
     userId: { params: uuidParam },
@@ -358,7 +360,8 @@ const schemas = {
       query: z.object({
         ...paginationQuery,
         semester: z.coerce.number().int().min(1).max(12).optional(),
-        department: optionalString(100)
+        department: optionalString(100),
+        search: searchQuery
       })
     },
     id: { params: uuidParam },
@@ -441,7 +444,8 @@ const schemas = {
       query: z.object({
         ...paginationQuery,
         type: noticeTypeEnum.optional(),
-        audience: noticeAudienceEnum.optional()
+        audience: noticeAudienceEnum.optional(),
+        search: searchQuery
       })
     },
     id: { params: uuidParam }
@@ -460,6 +464,11 @@ const schemas = {
       params: z.object({ subjectId: z.string().uuid() }),
       query: z.object({
         ...paginationQuery,
+        examType: examTypeEnum.optional()
+      })
+    },
+    mySummary: {
+      query: z.object({
         examType: examTypeEnum.optional()
       })
     },

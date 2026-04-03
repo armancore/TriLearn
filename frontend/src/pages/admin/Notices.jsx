@@ -15,6 +15,7 @@ import { useToast } from '../../components/Toast'
 import { useAuth } from '../../context/AuthContext'
 import { useReferenceData } from '../../context/ReferenceDataContext'
 import useForm from '../../hooks/useForm'
+import useDebouncedValue from '../../hooks/useDebouncedValue'
 import logger from '../../utils/logger'
 const initialNoticeValues = { title: '', content: '', type: 'GENERAL', audience: 'ALL', targetDepartment: '', targetSemester: '' }
 const noticeToneClasses = {
@@ -73,11 +74,13 @@ const Notices = () => {
   const [noticeToDelete, setNoticeToDelete] = useState(null)
   const [deletingNotice, setDeletingNotice] = useState(false)
   const [expandedNoticeIds, setExpandedNoticeIds] = useState([])
+  const [searchTerm, setSearchTerm] = useState('')
   const [error, setError] = useState('')
   const { showToast } = useToast()
   const isCoordinator = user?.role === 'COORDINATOR'
   const canPostInstructorOnly = user?.role === 'ADMIN' || user?.role === 'COORDINATOR'
   const Layout = isCoordinator ? CoordinatorLayout : AdminLayout
+  const debouncedSearchTerm = useDebouncedValue(searchTerm, 300)
 
   const validateNotice = (values) => {
     const validationErrors = {}
@@ -95,7 +98,13 @@ const Notices = () => {
   const fetchNotices = useCallback(async () => {
     try {
       setLoading(true)
-      const res = await api.get(`/notices?page=${page}&limit=${limit}`)
+      const res = await api.get('/notices', {
+        params: {
+          page,
+          limit,
+          ...(debouncedSearchTerm.trim() ? { search: debouncedSearchTerm.trim() } : {})
+        }
+      })
       setNotices(res.data.notices)
       setTotal(res.data.total)
     } catch (error) {
@@ -103,11 +112,15 @@ const Notices = () => {
     } finally {
       setLoading(false)
     }
-  }, [limit, page])
+  }, [debouncedSearchTerm, limit, page])
 
   useEffect(() => {
     void fetchNotices()
   }, [fetchNotices])
+
+  useEffect(() => {
+    setPage(1)
+  }, [debouncedSearchTerm])
 
   useEffect(() => {
     if (!isCoordinator) {
@@ -202,6 +215,17 @@ const Notices = () => {
 
         {/* Success/Error */}
         <Alert type="error" message={error} />
+
+        <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <label className="mb-2 block text-sm font-medium text-slate-700">Search notices</label>
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={(event) => setSearchTerm(event.target.value)}
+            placeholder="Search by title, content, department, or author"
+            className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
 
         {/* Notices List */}
         {loading ? (

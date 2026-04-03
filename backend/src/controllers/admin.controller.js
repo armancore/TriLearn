@@ -8,6 +8,11 @@ const { recordAuditLog } = require('../utils/audit')
 
 const DEFAULT_STUDENT_PASSWORD = process.env.DEFAULT_STUDENT_PASSWORD || 'password'
 
+const buildContainsSearch = (search) => ({
+  contains: search,
+  mode: 'insensitive'
+})
+
 const getManagedDepartmentForUser = (user) => (
   user.student?.department ||
   user.instructor?.department ||
@@ -73,12 +78,23 @@ const getAdminStats = async (req, res) => {
 // ================================
 const getAllUsers = async (req, res) => {
   try {
-    const { role, isActive } = req.query
+    const { role, isActive, search } = req.query
     const { page, limit, skip } = getPagination(req.query)
 
     const filters = {}
     if (role) filters.role = role
     if (isActive !== undefined) filters.isActive = isActive === 'true'
+    if (search) {
+      filters.OR = [
+        { name: buildContainsSearch(search) },
+        { email: buildContainsSearch(search) },
+        { phone: buildContainsSearch(search) },
+        { student: { is: { rollNumber: buildContainsSearch(search) } } },
+        { student: { is: { department: buildContainsSearch(search) } } },
+        { instructor: { is: { department: buildContainsSearch(search) } } },
+        { coordinator: { is: { department: buildContainsSearch(search) } } }
+      ]
+    }
 
     if (req.user.role === 'COORDINATOR') {
       const allowedRoles = ['STUDENT', 'INSTRUCTOR']

@@ -18,6 +18,11 @@ const validateSanitizedNotice = ({ title, content }, res) => {
   return true
 }
 
+const buildContainsSearch = (search) => ({
+  contains: search,
+  mode: 'insensitive'
+})
+
 const getStudentNoticeVisibilityFilters = (student) => {
   if (!student) {
     return {
@@ -196,10 +201,23 @@ const createNotice = async (req, res) => {
 // ================================
 const getAllNotices = async (req, res) => {
   try {
-    const { type, audience } = req.query
+    const { type, audience, search } = req.query
     const { page, limit, skip } = getPagination(req.query)
 
     const filters = getVisibleNoticeFilters(req, { type, audience })
+    if (search) {
+      filters.AND = [
+        ...(filters.AND || []),
+        {
+          OR: [
+            { title: buildContainsSearch(search) },
+            { content: buildContainsSearch(search) },
+            { targetDepartment: buildContainsSearch(search) },
+            { user: { is: { name: buildContainsSearch(search) } } }
+          ]
+        }
+      ]
+    }
 
     const [notices, total] = await Promise.all([
       prisma.notice.findMany({

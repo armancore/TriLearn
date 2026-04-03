@@ -8,6 +8,7 @@ import EmptyState from '../../components/EmptyState'
 import LoadingSkeleton from '../../components/LoadingSkeleton'
 import Modal from '../../components/Modal'
 import PageHeader from '../../components/PageHeader'
+import Pagination from '../../components/Pagination'
 import { useAuth } from '../../context/AuthContext'
 import { useReferenceData } from '../../context/ReferenceDataContext'
 import useDebouncedValue from '../../hooks/useDebouncedValue'
@@ -17,8 +18,12 @@ const Subjects = () => {
   const { user } = useAuth()
   const isCoordinator = user?.role === 'COORDINATOR'
   const Layout = isCoordinator ? CoordinatorLayout : AdminLayout
-  const { subjects, departments, loadSubjects, loadDepartments } = useReferenceData()
+  const { departments, loadDepartments } = useReferenceData()
+  const [subjects, setSubjects] = useState([])
   const [instructors, setInstructors] = useState([])
+  const [page, setPage] = useState(1)
+  const [limit] = useState(12)
+  const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
   const [editSubject, setEditSubject] = useState(null)
@@ -29,6 +34,7 @@ const Subjects = () => {
   const [loadingEnrollments, setLoadingEnrollments] = useState(false)
   const [savingEnrollments, setSavingEnrollments] = useState(false)
   const [enrollmentSearch, setEnrollmentSearch] = useState('')
+  const [searchTerm, setSearchTerm] = useState('')
   const [form, setForm] = useState({
     name: '', code: '', description: '',
     semester: 1, department: '', instructorId: ''
@@ -36,11 +42,15 @@ const Subjects = () => {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const debouncedEnrollmentSearch = useDebouncedValue(enrollmentSearch, 250)
+  const debouncedSearchTerm = useDebouncedValue(searchTerm, 300)
+
+  useEffect(() => {
+    fetchInstructors()
+  }, [])
 
   useEffect(() => {
     void fetchSubjects()
-    fetchInstructors()
-  }, [])
+  }, [page, debouncedSearchTerm])
 
   useEffect(() => {
     void loadDepartments().catch((error) => {
@@ -51,7 +61,15 @@ const Subjects = () => {
   const fetchSubjects = async () => {
     try {
       setLoading(true)
-      await loadSubjects({ force: true })
+      const res = await api.get('/subjects', {
+        params: {
+          page,
+          limit,
+          ...(debouncedSearchTerm.trim() ? { search: debouncedSearchTerm.trim() } : {})
+        }
+      })
+      setSubjects(res.data.subjects || [])
+      setTotal(res.data.total || 0)
     } catch (error) {
       logger.error('Failed to load subjects', error)
     } finally {
@@ -213,6 +231,20 @@ const Subjects = () => {
           </div>
         )}
 
+        <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <label className="mb-2 block text-sm font-medium text-slate-700">Search subjects</label>
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={(event) => {
+              setSearchTerm(event.target.value)
+              setPage(1)
+            }}
+            placeholder="Search by subject name, code, department, description, or instructor"
+            className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+
         {/* Subjects Grid */}
         {loading ? (
           <LoadingSkeleton rows={6} itemClassName="h-44" />
@@ -223,7 +255,7 @@ const Subjects = () => {
               <h2 className="text-lg font-semibold text-slate-900">Subject Catalog</h2>
               <p className="text-sm text-slate-500">All active subjects, instructors, and enrollment summaries.</p>
             </div>
-            <span className="ui-status-badge ui-status-neutral">{subjects.length} records</span>
+            <span className="ui-status-badge ui-status-neutral">{total} records</span>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {subjects.map((subject) => (
@@ -317,6 +349,9 @@ const Subjects = () => {
                 />
               </div>
             )}
+          </div>
+          <div className="mt-6">
+            <Pagination page={page} total={total} limit={limit} onPageChange={setPage} />
           </div>
           </>
         )}

@@ -4,6 +4,8 @@ const QRCode = require('qrcode')
 const prisma = require('../utils/prisma')
 const { enrollStudentInMatchingSubjects } = require('../utils/enrollment')
 const logger = require('../utils/logger')
+const { buildUploadedFileUrl } = require('../utils/fileStorage')
+const { removeUploadedFile } = require('../middleware/upload.middleware')
 const {
   signAccessToken,
   signRefreshToken,
@@ -17,6 +19,7 @@ const buildAuthUser = (user) => ({
   id: user.id,
   name: user.name,
   email: user.email,
+  avatar: user.avatar || null,
   role: user.role,
   mustChangePassword: !!user.mustChangePassword,
   profileCompleted: !!user.profileCompleted
@@ -418,6 +421,45 @@ const updateProfile = async (req, res) => {
   }
 }
 
+const uploadAvatar = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: 'Please choose an image to upload' })
+    }
+
+    const nextAvatarUrl = buildUploadedFileUrl(req.file)
+    if (!nextAvatarUrl) {
+      return res.status(400).json({ message: 'Unable to process uploaded avatar' })
+    }
+
+    const existingUser = await prisma.user.findUnique({
+      where: { id: req.user.id },
+      select: { avatar: true }
+    })
+
+    const user = await prisma.user.update({
+      where: { id: req.user.id },
+      data: { avatar: nextAvatarUrl },
+      select: getProfileSelect()
+    })
+
+    if (existingUser?.avatar && existingUser.avatar !== nextAvatarUrl) {
+      await removeUploadedFile(existingUser.avatar)
+    }
+
+    res.json({
+      message: 'Profile photo updated successfully!',
+      user,
+      authUser: buildAuthUser(user)
+    })
+  } catch (error) {
+    if (req.file?.path) {
+      await removeUploadedFile(req.file.path)
+    }
+    res.internalError(error)
+  }
+}
+
 // ================================
 // CHANGE PASSWORD
 // ================================
@@ -702,6 +744,7 @@ module.exports = {
   getStudentIdQr,
   getMe,
   updateProfile,
+  uploadAvatar,
   changePassword,
   completeProfile,
   forgotPassword,

@@ -1,7 +1,7 @@
 import { LogOut, Menu, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import api from '../utils/api'
+import api, { resolveFileUrl } from '../utils/api'
 
 const initialsFromName = (name = '') =>
   name
@@ -34,6 +34,7 @@ const AppShell = ({
   const [noticesCount, setNoticesCount] = useState(0)
   const roleThemeClass = roleThemeClasses[roleTheme] || roleThemeClasses.admin
   const isDesktopCollapsed = sidebarCollapsed && !mobileOpen
+  const avatarUrl = resolveFileUrl(user?.avatar)
 
   useEffect(() => {
     let isMounted = true
@@ -200,9 +201,17 @@ const AppShell = ({
             <div className={`mb-3 flex items-center gap-3 rounded-2xl bg-white/8 px-3 py-3 transition ${
               isDesktopCollapsed ? 'justify-center px-2' : ''
             }`}>
-              <div className="ui-role-fill flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[13px] font-black leading-none shadow-[0_16px_36px_rgba(15,23,42,0.28)]">
-                {initialsFromName(user?.name)}
-              </div>
+              {avatarUrl ? (
+                <img
+                  src={avatarUrl}
+                  alt={`${user?.name || 'User'} avatar`}
+                  className="h-11 w-11 shrink-0 rounded-full object-cover shadow-[0_16px_36px_rgba(15,23,42,0.28)]"
+                />
+              ) : (
+                <div className="ui-role-fill flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[13px] font-black leading-none shadow-[0_16px_36px_rgba(15,23,42,0.28)]">
+                  {initialsFromName(user?.name)}
+                </div>
+              )}
               <div className={`min-w-0 overflow-hidden transition-[max-width,opacity,transform] duration-300 ${
                 sidebarCollapsed ? 'max-w-0 translate-x-2 opacity-0' : 'max-w-[150px] opacity-100'
               }`}>
@@ -254,9 +263,17 @@ const AppShell = ({
                     <p className="text-sm font-semibold text-slate-900">{user?.name}</p>
                     <p className="text-xs text-slate-500">{user?.email}</p>
                   </div>
-                  <div className="ui-role-fill flex h-10 w-10 items-center justify-center rounded-2xl text-[13px] font-black leading-none text-white">
-                    {initialsFromName(user?.name)}
-                  </div>
+                  {avatarUrl ? (
+                    <img
+                      src={avatarUrl}
+                      alt={`${user?.name || 'User'} avatar`}
+                      className="h-10 w-10 rounded-2xl object-cover"
+                    />
+                  ) : (
+                    <div className="ui-role-fill flex h-10 w-10 items-center justify-center rounded-2xl text-[13px] font-black leading-none text-white">
+                      {initialsFromName(user?.name)}
+                    </div>
+                  )}
                 </div>
               </div>
 

@@ -80,6 +80,248 @@ const buildStudentResultSheet = (marks) => {
   }
 }
 
+const emptyStudentResultSheet = () => ({
+  subjects: [],
+  totals: { obtainedMarks: 0, totalMarks: 0 },
+  overallPercentage: 0,
+  overallGrade: '-',
+  overallGpa: 0
+})
+
+const getStudentExamContext = async (studentId, requestedExamType) => {
+  const availableExamTypesRaw = await prisma.mark.findMany({
+    where: {
+      studentId,
+      isPublished: true,
+      examType: { in: STUDENT_VISIBLE_EXAM_TYPES }
+    },
+    distinct: ['examType'],
+    select: { examType: true },
+    orderBy: { examType: 'asc' }
+  })
+
+  const availableExamTypes = availableExamTypesRaw.map((item) => item.examType)
+  const selectedExamType = requestedExamType && STUDENT_VISIBLE_EXAM_TYPES.includes(requestedExamType)
+    ? requestedExamType
+    : availableExamTypes[0] || null
+
+  return { availableExamTypes, selectedExamType }
+}
+
+const getPublishedStudentMarks = async ({ studentId, examType, skip, take }) => {
+  const publishedFilter = {
+    studentId,
+    isPublished: true,
+    examType
+  }
+
+  const [marks, total, allMarks] = await Promise.all([
+    prisma.mark.findMany({
+      where: publishedFilter,
+      include: {
+        subject: { select: { name: true, code: true, semester: true } }
+      },
+      orderBy: { subject: { code: 'asc' } },
+      ...(typeof skip === 'number' ? { skip } : {}),
+      ...(typeof take === 'number' ? { take } : {})
+    }),
+    prisma.mark.count({ where: publishedFilter }),
+    prisma.mark.findMany({
+      where: publishedFilter,
+      include: {
+        subject: { select: { name: true, code: true, semester: true } }
+      },
+      orderBy: { subject: { code: 'asc' } }
+    })
+  ])
+
+  return {
+    marks,
+    total,
+    allMarks,
+    resultSheet: buildStudentResultSheet(allMarks)
+  }
+}
+
+const getRankingSummary = async ({ student, examType, overallGpa }) => {
+  const cohortStudents = await prisma.student.findMany({
+    where: {
+      semester: student.semester,
+      ...(student.department ? { department: student.department } : {}),
+      user: { isActive: true }
+    },
+    select: {
+      id: true,
+      user: {
+        select: {
+          id: true,
+          name: true
+        }
+      }
+    },
+    orderBy: [
+      { rollNumber: 'asc' }
+    ]
+  })
+
+  if (cohortStudents.length === 0) {
+    return {
+      rank: null,
+      cohortSize: 0,
+      percentile: 0,
+      topStudents: []
+    }
+  }
+
+  const studentIds = cohortStudents.map((entry) => entry.id)
+  const cohortMarks = await prisma.mark.findMany({
+    where: {
+      studentId: { in: studentIds },
+      isPublished: true,
+      examType
+    },
+    include: {
+      subject: {
+        select: {
+          code: true
+        }
+      }
+    },
+    orderBy: [
+      { subject: { code: 'asc' } }
+    ]
+  })
+
+  const marksByStudentId = cohortMarks.reduce((accumulator, mark) => {
+    if (!accumulator.has(mark.studentId)) {
+      accumulator.set(mark.studentId, [])
+    }
+
+    accumulator.get(mark.studentId).push(mark)
+    return accumulator
+  }, new Map())
+
+  const rankedStudents = cohortStudents.map((entry) => {
+    const resultSheet = buildStudentResultSheet(marksByStudentId.get(entry.id) || [])
+    return {
+      studentId: entry.id,
+      userId: entry.user.id,
+      name: entry.user.name,
+      overallGpa: resultSheet.overallGpa,
+      overallPercentage: resultSheet.overallPercentage
+    }
+  }).sort((left, right) => {
+    if (right.overallGpa !== left.overallGpa) {
+      return right.overallGpa - left.overallGpa
+    }
+
+    if (right.overallPercentage !== left.overallPercentage) {
+      return right.overallPercentage - left.overallPercentage
+    }
+
+    return left.name.localeCompare(right.name)
+  })
+
+  const rank = rankedStudents.findIndex((entry) => entry.studentId === student.id) + 1
+  const percentile = rank > 0 && cohortStudents.length > 0
+    ? Number((((cohortStudents.length - rank) / cohortStudents.length) * 100).toFixed(2))
+    : 0
+
+  return {
+    rank: rank || null,
+    cohortSize: cohortStudents.length,
+    percentile,
+    topStudents: rankedStudents.slice(0, 5).map((entry) => ({
+      userId: entry.userId,
+      name: entry.name,
+      overallGpa: entry.overallGpa,
+      overallPercentage: entry.overallPercentage
+    })),
+    currentStudentGpa: overallGpa
+  }
+}
+
+const getMyMarksSummary = async (req, res) => {
+  try {
+    const { examType } = req.query
+    const student = req.student
+
+    if (!student) {
+      return res.status(403).json({ message: 'Student profile not found' })
+    }
+
+    const { availableExamTypes, selectedExamType } = await getStudentExamContext(student.id, examType)
+
+    if (!selectedExamType) {
+      return res.json({
+        examType: null,
+        availableExamTypes: [],
+        resultSheet: emptyStudentResultSheet(),
+        analytics: {
+          chartData: [],
+          strongestSubject: null,
+          weakestSubject: null
+        },
+        ranking: {
+          rank: null,
+          cohortSize: 0,
+          percentile: 0,
+          topStudents: []
+        }
+      })
+    }
+
+    const { resultSheet } = await getPublishedStudentMarks({
+      studentId: student.id,
+      examType: selectedExamType
+    })
+
+    const strongestSubject = [...resultSheet.subjects].sort((left, right) => right.percentage - left.percentage)[0] || null
+    const weakestSubject = [...resultSheet.subjects].sort((left, right) => left.percentage - right.percentage)[0] || null
+    const ranking = await getRankingSummary({
+      student,
+      examType: selectedExamType,
+      overallGpa: resultSheet.overallGpa
+    })
+
+    res.json({
+      examType: selectedExamType,
+      availableExamTypes,
+      resultSheet,
+      analytics: {
+        chartData: resultSheet.subjects.map((subject) => ({
+          subjectCode: subject.subjectCode,
+          subjectName: subject.subjectName,
+          percentage: subject.percentage,
+          gradePoint: subject.gradePoint,
+          grade: subject.grade
+        })),
+        strongestSubject: strongestSubject ? {
+          subjectCode: strongestSubject.subjectCode,
+          subjectName: strongestSubject.subjectName,
+          percentage: strongestSubject.percentage,
+          grade: strongestSubject.grade
+        } : null,
+        weakestSubject: weakestSubject ? {
+          subjectCode: weakestSubject.subjectCode,
+          subjectName: weakestSubject.subjectName,
+          percentage: weakestSubject.percentage,
+          grade: weakestSubject.grade
+        } : null
+      },
+      ranking: {
+        ...ranking,
+        scope: {
+          semester: student.semester,
+          department: student.department || null
+        }
+      }
+    })
+  } catch (error) {
+    res.internalError(error)
+  }
+}
+
 const getManagedSubject = async (subjectId, req) => {
   const { user, instructor } = req
   const subject = await prisma.subject.findUnique({
@@ -419,21 +661,7 @@ const getMyMarks = async (req, res) => {
       return res.status(403).json({ message: 'Student profile not found' })
     }
 
-    const availableExamTypesRaw = await prisma.mark.findMany({
-      where: {
-        studentId: student.id,
-        isPublished: true,
-        examType: { in: STUDENT_VISIBLE_EXAM_TYPES }
-      },
-      distinct: ['examType'],
-      select: { examType: true },
-      orderBy: { examType: 'asc' }
-    })
-
-    const availableExamTypes = availableExamTypesRaw.map((item) => item.examType)
-    const selectedExamType = examType && STUDENT_VISIBLE_EXAM_TYPES.includes(examType)
-      ? examType
-      : availableExamTypes[0] || null
+    const { availableExamTypes, selectedExamType } = await getStudentExamContext(student.id, examType)
 
     if (!selectedExamType) {
       return res.json({
@@ -442,43 +670,15 @@ const getMyMarks = async (req, res) => {
         limit,
         examType: null,
         availableExamTypes: [],
-        resultSheet: {
-          subjects: [],
-          totals: { obtainedMarks: 0, totalMarks: 0 },
-          overallPercentage: 0,
-          overallGrade: '-',
-          overallGpa: 0
-        }
+        resultSheet: emptyStudentResultSheet()
       })
     }
-
-    const publishedFilter = {
+    const { marks, total, resultSheet } = await getPublishedStudentMarks({
       studentId: student.id,
-      isPublished: true,
-      examType: selectedExamType
-    }
-
-    const [marks, total, allMarks] = await Promise.all([
-      prisma.mark.findMany({
-        where: publishedFilter,
-        include: {
-          subject: { select: { name: true, code: true, semester: true } }
-        },
-        orderBy: { subject: { code: 'asc' } },
-        skip,
-        take: limit
-      }),
-      prisma.mark.count({ where: publishedFilter }),
-      prisma.mark.findMany({
-        where: publishedFilter,
-        include: {
-          subject: { select: { name: true, code: true, semester: true } }
-        },
-        orderBy: { subject: { code: 'asc' } }
-      })
-    ])
-
-    const resultSheet = buildStudentResultSheet(allMarks)
+      examType: selectedExamType,
+      skip,
+      take: limit
+    })
 
     res.json({
       total,
@@ -592,6 +792,7 @@ module.exports = {
   getMarksReview,
   getEnrolledStudentsBySubject,
   getMyMarks,
+  getMyMarksSummary,
   deleteMarks,
   publishMarks
 }

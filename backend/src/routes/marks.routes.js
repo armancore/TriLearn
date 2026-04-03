@@ -11,6 +11,7 @@ const {
   getMarksReview,
   getEnrolledStudentsBySubject,
   getMyMarks,
+  getMyMarksSummary,
   deleteMarks,
   publishMarks
 } = require('../controllers/marks.controller')
@@ -31,5 +32,6 @@ router.delete('/:id', allowRoles('ADMIN'), validate(schemas.marks.id), deleteMar
 
 // Student
 router.get('/my', allowRoles('STUDENT'), getMyMarks)
+router.get('/my/summary', allowRoles('STUDENT'), validate(schemas.marks.mySummary), getMyMarksSummary)
 
 module.exports = router

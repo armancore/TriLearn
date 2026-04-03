@@ -4,7 +4,7 @@ import StudentLayout from '../../layouts/StudentLayout'
 import Alert from '../../components/Alert'
 import LoadingSpinner from '../../components/LoadingSpinner'
 import PageHeader from '../../components/PageHeader'
-import api from '../../utils/api'
+import api, { resolveFileUrl } from '../../utils/api'
 import { getFriendlyErrorMessage } from '../../utils/errors'
 
 const StudentIdCard = () => {
@@ -12,6 +12,7 @@ const StudentIdCard = () => {
   const [studentQrCode, setStudentQrCode] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const avatarUrl = resolveFileUrl(profile?.avatar)
 
   useEffect(() => {
     const fetchCardData = async () => {
@@ -53,9 +54,17 @@ const StudentIdCard = () => {
               <div className="relative flex flex-col gap-6 lg:flex-row lg:items-stretch lg:justify-between">
                 <div className="min-w-0 flex-1">
                   <div className="inline-flex items-center gap-3 rounded-full border border-white/15 bg-white/10 px-4 py-2 backdrop-blur">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white text-sm font-black text-slate-900">
-                      {String(profile?.name || 'S').split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase()}
-                    </div>
+                    {avatarUrl ? (
+                      <img
+                        src={avatarUrl}
+                        alt={`${profile?.name || 'Student'} avatar`}
+                        className="h-10 w-10 rounded-2xl border border-white/20 object-cover bg-white"
+                      />
+                    ) : (
+                      <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white text-sm font-black text-slate-900">
+                        {String(profile?.name || 'S').split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase()}
+                      </div>
+                    )}
                     <div>
                       <p className="text-xs font-semibold uppercase tracking-[0.24em] text-white/70">EduNexus</p>
                       <p className="text-sm font-medium text-white/90">Student Identity Card</p>
@@ -103,6 +112,24 @@ const StudentIdCard = () => {
                 </div>
 
                 <div className="relative flex w-full shrink-0 flex-col justify-between rounded-[26px] bg-white p-5 text-slate-900 shadow-2xl lg:w-[260px]">
+                  <div className="mb-5 flex items-center gap-3 rounded-3xl bg-slate-50 p-3">
+                    {avatarUrl ? (
+                      <img
+                        src={avatarUrl}
+                        alt={`${profile?.name || 'Student'} profile`}
+                        className="h-16 w-16 rounded-2xl object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-200 text-lg font-black text-slate-700">
+                        {String(profile?.name || 'S').split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase()}
+                      </div>
+                    )}
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-slate-900">{profile?.name}</p>
+                      <p className="mt-1 text-xs text-slate-500">{profile?.student?.rollNumber || 'Student ID pending'}</p>
+                    </div>
+                  </div>
+
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">Student QR</p>
