@@ -8,6 +8,14 @@ const { sendMail } = require('../utils/mailer')
 const { welcomeTemplate } = require('../utils/emailTemplates')
 const { hashPassword, getStudentTemporaryPassword } = require('../utils/security')
 
+let statsCache = null
+let statsCacheTime = 0
+const STATS_CACHE_TTL_MS = 60 * 1000
+
+const clearStatsCache = () => {
+  statsCache = null
+}
+
 const buildContainsSearch = (search) => ({
   contains: search,
   mode: 'insensitive'
@@ -49,6 +57,10 @@ const getDepartmentAliases = async (departmentValue) => {
 
 const getAdminStats = async (req, res) => {
   try {
+    if (statsCache && Date.now() - statsCacheTime < STATS_CACHE_TTL_MS) {
+      return res.json({ stats: statsCache })
+    }
+
     const [totalUsers, totalStudents, totalInstructors, totalCoordinators, totalGatekeepers, totalSubjects] = await Promise.all([
       prisma.user.count(),
       prisma.user.count({ where: { role: 'STUDENT' } }),
@@ -58,16 +70,17 @@ const getAdminStats = async (req, res) => {
       prisma.subject.count()
     ])
 
-    res.json({
-      stats: {
-        totalUsers,
-        totalStudents,
-        totalInstructors,
-        totalCoordinators,
-        totalGatekeepers,
-        totalSubjects
-      }
-    })
+    statsCache = {
+      totalUsers,
+      totalStudents,
+      totalInstructors,
+      totalCoordinators,
+      totalGatekeepers,
+      totalSubjects
+    }
+    statsCacheTime = Date.now()
+
+    res.json({ stats: statsCache })
   } catch (error) {
     res.internalError(error)
   }
@@ -213,6 +226,7 @@ const createCoordinator = async (req, res) => {
       },
       include: { coordinator: true }
     })
+    clearStatsCache()
 
     res.status(201).json({
       message: 'Coordinator created successfully!',
@@ -265,6 +279,7 @@ const createGatekeeper = async (req, res) => {
         address
       }
     })
+    clearStatsCache()
 
     res.status(201).json({
       message: 'Gatekeeper created successfully!',
@@ -325,6 +340,7 @@ const createInstructor = async (req, res) => {
       },
       include: { instructor: true }
     })
+    clearStatsCache()
 
     res.status(201).json({
       message: 'Instructor created successfully!',
@@ -407,6 +423,7 @@ const createStudent = async (req, res) => {
       },
       include: { student: true }
     })
+    clearStatsCache()
 
     await enrollStudentInMatchingSubjects({
       studentId: user.student.id,
@@ -614,6 +631,7 @@ const deleteUser = async (req, res) => {
     }
 
     await prisma.user.delete({ where: { id } })
+    clearStatsCache()
 
     res.json({ message: 'User deleted successfully!' })
 
@@ -852,6 +870,7 @@ const deleteStudentApplication = async (req, res) => {
 }
 
 module.exports = {
+  clearStatsCache,
   getAdminStats,
   getAllUsers,
   getUserById,

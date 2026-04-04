@@ -12,6 +12,7 @@ const {
   getEnrolledStudentsBySubject,
   getMyMarks,
   getMyMarksSummary,
+  exportMyMarksheetPdf,
   deleteMarks,
   publishMarks
 } = require('../controllers/marks.controller')
@@ -33,5 +34,6 @@ router.delete('/:id', allowRoles('ADMIN'), validate(schemas.marks.id), deleteMar
 // Student
 router.get('/my', allowRoles('STUDENT'), getMyMarks)
 router.get('/my/summary', allowRoles('STUDENT'), validate(schemas.marks.mySummary), getMyMarksSummary)
+router.get('/my/marksheet', allowRoles('STUDENT'), validate(schemas.marks.mySummary), exportMyMarksheetPdf)
 
 module.exports = router

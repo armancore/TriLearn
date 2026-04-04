@@ -2,9 +2,17 @@ const prisma = require('../utils/prisma')
 const { getPagination } = require('../utils/pagination')
 const { recordAuditLog } = require('../utils/audit')
 const { createNotifications } = require('../utils/notifications')
+const PDFDocument = require('pdfkit')
 
 const EXAM_TYPES = ['INTERNAL', 'MIDTERM', 'FINAL', 'PREBOARD', 'PRACTICAL']
 const STUDENT_VISIBLE_EXAM_TYPES = EXAM_TYPES.filter((type) => type !== 'PRACTICAL')
+const EXAM_TYPE_LABELS = {
+  INTERNAL: 'Internal',
+  MIDTERM: 'Mid-Term',
+  FINAL: 'Final',
+  PREBOARD: 'Preboard',
+  PRACTICAL: 'Practical'
+}
 
 const getPercentage = (obtainedMarks, totalMarks) => {
   if (!totalMarks) return 0
@@ -86,6 +94,12 @@ const emptyStudentResultSheet = () => ({
   overallGrade: '-',
   overallGpa: 0
 })
+
+const sanitizeFilenamePart = (value) => String(value || 'marksheet')
+  .replace(/[^a-z0-9-_]+/gi, '-')
+  .replace(/-+/g, '-')
+  .replace(/^-|-$/g, '')
+  .toLowerCase()
 
 const getStudentExamContext = async (studentId, requestedExamType) => {
   const availableExamTypesRaw = await prisma.mark.findMany({
@@ -316,6 +330,146 @@ const getMyMarksSummary = async (req, res) => {
         }
       }
     })
+  } catch (error) {
+    res.internalError(error)
+  }
+}
+
+const getStudentMarksheetPayload = async ({ student, examType }) => {
+  const { availableExamTypes, selectedExamType } = await getStudentExamContext(student.id, examType)
+
+  if (!selectedExamType) {
+    return {
+      error: { status: 404, message: 'No published marks are available for a marksheet yet.' }
+    }
+  }
+
+  const { resultSheet } = await getPublishedStudentMarks({
+    studentId: student.id,
+    examType: selectedExamType
+  })
+
+  if (resultSheet.subjects.length === 0) {
+    return {
+      error: { status: 404, message: 'No published marks are available for a marksheet yet.' }
+    }
+  }
+
+  const strongestSubject = [...resultSheet.subjects].sort((left, right) => right.percentage - left.percentage)[0] || null
+  const weakestSubject = [...resultSheet.subjects].sort((left, right) => left.percentage - right.percentage)[0] || null
+  const ranking = await getRankingSummary({
+    student,
+    examType: selectedExamType,
+    overallGpa: resultSheet.overallGpa
+  })
+
+  const studentProfile = await prisma.student.findUnique({
+    where: { id: student.id },
+    include: {
+      user: {
+        select: {
+          name: true,
+          email: true
+        }
+      }
+    }
+  })
+
+  if (!studentProfile?.user) {
+    return { error: { status: 404, message: 'Student profile not found' } }
+  }
+
+  return {
+    student: studentProfile,
+    examType: selectedExamType,
+    examLabel: EXAM_TYPE_LABELS[selectedExamType] || selectedExamType,
+    availableExamTypes,
+    resultSheet,
+    strongestSubject,
+    weakestSubject,
+    ranking
+  }
+}
+
+const exportMyMarksheetPdf = async (req, res) => {
+  try {
+    const { examType } = req.query
+    const student = req.student
+
+    if (!student) {
+      return res.status(403).json({ message: 'Student profile not found' })
+    }
+
+    const payload = await getStudentMarksheetPayload({ student, examType })
+    if (payload.error) {
+      return res.status(payload.error.status).json({ message: payload.error.message })
+    }
+
+    const fileName = `marksheet-${sanitizeFilenamePart(payload.student.rollNumber)}-sem-${payload.student.semester}-${sanitizeFilenamePart(payload.examType)}.pdf`
+    res.setHeader('Content-Type', 'application/pdf')
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`)
+
+    const doc = new PDFDocument({ margin: 40, size: 'A4' })
+    doc.pipe(res)
+
+    doc.fontSize(20).text('EduNexus Semester Marksheet', { align: 'center' })
+    doc.moveDown(0.3)
+    doc.fontSize(11).text(`${payload.examLabel} Result`, { align: 'center' })
+    doc.moveDown(1)
+
+    doc.fontSize(12).text(`Student: ${payload.student.user.name}`)
+    doc.text(`Roll Number: ${payload.student.rollNumber}`)
+    doc.text(`Email: ${payload.student.user.email}`)
+    doc.text(`Department: ${payload.student.department || '-'}`)
+    doc.text(`Semester: ${payload.student.semester}`)
+    doc.text(`Section: ${payload.student.section || '-'}`)
+    doc.moveDown(0.8)
+
+    doc.fontSize(13).text('Result Overview')
+    doc.fontSize(11)
+    doc.text(`Overall GPA: ${payload.resultSheet.overallGpa.toFixed(2)}`)
+    doc.text(`Overall Grade: ${payload.resultSheet.overallGrade}`)
+    doc.text(`Overall Percentage: ${payload.resultSheet.overallPercentage.toFixed(2)}%`)
+    doc.text(`Combined Score: ${payload.resultSheet.totals.obtainedMarks}/${payload.resultSheet.totals.totalMarks}`)
+    if (payload.ranking.rank) {
+      doc.text(`Semester Rank: #${payload.ranking.rank} out of ${payload.ranking.cohortSize}`)
+      doc.text(`Percentile: ${payload.ranking.percentile.toFixed(2)}%`)
+    }
+    doc.moveDown(0.8)
+
+    doc.fontSize(13).text('Subject-wise Marks')
+    doc.moveDown(0.5)
+
+    payload.resultSheet.subjects.forEach((subject, index) => {
+      if (doc.y > 720) {
+        doc.addPage()
+      }
+
+      doc.fontSize(11).text(`${index + 1}. ${subject.subjectName} (${subject.subjectCode})`)
+      doc.fontSize(10)
+      doc.text(`Marks: ${subject.obtainedMarks}/${subject.totalMarks}`)
+      doc.text(`Percentage: ${subject.percentage.toFixed(2)}%`)
+      doc.text(`Grade: ${subject.grade}`)
+      doc.text(`Grade Point: ${subject.gradePoint.toFixed(1)}`)
+      doc.text(`Remarks: ${subject.remarks || '-'}`)
+      doc.moveDown(0.5)
+    })
+
+    if (payload.strongestSubject || payload.weakestSubject) {
+      if (doc.y > 700) {
+        doc.addPage()
+      }
+
+      doc.moveDown(0.5)
+      doc.fontSize(13).text('Performance Snapshot')
+      doc.fontSize(10)
+      doc.text(`Strongest Subject: ${payload.strongestSubject ? `${payload.strongestSubject.subjectName} (${payload.strongestSubject.subjectCode}) - ${payload.strongestSubject.percentage.toFixed(2)}%` : '-'}`)
+      doc.text(`Needs Attention: ${payload.weakestSubject ? `${payload.weakestSubject.subjectName} (${payload.weakestSubject.subjectCode}) - ${payload.weakestSubject.percentage.toFixed(2)}%` : '-'}`)
+    }
+
+    doc.moveDown(1)
+    doc.fontSize(9).fillColor('#64748b').text(`Generated on ${new Date().toLocaleString()}`, { align: 'right' })
+    doc.end()
   } catch (error) {
     res.internalError(error)
   }
@@ -825,6 +979,7 @@ module.exports = {
   getEnrolledStudentsBySubject,
   getMyMarks,
   getMyMarksSummary,
+  exportMyMarksheetPdf,
   deleteMarks,
   publishMarks
 }

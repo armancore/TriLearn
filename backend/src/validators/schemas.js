@@ -143,6 +143,7 @@ const routineBody = z.object({
   department: optionalString(100),
   semester: z.coerce.number().int().min(1).max(12),
   section: optionalString(20),
+  combinedGroupId: z.preprocess(emptyToUndefined, z.string().uuid().optional()),
   dayOfWeek: dayOfWeekEnum,
   startTime: timeSchema,
   endTime: timeSchema,

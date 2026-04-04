@@ -414,6 +414,7 @@ model Routine {
   department   String?
   semester     Int
   section      String?
+  combinedGroupId String?
   dayOfWeek    DayOfWeek
   startTime    String
   endTime      String
@@ -424,6 +425,7 @@ model Routine {
   @@index([department, semester, section, dayOfWeek])
   @@index([subjectId])
   @@index([instructorId])
+  @@index([combinedGroupId])
 }
 
 enum DayOfWeek {

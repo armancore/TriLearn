@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { CalendarDays, Clock3, QrCode, RefreshCw } from 'lucide-react'
+import { CalendarDays, Clock3, QrCode, RefreshCw, ShieldCheck, TimerReset, Users } from 'lucide-react'
 import GateLayout from '../../layouts/GateLayout'
 import PageHeader from '../../components/PageHeader'
 import LoadingSkeleton from '../../components/LoadingSkeleton'
 import QrScanPanel from '../../components/QrScanPanel'
+import StatCard from '../../components/StatCard'
 import api from '../../utils/api'
 import logger from '../../utils/logger'
 import { getFriendlyErrorMessage } from '../../utils/errors'
@@ -73,6 +74,48 @@ const GateDashboard = () => {
     return 'No slot today'
   }, [liveQrState])
 
+  const gateStats = useMemo(() => ([
+    {
+      title: 'Allowed Semesters',
+      value: liveQrState?.active ? liveQrState.allowedSemesters?.length || 0 : 0,
+      icon: Users,
+      iconClassName: 'from-amber-500 to-orange-600',
+      trend: liveQrState?.active ? `Semester ${liveQrState.allowedSemesters?.join(', ')}` : 'Inactive',
+      trendLabel: 'current access'
+    },
+    {
+      title: 'Live Windows',
+      value: liveQrState?.active ? liveQrState.periods?.length || 0 : 0,
+      icon: QrCode,
+      iconClassName: 'from-blue-500 to-cyan-600',
+      trend: liveQrState?.dayOfWeek || 'No schedule',
+      trendLabel: 'today'
+    },
+    {
+      title: 'Refresh Timer',
+      value: liveQrState?.active ? `${liveQrState.refreshInSeconds || 0}s` : '--',
+      icon: TimerReset,
+      iconClassName: 'from-violet-500 to-purple-600',
+      trend: liveQrState?.active ? `Until ${formatTime(liveQrState.expiresAt)}` : 'Waiting',
+      trendLabel: 'rotation'
+    },
+    {
+      title: 'Mode',
+      value: liveQrState?.holiday ? 'Holiday' : liveQrState?.active ? 'Live' : liveQrState?.timePassed ? 'Closed' : 'Standby',
+      icon: ShieldCheck,
+      iconClassName: 'from-emerald-500 to-green-600',
+      trend: statusText,
+      trendLabel: 'gate status'
+    }
+  ]), [liveQrState, statusText])
+
+  const operationalChecklist = [
+    'Keep the rotating QR visible to students in the active slot only.',
+    'Scan student ID cards when students cannot use their own phones.',
+    'If the day is a holiday, attendance deduction is skipped automatically.',
+    'Refresh the QR if the timer looks stale or the next slot just opened.'
+  ]
+
   const submitStudentIdQr = async (qrData) => {
     try {
       setScanBusy(true)
@@ -119,7 +162,22 @@ const GateDashboard = () => {
         {loading && !liveQrState ? (
           <LoadingSkeleton rows={3} itemClassName="h-48" />
         ) : (
-          <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-4">
+              {gateStats.map((stat) => (
+                <StatCard
+                  key={stat.title}
+                  title={stat.title}
+                  value={stat.value}
+                  icon={stat.icon}
+                  iconClassName={stat.iconClassName}
+                  trend={stat.trend}
+                  trendLabel={stat.trendLabel}
+                />
+              ))}
+            </div>
+
+            <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
             <section className="ui-card rounded-3xl p-6 md:p-8">
               <div className="flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
                 <div>
@@ -222,14 +280,30 @@ const GateDashboard = () => {
               />
 
               <section className="ui-card rounded-3xl p-6">
-                <h2 className="text-lg font-semibold text-slate-900">Rules</h2>
+                <h2 className="text-lg font-semibold text-slate-900">Gatekeeper Checklist</h2>
                 <div className="mt-4 space-y-3 text-sm text-slate-600">
-                  <p className="rounded-2xl bg-slate-50 px-4 py-3">Any student may scan only if their semester is allowed in the current time slot.</p>
-                  <p className="rounded-2xl bg-slate-50 px-4 py-3">The code rotates every 60 seconds to reduce screenshot sharing.</p>
-                  <p className="rounded-2xl bg-slate-50 px-4 py-3">If the day is a holiday, no QR scan is accepted and attendance is not deducted.</p>
+                  {operationalChecklist.map((item) => (
+                    <p key={item} className="rounded-2xl bg-slate-50 px-4 py-3">{item}</p>
+                  ))}
+                </div>
+              </section>
+
+              <section className="ui-card rounded-3xl p-6">
+                <h2 className="text-lg font-semibold text-slate-900">Slot Awareness</h2>
+                <div className="mt-4 space-y-3 text-sm text-slate-600">
+                  <p className="rounded-2xl bg-slate-50 px-4 py-3">
+                    Server time: <span className="font-semibold text-slate-900">{formatTime(liveQrState?.serverTime)}</span>
+                  </p>
+                  <p className="rounded-2xl bg-slate-50 px-4 py-3">
+                    Next slot: <span className="font-semibold text-slate-900">{liveQrState?.nextWindow ? `${liveQrState.nextWindow.startTime} - ${liveQrState.nextWindow.endTime}` : 'No further slot today'}</span>
+                  </p>
+                  <p className="rounded-2xl bg-slate-50 px-4 py-3">
+                    Active semesters: <span className="font-semibold text-slate-900">{liveQrState?.active ? liveQrState.allowedSemesters?.join(', ') : 'None right now'}</span>
+                  </p>
                 </div>
               </section>
             </aside>
+          </div>
           </div>
         )}
       </div>

@@ -5,6 +5,7 @@ import PageHeader from '../../components/PageHeader'
 import Pagination from '../../components/Pagination'
 import EmptyState from '../../components/EmptyState'
 import SimpleBarChart from '../../components/SimpleBarChart'
+import Alert from '../../components/Alert'
 import logger from '../../utils/logger'
 
 const examTypeLabels = {
@@ -57,6 +58,8 @@ const StudentMarks = () => {
   const [limit] = useState(10)
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
+  const [downloadingMarksheet, setDownloadingMarksheet] = useState(false)
+  const [error, setError] = useState('')
 
   useEffect(() => {
     void fetchMarks()
@@ -65,6 +68,7 @@ const StudentMarks = () => {
   const fetchMarks = async () => {
     try {
       setLoading(true)
+      setError('')
       const res = await api.get('/marks/my', {
         params: {
           page,
@@ -100,8 +104,38 @@ const StudentMarks = () => {
     } catch (error) {
       logger.error(error)
       setSummary(emptySummary)
+      setError(error.response?.data?.message || 'Unable to load marks right now')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const downloadMarksheet = async () => {
+    try {
+      setDownloadingMarksheet(true)
+      setError('')
+
+      const response = await api.get('/marks/my/marksheet', {
+        params: selectedExamType ? { examType: selectedExamType } : {},
+        responseType: 'blob'
+      })
+
+      const blob = new Blob([response.data], { type: 'application/pdf' })
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      const contentDisposition = response.headers['content-disposition'] || ''
+      const fileNameMatch = contentDisposition.match(/filename=\"?([^"]+)\"?/)
+      link.href = url
+      link.download = fileNameMatch?.[1] || `marksheet-${selectedExamType || 'result'}.pdf`
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.URL.revokeObjectURL(url)
+    } catch (downloadError) {
+      logger.error(downloadError)
+      setError('Unable to download your marksheet right now')
+    } finally {
+      setDownloadingMarksheet(false)
     }
   }
 
@@ -112,7 +146,16 @@ const StudentMarks = () => {
           title="Exam Results"
           subtitle="Select a published exam result to view your overall GPA and subject-wise marks. Practical marks are not shown to students."
           breadcrumbs={['Student', 'Results']}
+          actions={resultSheet.subjects.length > 0 ? [
+            {
+              label: downloadingMarksheet ? 'Preparing PDF...' : 'Download Marksheet PDF',
+              onClick: downloadMarksheet,
+              disabled: downloadingMarksheet
+            }
+          ] : []}
         />
+
+        <Alert type="error" message={error} />
 
         {loading ? (
           <div className="py-8 text-center text-gray-500">Loading...</div>

@@ -83,7 +83,7 @@ const validateRoutineAcademicScope = async ({ subjectId, instructorId, departmen
   return { subject, instructor }
 }
 
-const getOverlapFilter = ({ dayOfWeek, startTime, endTime, section, room, department, semester, excludeId }) => {
+const getOverlapFilter = ({ dayOfWeek, startTime, endTime, section, room, department, semester, instructorId, combinedGroupId, excludeId }) => {
   const overlapConditions = [
     { startTime: { lte: startTime }, endTime: { gt: startTime } },
     { startTime: { lt: endTime }, endTime: { gte: endTime } },
@@ -97,6 +97,7 @@ const getOverlapFilter = ({ dayOfWeek, startTime, endTime, section, room, depart
       room
         ? {
             room,
+            combinedGroupId: combinedGroupId ? { not: combinedGroupId } : undefined,
             OR: overlapConditions
           }
         : null,
@@ -105,6 +106,10 @@ const getOverlapFilter = ({ dayOfWeek, startTime, endTime, section, room, depart
         semester,
         section: section || null,
         OR: overlapConditions
+      },
+      {
+        instructorId,
+        OR: overlapConditions
       }
     ].filter(Boolean)
   }
@@ -112,7 +117,7 @@ const getOverlapFilter = ({ dayOfWeek, startTime, endTime, section, room, depart
 
 const createRoutine = async (req, res) => {
   try {
-    const { subjectId, instructorId, department, semester, section, dayOfWeek, startTime, endTime, room } = req.body
+    const { subjectId, instructorId, department, semester, section, dayOfWeek, startTime, endTime, room, combinedGroupId } = req.body
 
     const scope = await validateRoutineAcademicScope({ subjectId, instructorId, department, semester })
     if (scope.error) {
@@ -120,11 +125,19 @@ const createRoutine = async (req, res) => {
     }
 
     const conflict = await prisma.routine.findFirst({
-      where: getOverlapFilter({ dayOfWeek, startTime, endTime, section, room, department, semester })
+      where: getOverlapFilter({ dayOfWeek, startTime, endTime, section, room, department, semester, instructorId, combinedGroupId })
     })
 
     if (conflict) {
-      return res.status(400).json({ message: 'This routine conflicts with another class for the same room or academic section.' })
+      if (room && conflict.room === room) {
+        return res.status(400).json({ message: `Room ${room} is already booked at this time.` })
+      }
+
+      if (conflict.instructorId === instructorId) {
+        return res.status(400).json({ message: 'This instructor already has a class at this time.' })
+      }
+
+      return res.status(400).json({ message: 'This time slot is already taken for this semester and section.' })
     }
 
     const routine = await prisma.routine.create({
@@ -137,7 +150,8 @@ const createRoutine = async (req, res) => {
         dayOfWeek,
         startTime,
         endTime,
-        room: room || null
+        room: room || null,
+        combinedGroupId: combinedGroupId || null
       },
       include: getRoutineInclude()
     })
@@ -184,7 +198,7 @@ const getRoutineById = async (req, res) => {
 const updateRoutine = async (req, res) => {
   try {
     const { id } = req.params
-    const { subjectId, instructorId, department, semester, section, dayOfWeek, startTime, endTime, room } = req.body
+    const { subjectId, instructorId, department, semester, section, dayOfWeek, startTime, endTime, room, combinedGroupId } = req.body
 
     const routine = await prisma.routine.findUnique({ where: { id } })
     if (!routine) return res.status(404).json({ message: 'Routine not found' })
@@ -195,11 +209,19 @@ const updateRoutine = async (req, res) => {
     }
 
     const conflict = await prisma.routine.findFirst({
-      where: getOverlapFilter({ dayOfWeek, startTime, endTime, section, room, department, semester, excludeId: id })
+      where: getOverlapFilter({ dayOfWeek, startTime, endTime, section, room, department, semester, instructorId, combinedGroupId, excludeId: id })
     })
 
     if (conflict) {
-      return res.status(400).json({ message: 'This routine conflicts with another class for the same room or academic section.' })
+      if (room && conflict.room === room) {
+        return res.status(400).json({ message: `Room ${room} is already booked at this time.` })
+      }
+
+      if (conflict.instructorId === instructorId) {
+        return res.status(400).json({ message: 'This instructor already has a class at this time.' })
+      }
+
+      return res.status(400).json({ message: 'This time slot is already taken for this semester and section.' })
     }
 
     const updated = await prisma.routine.update({
@@ -213,7 +235,8 @@ const updateRoutine = async (req, res) => {
         dayOfWeek,
         startTime,
         endTime,
-        room: room || null
+        room: room || null,
+        combinedGroupId: combinedGroupId || null
       },
       include: getRoutineInclude()
     })

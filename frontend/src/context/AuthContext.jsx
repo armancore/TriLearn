@@ -4,7 +4,6 @@ import {
   API_BASE_URL,
   clearAuthState,
   getAuthState,
-  hasSessionHint,
   refreshSession,
   registerUnauthorizedHandler,
   setAuthState,
@@ -17,7 +16,7 @@ export const AuthProvider = ({ children }) => {
   const navigate = useNavigate()
   const [user, setUser] = useState(getAuthState().user)
   const [token, setToken] = useState(getAuthState().token)
-  const [loading, setLoading] = useState(() => hasSessionHint())
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     let isMounted = true
@@ -32,14 +31,6 @@ export const AuthProvider = ({ children }) => {
     const unregisterUnauthorizedHandler = registerUnauthorizedHandler(() => {
       navigate('/login', { replace: true })
     })
-
-    if (!hasSessionHint()) {
-      return () => {
-        isMounted = false
-        unsubscribe()
-        unregisterUnauthorizedHandler()
-      }
-    }
 
     refreshSession()
       .catch(() => {

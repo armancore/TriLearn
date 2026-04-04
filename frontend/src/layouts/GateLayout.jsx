@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from 'react-router-dom'
-import { Bell, CalendarDays, ClipboardList, FileText, LayoutDashboard, Percent, UserCircle2 } from 'lucide-react'
+import { Bell, CalendarDays, ClipboardList, FileText, Percent, UserCircle2 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import AppShell from '../components/AppShell'
 
@@ -9,9 +9,9 @@ const GateLayout = ({ children }) => {
   const navigate = useNavigate()
 
   const sidebarItems = [
-    { path: '/gate', label: 'Student QR', icon: Percent, meta: 'Live student attendance QR' },
-    { label: 'Profile', icon: UserCircle2, meta: 'My account', disabled: true },
-    { label: 'Overview', icon: LayoutDashboard, meta: 'More gate tools', disabled: true }
+    { path: '/gate', label: 'Gate Dashboard', icon: Percent, meta: 'Live QR and scan controls' },
+    { path: '/gatekeeper', label: 'Student QR', icon: Percent, meta: 'Gatekeeper entry view' },
+    { label: 'Profile', icon: UserCircle2, meta: 'My account', disabled: true }
   ]
 
   const topItems = [
@@ -31,7 +31,7 @@ const GateLayout = ({ children }) => {
 
   return (
     <AppShell
-      roleLabel="Gate Student QR"
+      roleLabel="Gatekeeper Console"
       roleTheme="gate"
       user={user}
       sidebarItems={sidebarItems}

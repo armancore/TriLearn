@@ -1,6 +1,7 @@
 const fs = require('fs')
 const path = require('path')
 const multer = require('multer')
+const sharp = require('sharp')
 const logger = require('../utils/logger')
 const { uploadPath } = require('../utils/fileStorage')
 
@@ -167,6 +168,20 @@ const validateUploadedImage = async (req, res, next) => {
     if (!isPng && !isJpeg && !isGif && !isWebp) {
       await fs.promises.unlink(req.file.path).catch(() => {})
       return res.status(400).json({ message: 'Uploaded file content is not a valid image' })
+    }
+
+    const cleanedPath = `${req.file.path}_clean`
+
+    try {
+      await sharp(req.file.path)
+        .rotate()
+        .toFile(cleanedPath)
+      await fs.promises.rename(cleanedPath, req.file.path)
+    } catch (sharpError) {
+      await fs.promises.unlink(cleanedPath).catch(() => {})
+      await fs.promises.unlink(req.file.path).catch(() => {})
+      logger.error(sharpError.message, { stack: sharpError.stack })
+      return res.status(400).json({ message: 'Could not process uploaded image' })
     }
 
     next()

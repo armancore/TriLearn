@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { BellRing, BookOpenText, ClipboardList, FileText, Percent } from 'lucide-react'
+import { BellRing, BookOpenText, ClipboardList, FileText, Percent, TimerReset, Users } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import CoordinatorLayout from '../../layouts/CoordinatorLayout'
 import PageHeader from '../../components/PageHeader'
@@ -154,10 +154,17 @@ const CoordinatorDashboard = () => {
   }, [selectedSemester])
 
   const pendingTickets = tickets.filter((ticket) => ticket.status === 'PENDING')
+  const unpublishedMarks = marksReview.marks.filter((mark) => !mark.isPublished)
   const recentNotices = [...notices].slice(0, 4)
   const recentAssignments = [...assignments]
     .sort((left, right) => new Date(left.dueDate) - new Date(right.dueDate))
     .slice(0, 4)
+  const now = new Date()
+  const upcomingAssignments = assignments.filter((assignment) => {
+    const dueDate = new Date(assignment.dueDate)
+    return dueDate >= now && dueDate <= new Date(now.getTime() + (7 * 24 * 60 * 60 * 1000))
+  })
+  const overdueAssignments = assignments.filter((assignment) => new Date(assignment.dueDate) < now)
   const semestersWithStudents = attendanceReports.filter((report) => report.totalStudents > 0)
   const strongestAttendance = useMemo(() => (
     [...attendanceReports]
@@ -165,12 +172,47 @@ const CoordinatorDashboard = () => {
       .sort((left, right) => right.monthlyAverage - left.monthlyAverage)
       .slice(0, 4)
   ), [attendanceReports])
+  const semesterSubjectMap = useMemo(() => (
+    availableSemesters.map((semester) => {
+      const semesterSubjects = subjects.filter((subject) => Number.parseInt(subject.semester, 10) === semester)
+      return {
+        semester,
+        subjectCount: semesterSubjects.length,
+        assignmentCount: assignments.filter((assignment) => Number.parseInt(assignment.subject?.semester, 10) === semester).length,
+        unpublishedCount: unpublishedMarks.filter((mark) => Number.parseInt(mark.subject?.semester, 10) === semester).length
+      }
+    })
+  ), [assignments, availableSemesters, subjects, unpublishedMarks])
+  const coordinatorActionBoard = [
+    {
+      title: 'Admission queue',
+      value: notices.length,
+      meta: 'Recent communication cadence'
+    },
+    {
+      title: 'Upcoming deadlines',
+      value: upcomingAssignments.length,
+      meta: `${overdueAssignments.length} overdue assignments`
+    },
+    {
+      title: 'Pending ticket reviews',
+      value: pendingTickets.length,
+      meta: `${tickets.length} total department tickets`
+    },
+    {
+      title: 'Results awaiting publish',
+      value: unpublishedMarks.length,
+      meta: `${marksReview.stats.published || 0} already visible to students`
+    }
+  ]
 
   const stats = [
     { title: 'Department Modules', value: subjects.length, icon: BookOpenText, iconClassName: 'from-blue-500 to-cyan-600', trend: user?.coordinator?.department || 'Department scope', trendLabel: 'coordinator control' },
     { title: 'Pending Requests', value: pendingTickets.length, icon: ClipboardList, iconClassName: 'from-amber-500 to-orange-600', trend: `${tickets.length} total`, trendLabel: 'absence tickets' },
     { title: 'Unpublished Results', value: marksReview.stats.unpublished || 0, icon: FileText, iconClassName: 'from-violet-500 to-purple-600', trend: `${marksReview.stats.published || 0} published`, trendLabel: 'exam records' },
-    { title: 'Semesters Reporting', value: semestersWithStudents.length, icon: Percent, iconClassName: 'from-emerald-500 to-green-600', trend: currentMonth(), trendLabel: 'attendance month' }
+    { title: 'Semesters Reporting', value: semestersWithStudents.length, icon: Percent, iconClassName: 'from-emerald-500 to-green-600', trend: currentMonth(), trendLabel: 'attendance month' },
+    { title: 'Students In Scope', value: attendanceReports[0]?.totalStudents || 0, icon: Users, iconClassName: 'from-slate-700 to-slate-900', trend: selectedSemester ? `Semester ${selectedSemester}` : 'Awaiting filter', trendLabel: 'current report' },
+    { title: 'Due This Week', value: upcomingAssignments.length, icon: TimerReset, iconClassName: 'from-rose-500 to-red-600', trend: `${overdueAssignments.length} overdue`, trendLabel: 'assignment watch' }
   ]
 
   if (loading) {
@@ -196,7 +238,7 @@ const CoordinatorDashboard = () => {
           <div className="mb-6 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div>
         ) : null}
 
-        <div className="mb-8 grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-4">
+        <div className="mb-8 grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
           {stats.map((stat) => (
             <StatCard
               key={stat.title}
@@ -212,6 +254,28 @@ const CoordinatorDashboard = () => {
 
         <div className="grid gap-6 xl:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
           <section className="space-y-6">
+            <div className="rounded-2xl bg-white p-6 shadow-sm">
+              <div className="mb-4 flex items-center justify-between gap-4">
+                <div>
+                  <h2 className="text-lg font-semibold text-slate-900">Coordinator Action Board</h2>
+                  <p className="text-sm text-slate-500">The fastest way to explain department workload and where attention is needed right now.</p>
+                </div>
+                <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+                  Live department snapshot
+                </span>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                {coordinatorActionBoard.map((item) => (
+                  <div key={item.title} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">{item.title}</p>
+                    <p className="mt-3 text-2xl font-black text-slate-900">{item.value}</p>
+                    <p className="mt-2 text-sm text-slate-500">{item.meta}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
             <div className="rounded-2xl bg-white p-6 shadow-sm">
               <div className="mb-4 flex items-center justify-between gap-4">
                 <div>
@@ -276,6 +340,47 @@ const CoordinatorDashboard = () => {
             <div className="rounded-2xl bg-white p-6 shadow-sm">
               <div className="mb-4 flex items-center justify-between gap-4">
                 <div>
+                  <h2 className="text-lg font-semibold text-slate-900">Semester Delivery Map</h2>
+                  <p className="text-sm text-slate-500">Show how modules, assignments, and unpublished results are distributed across the department.</p>
+                </div>
+                <Link to="/coordinator/subjects" className="text-sm font-medium text-[var(--color-role-accent)] hover:underline">
+                  Open subjects
+                </Link>
+              </div>
+
+              {semesterSubjectMap.length === 0 ? (
+                <EmptyState
+                  icon="🧭"
+                  title="No semester map yet"
+                  description="Once subjects are configured for the department, this semester breakdown will appear here."
+                />
+              ) : (
+                <div className="space-y-3">
+                  {semesterSubjectMap.map((entry) => (
+                    <div key={entry.semester} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+                      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                        <div>
+                          <p className="text-sm font-semibold text-slate-900">Semester {entry.semester}</p>
+                          <p className="mt-1 text-xs text-slate-500">{entry.subjectCount} modules configured</p>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm">
+                            {entry.assignmentCount} assignments
+                          </span>
+                          <span className={`rounded-full px-3 py-1 text-xs font-semibold ${entry.unpublishedCount > 0 ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                            {entry.unpublishedCount} unpublished results
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="rounded-2xl bg-white p-6 shadow-sm">
+              <div className="mb-4 flex items-center justify-between gap-4">
+                <div>
                   <h2 className="text-lg font-semibold text-slate-900">Pending Absence Requests</h2>
                   <p className="text-sm text-slate-500">Students waiting for a department-level response.</p>
                 </div>
@@ -324,7 +429,7 @@ const CoordinatorDashboard = () => {
                 />
               ) : (
                 <div className="space-y-3">
-                  {marksReview.marks.filter((mark) => !mark.isPublished).slice(0, 4).map((mark) => (
+                  {unpublishedMarks.slice(0, 4).map((mark) => (
                     <div key={mark.id} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
                       <p className="text-sm font-semibold text-slate-900">{mark.student?.user?.name}</p>
                       <p className="mt-1 text-xs text-slate-500">{mark.subject?.name} ({mark.subject?.code})</p>
@@ -398,6 +503,39 @@ const CoordinatorDashboard = () => {
                       <p className="mt-2 text-sm text-slate-600">Due {new Date(assignment.dueDate).toLocaleString()}</p>
                     </div>
                   ))}
+                </div>
+              )}
+            </div>
+
+            <div className="rounded-2xl bg-white p-6 shadow-sm">
+              <div className="mb-4 flex items-center justify-between gap-4">
+                <div>
+                  <h2 className="text-lg font-semibold text-slate-900">Deadline Pressure</h2>
+                  <p className="text-sm text-slate-500">Upcoming and overdue assignment signals make the dashboard feel operational instead of decorative.</p>
+                </div>
+                <Link to="/coordinator/assignments" className="text-sm font-medium text-[var(--color-role-accent)] hover:underline">
+                  Open assignments
+                </Link>
+              </div>
+
+              {assignments.length === 0 ? (
+                <EmptyState
+                  icon="⏱️"
+                  title="No assignment pressure yet"
+                  description="Assignment urgency indicators will show up here once department modules start posting coursework."
+                />
+              ) : (
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-700">Due This Week</p>
+                    <p className="mt-3 text-3xl font-black text-slate-900">{upcomingAssignments.length}</p>
+                    <p className="mt-2 text-sm text-slate-600">Assignments approaching their due date in the next 7 days.</p>
+                  </div>
+                  <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-rose-700">Overdue</p>
+                    <p className="mt-3 text-3xl font-black text-slate-900">{overdueAssignments.length}</p>
+                    <p className="mt-2 text-sm text-slate-600">Department assignments whose due date has already passed.</p>
+                  </div>
                 </div>
               )}
             </div>

@@ -161,6 +161,12 @@ const getProfileSelect = () => ({
 // ================================
 const register = async (req, res) => {
   try {
+    if (process.env.OPEN_REGISTRATION !== 'true') {
+      return res.status(403).json({
+        message: 'Self-registration is disabled. Please apply through the student intake form.'
+      })
+    }
+
     const { name, email, password, phone, address } = req.body
 
     const existingUser = await prisma.user.findUnique({

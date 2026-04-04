@@ -23,6 +23,10 @@ const validateEnv = () => {
     console.warn('Warning: REDIS_URL not set - production rate limiting will use a per-instance in-memory store')
   }
 
+  if (process.env.NODE_ENV === 'production' && process.env.OPEN_REGISTRATION === 'true') {
+    console.warn('Warning: OPEN_REGISTRATION is enabled in production')
+  }
+
   const configuredStudentPassword = String(process.env.DEFAULT_STUDENT_PASSWORD || '').trim()
   if (configuredStudentPassword && configuredStudentPassword.toLowerCase() === 'password') {
     console.warn('Warning: DEFAULT_STUDENT_PASSWORD is set to an insecure placeholder and will be ignored in favor of generated temporary passwords')
