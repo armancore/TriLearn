@@ -109,7 +109,7 @@ const getMyAttendance = async (req, res) => {
     const student = req.student
     if (!student) return res.status(403).json({ message: 'Student profile not found' })
 
-    const [attendance, total, allAttendance] = await Promise.all([
+    const [attendance, total, groupedAttendance] = await Promise.all([
       prisma.attendance.findMany({
         where: { studentId: student.id },
         include: { subject: { select: { name: true, code: true } } },
@@ -118,25 +118,44 @@ const getMyAttendance = async (req, res) => {
         take: limit
       }),
       prisma.attendance.count({ where: { studentId: student.id } }),
-      prisma.attendance.findMany({
+      prisma.attendance.groupBy({
         where: { studentId: student.id },
-        include: { subject: { select: { name: true, code: true } } }
+        by: ['subjectId', 'status'],
+        _count: { _all: true }
       })
     ])
 
+    const subjectIds = [...new Set(groupedAttendance.map((record) => record.subjectId))]
+    const subjects = subjectIds.length > 0
+      ? await prisma.subject.findMany({
+          where: { id: { in: subjectIds } },
+          select: { id: true, name: true, code: true }
+        })
+      : []
+
+    const subjectLookup = new Map(subjects.map((subject) => [subject.id, subject]))
     const subjectMap = {}
-    allAttendance.forEach((record) => {
+    groupedAttendance.forEach((record) => {
       const key = record.subjectId
-      if (!subjectMap[key]) subjectMap[key] = { total: 0, present: 0, absent: 0, late: 0, subject: record.subject }
-      subjectMap[key].total += 1
-      if (record.status === 'PRESENT') subjectMap[key].present += 1
-      if (record.status === 'ABSENT') subjectMap[key].absent += 1
-      if (record.status === 'LATE') subjectMap[key].late += 1
+      if (!subjectMap[key]) {
+        subjectMap[key] = {
+          total: 0,
+          present: 0,
+          absent: 0,
+          late: 0,
+          subject: subjectLookup.get(record.subjectId)
+        }
+      }
+
+      subjectMap[key].total += record._count._all
+      if (record.status === 'PRESENT') subjectMap[key].present += record._count._all
+      if (record.status === 'ABSENT') subjectMap[key].absent += record._count._all
+      if (record.status === 'LATE') subjectMap[key].late += record._count._all
     })
 
     const summary = Object.values(subjectMap).map((subject) => ({
-      subject: subject.subject.name,
-      code: subject.subject.code,
+      subject: subject.subject?.name || 'Unknown Subject',
+      code: subject.subject?.code || '-',
       total: subject.total,
       present: subject.present,
       absent: subject.absent,

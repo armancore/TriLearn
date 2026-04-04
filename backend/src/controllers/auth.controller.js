@@ -44,11 +44,6 @@ const createSignedQrPayload = (payload) => JSON.stringify({
 const getRequestUserAgent = (req) => String(req.get('user-agent') || '').slice(0, 255) || null
 
 const getRequestIpAddress = (req) => {
-  const forwardedFor = req.headers['x-forwarded-for']
-  if (typeof forwardedFor === 'string' && forwardedFor.trim()) {
-    return forwardedFor.split(',')[0].trim().slice(0, 64)
-  }
-
   return String(req.ip || req.socket?.remoteAddress || '').slice(0, 64) || null
 }
 

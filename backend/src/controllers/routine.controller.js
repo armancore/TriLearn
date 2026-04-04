@@ -3,7 +3,7 @@ const prisma = require('../utils/prisma')
 const applySectionScope = (studentSection) => (
   studentSection
     ? [{ section: null }, { section: studentSection }]
-    : [{ section: null }, { section: '' }]
+    : undefined
 )
 
 const buildRoutineFilters = async (req) => {
@@ -36,7 +36,7 @@ const buildRoutineFilters = async (req) => {
       ...filters,
       department: student.department || filters.department,
       semester: student.semester,
-      OR: applySectionScope(student.section)
+      ...(applySectionScope(student.section) ? { OR: applySectionScope(student.section) } : {})
     }
   }
 

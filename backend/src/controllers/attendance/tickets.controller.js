@@ -4,6 +4,7 @@ const {
   respondAttendanceTicketUnavailable
 } = require('./shared')
 const { createNotification } = require('../../utils/notifications')
+const { getPagination } = require('../../utils/pagination')
 
 const getMyAbsenceTickets = async (req, res) => {
   try {
@@ -104,6 +105,7 @@ const getAbsenceTicketsForStaff = async (req, res) => {
     if (!hasAbsenceTicketDelegate()) {
       return res.json({ tickets: [] })
     }
+    const { page, limit, skip } = getPagination(req.query)
 
     const where = {}
     if (req.user.role === 'INSTRUCTOR') {
@@ -116,16 +118,21 @@ const getAbsenceTicketsForStaff = async (req, res) => {
       where.attendance = { student: { department: req.coordinator.department } }
     }
 
-    const tickets = await prisma.absenceTicket.findMany({
-      where,
-      include: {
-        student: { include: { user: { select: { name: true, email: true } } } },
-        attendance: { include: { subject: { select: { id: true, name: true, code: true } } } }
-      },
-      orderBy: [{ status: 'asc' }, { createdAt: 'desc' }]
-    })
+    const [tickets, total] = await Promise.all([
+      prisma.absenceTicket.findMany({
+        where,
+        include: {
+          student: { include: { user: { select: { name: true, email: true } } } },
+          attendance: { include: { subject: { select: { id: true, name: true, code: true } } } }
+        },
+        orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
+        skip,
+        take: limit
+      }),
+      prisma.absenceTicket.count({ where })
+    ])
 
-    res.json({ tickets })
+    res.json({ tickets, total, page, limit })
   } catch (error) {
     res.internalError(error)
   }

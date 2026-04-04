@@ -177,7 +177,7 @@ model Attendance {
   subject      Subject  @relation(fields: [subjectId], references: [id], onDelete: Cascade)
   instructorId String
   instructor   Instructor @relation(fields: [instructorId], references: [id], onDelete: Cascade)
-  date         DateTime @default(now())
+  date         DateTime
   status       AttendanceStatus @default(PRESENT)
   qrCode       String?
   createdAt    DateTime @default(now())

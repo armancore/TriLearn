@@ -1,5 +1,6 @@
 const prisma = require('../utils/prisma')
 const { buildUploadedFileUrl } = require('../utils/fileStorage')
+const { getPagination } = require('../utils/pagination')
 const ExcelJS = require('exceljs')
 const PDFDocument = require('pdfkit')
 
@@ -120,6 +121,7 @@ const createAssignment = async (req, res) => {
 const getAllAssignments = async (req, res) => {
   try {
     const { subjectId } = req.query
+    const { page, limit, skip } = getPagination(req.query)
 
     const filters = {}
     if (subjectId) filters.subjectId = subjectId
@@ -143,17 +145,22 @@ const getAllAssignments = async (req, res) => {
       }
     }
 
-    const assignments = await prisma.assignment.findMany({
-      where: filters,
-      include: {
-        subject: { select: { name: true, code: true } },
-        instructor: { include: { user: { select: { name: true } } } },
-        _count: { select: { submissions: true } }
-      },
-      orderBy: { dueDate: 'asc' }
-    })
+    const [assignments, total] = await Promise.all([
+      prisma.assignment.findMany({
+        where: filters,
+        include: {
+          subject: { select: { name: true, code: true } },
+          instructor: { include: { user: { select: { name: true } } } },
+          _count: { select: { submissions: true } }
+        },
+        orderBy: { dueDate: 'asc' },
+        skip,
+        take: limit
+      }),
+      prisma.assignment.count({ where: filters })
+    ])
 
-    res.json({ total: assignments.length, assignments })
+    res.json({ total, page, limit, assignments })
   } catch (error) {
     res.internalError(error)
   }

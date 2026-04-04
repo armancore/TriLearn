@@ -1,4 +1,5 @@
 const prisma = require('../utils/prisma')
+const { getPagination } = require('../utils/pagination')
 const { buildUploadedFileUrl } = require('../utils/fileStorage')
 
 const resolveMaterialManager = async (req, subjectId) => {
@@ -114,6 +115,7 @@ const getMaterialsBySubject = async (req, res) => {
 // ================================
 const getAllMaterials = async (req, res) => {
   try {
+    const { page, limit, skip } = getPagination(req.query)
     const where = {}
 
     if (req.user.role === 'INSTRUCTOR') {
@@ -135,16 +137,21 @@ const getAllMaterials = async (req, res) => {
       }
     }
 
-    const materials = await prisma.studyMaterial.findMany({
-      where,
-      include: {
-        instructor: { include: { user: { select: { name: true } } } },
-        subject: { select: { name: true, code: true } }
-      },
-      orderBy: { createdAt: 'desc' }
-    })
+    const [materials, total] = await Promise.all([
+      prisma.studyMaterial.findMany({
+        where,
+        include: {
+          instructor: { include: { user: { select: { name: true } } } },
+          subject: { select: { name: true, code: true } }
+        },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit
+      }),
+      prisma.studyMaterial.count({ where })
+    ])
 
-    res.json({ total: materials.length, materials })
+    res.json({ total, page, limit, materials })
   } catch (error) {
     res.internalError(error)
   }

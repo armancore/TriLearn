@@ -1,0 +1,2 @@
+ALTER TABLE "Attendance"
+ALTER COLUMN "date" DROP DEFAULT;

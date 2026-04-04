@@ -60,6 +60,14 @@ const getVisibleNoticeFilters = (req, { type, audience } = {}) => {
     return filters
   }
 
+  if (req.user.role === 'INSTRUCTOR') {
+    const visibleAudiences = ['ALL', 'INSTRUCTORS_ONLY']
+    filters.audience = audience
+      ? (visibleAudiences.includes(audience) ? audience : '__no_visible_notice__')
+      : { in: visibleAudiences }
+    return filters
+  }
+
   if (audience) {
     filters.audience = audience
   }

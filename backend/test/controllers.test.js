@@ -324,7 +324,7 @@ test('allowRoles blocks unauthorized roles with 403', async () => {
   })
 })
 
-test('getAdminStats returns server-side aggregate counts', async () => {
+test('getAdminStats returns fresh server-side aggregate counts', async () => {
   let userCountCalls = 0
   let subjectCountCalls = 0
   const { getAdminStats } = loadWithMocks(resolveFromTest('src', 'controllers', 'admin.controller.js'), {
@@ -388,8 +388,344 @@ test('getAdminStats returns server-side aggregate counts', async () => {
     }
   })
   assert.deepEqual(secondRes.body, firstRes.body)
-  assert.equal(userCountCalls, 5)
-  assert.equal(subjectCountCalls, 1)
+  assert.equal(userCountCalls, 10)
+  assert.equal(subjectCountCalls, 2)
+})
+
+test('updateUser does not wipe coordinator department when no department is provided', async () => {
+  const coordinatorUpdates = []
+  const { updateUser } = loadWithMocks(resolveFromTest('src', 'controllers', 'admin.controller.js'), {
+    '../utils/prisma': {
+      user: {
+        findUnique: async () => ({
+          id: 'user-1',
+          role: 'COORDINATOR'
+        }),
+        update: async () => ({
+          id: 'user-1',
+          name: 'Coordinator One'
+        })
+      },
+      coordinator: {
+        update: async (payload) => {
+          coordinatorUpdates.push(payload)
+          return payload
+        }
+      }
+    },
+    'bcryptjs': {
+      hash: async () => 'hashed'
+    },
+    '../utils/enrollment': {
+      enrollStudentInMatchingSubjects: async () => {}
+    },
+    '../utils/logger': {
+      error: () => {}
+    },
+    './department.controller': {
+      ensureDepartmentExists: async () => true
+    },
+    '../utils/audit': {
+      recordAuditLog: async () => {}
+    },
+    '../utils/mailer': {
+      sendMail: async () => {}
+    },
+    '../utils/emailTemplates': {
+      welcomeTemplate: () => ({ subject: 'Welcome', html: '<p>Welcome</p>', text: 'Welcome' })
+    }
+  })
+
+  const req = {
+    params: { id: 'user-1' },
+    body: {
+      name: 'Coordinator One',
+      phone: '9800000000',
+      address: 'Kathmandu'
+    },
+    user: { id: 'admin-1', role: 'ADMIN' }
+  }
+  const res = createResponse()
+
+  await updateUser(req, res)
+
+  assert.equal(res.statusCode, 200)
+  assert.equal(coordinatorUpdates.length, 0)
+})
+
+test('deleteUser blocks deleting the last admin account', async () => {
+  const deleteCalls = []
+  const { deleteUser } = loadWithMocks(resolveFromTest('src', 'controllers', 'admin.controller.js'), {
+    '../utils/prisma': {
+      user: {
+        findUnique: async () => ({
+          id: 'admin-2',
+          role: 'ADMIN',
+          email: 'admin2@example.com'
+        }),
+        count: async () => 1,
+        delete: async (payload) => {
+          deleteCalls.push(payload)
+          return payload
+        }
+      }
+    },
+    'bcryptjs': {
+      hash: async () => 'hashed'
+    },
+    '../utils/enrollment': {
+      enrollStudentInMatchingSubjects: async () => {}
+    },
+    '../utils/logger': {
+      error: () => {}
+    },
+    './department.controller': {
+      ensureDepartmentExists: async () => true
+    },
+    '../utils/audit': {
+      recordAuditLog: async () => {}
+    },
+    '../utils/mailer': {
+      sendMail: async () => {}
+    },
+    '../utils/emailTemplates': {
+      welcomeTemplate: () => ({ subject: 'Welcome', html: '<p>Welcome</p>', text: 'Welcome' })
+    }
+  })
+
+  const req = {
+    params: { id: 'admin-2' },
+    user: { id: 'admin-1', role: 'ADMIN' }
+  }
+  const res = createResponse()
+
+  await deleteUser(req, res)
+
+  assert.equal(res.statusCode, 400)
+  assert.deepEqual(res.body, { message: 'You cannot delete the last admin user' })
+  assert.equal(deleteCalls.length, 0)
+})
+
+test('getMyAttendance builds subject summary with groupBy instead of loading all records', async () => {
+  const { getMyAttendance } = loadWithMocks(resolveFromTest('src', 'controllers', 'attendance', 'attendance.controller.js'), {
+    './shared': {
+      ATTENDANCE_STATUSES: ['PRESENT', 'ABSENT', 'LATE'],
+      prisma: {
+        attendance: {
+          findMany: async () => ([
+            {
+              id: 'attendance-1',
+              subjectId: 'subject-1',
+              status: 'PRESENT',
+              date: new Date('2026-04-04T00:00:00.000Z'),
+              subject: { name: 'Database Systems', code: 'DBS101' }
+            }
+          ]),
+          count: async () => 3,
+          groupBy: async () => ([
+            { subjectId: 'subject-1', status: 'PRESENT', _count: { _all: 2 } },
+            { subjectId: 'subject-1', status: 'ABSENT', _count: { _all: 1 } }
+          ])
+        },
+        subject: {
+          findMany: async () => ([
+            { id: 'subject-1', name: 'Database Systems', code: 'DBS101' }
+          ])
+        }
+      },
+      getDayRange: () => null,
+      getMonthRange: () => null,
+      getOwnedSubject: async () => ({}),
+      getSubjectStudents: async () => [],
+      buildAttendanceSummary: () => ({}),
+      buildStatusSummary: () => ({}),
+      createZonedDate: () => new Date(),
+      formatDisplayDate: () => '2026-04-04',
+      formatMonthLabel: () => 'April 2026',
+      getCoordinatorDepartmentReportPayload: async () => ({}),
+      recordAuditLog: async () => {}
+    },
+    '../../utils/pagination': {
+      getPagination: () => ({ page: 1, limit: 10, skip: 0 })
+    },
+    pdfkit: class MockPdfDocument {}
+  })
+
+  const req = {
+    query: {},
+    student: { id: 'student-1' }
+  }
+  const res = createResponse()
+
+  await getMyAttendance(req, res)
+
+  assert.equal(res.statusCode, 200)
+  assert.deepEqual(res.body.summary, [
+    {
+      subject: 'Database Systems',
+      code: 'DBS101',
+      total: 3,
+      present: 2,
+      absent: 1,
+      late: 0,
+      percentage: '66.7%'
+    }
+  ])
+})
+
+test('getAllNotices hides student-only notices from instructors', async () => {
+  const capturedWhere = []
+  const { getAllNotices } = loadWithMocks(resolveFromTest('src', 'controllers', 'notice.controller.js'), {
+    '../utils/prisma': {
+      notice: {
+        findMany: async ({ where }) => {
+          capturedWhere.push(where)
+          return []
+        },
+        count: async () => 0
+      }
+    },
+    '../utils/pagination': {
+      getPagination: () => ({ page: 1, limit: 20, skip: 0 })
+    },
+    '../utils/audit': {
+      recordAuditLog: async () => {}
+    },
+    '../utils/sanitize': {
+      sanitizePlainText: (value) => value
+    },
+    '../utils/notifications': {
+      createNotifications: async () => {}
+    }
+  })
+
+  const req = {
+    query: {},
+    user: { role: 'INSTRUCTOR' }
+  }
+  const res = createResponse()
+
+  await getAllNotices(req, res)
+
+  assert.equal(res.statusCode, 200)
+  assert.deepEqual(capturedWhere[0].audience, { in: ['ALL', 'INSTRUCTORS_ONLY'] })
+})
+
+test('getAllAssignments returns paginated metadata', async () => {
+  const findManyCalls = []
+  const { getAllAssignments } = loadWithMocks(resolveFromTest('src', 'controllers', 'assignment.controller.js'), {
+    '../utils/prisma': {
+      assignment: {
+        findMany: async (payload) => {
+          findManyCalls.push(payload)
+          return []
+        },
+        count: async () => 42
+      }
+    },
+    '../utils/fileStorage': {
+      buildUploadedFileUrl: () => null
+    },
+    '../utils/pagination': {
+      getPagination: () => ({ page: 3, limit: 15, skip: 30 })
+    },
+    exceljs: {
+      Workbook: class MockWorkbook {}
+    },
+    pdfkit: class MockPdfDocument {}
+  })
+
+  const req = {
+    query: {},
+    user: { role: 'ADMIN' }
+  }
+  const res = createResponse()
+
+  await getAllAssignments(req, res)
+
+  assert.equal(res.statusCode, 200)
+  assert.equal(findManyCalls[0].skip, 30)
+  assert.equal(findManyCalls[0].take, 15)
+  assert.equal(res.body.page, 3)
+  assert.equal(res.body.limit, 15)
+  assert.equal(res.body.total, 42)
+})
+
+test('getAllMaterials returns paginated metadata', async () => {
+  const findManyCalls = []
+  const { getAllMaterials } = loadWithMocks(resolveFromTest('src', 'controllers', 'studyMaterial.controller.js'), {
+    '../utils/prisma': {
+      studyMaterial: {
+        findMany: async (payload) => {
+          findManyCalls.push(payload)
+          return []
+        },
+        count: async () => 12
+      }
+    },
+    '../utils/fileStorage': {
+      buildUploadedFileUrl: () => null
+    },
+    '../utils/pagination': {
+      getPagination: () => ({ page: 2, limit: 25, skip: 25 })
+    }
+  })
+
+  const req = {
+    query: {},
+    user: { role: 'ADMIN' }
+  }
+  const res = createResponse()
+
+  await getAllMaterials(req, res)
+
+  assert.equal(res.statusCode, 200)
+  assert.equal(findManyCalls[0].skip, 25)
+  assert.equal(findManyCalls[0].take, 25)
+  assert.equal(res.body.page, 2)
+  assert.equal(res.body.limit, 25)
+  assert.equal(res.body.total, 12)
+})
+
+test('getAbsenceTicketsForStaff returns paginated metadata', async () => {
+  const findManyCalls = []
+  const { getAbsenceTicketsForStaff } = loadWithMocks(resolveFromTest('src', 'controllers', 'attendance', 'tickets.controller.js'), {
+    './shared': {
+      prisma: {
+        absenceTicket: {
+          findMany: async (payload) => {
+            findManyCalls.push(payload)
+            return []
+          },
+          count: async () => 8
+        }
+      },
+      hasAbsenceTicketDelegate: () => true,
+      respondAttendanceTicketUnavailable: () => {}
+    },
+    '../../utils/notifications': {
+      createNotification: async () => {}
+    },
+    '../../utils/pagination': {
+      getPagination: () => ({ page: 4, limit: 10, skip: 30 })
+    }
+  })
+
+  const req = {
+    query: {},
+    user: { role: 'INSTRUCTOR' },
+    instructor: { id: 'instructor-1' }
+  }
+  const res = createResponse()
+
+  await getAbsenceTicketsForStaff(req, res)
+
+  assert.equal(res.statusCode, 200)
+  assert.equal(findManyCalls[0].skip, 30)
+  assert.equal(findManyCalls[0].take, 10)
+  assert.equal(res.body.page, 4)
+  assert.equal(res.body.limit, 10)
+  assert.equal(res.body.total, 8)
 })
 
 test('updateStudentApplicationStatus blocks manual conversion without account creation', async () => {
@@ -906,4 +1242,41 @@ test('createRoutine returns a friendly error when the database uniqueness guard 
   assert.deepEqual(res.body, {
     message: 'This instructor already has a class at this time.'
   })
+})
+
+test('getAllRoutines shows all section routines to students without an assigned section', async () => {
+  const findManyCalls = []
+
+  const { getAllRoutines } = loadWithMocks(resolveFromTest('src', 'controllers', 'routine.controller.js'), {
+    '../utils/prisma': {
+      student: {
+        findUnique: async () => ({
+          id: 'student-1',
+          semester: 3,
+          department: 'BCA',
+          section: null
+        })
+      },
+      routine: {
+        findMany: async (payload) => {
+          findManyCalls.push(payload)
+          return []
+        }
+      }
+    }
+  })
+
+  const req = {
+    query: {},
+    user: { id: 'user-student-1', role: 'STUDENT' }
+  }
+  const res = createResponse()
+
+  await getAllRoutines(req, res)
+
+  assert.equal(res.statusCode, 200)
+  assert.equal(findManyCalls.length, 1)
+  assert.equal(findManyCalls[0].where.department, 'BCA')
+  assert.equal(findManyCalls[0].where.semester, 3)
+  assert.equal('OR' in findManyCalls[0].where, false)
 })

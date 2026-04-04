@@ -8,13 +8,7 @@ const { sendMail } = require('../utils/mailer')
 const { welcomeTemplate } = require('../utils/emailTemplates')
 const { hashPassword, getStudentTemporaryPassword } = require('../utils/security')
 
-let statsCache = null
-let statsCacheTime = 0
-const STATS_CACHE_TTL_MS = 60 * 1000
-
-const clearStatsCache = () => {
-  statsCache = null
-}
+const clearStatsCache = () => {}
 
 const buildContainsSearch = (search) => ({
   contains: search,
@@ -57,10 +51,6 @@ const getDepartmentAliases = async (departmentValue) => {
 
 const getAdminStats = async (req, res) => {
   try {
-    if (statsCache && Date.now() - statsCacheTime < STATS_CACHE_TTL_MS) {
-      return res.json({ stats: statsCache })
-    }
-
     const [totalUsers, totalStudents, totalInstructors, totalCoordinators, totalGatekeepers, totalSubjects] = await Promise.all([
       prisma.user.count(),
       prisma.user.count({ where: { role: 'STUDENT' } }),
@@ -70,7 +60,7 @@ const getAdminStats = async (req, res) => {
       prisma.subject.count()
     ])
 
-    statsCache = {
+    const stats = {
       totalUsers,
       totalStudents,
       totalInstructors,
@@ -78,9 +68,8 @@ const getAdminStats = async (req, res) => {
       totalGatekeepers,
       totalSubjects
     }
-    statsCacheTime = Date.now()
 
-    res.json({ stats: statsCache })
+    res.json({ stats })
   } catch (error) {
     res.internalError(error)
   }
@@ -497,7 +486,7 @@ const updateUser = async (req, res) => {
       })
     }
 
-    if (user.role === 'COORDINATOR') {
+    if (user.role === 'COORDINATOR' && normalizedDepartment !== null) {
       await prisma.coordinator.update({
         where: { userId: id },
         data: { department: normalizedDepartment }
@@ -628,6 +617,16 @@ const deleteUser = async (req, res) => {
 
     if (user.id === req.user.id) {
       return res.status(400).json({ message: 'You cannot delete yourself' })
+    }
+
+    if (user.role === 'ADMIN') {
+      const adminCount = await prisma.user.count({
+        where: { role: 'ADMIN' }
+      })
+
+      if (adminCount <= 1) {
+        return res.status(400).json({ message: 'You cannot delete the last admin user' })
+      }
     }
 
     await prisma.user.delete({ where: { id } })

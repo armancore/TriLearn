@@ -23,6 +23,7 @@ let server = null
 let maintenance = null
 let isShuttingDown = false
 
+app.set('trust proxy', 1)
 app.use(requestId)
 app.use(helmet({
   crossOriginResourcePolicy: { policy: 'cross-origin' }
