@@ -737,13 +737,13 @@ const Attendance = () => {
                       <table className="w-full min-w-[980px]">
                         <thead className="sticky top-0 z-10 bg-[var(--color-surface-muted)]">
                           <tr className="text-left text-sm text-[var(--color-text-muted)]">
-                            <th className="px-4 py-3">Student</th>
-                            <th className="px-4 py-3">Roll</th>
-                            <th className="px-4 py-3">Section</th>
-                            <th className="px-4 py-3">Present</th>
-                            <th className="px-4 py-3">Absent</th>
-                            <th className="px-4 py-3">Late</th>
-                            <th className="px-4 py-3">Monthly Average</th>
+                            <th scope="col" className="px-4 py-3">Student</th>
+                            <th scope="col" className="px-4 py-3">Roll</th>
+                            <th scope="col" className="px-4 py-3">Section</th>
+                            <th scope="col" className="px-4 py-3">Present</th>
+                            <th scope="col" className="px-4 py-3">Absent</th>
+                            <th scope="col" className="px-4 py-3">Late</th>
+                            <th scope="col" className="px-4 py-3">Monthly Average</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -776,11 +776,11 @@ const Attendance = () => {
                         <table className="w-full min-w-[980px]">
                           <thead className="sticky top-0 z-10 bg-[var(--color-surface-muted)]">
                             <tr className="text-left text-sm text-[var(--color-text-muted)]">
-                              <th className="px-4 py-3">Student</th>
-                              <th className="px-4 py-3">Roll</th>
-                              <th className="px-4 py-3">Subject</th>
-                              <th className="px-4 py-3">Date</th>
-                              <th className="px-4 py-3">Status</th>
+                              <th scope="col" className="px-4 py-3">Student</th>
+                              <th scope="col" className="px-4 py-3">Roll</th>
+                              <th scope="col" className="px-4 py-3">Subject</th>
+                              <th scope="col" className="px-4 py-3">Date</th>
+                              <th scope="col" className="px-4 py-3">Status</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -820,10 +820,10 @@ const Attendance = () => {
                   <table className="w-full min-w-[720px]">
                     <thead className="sticky top-0 z-10 bg-[var(--color-surface-muted)]">
                       <tr className="text-left text-sm text-[var(--color-text-muted)]">
-                        <th className="px-6 py-4">Student</th>
-                        <th className="px-6 py-4">Email</th>
-                        <th className="px-6 py-4">Date</th>
-                        <th className="px-6 py-4">Status</th>
+                        <th scope="col" className="px-6 py-4">Student</th>
+                        <th scope="col" className="px-6 py-4">Email</th>
+                        <th scope="col" className="px-6 py-4">Date</th>
+                        <th scope="col" className="px-6 py-4">Status</th>
                       </tr>
                     </thead>
                     <tbody>

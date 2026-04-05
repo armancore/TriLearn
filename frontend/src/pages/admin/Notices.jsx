@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { Plus } from 'lucide-react'
 import AdminLayout from '../../layouts/AdminLayout'
 import CoordinatorLayout from '../../layouts/CoordinatorLayout'
@@ -82,6 +82,7 @@ const Notices = () => {
   const canPostInstructorOnly = user?.role === 'ADMIN' || user?.role === 'COORDINATOR'
   const Layout = isCoordinator ? CoordinatorLayout : AdminLayout
   const debouncedSearchTerm = useDebouncedValue(searchTerm, 300)
+  const refreshControllerRef = useRef(null)
 
   const validateNotice = (values) => {
     const validationErrors = {}
@@ -124,7 +125,10 @@ const Notices = () => {
   useEffect(() => {
     const controller = new AbortController()
     void fetchNotices(controller.signal)
-    return () => controller.abort()
+    return () => {
+      controller.abort()
+      refreshControllerRef.current?.abort()
+    }
   }, [fetchNotices])
 
   useEffect(() => {
@@ -136,6 +140,20 @@ const Notices = () => {
       void loadDepartments()
     }
   }, [isCoordinator, loadDepartments])
+
+  const refreshNotices = useCallback(async () => {
+    refreshControllerRef.current?.abort()
+    const controller = new AbortController()
+    refreshControllerRef.current = controller
+
+    try {
+      await fetchNotices(controller.signal)
+    } finally {
+      if (refreshControllerRef.current === controller) {
+        refreshControllerRef.current = null
+      }
+    }
+  }, [fetchNotices])
 
   const saveNotice = async (formValues) => {
     setError('')
@@ -159,7 +177,7 @@ const Notices = () => {
       setEditNotice(null)
       setValues(initialNoticeValues)
       setErrors({})
-      void fetchNotices()
+      await refreshNotices()
     } catch (err) {
       setError(err.response?.data?.message || 'Something went wrong')
     }
@@ -172,7 +190,7 @@ const Notices = () => {
       await api.delete(`/notices/${noticeToDelete.id}`)
       setNoticeToDelete(null)
       showToast({ title: 'Notice deleted.' })
-      void fetchNotices()
+      await refreshNotices()
     } catch (err) {
       setError(err.response?.data?.message || 'Something went wrong')
     } finally {

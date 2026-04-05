@@ -4,7 +4,7 @@ import { Link, useLocation } from 'react-router-dom'
 import StudentLayout from '../../layouts/StudentLayout'
 import api from '../../utils/api'
 import Alert from '../../components/Alert'
-import LoadingSpinner from '../../components/LoadingSpinner'
+import LoadingSkeleton from '../../components/LoadingSkeleton'
 import PageHeader from '../../components/PageHeader'
 import Pagination from '../../components/Pagination'
 import StatusBadge from '../../components/StatusBadge'
@@ -349,7 +349,7 @@ const StudentAttendance = () => {
         </div>
 
         {loading ? (
-          <LoadingSpinner text="Loading attendance..." />
+          <LoadingSkeleton rows={5} itemClassName="h-28" />
         ) : (
           <>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
@@ -401,9 +401,9 @@ const StudentAttendance = () => {
                 <table className="w-full min-w-[640px]">
                   <thead className="bg-[var(--color-surface-muted)]">
                     <tr className="text-left text-sm text-[var(--color-text-muted)]">
-                      <th className="px-6 py-4">Subject</th>
-                      <th className="px-6 py-4">Date</th>
-                      <th className="px-6 py-4">Status</th>
+                      <th scope="col" className="px-6 py-4">Subject</th>
+                      <th scope="col" className="px-6 py-4">Date</th>
+                      <th scope="col" className="px-6 py-4">Status</th>
                     </tr>
                   </thead>
                   <tbody>

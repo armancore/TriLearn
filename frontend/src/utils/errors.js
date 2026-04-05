@@ -1,3 +1,14 @@
+export const getRetryAfterSeconds = (error, fallbackSeconds = 60) => {
+  const rawRetryAfter = error?.response?.headers?.['retry-after']
+  const parsedRetryAfter = Number.parseInt(rawRetryAfter, 10)
+
+  if (Number.isFinite(parsedRetryAfter) && parsedRetryAfter > 0) {
+    return parsedRetryAfter
+  }
+
+  return fallbackSeconds
+}
+
 export const getFriendlyErrorMessage = (error, fallbackMessage = 'Something went wrong. Please try again.') => {
   if (!error?.response) {
     return 'Network error. Please check your internet connection and try again.'
@@ -30,7 +41,8 @@ export const getFriendlyErrorMessage = (error, fallbackMessage = 'Something went
   }
 
   if (status === 429) {
-    return data?.message || 'Too many requests. Please wait a moment and try again.'
+    const retryAfterSeconds = getRetryAfterSeconds(error, 60)
+    return data?.message || `Too many requests. Please wait about ${retryAfterSeconds} seconds and try again.`
   }
 
   if (status >= 500) {

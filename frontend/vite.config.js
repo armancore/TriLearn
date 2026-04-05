@@ -9,7 +9,8 @@ export default defineConfig(() => ({
   ],
   test: {
     environment: 'jsdom',
-    setupFiles: './src/test/setup.js'
+    include: ['test/**/*.test.{js,jsx}'],
+    setupFiles: './test/setup.js'
   },
   build: {
     rollupOptions: {

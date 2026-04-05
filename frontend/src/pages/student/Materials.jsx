@@ -5,7 +5,7 @@ import PageHeader from '../../components/PageHeader'
 import StudentLayout from '../../layouts/StudentLayout'
 import useApi from '../../hooks/useApi'
 import { useToast } from '../../components/Toast'
-import api, { resolveFileUrl } from '../../utils/api'
+import api, { isEmbeddablePdfUrl, resolveFileUrl } from '../../utils/api'
 
 const StudentMaterials = () => {
   const [filterSubject, setFilterSubject] = useState('')
@@ -87,7 +87,7 @@ const StudentMaterials = () => {
       return
     }
 
-    setPreviewFile({ title, url: resolvedUrl })
+    setPreviewFile({ title, url: resolvedUrl, canEmbed: isEmbeddablePdfUrl(resolvedUrl) })
   }
 
   return (
@@ -236,13 +236,29 @@ const StudentMaterials = () => {
                 </button>
               </div>
             </div>
-            <iframe
-              src={previewFile.url}
-              title={previewFile.title}
-              className="w-full flex-1"
-              sandbox="allow-downloads"
-              referrerPolicy="no-referrer"
-            />
+            {previewFile.canEmbed ? (
+              <iframe
+                src={previewFile.url}
+                title={previewFile.title}
+                className="w-full flex-1"
+                sandbox="allow-downloads"
+                referrerPolicy="no-referrer"
+              />
+            ) : (
+              <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center">
+                <p className="text-sm text-[var(--color-text-muted)]">
+                  This file can be opened in a new tab, but embedded preview is only available for PDFs stored in this app.
+                </p>
+                <a
+                  href={previewFile.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="ui-role-fill rounded-lg px-4 py-2 text-sm font-medium"
+                >
+                  Open PDF
+                </a>
+              </div>
+            )}
           </div>
         </div>
       )}

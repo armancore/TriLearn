@@ -3,7 +3,7 @@ import { Plus } from 'lucide-react'
 import InstructorLayout from '../../layouts/InstructorLayout'
 import api from '../../utils/api'
 import Alert from '../../components/Alert'
-import LoadingSpinner from '../../components/LoadingSpinner'
+import LoadingSkeleton from '../../components/LoadingSkeleton'
 import Modal from '../../components/Modal'
 import PageHeader from '../../components/PageHeader'
 import Pagination from '../../components/Pagination'
@@ -102,7 +102,7 @@ const InstructorNotices = () => {
         <Alert type="error" message={error} />
 
         {loading ? (
-          <LoadingSpinner text="Loading notices..." />
+          <LoadingSkeleton rows={5} itemClassName="h-28" />
         ) : (
           <>
             <div className="space-y-4">

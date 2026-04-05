@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import StudentLayout from '../../layouts/StudentLayout'
 import api from '../../utils/api'
-import LoadingSpinner from '../../components/LoadingSpinner'
+import LoadingSkeleton from '../../components/LoadingSkeleton'
 import PageHeader from '../../components/PageHeader'
 import Pagination from '../../components/Pagination'
 import StatusBadge from '../../components/StatusBadge'
@@ -101,7 +101,7 @@ const StudentNotices = () => {
         />
 
         {loading ? (
-          <LoadingSpinner text="Loading notices..." />
+          <LoadingSkeleton rows={5} itemClassName="h-28" />
         ) : (
           <>
             <div className="space-y-4">

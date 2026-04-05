@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { ReferenceDataProvider } from './context/ReferenceDataContext'
 import { ThemeProvider } from './context/ThemeContext'
@@ -48,32 +48,10 @@ import NotFound from './pages/shared/NotFound'
 import { getHomeRouteForUser } from './utils/auth'
 import LoadingSkeleton from './components/LoadingSkeleton'
 import { ToastProvider } from './components/Toast'
+import ErrorBoundary from './components/ErrorBoundary'
+import ProtectedRoute from './components/ProtectedRoute'
 
-const ProtectedRoute = ({ children, allowedRoles }) => {
-  const { user, loading } = useAuth()
-  const location = useLocation()
-  if (loading) return (
-    <div className="min-h-screen px-4 py-10">
-      <div className="mx-auto max-w-5xl">
-        <LoadingSkeleton rows={4} itemClassName="h-24" />
-      </div>
-    </div>
-  )
-  if (!user) return <Navigate to="/login" />
-  if (user.mustChangePassword && location.pathname !== '/change-password') {
-    return <Navigate to="/change-password" />
-  }
-  if (
-    user.role === 'STUDENT' &&
-    !user.profileCompleted &&
-    location.pathname !== '/student/profile' &&
-    location.pathname !== '/change-password'
-  ) {
-    return <Navigate to="/student/profile" />
-  }
-  if (allowedRoles && !allowedRoles.includes(user.role)) return <Navigate to="/login" />
-  return children
-}
+const withRouteBoundary = (element) => <ErrorBoundary>{element}</ErrorBoundary>
 
 const AppRoutes = () => {
   const { user, loading } = useAuth()
@@ -91,11 +69,11 @@ const AppRoutes = () => {
 
   return (
     <Routes>
-      <Route path="/" element={user ? <Navigate to={homeRoute} /> : <HomePage />} />
-      <Route path="/login" element={!user ? <Login /> : <Navigate to={homeRoute} />} />
-      <Route path="/student-intake" element={<StudentIntakeForm />} />
-      <Route path="/forgot-password" element={!user ? <ForgotPassword /> : <Navigate to={homeRoute} />} />
-      <Route path="/reset-password" element={!user ? <ResetPassword /> : <Navigate to={homeRoute} />} />
+      <Route path="/" element={user ? <Navigate to={homeRoute} /> : withRouteBoundary(<HomePage />)} />
+      <Route path="/login" element={!user ? withRouteBoundary(<Login />) : <Navigate to={homeRoute} />} />
+      <Route path="/student-intake" element={withRouteBoundary(<StudentIntakeForm />)} />
+      <Route path="/forgot-password" element={!user ? withRouteBoundary(<ForgotPassword />) : <Navigate to={homeRoute} />} />
+      <Route path="/reset-password" element={!user ? withRouteBoundary(<ResetPassword />) : <Navigate to={homeRoute} />} />
       <Route path="/change-password" element={<ProtectedRoute><ChangePassword /></ProtectedRoute>} />
 
       {/* Admin Routes */}
@@ -143,7 +121,7 @@ const AppRoutes = () => {
       <Route path="/student" element={<ProtectedRoute allowedRoles={['STUDENT']}><StudentDashboard /></ProtectedRoute>} />
       <Route path="/student/profile" element={<ProtectedRoute allowedRoles={['STUDENT']}><ProfilePage /></ProtectedRoute>} />
       <Route path="/student/id-card" element={<ProtectedRoute allowedRoles={['STUDENT']}><StudentIdCard /></ProtectedRoute>} />
-      <Route path="/student/scan" element={<ProtectedRoute allowedRoles={['STUDENT']}><StudentAttendance /></ProtectedRoute>} />
+      <Route path="/student/scan" element={<ProtectedRoute allowedRoles={['STUDENT']}><Navigate to="/student/attendance?scan=1" replace /></ProtectedRoute>} />
       <Route path="/student/subjects" element={<ProtectedRoute allowedRoles={['STUDENT']}><StudentSubjects /></ProtectedRoute>} />
       <Route path="/student/attendance" element={<ProtectedRoute allowedRoles={['STUDENT']}><StudentAttendance /></ProtectedRoute>} />
       <Route path="/student/requests" element={<ProtectedRoute allowedRoles={['STUDENT']}><StudentTickets /></ProtectedRoute>} />
@@ -155,7 +133,7 @@ const AppRoutes = () => {
       <Route path="/student/routine" element={<ProtectedRoute allowedRoles={['STUDENT']}><StudentRoutine /></ProtectedRoute>} />
       <Route path="/admin/profile" element={<ProtectedRoute allowedRoles={['ADMIN']}><ProfilePage /></ProtectedRoute>} />
       
-      <Route path="*" element={<NotFound />} />
+      <Route path="*" element={withRouteBoundary(<NotFound />)} />
     </Routes>
   )
 }

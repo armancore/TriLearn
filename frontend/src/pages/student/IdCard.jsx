@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { CreditCard, MapPin, Phone, QrCode } from 'lucide-react'
 import StudentLayout from '../../layouts/StudentLayout'
 import Alert from '../../components/Alert'
-import LoadingSpinner from '../../components/LoadingSpinner'
+import LoadingSkeleton from '../../components/LoadingSkeleton'
 import PageHeader from '../../components/PageHeader'
 import api, { resolveFileUrl } from '../../utils/api'
 import { getFriendlyErrorMessage } from '../../utils/errors'
@@ -53,7 +53,7 @@ const StudentIdCard = () => {
         <Alert type="error" message={error} />
 
         {loading ? (
-          <LoadingSpinner text="Loading student ID card..." />
+          <LoadingSkeleton rows={4} itemClassName="h-32" />
         ) : (
           <div className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
             <div className="relative overflow-hidden bg-[linear-gradient(135deg,#0f172a_0%,#172554_58%,#4338ca_100%)] px-6 py-6 text-white md:px-8">

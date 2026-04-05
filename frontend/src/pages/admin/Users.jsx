@@ -7,7 +7,6 @@ import Alert from '../../components/Alert'
 import ConfirmDialog from '../../components/ConfirmDialog'
 import EmptyState from '../../components/EmptyState'
 import LoadingSkeleton from '../../components/LoadingSkeleton'
-import LoadingSpinner from '../../components/LoadingSpinner'
 import Modal from '../../components/Modal'
 import PageHeader from '../../components/PageHeader'
 import Pagination from '../../components/Pagination'
@@ -330,12 +329,12 @@ const Users = () => {
               <table className="w-full min-w-[840px]">
                 <thead className="sticky top-0 z-10 bg-slate-50">
                   <tr className="text-left text-sm text-gray-500">
-                    <th className="px-6 py-4">Name</th>
-                    <th className="px-6 py-4">Email</th>
-                    <th className="px-6 py-4">Role</th>
-                    <th className="px-6 py-4">Details</th>
-                    <th className="px-6 py-4">Status</th>
-                    <th className="px-6 py-4">Actions</th>
+                    <th scope="col" className="px-6 py-4">Name</th>
+                    <th scope="col" className="px-6 py-4">Email</th>
+                    <th scope="col" className="px-6 py-4">Role</th>
+                    <th scope="col" className="px-6 py-4">Details</th>
+                    <th scope="col" className="px-6 py-4">Status</th>
+                    <th scope="col" className="px-6 py-4">Actions</th>
                   </tr>
                 </thead>
                 <tbody>

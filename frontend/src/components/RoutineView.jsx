@@ -79,7 +79,7 @@ const RoutineView = ({
                 <button
                   key={day}
                   onClick={() => setActiveDay(day)}
-                  className={`rounded-full border px-4 py-2 text-sm font-medium transition whitespace-nowrap ${
+                  className={`whitespace-nowrap rounded-full border px-4 py-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-role-accent)] focus-visible:ring-offset-2 ${
                     activeDay === day
                       ? 'border-[var(--color-role-accent)] bg-[var(--color-role-accent)] text-white'
                       : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'

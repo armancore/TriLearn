@@ -6,6 +6,7 @@ import PageHeader from '../../components/PageHeader'
 import Modal from '../../components/Modal'
 import EmptyState from '../../components/EmptyState'
 import Alert from '../../components/Alert'
+import ConfirmDialog from '../../components/ConfirmDialog'
 import { useToast } from '../../components/Toast'
 import { useAuth } from '../../context/AuthContext'
 import api from '../../utils/api'
@@ -49,6 +50,8 @@ const StudentQrSettings = () => {
   const [holidayForm, setHolidayForm] = useState(defaultHolidayForm)
   const [savingWindow, setSavingWindow] = useState(false)
   const [savingHoliday, setSavingHoliday] = useState(false)
+  const [pendingDelete, setPendingDelete] = useState(null)
+  const [deletingItem, setDeletingItem] = useState(false)
   const { showToast } = useToast()
 
   const groupedWindows = useMemo(() => (
@@ -176,35 +179,52 @@ const StudentQrSettings = () => {
     }
   }
 
-  const deleteWindow = async (id) => {
-    if (!window.confirm('Delete this Student QR window?')) {
-      return
-    }
-
-    try {
-      setError('')
-      await api.delete(`/attendance/gate-settings/windows/${id}`)
-      showToast({ title: 'Student QR window deleted successfully.' })
-      await loadSettings()
-    } catch (requestError) {
-      logger.error(requestError)
-      setError(requestError.response?.data?.message || 'Unable to delete the Student QR window')
-    }
+  const confirmDeleteWindow = (windowItem) => {
+    setPendingDelete({
+      type: 'window',
+      id: windowItem.id,
+      title: 'Delete Student QR Window',
+      message: `Delete "${windowItem.title || `${windowItem.startTime} - ${windowItem.endTime}`}"?`
+    })
   }
 
-  const deleteHoliday = async (id) => {
-    if (!window.confirm('Delete this holiday?')) {
-      return
-    }
+  const confirmDeleteHoliday = (holiday) => {
+    setPendingDelete({
+      type: 'holiday',
+      id: holiday.id,
+      title: 'Delete Holiday',
+      message: `Delete "${holiday.title}"?`
+    })
+  }
+
+  const handleDelete = async () => {
+    if (!pendingDelete) return
 
     try {
+      setDeletingItem(true)
       setError('')
-      await api.delete(`/attendance/gate-settings/holidays/${id}`)
-      showToast({ title: 'Holiday removed successfully.' })
+
+      if (pendingDelete.type === 'window') {
+        await api.delete(`/attendance/gate-settings/windows/${pendingDelete.id}`)
+        showToast({ title: 'Student QR window deleted successfully.' })
+      } else {
+        await api.delete(`/attendance/gate-settings/holidays/${pendingDelete.id}`)
+        showToast({ title: 'Holiday removed successfully.' })
+      }
+
+      setPendingDelete(null)
       await loadSettings()
     } catch (requestError) {
       logger.error(requestError)
-      setError(requestError.response?.data?.message || 'Unable to delete the holiday')
+      setError(
+        requestError.response?.data?.message || (
+          pendingDelete.type === 'window'
+            ? 'Unable to delete the Student QR window'
+            : 'Unable to delete the holiday'
+        )
+      )
+    } finally {
+      setDeletingItem(false)
     }
   }
 
@@ -272,7 +292,7 @@ const StudentQrSettings = () => {
                                   <Pencil className="h-4 w-4" />
                                   <span>Edit</span>
                                 </button>
-                                <button type="button" onClick={() => deleteWindow(windowItem.id)} className="inline-flex items-center gap-2 rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-sm text-red-600 hover:bg-red-100">
+                                <button type="button" onClick={() => confirmDeleteWindow(windowItem)} className="inline-flex items-center gap-2 rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-sm text-red-600 hover:bg-red-100">
                                   <Trash2 className="h-4 w-4" />
                                   <span>Delete</span>
                                 </button>
@@ -313,7 +333,7 @@ const StudentQrSettings = () => {
                             <p className="mt-1 text-sm text-slate-500">{new Date(holiday.date).toLocaleDateString()}</p>
                             {holiday.description ? <p className="mt-3 text-sm text-slate-600">{holiday.description}</p> : null}
                           </div>
-                          <button type="button" onClick={() => deleteHoliday(holiday.id)} className="inline-flex items-center gap-2 rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-sm text-red-600 hover:bg-red-100">
+                          <button type="button" onClick={() => confirmDeleteHoliday(holiday)} className="inline-flex items-center gap-2 rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-sm text-red-600 hover:bg-red-100">
                             <Trash2 className="h-4 w-4" />
                             <span>Delete</span>
                           </button>
@@ -440,6 +460,16 @@ const StudentQrSettings = () => {
           </form>
         </Modal>
       ) : null}
+
+      <ConfirmDialog
+        open={!!pendingDelete}
+        title={pendingDelete?.title || 'Confirm Delete'}
+        message={pendingDelete?.message || ''}
+        confirmText="Delete"
+        busy={deletingItem}
+        onClose={() => setPendingDelete(null)}
+        onConfirm={handleDelete}
+      />
     </Layout>
   )
 }

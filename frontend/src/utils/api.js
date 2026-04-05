@@ -21,10 +21,40 @@ const normalizeApiBaseUrl = (rawValue) => {
 
 export const API_BASE_URL = normalizeApiBaseUrl(import.meta.env.VITE_API_URL)
 export const API_ORIGIN = API_BASE_URL.replace(/\/api(?:\/v\d+)?\/?$/, '')
+const AUTH_USER_STORAGE_KEY = 'edunexus.auth.user'
+
+const readStoredUser = () => {
+  if (typeof window === 'undefined') {
+    return null
+  }
+
+  try {
+    const serializedUser = window.sessionStorage.getItem(AUTH_USER_STORAGE_KEY)
+    return serializedUser ? JSON.parse(serializedUser) : null
+  } catch {
+    return null
+  }
+}
+
+const writeStoredUser = (user) => {
+  if (typeof window === 'undefined') {
+    return
+  }
+
+  try {
+    if (user) {
+      window.sessionStorage.setItem(AUTH_USER_STORAGE_KEY, JSON.stringify(user))
+    } else {
+      window.sessionStorage.removeItem(AUTH_USER_STORAGE_KEY)
+    }
+  } catch {
+    // Ignore storage failures so auth remains functional in restricted environments.
+  }
+}
 
 let authState = {
   token: null,
-  user: null
+  user: readStoredUser()
 }
 let unauthorizedHandler = null
 
@@ -60,10 +90,11 @@ export const hasSessionHint = () => {
 
 export const setAuthState = ({ token = null, user = null } = {}) => {
   authState = { token, user }
+  writeStoredUser(user)
   notifyAuthSubscribers()
 }
 
-export const clearAuthState = () => {
+const clearAuthState = () => {
   setAuthState({ token: null, user: null })
 }
 
@@ -84,14 +115,44 @@ export const resolveFileUrl = (fileUrl) => {
   const normalizedFileUrl = String(fileUrl).trim()
   if (!normalizedFileUrl) return null
 
-  if (/^(https?:\/\/|data:|blob:)/i.test(normalizedFileUrl)) {
-    return normalizedFileUrl
+  if (/^(data:|blob:)/i.test(normalizedFileUrl)) {
+    return null
+  }
+
+  if (/^https?:\/\//i.test(normalizedFileUrl)) {
+    try {
+      const absoluteUrl = new URL(normalizedFileUrl)
+      return ['http:', 'https:'].includes(absoluteUrl.protocol) ? absoluteUrl.toString() : null
+    } catch {
+      return null
+    }
   }
 
   try {
-    return new URL(normalizedFileUrl, `${API_ORIGIN}/`).toString()
+    const resolvedUrl = new URL(normalizedFileUrl, `${API_ORIGIN}/`)
+    return ['http:', 'https:'].includes(resolvedUrl.protocol) ? resolvedUrl.toString() : null
   } catch {
     return null
+  }
+}
+
+export const isEmbeddablePdfUrl = (fileUrl) => {
+  const resolvedUrl = resolveFileUrl(fileUrl)
+  if (!resolvedUrl) {
+    return false
+  }
+
+  try {
+    const parsedUrl = new URL(resolvedUrl)
+    const apiOriginUrl = new URL(API_ORIGIN)
+
+    return (
+      parsedUrl.origin === apiOriginUrl.origin &&
+      /^\/uploads\//i.test(parsedUrl.pathname) &&
+      /\.pdf$/i.test(parsedUrl.pathname)
+    )
+  } catch {
+    return false
   }
 }
 

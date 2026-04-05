@@ -32,8 +32,13 @@ const ChangePassword = () => {
         currentPassword: values.currentPassword,
         newPassword: values.newPassword
       })
+      const nextUser = {
+        ...user,
+        ...res.data.user,
+        profileCompleted: res.data.user?.profileCompleted ?? user?.profileCompleted
+      }
       updateUser(res.data.user)
-      navigate(getHomeRouteForUser({ ...user, ...res.data.user }))
+      navigate(getHomeRouteForUser(nextUser))
     } catch (requestError) {
       setError(getFriendlyErrorMessage(requestError, 'Unable to change your password.'))
     } finally {

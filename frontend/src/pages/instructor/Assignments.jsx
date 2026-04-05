@@ -5,13 +5,13 @@ import Alert from '../../components/Alert'
 import PageHeader from '../../components/PageHeader'
 import InstructorLayout from '../../layouts/InstructorLayout'
 import CoordinatorLayout from '../../layouts/CoordinatorLayout'
-import LoadingSpinner from '../../components/LoadingSpinner'
+import LoadingSkeleton from '../../components/LoadingSkeleton'
 import Modal from '../../components/Modal'
 import EmptyState from '../../components/EmptyState'
 import { useToast } from '../../components/Toast'
 import { useAuth } from '../../context/AuthContext'
 import useApi from '../../hooks/useApi'
-import api, { resolveFileUrl } from '../../utils/api'
+import api, { isEmbeddablePdfUrl, resolveFileUrl } from '../../utils/api'
 
 const Assignments = () => {
   const { user } = useAuth()
@@ -50,7 +50,7 @@ const Assignments = () => {
       return
     }
 
-    setPreviewFile({ title, url: resolvedUrl })
+    setPreviewFile({ title, url: resolvedUrl, canEmbed: isEmbeddablePdfUrl(resolvedUrl) })
   }
 
   const fetchAssignments = useCallback(async () => {
@@ -206,7 +206,7 @@ const Assignments = () => {
         </div>
 
         {loading ? (
-          <LoadingSpinner text="Loading assignments..." />
+          <LoadingSkeleton rows={5} itemClassName="h-32" />
         ) : (
           <div className="space-y-4">
             {assignments.map((assignment) => (
@@ -470,13 +470,29 @@ const Assignments = () => {
                 </button>
               </div>
             </div>
-            <iframe
-              src={previewFile.url}
-              title={previewFile.title}
-              className="w-full flex-1"
-              sandbox="allow-downloads"
-              referrerPolicy="no-referrer"
-            />
+            {previewFile.canEmbed ? (
+              <iframe
+                src={previewFile.url}
+                title={previewFile.title}
+                className="w-full flex-1"
+                sandbox="allow-downloads"
+                referrerPolicy="no-referrer"
+              />
+            ) : (
+              <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center">
+                <p className="text-sm text-[var(--color-text-muted)]">
+                  This file can be opened in a new tab, but embedded preview is only available for PDFs stored in this app.
+                </p>
+                <a
+                  href={previewFile.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="rounded-lg bg-[var(--color-role-accent)] px-4 py-2 text-sm font-medium text-white"
+                >
+                  Open PDF
+                </a>
+              </div>
+            )}
           </div>
         </div>
       )}

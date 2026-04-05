@@ -1,16 +1,17 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Camera, UserRound } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
 import AdminLayout from '../../layouts/AdminLayout'
 import CoordinatorLayout from '../../layouts/CoordinatorLayout'
 import InstructorLayout from '../../layouts/InstructorLayout'
 import StudentLayout from '../../layouts/StudentLayout'
 import Alert from '../../components/Alert'
-import LoadingSpinner from '../../components/LoadingSpinner'
+import ConfirmDialog from '../../components/ConfirmDialog'
+import LoadingSkeleton from '../../components/LoadingSkeleton'
 import PageHeader from '../../components/PageHeader'
 import { useToast } from '../../components/Toast'
 import { useAuth } from '../../context/AuthContext'
-import api, { clearAuthState, resolveFileUrl } from '../../utils/api'
+import useUnsavedChangesGuard from '../../hooks/useUnsavedChangesGuard'
+import api, { resolveFileUrl } from '../../utils/api'
 import { getFriendlyErrorMessage } from '../../utils/errors'
 import { isRequestCanceled } from '../../utils/http'
 
@@ -33,9 +34,25 @@ const getSessionLabel = (userAgent) => {
   return userAgent || 'Unknown device'
 }
 
+const buildFormState = (currentUser) => ({
+  phone: currentUser.phone || '',
+  address: currentUser.address || '',
+  fatherName: currentUser.student?.fatherName || '',
+  motherName: currentUser.student?.motherName || '',
+  fatherPhone: currentUser.student?.fatherPhone || '',
+  motherPhone: currentUser.student?.motherPhone || '',
+  bloodGroup: currentUser.student?.bloodGroup || '',
+  localGuardianName: currentUser.student?.localGuardianName || '',
+  localGuardianAddress: currentUser.student?.localGuardianAddress || '',
+  localGuardianPhone: currentUser.student?.localGuardianPhone || '',
+  permanentAddress: currentUser.student?.permanentAddress || '',
+  temporaryAddress: currentUser.student?.temporaryAddress || currentUser.address || '',
+  dateOfBirth: currentUser.student?.dateOfBirth ? new Date(currentUser.student.dateOfBirth).toISOString().slice(0, 10) : '',
+  section: currentUser.student?.section || ''
+})
+
 const ProfilePage = () => {
-  const { user, updateUser } = useAuth()
-  const navigate = useNavigate()
+  const { user, updateUser, logout } = useAuth()
   const { showToast } = useToast()
   const [profile, setProfile] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -49,22 +66,8 @@ const ProfilePage = () => {
   const [success, setSuccess] = useState('')
   const [error, setError] = useState('')
   const [selectedAvatarFile, setSelectedAvatarFile] = useState(null)
-  const [form, setForm] = useState({
-    phone: '',
-    address: '',
-    fatherName: '',
-    motherName: '',
-    fatherPhone: '',
-    motherPhone: '',
-    bloodGroup: '',
-    localGuardianName: '',
-    localGuardianAddress: '',
-    localGuardianPhone: '',
-    permanentAddress: '',
-    temporaryAddress: '',
-    dateOfBirth: '',
-    section: ''
-  })
+  const [form, setForm] = useState(buildFormState({}))
+  const [initialForm, setInitialForm] = useState(buildFormState({}))
 
   const avatarPreviewUrl = useMemo(() => {
     if (selectedAvatarFile) {
@@ -73,6 +76,12 @@ const ProfilePage = () => {
 
     return resolveFileUrl(profile?.avatar || user?.avatar)
   }, [profile?.avatar, selectedAvatarFile, user?.avatar])
+  const hasUnsavedChanges = useMemo(() => (
+    selectedAvatarFile !== null || JSON.stringify(form) !== JSON.stringify(initialForm)
+  ), [form, initialForm, selectedAvatarFile])
+  const { dialogOpen, leavePage, stayOnPage } = useUnsavedChangesGuard(
+    hasUnsavedChanges && !saving && !uploadingAvatar && !loading
+  )
 
   useEffect(() => {
     const controller = new AbortController()
@@ -99,25 +108,12 @@ const ProfilePage = () => {
         api.get('/auth/activity', { signal })
       ])
       const currentUser = profileRes.data.user
+      const nextForm = buildFormState(currentUser)
       setProfile(currentUser)
       setActivityItems(activityRes.data.activity || [])
       setSessions(activityRes.data.sessions || [])
-      setForm({
-        phone: currentUser.phone || '',
-        address: currentUser.address || '',
-        fatherName: currentUser.student?.fatherName || '',
-        motherName: currentUser.student?.motherName || '',
-        fatherPhone: currentUser.student?.fatherPhone || '',
-        motherPhone: currentUser.student?.motherPhone || '',
-        bloodGroup: currentUser.student?.bloodGroup || '',
-        localGuardianName: currentUser.student?.localGuardianName || '',
-        localGuardianAddress: currentUser.student?.localGuardianAddress || '',
-        localGuardianPhone: currentUser.student?.localGuardianPhone || '',
-        permanentAddress: currentUser.student?.permanentAddress || '',
-        temporaryAddress: currentUser.student?.temporaryAddress || currentUser.address || '',
-        dateOfBirth: currentUser.student?.dateOfBirth ? new Date(currentUser.student.dateOfBirth).toISOString().slice(0, 10) : '',
-        section: currentUser.student?.section || ''
-      })
+      setForm(nextForm)
+      setInitialForm(nextForm)
     } catch (requestError) {
       if (isRequestCanceled(requestError)) return
       setError(getFriendlyErrorMessage(requestError, 'Unable to load the profile right now.'))
@@ -137,8 +133,12 @@ const ProfilePage = () => {
       setError('')
       const endpoint = profile?.role === 'STUDENT' && !profile?.profileCompleted ? '/auth/complete-profile' : '/auth/profile'
       const res = await api.patch(endpoint, form)
-      setProfile(res.data.user)
-      updateUser(res.data.user)
+      const nextUser = res.data.user
+      const nextForm = buildFormState(nextUser)
+      setProfile(nextUser)
+      setForm(nextForm)
+      setInitialForm(nextForm)
+      updateUser(nextUser)
       setSuccess(profile?.role === 'STUDENT' && !profile?.profileCompleted ? 'Profile completed successfully!' : 'Profile updated successfully!')
     } catch (requestError) {
       setError(getFriendlyErrorMessage(requestError, 'Unable to save your profile right now.'))
@@ -184,6 +184,7 @@ const ProfilePage = () => {
 
       setProfile(res.data.user)
       updateUser(res.data.authUser || res.data.user)
+      setInitialForm(buildFormState(res.data.user))
       setSelectedAvatarFile(null)
       showToast({ title: 'Profile photo updated.' })
     } catch (requestError) {
@@ -198,8 +199,7 @@ const ProfilePage = () => {
       setRevokingSessions(true)
       setActivityError('')
       await api.post('/auth/logout-all')
-      clearAuthState()
-      navigate('/login', { replace: true })
+      await logout({ skipRequest: true })
     } catch (requestError) {
       setActivityError(getFriendlyErrorMessage(requestError, 'Unable to sign out all devices right now.'))
     } finally {
@@ -215,10 +215,15 @@ const ProfilePage = () => {
   }
 
   if (loading) {
-    return renderLayout(<LoadingSpinner text="Loading profile..." />)
+    return renderLayout(
+      <div className="p-4 md:p-8">
+        <LoadingSkeleton rows={5} itemClassName="h-24" />
+      </div>
+    )
   }
 
   return renderLayout(
+    <>
     <div className="mx-auto max-w-4xl p-8">
       <PageHeader
         title="My Profile"
@@ -430,6 +435,17 @@ const ProfilePage = () => {
         </div>
       </section>
     </div>
+    <ConfirmDialog
+      open={dialogOpen}
+      title="Leave this page?"
+      message="You have unsaved profile changes. Leaving now will discard them."
+      confirmText="Leave Page"
+      cancelText="Stay Here"
+      tone="info"
+      onConfirm={leavePage}
+      onClose={stayOnPage}
+    />
+    </>
   )
 }
 

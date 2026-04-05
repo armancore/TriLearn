@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { ArrowRight, Building2, ShieldCheck, UsersRound } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import Alert from '../../components/Alert'
@@ -7,7 +7,7 @@ import { useAuth } from '../../context/AuthContext'
 import useForm from '../../hooks/useForm'
 import api from '../../utils/api'
 import { getHomeRouteForUser } from '../../utils/auth'
-import { getFriendlyErrorMessage } from '../../utils/errors'
+import { getFriendlyErrorMessage, getRetryAfterSeconds } from '../../utils/errors'
 
 const validateLogin = (values) => {
   const errors = {}
@@ -30,6 +30,7 @@ const validateLogin = (values) => {
 const Login = () => {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [retryCountdown, setRetryCountdown] = useState(0)
   const { login } = useAuth()
   const navigate = useNavigate()
   const features = [
@@ -54,6 +55,20 @@ const Login = () => {
     password: ''
   }, validateLogin)
 
+  useEffect(() => {
+    if (retryCountdown <= 0) {
+      return undefined
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setRetryCountdown((current) => Math.max(0, current - 1))
+    }, 1000)
+
+    return () => {
+      window.clearTimeout(timeoutId)
+    }
+  }, [retryCountdown])
+
   const handleLogin = async (formValues) => {
     setLoading(true)
     setError('')
@@ -64,6 +79,9 @@ const Login = () => {
       login(user, token)
       navigate(getHomeRouteForUser(user))
     } catch (err) {
+      if (err?.response?.status === 429) {
+        setRetryCountdown(getRetryAfterSeconds(err, 60))
+      }
       setError(getFriendlyErrorMessage(err, 'Login failed. Please try again.'))
     } finally {
       setLoading(false)
@@ -88,6 +106,12 @@ const Login = () => {
       )}
     >
       <Alert type="error" message={error} />
+      {retryCountdown > 0 ? (
+        <Alert
+          type="info"
+          message={`Login is temporarily rate-limited. Please wait ${retryCountdown} second${retryCountdown === 1 ? '' : 's'} before trying again.`}
+        />
+      ) : null}
 
       <form onSubmit={handleSubmit(handleLogin)} className="space-y-5">
         <div>
@@ -133,11 +157,17 @@ const Login = () => {
 
         <button
           type="submit"
-          disabled={loading}
+          disabled={loading || retryCountdown > 0}
           className="ui-auth-primary-button"
         >
           {loading ? <span className="ui-auth-spinner" aria-hidden="true" /> : <ArrowRight className="h-4 w-4" />}
-          <span>{loading ? 'Logging in...' : 'Login to EduNexus'}</span>
+          <span>
+            {loading
+              ? 'Logging in...'
+              : retryCountdown > 0
+                ? `Try again in ${retryCountdown}s`
+                : 'Login to EduNexus'}
+          </span>
         </button>
       </form>
     </AuthSplitLayout>

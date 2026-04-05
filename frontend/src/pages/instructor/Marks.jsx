@@ -366,14 +366,14 @@ const Marks = () => {
                   <table className="w-full min-w-[1100px]">
                     <thead className="sticky top-0 z-10 bg-[var(--color-surface-muted)]">
                       <tr className="text-left text-sm text-[var(--color-text-muted)]">
-                        <th className="px-6 py-4">Student</th>
-                        <th className="px-6 py-4">Module</th>
-                        <th className="px-6 py-4">Exam Type</th>
-                        <th className="px-6 py-4">Marks</th>
-                        <th className="px-6 py-4">Percentage</th>
-                        <th className="px-6 py-4">Grade</th>
-                        <th className="px-6 py-4">Publication</th>
-                        <th className="px-6 py-4">Remarks</th>
+                        <th scope="col" className="px-6 py-4">Student</th>
+                        <th scope="col" className="px-6 py-4">Module</th>
+                        <th scope="col" className="px-6 py-4">Exam Type</th>
+                        <th scope="col" className="px-6 py-4">Marks</th>
+                        <th scope="col" className="px-6 py-4">Percentage</th>
+                        <th scope="col" className="px-6 py-4">Grade</th>
+                        <th scope="col" className="px-6 py-4">Publication</th>
+                        <th scope="col" className="px-6 py-4">Remarks</th>
                       </tr>
                     </thead>
                     <tbody>

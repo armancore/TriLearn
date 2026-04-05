@@ -5,7 +5,7 @@ import EmptyState from '../../components/EmptyState'
 import LoadingSkeleton from '../../components/LoadingSkeleton'
 import PageHeader from '../../components/PageHeader'
 import { useToast } from '../../components/Toast'
-import api, { resolveFileUrl } from '../../utils/api'
+import api, { isEmbeddablePdfUrl, resolveFileUrl } from '../../utils/api'
 import { isRequestCanceled } from '../../utils/http'
 import logger from '../../utils/logger'
 const StudentAssignments = () => {
@@ -27,7 +27,7 @@ const StudentAssignments = () => {
       return
     }
 
-    setPreviewFile({ title, url: resolvedUrl })
+    setPreviewFile({ title, url: resolvedUrl, canEmbed: isEmbeddablePdfUrl(resolvedUrl) })
   }
 
   useEffect(() => {
@@ -254,13 +254,29 @@ const StudentAssignments = () => {
                 </button>
               </div>
             </div>
-            <iframe
-              src={previewFile.url}
-              title={previewFile.title}
-              className="w-full flex-1"
-              sandbox="allow-downloads"
-              referrerPolicy="no-referrer"
-            />
+            {previewFile.canEmbed ? (
+              <iframe
+                src={previewFile.url}
+                title={previewFile.title}
+                className="w-full flex-1"
+                sandbox="allow-downloads"
+                referrerPolicy="no-referrer"
+              />
+            ) : (
+              <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center">
+                <p className="text-sm text-gray-500">
+                  This file can be opened in a new tab, but embedded preview is only available for PDFs stored in this app.
+                </p>
+                <a
+                  href={previewFile.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="rounded-lg bg-purple-600 px-4 py-2 text-sm font-medium text-white hover:bg-purple-700"
+                >
+                  Open PDF
+                </a>
+              </div>
+            )}
           </div>
         </div>
       )}

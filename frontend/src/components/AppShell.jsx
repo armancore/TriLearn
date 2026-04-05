@@ -1,5 +1,5 @@
-import { Bell, CheckCheck, LogOut, Menu, Moon, PanelLeftClose, PanelLeftOpen, SunMedium } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { Bell, CheckCheck, LogOut, Menu, Moon, PanelLeftClose, PanelLeftOpen, SunMedium, X } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import api, { resolveFileUrl } from '../utils/api'
 import { useTheme } from '../context/ThemeContext'
@@ -43,35 +43,50 @@ const AppShell = ({
   const isDesktopCollapsed = sidebarCollapsed && !mobileOpen
   const avatarUrl = resolveFileUrl(user?.avatar)
 
-  useEffect(() => {
-    let isMounted = true
+  const fetchNotifications = useCallback(async (signal) => {
+    try {
+      const response = await api.get('/notifications', {
+        params: { limit: 8 },
+        signal
+      })
 
-    const fetchNoticesCount = async () => {
-      try {
-        const response = await api.get('/notifications', { params: { limit: 8 } })
+      if (signal?.aborted) {
+        return
+      }
 
-        if (isMounted) {
-          setNotifications(response.data.notifications || [])
-          setUnreadCount(response.data.unreadCount || 0)
-        }
-      } catch {
-        if (isMounted) {
-          setNotifications([])
-          setUnreadCount(0)
-        }
+      setNotifications(response.data.notifications || [])
+      setUnreadCount(response.data.unreadCount || 0)
+    } catch (error) {
+      if (error?.code === 'ERR_CANCELED') {
+        return
+      }
+
+      if (!signal?.aborted) {
+        setNotifications([])
+        setUnreadCount(0)
       }
     }
+  }, [])
 
-    void fetchNoticesCount()
+  useEffect(() => {
+    if (!user?.id) {
+      setNotifications([])
+      setUnreadCount(0)
+      return undefined
+    }
+
+    const controller = new AbortController()
+    void fetchNotifications(controller.signal)
+
     const intervalId = window.setInterval(() => {
-      void fetchNoticesCount()
+      void fetchNotifications(controller.signal)
     }, 30000)
 
     return () => {
-      isMounted = false
+      controller.abort()
       window.clearInterval(intervalId)
     }
-  }, [activePath, user?.id])
+  }, [fetchNotifications, user?.id])
 
   useEffect(() => {
     if (!notificationsOpen) {
@@ -190,7 +205,7 @@ const AppShell = ({
                   className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/12 bg-white/8 text-slate-100 transition hover:bg-white/14 hover:text-white md:hidden"
                   aria-label="Close sidebar"
                 >
-                  x
+                  <X className="h-4 w-4" />
                 </button>
               </div>
             </div>
@@ -334,9 +349,7 @@ const AppShell = ({
                         if (!notificationsOpen) {
                           setNotificationsLoading(true)
                           try {
-                            const response = await api.get('/notifications', { params: { limit: 8 } })
-                            setNotifications(response.data.notifications || [])
-                            setUnreadCount(response.data.unreadCount || 0)
+                            await fetchNotifications()
                           } finally {
                             setNotificationsLoading(false)
                           }

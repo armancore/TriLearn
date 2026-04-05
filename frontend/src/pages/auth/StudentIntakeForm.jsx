@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   ArrowRight,
   BookOpenCheck,
@@ -16,8 +16,10 @@ import {
 } from 'lucide-react'
 import Alert from '../../components/Alert'
 import AuthSplitLayout from '../../components/AuthSplitLayout'
+import ConfirmDialog from '../../components/ConfirmDialog'
 import { useReferenceData } from '../../context/ReferenceDataContext'
 import useForm from '../../hooks/useForm'
+import useUnsavedChangesGuard from '../../hooks/useUnsavedChangesGuard'
 import api from '../../utils/api'
 import { getFriendlyErrorMessage } from '../../utils/errors'
 import { isRequestCanceled } from '../../utils/http'
@@ -147,6 +149,11 @@ const StudentIntakeForm = () => {
 
     return () => controller.abort()
   }, [loadDepartments])
+
+  const hasUnsavedChanges = useMemo(() => (
+    Object.entries(initialValues).some(([key, initialValue]) => String(values[key] || '') !== String(initialValue || ''))
+  ), [values])
+  const { dialogOpen, leavePage, stayOnPage } = useUnsavedChangesGuard(hasUnsavedChanges && !loading)
 
   const onSubmit = async () => {
     try {
@@ -418,6 +425,16 @@ const StudentIntakeForm = () => {
           </div>
         </form>
       </div>
+      <ConfirmDialog
+        open={dialogOpen}
+        title="Leave this form?"
+        message="You have unsaved intake details. Leaving now will discard them."
+        confirmText="Leave Page"
+        cancelText="Stay Here"
+        tone="info"
+        onConfirm={leavePage}
+        onClose={stayOnPage}
+      />
     </AuthSplitLayout>
   )
 }
