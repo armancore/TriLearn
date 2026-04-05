@@ -4,6 +4,7 @@ const logger = require('../utils/logger')
 
 const protect = async (req, res, next) => {
   try {
+    // Tokens must be delivered via the Authorization header (Bearer ...) — we keep the JWT in memory on the frontend so we avoid cookies.
     const token = req.headers.authorization?.split(' ')[1]
 
     if (!token) {

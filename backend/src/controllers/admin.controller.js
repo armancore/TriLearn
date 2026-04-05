@@ -8,7 +8,14 @@ const { sendMail } = require('../utils/mailer')
 const { welcomeTemplate } = require('../utils/emailTemplates')
 const { hashPassword, getStudentTemporaryPassword } = require('../utils/security')
 
-const clearStatsCache = () => {}
+const STATS_CACHE_TTL = 30 * 1000 // 30 seconds
+let statsCache = null
+let statsCacheExpiresAt = 0
+
+const clearStatsCache = () => {
+  statsCache = null
+  statsCacheExpiresAt = 0
+}
 
 const buildContainsSearch = (search) => ({
   contains: search,
@@ -51,6 +58,10 @@ const getDepartmentAliases = async (departmentValue) => {
 
 const getAdminStats = async (req, res) => {
   try {
+    if (statsCache && Date.now() < statsCacheExpiresAt) {
+      return res.json({ stats: statsCache })
+    }
+
     const [totalUsers, totalStudents, totalInstructors, totalCoordinators, totalGatekeepers, totalSubjects] = await Promise.all([
       prisma.user.count({ where: { deletedAt: null } }),
       prisma.user.count({ where: { role: 'STUDENT', deletedAt: null } }),
@@ -68,6 +79,9 @@ const getAdminStats = async (req, res) => {
       totalGatekeepers,
       totalSubjects
     }
+
+    statsCache = stats
+    statsCacheExpiresAt = Date.now() + STATS_CACHE_TTL
 
     res.json({ stats })
   } catch (error) {

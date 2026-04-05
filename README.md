@@ -306,6 +306,7 @@ Workflow file: [.github/workflows/ci.yml](/C:/Users/arman/EduNexus/.github/workf
 - JSON request bodies are size-limited.
 - Uploads validate actual file signatures, not only extensions.
 - Access tokens are type-checked in auth middleware.
+- Auth middleware expects the access token in the `Authorization: Bearer <token>` header (JWTs live in frontend memory, so there is no cookie-based access token).
 - QR payload signing reads secrets at runtime and fails safely if secrets are missing.
 - Refresh tokens track session metadata for profile visibility.
 - User deletion is still a hard delete today, so related attendance, marks, and submission records cascade with the user.

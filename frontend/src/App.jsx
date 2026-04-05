@@ -143,9 +143,11 @@ const App = () => (
     <ThemeProvider>
       <AuthProvider>
         <ReferenceDataProvider>
-          <ToastProvider>
+        <ToastProvider>
+          <ErrorBoundary>
             <AppRoutes />
-          </ToastProvider>
+          </ErrorBoundary>
+        </ToastProvider>
         </ReferenceDataProvider>
       </AuthProvider>
     </ThemeProvider>

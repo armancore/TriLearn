@@ -390,8 +390,8 @@ test('getAdminStats returns fresh server-side aggregate counts', async () => {
     }
   })
   assert.deepEqual(secondRes.body, firstRes.body)
-  assert.equal(userCountCalls, 10)
-  assert.equal(subjectCountCalls, 2)
+  assert.equal(userCountCalls, 5)
+  assert.equal(subjectCountCalls, 1)
   assert.deepEqual(countWheres[0], { deletedAt: null })
   assert.deepEqual(countWheres[1], { role: 'STUDENT', deletedAt: null })
 })

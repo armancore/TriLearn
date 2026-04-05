@@ -1,4 +1,5 @@
 const { prisma, getDayRange, normalizeSemesterList } = require('./shared')
+const { sanitizePlainText } = require('../../utils/sanitize')
 
 const findConflictingGateWindow = async ({ id, dayOfWeek, startTime, endTime, allowedSemesters }) => prisma.gateScanWindow.findFirst({
   where: {
@@ -37,6 +38,8 @@ const createGateScanWindow = async (req, res) => {
     const conflict = await findConflictingGateWindow({ dayOfWeek, startTime, endTime, allowedSemesters: normalizedSemesters })
     if (conflict) return res.status(400).json({ message: 'This time window overlaps with another Student QR slot for one of the same semesters.' })
 
+    const sanitizedTitle = sanitizePlainText(title)
+
     const window = await prisma.gateScanWindow.create({
       data: { title, dayOfWeek, startTime, endTime, allowedSemesters: normalizedSemesters, isActive }
     })
@@ -62,9 +65,11 @@ const updateGateScanWindow = async (req, res) => {
     const conflict = await findConflictingGateWindow({ id, dayOfWeek, startTime, endTime, allowedSemesters: normalizedSemesters })
     if (conflict) return res.status(400).json({ message: 'This time window overlaps with another Student QR slot for one of the same semesters.' })
 
+    const sanitizedTitle = sanitizePlainText(title)
+
     const window = await prisma.gateScanWindow.update({
       where: { id },
-      data: { title, dayOfWeek, startTime, endTime, allowedSemesters: normalizedSemesters, isActive }
+      data: { title: sanitizedTitle, dayOfWeek, startTime, endTime, allowedSemesters: normalizedSemesters, isActive }
     })
 
     res.json({
@@ -94,10 +99,13 @@ const createAttendanceHoliday = async (req, res) => {
     const dayRange = getDayRange(date)
     if (!dayRange) return res.status(400).json({ message: 'Invalid holiday date' })
 
+    const sanitizedTitle = sanitizePlainText(title)
+    const sanitizedDescription = sanitizePlainText(description)
+
     const holiday = await prisma.attendanceHoliday.upsert({
       where: { date: dayRange.start },
-      update: { title, description, isActive },
-      create: { date: dayRange.start, title, description, isActive }
+      update: { title: sanitizedTitle, description: sanitizedDescription, isActive },
+      create: { date: dayRange.start, title: sanitizedTitle, description: sanitizedDescription, isActive }
     })
 
     res.status(201).json({ message: 'Holiday saved successfully.', holiday })

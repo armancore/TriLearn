@@ -20,7 +20,7 @@ export const AuthProvider = ({ children }) => {
   const location = useLocation()
   const [user, setUser] = useState(getAuthState().user)
   const [token, setToken] = useState(getAuthState().token)
-  const [loading, setLoading] = useState(() => !getAuthState().user)
+  const [loading, setLoading] = useState(true)
   const skipInitialRefreshRef = useRef(PUBLIC_AUTH_ROUTES.has(location.pathname))
 
   useEffect(() => {

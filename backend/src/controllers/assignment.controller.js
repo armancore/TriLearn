@@ -3,6 +3,7 @@ const { buildUploadedFileUrl } = require('../utils/fileStorage')
 const { getPagination } = require('../utils/pagination')
 const ExcelJS = require('exceljs')
 const PDFDocument = require('pdfkit')
+const { sanitizePlainText } = require('../utils/sanitize')
 
 const resolveAssignmentManager = async (req, subjectId) => {
   const { user, instructor } = req
@@ -90,10 +91,13 @@ const createAssignment = async (req, res) => {
       return res.status(access.error.status).json({ message: access.error.message })
     }
 
+    const sanitizedTitle = sanitizePlainText(title)
+    const sanitizedDescription = sanitizePlainText(description)
+
     const assignment = await prisma.assignment.create({
       data: {
-        title,
-        description,
+        title: sanitizedTitle,
+        description: sanitizedDescription,
         questionPdfUrl,
         subjectId,
         instructorId: access.instructorId,
@@ -251,11 +255,14 @@ const updateAssignment = async (req, res) => {
       }
     }
 
+    const sanitizedTitle = sanitizePlainText(title)
+    const sanitizedDescription = sanitizePlainText(description)
+
     const updated = await prisma.assignment.update({
       where: { id },
       data: {
-        title,
-        description,
+        title: sanitizedTitle,
+        description: sanitizedDescription,
         questionPdfUrl: questionPdfUrl || assignment.questionPdfUrl,
         dueDate: dueDate ? new Date(dueDate) : undefined,
         totalMarks: parsedTotalMarks
@@ -328,11 +335,13 @@ const submitAssignment = async (req, res) => {
 
     const isLate = new Date() > new Date(assignment.dueDate)
 
+    const sanitizedNote = sanitizePlainText(note)
+
     const submission = await prisma.submission.create({
       data: {
         assignmentId: id,
         studentId: student.id,
-        note,
+        note: sanitizedNote,
         fileUrl,
         status: isLate ? 'LATE' : 'SUBMITTED'
       },
@@ -412,11 +421,13 @@ const gradeSubmission = async (req, res) => {
       })
     }
 
+    const sanitizedFeedback = sanitizePlainText(feedback)
+
     const updated = await prisma.submission.update({
       where: { id: submissionId },
       data: {
         obtainedMarks,
-        feedback,
+        feedback: sanitizedFeedback,
         status: 'GRADED'
       }
     })

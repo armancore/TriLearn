@@ -101,7 +101,8 @@ test('POST /api/v1/auth/login returns the controller response through the real r
       allowRoles: () => (_req, _res, next) => next()
     },
     '../middleware/rateLimit.middleware': {
-      authLimiter: (_req, _res, next) => next()
+      authLimiter: (_req, _res, next) => next(),
+      uploadLimiter: (_req, _res, next) => next()
     },
     '../middleware/upload.middleware': {
       uploadImage: {
@@ -151,7 +152,8 @@ test('POST /api/v1/auth/login returns 401 for a wrong password through the real 
       allowRoles: () => (_req, _res, next) => next()
     },
     '../middleware/rateLimit.middleware': {
-      authLimiter: (_req, _res, next) => next()
+      authLimiter: (_req, _res, next) => next(),
+      uploadLimiter: (_req, _res, next) => next()
     },
     '../middleware/upload.middleware': {
       uploadImage: {
@@ -207,7 +209,8 @@ test('POST /api/v1/auth/refresh returns a new token when the refresh cookie is v
       allowRoles: () => (_req, _res, next) => next()
     },
     '../middleware/rateLimit.middleware': {
-      authLimiter: (_req, _res, next) => next()
+      authLimiter: (_req, _res, next) => next(),
+      uploadLimiter: (_req, _res, next) => next()
     },
     '../middleware/upload.middleware': {
       uploadImage: {
@@ -253,7 +256,8 @@ test('POST /api/v1/auth/refresh returns 401 when the refresh cookie is missing',
       allowRoles: () => (_req, _res, next) => next()
     },
     '../middleware/rateLimit.middleware': {
-      authLimiter: (_req, _res, next) => next()
+      authLimiter: (_req, _res, next) => next(),
+      uploadLimiter: (_req, _res, next) => next()
     },
     '../middleware/upload.middleware': {
       uploadImage: {

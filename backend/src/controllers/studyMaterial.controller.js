@@ -1,6 +1,7 @@
 const prisma = require('../utils/prisma')
 const { getPagination } = require('../utils/pagination')
 const { buildUploadedFileUrl } = require('../utils/fileStorage')
+const { sanitizePlainText } = require('../utils/sanitize')
 
 const resolveMaterialManager = async (req, subjectId) => {
   const { user, instructor } = req
@@ -45,10 +46,13 @@ const createMaterial = async (req, res) => {
       return res.status(400).json({ message: 'Please upload a PDF or provide a file URL' })
     }
 
+    const sanitizedTitle = sanitizePlainText(title)
+    const sanitizedDescription = sanitizePlainText(description)
+
     const material = await prisma.studyMaterial.create({
       data: {
-        title,
-        description,
+        title: sanitizedTitle,
+        description: sanitizedDescription,
         fileUrl: finalFileUrl,
         subjectId,
         instructorId: access.instructorId

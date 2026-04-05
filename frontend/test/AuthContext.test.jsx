@@ -53,10 +53,11 @@ describe('AuthContext', () => {
       </MemoryRouter>
     )
 
-    expect(screen.getByTestId('loading')).toHaveTextContent('false')
+    expect(screen.getByTestId('loading')).toHaveTextContent('true')
     expect(screen.getByTestId('name')).toHaveTextContent('Cached')
     await waitFor(() => {
       expect(refreshSessionMock).toHaveBeenCalled()
+      expect(screen.getByTestId('loading')).toHaveTextContent('false')
     })
   })
 
