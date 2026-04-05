@@ -9,7 +9,7 @@ const validateEnv = require('./utils/validateEnv')
 const { apiLimiter } = require('./middleware/rateLimit.middleware')
 const { requestId } = require('./middleware/requestId.middleware')
 const { uploadPath, uploadPublicPath } = require('./utils/fileStorage')
-const { csrfProtection, getRuntimeEnv, getTrustedOrigins } = require('./middleware/csrf.middleware')
+const { csrfProtection, getRuntimeEnv, getTrustedOrigins, isTrustedOrigin } = require('./middleware/csrf.middleware')
 const prisma = require('./utils/prisma')
 const { scheduleMaintenance } = require('./utils/maintenance')
 const { initRealtime, closeRealtime } = require('./utils/realtime')
@@ -33,7 +33,7 @@ app.use(helmet({
 app.use(cors({
   origin: (origin, callback) => {
     if (!origin) return callback(null, true)
-    if (allowedOrigins.includes(origin)) return callback(null, true)
+    if (isTrustedOrigin(origin)) return callback(null, true)
     return callback(new Error('Not allowed by CORS'))
   },
   credentials: true

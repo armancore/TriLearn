@@ -3,15 +3,15 @@ import { ROLES } from '../constants/roles'
 export const getHomeRouteForRole = (role) => {
   switch (role) {
     case ROLES.STUDENT:
-      return '/(student)'
+      return '/student'
     case ROLES.INSTRUCTOR:
-      return '/(instructor)'
+      return '/instructor'
     case ROLES.GATEKEEPER:
-      return '/(gatekeeper)'
+      return '/gatekeeper'
     case ROLES.ADMIN:
     case ROLES.COORDINATOR:
-      return '/(admin)'
+      return '/admin'
     default:
-      return '/(auth)/login'
+      return '/auth/login'
   }
 }

@@ -39,26 +39,17 @@ const LoginScreen = () => {
   }
 
   return (
-    <Screen scroll={false}>
-      <View style={styles.center}>
-        <View style={styles.hero}>
-          <View style={[styles.brandBadge, { backgroundColor: palette.primarySoft, borderColor: palette.border }]}>
-            <Text style={[styles.brand, { color: palette.primary }]}>TriLearn</Text>
-          </View>
-          <Text style={[styles.heading, { color: palette.text }]}>Professional campus operations, now in your pocket</Text>
+    <Screen>
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <Text style={[styles.brand, { color: palette.primary }]}>TriLearn</Text>
+          <Text style={[styles.heading, { color: palette.text }]}>Sign in</Text>
           <Text style={[styles.subheading, { color: palette.textMuted }]}>
-            Sign in to access attendance, notices, marks, requests, and role-specific workflows from a cleaner mobile workspace.
+            Use your college account to continue.
           </Text>
         </View>
 
         <AppCard style={styles.card}>
-          <View style={styles.cardHeader}>
-            <Text style={[styles.cardTitle, { color: palette.text }]}>Welcome back</Text>
-            <Text style={[styles.cardText, { color: palette.textMuted }]}>
-              Continue with your TriLearn account.
-            </Text>
-          </View>
-
           <AppInput
             label="Email"
             value={values.email}
@@ -76,90 +67,48 @@ const LoginScreen = () => {
           />
           <ErrorMessage message={error} />
           <AppButton title="Sign In" onPress={handleSubmit} loading={loading} />
-          <Pressable onPress={() => router.push('/(auth)/forgot-password')}>
+          <Pressable onPress={() => router.push('/auth/forgot-password')}>
             <Text style={[styles.link, { color: palette.primary }]}>Forgot password?</Text>
           </Pressable>
         </AppCard>
-
-        <View style={[styles.footer, { backgroundColor: palette.surfaceMuted, borderColor: palette.border }]}>
-          <Text style={[styles.footerTitle, { color: palette.text }]}>Built for daily engagement</Text>
-          <Text style={[styles.footerText, { color: palette.textMuted }]}>
-            Students, instructors, gatekeepers, coordinators, and admins now share one mobile-ready operational layer.
-          </Text>
-        </View>
       </View>
     </Screen>
   )
 }
 
 const styles = StyleSheet.create({
-  center: {
-    flex: 1,
-    justifyContent: 'center',
+  container: {
     width: '100%',
-    maxWidth: 520,
+    maxWidth: 420,
     alignSelf: 'center',
-    gap: 18
+    gap: 18,
+    paddingTop: 8,
+    paddingBottom: 24
   },
-  hero: {
-    gap: 12
-  },
-  brandBadge: {
-    alignSelf: 'flex-start',
-    borderWidth: 1,
-    borderRadius: 999,
-    paddingHorizontal: 14,
-    paddingVertical: 8
+  header: {
+    gap: 6
   },
   brand: {
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: '800',
     textTransform: 'uppercase',
-    letterSpacing: 1.6
+    letterSpacing: 1.4
   },
   heading: {
-    fontSize: 34,
-    fontWeight: '800',
-    lineHeight: 40
-  },
-  subheading: {
-    fontSize: 15,
-    lineHeight: 23
-  },
-  card: {
-    gap: 16,
-    paddingVertical: 24
-  },
-  cardHeader: {
-    gap: 4
-  },
-  cardTitle: {
-    fontSize: 22,
+    fontSize: 30,
     fontWeight: '800'
   },
-  cardText: {
+  subheading: {
     fontSize: 14,
     lineHeight: 20
+  },
+  card: {
+    gap: 16
   },
   link: {
     textAlign: 'center',
     fontSize: 14,
     fontWeight: '700'
-  },
-  footer: {
-    borderWidth: 1,
-    borderRadius: 18,
-    paddingHorizontal: 18,
-    paddingVertical: 16,
-    gap: 4
-  },
-  footerTitle: {
-    fontSize: 14,
-    fontWeight: '800'
-  },
-  footerText: {
-    fontSize: 13,
-    lineHeight: 19
   }
 })
 

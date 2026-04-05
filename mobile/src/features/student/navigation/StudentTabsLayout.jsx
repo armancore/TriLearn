@@ -1,11 +1,14 @@
-import { Bell, ClipboardCheck, GraduationCap, House, BookOpen, CalendarDays, FileStack, Ticket, IdCard } from 'lucide-react-native'
+import { Bell, BookOpen, CalendarDays, ClipboardCheck, FileStack, GraduationCap, House, IdCard, LifeBuoy, Ticket, UserCircle2 } from 'lucide-react-native'
 import createTabsLayout from '../../../navigation/createTabsLayout'
 
 const StudentTabsLayout = createTabsLayout([
   { name: 'index', title: 'Home', icon: House },
-  { name: 'attendance', title: 'Attendance', icon: ClipboardCheck },
-  { name: 'marks', title: 'Marks', icon: GraduationCap },
-  { name: 'notices', title: 'Notices', icon: Bell },
+  { name: 'learning', title: 'Learning', icon: GraduationCap },
+  { name: 'services', title: 'Services', icon: LifeBuoy },
+  { name: 'profile', title: 'Profile', icon: UserCircle2 },
+  { name: 'attendance', title: 'Attendance', icon: ClipboardCheck, href: null },
+  { name: 'marks', title: 'Marks', icon: GraduationCap, href: null },
+  { name: 'notices', title: 'Notices', icon: Bell, href: null },
   { name: 'routine', title: 'Routine', icon: CalendarDays, href: null },
   { name: 'assignments', title: 'Assignments', icon: FileStack, href: null },
   { name: 'materials', title: 'Materials', icon: BookOpen, href: null },

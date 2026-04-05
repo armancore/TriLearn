@@ -15,7 +15,15 @@ const createTabsLayout = (screens) => {
           tabBarInactiveTintColor: palette.tabIcon,
           tabBarStyle: {
             backgroundColor: palette.surface,
-            borderTopColor: palette.border
+            borderTopColor: palette.border,
+            borderTopWidth: 1,
+            height: 72,
+            paddingTop: 8,
+            paddingBottom: 10
+          },
+          tabBarLabelStyle: {
+            fontSize: 12,
+            fontWeight: '700'
           }
         }}
       >

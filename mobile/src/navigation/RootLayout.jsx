@@ -17,15 +17,22 @@ const RootNavigation = () => {
       return
     }
 
-    const inAuthGroup = segments[0] === '(auth)'
+    const inAuthGroup = segments[0] === 'auth'
 
     if (!user && !inAuthGroup) {
-      router.replace('/(auth)/login')
+      router.replace('/auth/login')
       return
     }
 
     if (user?.mustChangePassword && segments[1] !== 'change-password') {
-      router.replace('/(auth)/change-password')
+      router.replace('/auth/change-password')
+      return
+    }
+
+    const atRoot = segments.length === 0
+
+    if (user && !user.mustChangePassword && atRoot) {
+      router.replace(getHomeRouteForRole(user.role))
       return
     }
 

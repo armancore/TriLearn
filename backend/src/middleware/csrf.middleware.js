@@ -4,6 +4,25 @@ const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS'])
 
 const getRuntimeEnv = () => process.env.NODE_ENV || 'production'
 
+const isLocalDevelopmentOrigin = (origin) => {
+  try {
+    const parsed = new URL(origin)
+    const hostname = parsed.hostname
+
+    if (hostname === 'localhost' || hostname === '127.0.0.1') {
+      return true
+    }
+
+    return (
+      /^192\.168\.\d{1,3}\.\d{1,3}$/.test(hostname) ||
+      /^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(hostname) ||
+      /^172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3}$/.test(hostname)
+    )
+  } catch {
+    return false
+  }
+}
+
 const getTrustedOrigins = () => {
   const configuredOrigins = (process.env.FRONTEND_URL || '')
     .split(',')
@@ -15,6 +34,20 @@ const getTrustedOrigins = () => {
   }
 
   return configuredOrigins
+}
+
+const isTrustedOrigin = (origin) => {
+  if (!origin) {
+    return false
+  }
+
+  const trustedOrigins = getTrustedOrigins()
+
+  if (trustedOrigins.includes(origin)) {
+    return true
+  }
+
+  return getRuntimeEnv() !== 'production' && isLocalDevelopmentOrigin(origin)
 }
 
 const resolveRequestOrigin = (req) => {
@@ -49,9 +82,7 @@ const csrfProtection = (req, res, next) => {
   }
 
   const requestOrigin = resolveRequestOrigin(req)
-  const trustedOrigins = getTrustedOrigins()
-
-  if (!requestOrigin || !trustedOrigins.includes(requestOrigin)) {
+  if (!requestOrigin || !isTrustedOrigin(requestOrigin)) {
     return res.status(403).json({ message: 'CSRF validation failed' })
   }
 
@@ -61,5 +92,6 @@ const csrfProtection = (req, res, next) => {
 module.exports = {
   csrfProtection,
   getRuntimeEnv,
-  getTrustedOrigins
+  getTrustedOrigins,
+  isTrustedOrigin
 }

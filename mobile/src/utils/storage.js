@@ -7,6 +7,7 @@ const SESSION_HINT_KEY = 'trilearn_session_hint'
 const webFallbackStore = new Map()
 
 const canUseSecureStore = () => (
+  Platform.OS !== 'web' &&
   typeof SecureStore?.getItemAsync === 'function' &&
   typeof SecureStore?.setItemAsync === 'function' &&
   typeof SecureStore?.deleteItemAsync === 'function'
@@ -14,7 +15,11 @@ const canUseSecureStore = () => (
 
 const getItem = async (key) => {
   if (canUseSecureStore()) {
-    return SecureStore.getItemAsync(key)
+    try {
+      return await SecureStore.getItemAsync(key)
+    } catch {
+      return null
+    }
   }
 
   if (Platform.OS === 'web') {
@@ -26,8 +31,12 @@ const getItem = async (key) => {
 
 const setItem = async (key, value) => {
   if (canUseSecureStore()) {
-    await SecureStore.setItemAsync(key, value)
-    return
+    try {
+      await SecureStore.setItemAsync(key, value)
+      return
+    } catch {
+      return
+    }
   }
 
   if (Platform.OS === 'web') {
@@ -37,8 +46,12 @@ const setItem = async (key, value) => {
 
 const deleteItem = async (key) => {
   if (canUseSecureStore()) {
-    await SecureStore.deleteItemAsync(key)
-    return
+    try {
+      await SecureStore.deleteItemAsync(key)
+      return
+    } catch {
+      return
+    }
   }
 
   if (Platform.OS === 'web') {
