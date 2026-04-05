@@ -7,6 +7,14 @@ const required = [
   'NODE_ENV'
 ]
 
+const requiredProductionMail = [
+  'MAIL_FROM',
+  'RESEND_SMTP_HOST',
+  'RESEND_SMTP_PORT',
+  'RESEND_SMTP_USER',
+  'RESEND_SMTP_PASS'
+]
+
 const validateEnv = () => {
   const missing = required.filter((key) => !process.env[key])
 
@@ -19,8 +27,18 @@ const validateEnv = () => {
     console.warn('Warning: RESEND_SMTP_PASS not set - emails disabled')
   }
 
+  if (process.env.NODE_ENV === 'production') {
+    const missingProductionMail = requiredProductionMail.filter((key) => !String(process.env[key] || '').trim())
+
+    if (missingProductionMail.length > 0) {
+      console.error(`Missing required production mail env vars: ${missingProductionMail.join(', ')}`)
+      process.exit(1)
+    }
+  }
+
   if (process.env.NODE_ENV === 'production' && !process.env.REDIS_URL) {
-    console.warn('Warning: REDIS_URL not set - production rate limiting will use a per-instance in-memory store')
+    console.error('Missing required env var: REDIS_URL. Production rate limiting must use Redis.')
+    process.exit(1)
   }
 
   if (process.env.NODE_ENV === 'production' && process.env.OPEN_REGISTRATION === 'true') {

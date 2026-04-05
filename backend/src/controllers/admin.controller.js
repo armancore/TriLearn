@@ -22,6 +22,8 @@ const buildContainsSearch = (search) => ({
   mode: 'insensitive'
 })
 
+const normalizeDepartmentValue = (value) => String(value || '').trim()
+
 const getManagedDepartmentForUser = (user) => (
   user.student?.department ||
   user.instructor?.department ||
@@ -55,6 +57,55 @@ const getDepartmentAliases = async (departmentValue) => {
     department?.code
   ].filter(Boolean)))
 }
+
+const getCoordinatorDepartmentAliasesOrRespond = async (req, res) => {
+  if (req.user.role !== 'COORDINATOR') {
+    return null
+  }
+
+  const coordinatorDepartment = normalizeDepartmentValue(req.coordinator?.department)
+  if (!coordinatorDepartment) {
+    res.status(403).json({ message: 'Coordinator department is not configured yet' })
+    return null
+  }
+
+  return getDepartmentAliases(coordinatorDepartment)
+}
+
+const coordinatorDepartmentScope = (departmentAliases) => ({
+  OR: [
+    {
+      role: 'STUDENT',
+      student: {
+        is: {
+          department: {
+            in: departmentAliases
+          }
+        }
+      }
+    },
+    {
+      role: 'INSTRUCTOR',
+      instructor: {
+        is: {
+          department: {
+            in: departmentAliases
+          }
+        }
+      }
+    }
+  ]
+})
+
+const coordinatorApplicationScope = (departmentAliases) => ({
+  preferredDepartment: {
+    in: departmentAliases
+  }
+})
+
+const isDepartmentWithinAliases = (departmentValue, departmentAliases) => (
+  departmentAliases.includes(normalizeDepartmentValue(departmentValue))
+)
 
 const getAdminStats = async (req, res) => {
   try {
@@ -98,10 +149,13 @@ const getAllUsers = async (req, res) => {
     const { page, limit, skip } = getPagination(req.query)
 
     const filters = { deletedAt: null }
+    const andFilters = []
+
     if (role) filters.role = role
     if (isActive !== undefined) filters.isActive = isActive === 'true'
     if (search) {
-      filters.OR = [
+      andFilters.push({
+        OR: [
         { name: buildContainsSearch(search) },
         { email: buildContainsSearch(search) },
         { phone: buildContainsSearch(search) },
@@ -109,10 +163,16 @@ const getAllUsers = async (req, res) => {
         { student: { is: { department: buildContainsSearch(search) } } },
         { instructor: { is: { department: buildContainsSearch(search) } } },
         { coordinator: { is: { department: buildContainsSearch(search) } } }
-      ]
+        ]
+      })
     }
 
     if (req.user.role === 'COORDINATOR') {
+      const departmentAliases = await getCoordinatorDepartmentAliasesOrRespond(req, res)
+      if (!departmentAliases) {
+        return
+      }
+
       const allowedRoles = ['STUDENT', 'INSTRUCTOR']
 
       if (role && !allowedRoles.includes(role)) {
@@ -122,6 +182,12 @@ const getAllUsers = async (req, res) => {
       if (!role) {
         filters.role = { in: allowedRoles }
       }
+
+      andFilters.push(coordinatorDepartmentScope(departmentAliases))
+    }
+
+    if (andFilters.length > 0) {
+      filters.AND = andFilters
     }
 
     const [users, total] = await Promise.all([
@@ -184,6 +250,21 @@ const getUserById = async (req, res) => {
 
     if (!user) {
       return res.status(404).json({ message: 'User not found' })
+    }
+
+    if (req.user.role === 'COORDINATOR') {
+      const departmentAliases = await getCoordinatorDepartmentAliasesOrRespond(req, res)
+      if (!departmentAliases) {
+        return
+      }
+
+      if (!['STUDENT', 'INSTRUCTOR'].includes(user.role)) {
+        return res.status(403).json({ message: 'Coordinators can only view students and instructors in their department' })
+      }
+
+      if (!isDepartmentWithinAliases(getManagedDepartmentForUser(user), departmentAliases)) {
+        return res.status(403).json({ message: 'You can only view users in your own department' })
+      }
     }
 
     res.json({ user })
@@ -402,6 +483,17 @@ const createStudent = async (req, res) => {
       }
     }
 
+    if (req.user.role === 'COORDINATOR') {
+      const departmentAliases = await getCoordinatorDepartmentAliasesOrRespond(req, res)
+      if (!departmentAliases) {
+        return
+      }
+
+      if (!normalizedDepartment || !isDepartmentWithinAliases(normalizedDepartment, departmentAliases)) {
+        return res.status(403).json({ message: 'Coordinators can only create students in their own department' })
+      }
+    }
+
     const temporaryPassword = getStudentTemporaryPassword()
     const hashedPassword = await hashPassword(temporaryPassword)
 
@@ -476,7 +568,31 @@ const updateUser = async (req, res) => {
     const { name, phone, address, department, semester, section } = req.body
     const normalizedDepartment = department?.trim() || null
 
-    const user = await prisma.user.findFirst({ where: { id, deletedAt: null } })
+    const user = await prisma.user.findFirst({
+      where: { id, deletedAt: null },
+      select: {
+        id: true,
+        role: true,
+        student: {
+          select: {
+            id: true,
+            semester: true,
+            section: true,
+            department: true
+          }
+        },
+        instructor: {
+          select: {
+            department: true
+          }
+        },
+        coordinator: {
+          select: {
+            department: true
+          }
+        }
+      }
+    })
     if (!user) {
       return res.status(404).json({ message: 'User not found' })
     }
@@ -485,6 +601,25 @@ const updateUser = async (req, res) => {
       const validDepartment = await ensureDepartmentExists(normalizedDepartment)
       if (!validDepartment) {
         return res.status(400).json({ message: 'Please select a valid department' })
+      }
+    }
+
+    if (req.user.role === 'COORDINATOR') {
+      const departmentAliases = await getCoordinatorDepartmentAliasesOrRespond(req, res)
+      if (!departmentAliases) {
+        return
+      }
+
+      if (!['STUDENT', 'INSTRUCTOR'].includes(user.role)) {
+        return res.status(403).json({ message: 'Coordinators can only update students and instructors in their department' })
+      }
+
+      if (!isDepartmentWithinAliases(getManagedDepartmentForUser(user), departmentAliases)) {
+        return res.status(403).json({ message: 'You can only update users in your own department' })
+      }
+
+      if (normalizedDepartment && !isDepartmentWithinAliases(normalizedDepartment, departmentAliases)) {
+        return res.status(403).json({ message: 'Coordinators can only assign their own department' })
       }
     }
 
@@ -510,7 +645,11 @@ const updateUser = async (req, res) => {
     if (user.role === 'STUDENT') {
       const updatedStudent = await prisma.student.update({
         where: { userId: id },
-        data: { semester, section, department: normalizedDepartment }
+        data: {
+          semester,
+          section,
+          department: normalizedDepartment ?? undefined
+        }
       })
 
       await enrollStudentInMatchingSubjects({
@@ -576,8 +715,9 @@ const toggleUserStatus = async (req, res) => {
     }
 
     if (req.user.role === 'COORDINATOR') {
-      if (!req.coordinator?.department) {
-        return res.status(403).json({ message: 'Coordinator department is not configured yet' })
+      const departmentAliases = await getCoordinatorDepartmentAliasesOrRespond(req, res)
+      if (!departmentAliases) {
+        return
       }
 
       if (!['STUDENT', 'INSTRUCTOR'].includes(user.role)) {
@@ -585,8 +725,7 @@ const toggleUserStatus = async (req, res) => {
       }
 
       const managedDepartment = getManagedDepartmentForUser(user)
-      const departmentAliases = await getDepartmentAliases(req.coordinator.department)
-      if (!departmentAliases.includes(String(managedDepartment || '').trim())) {
+      if (!isDepartmentWithinAliases(managedDepartment, departmentAliases)) {
         return res.status(403).json({ message: 'You can only manage users in your own department' })
       }
     }
@@ -707,6 +846,15 @@ const getStudentApplications = async (req, res) => {
       filters.status = status
     }
 
+    if (req.user.role === 'COORDINATOR') {
+      const departmentAliases = await getCoordinatorDepartmentAliasesOrRespond(req, res)
+      if (!departmentAliases) {
+        return
+      }
+
+      Object.assign(filters, coordinatorApplicationScope(departmentAliases))
+    }
+
     const [applications, total] = await Promise.all([
       prisma.studentApplication.findMany({
         where: filters,
@@ -732,6 +880,25 @@ const updateStudentApplicationStatus = async (req, res) => {
       return res.status(400).json({
         message: 'Student applications can only be marked as converted when an account is created from the application.'
       })
+    }
+
+    const existingApplication = await prisma.studentApplication.findUnique({
+      where: { id }
+    })
+
+    if (!existingApplication) {
+      return res.status(404).json({ message: 'Student application not found' })
+    }
+
+    if (req.user.role === 'COORDINATOR') {
+      const departmentAliases = await getCoordinatorDepartmentAliasesOrRespond(req, res)
+      if (!departmentAliases) {
+        return
+      }
+
+      if (!isDepartmentWithinAliases(existingApplication.preferredDepartment, departmentAliases)) {
+        return res.status(403).json({ message: 'You can only manage applications in your own department' })
+      }
     }
 
     const application = await prisma.studentApplication.update({
@@ -765,6 +932,21 @@ const createStudentFromApplication = async (req, res) => {
 
     if (!application) {
       return res.status(404).json({ message: 'Student application not found' })
+    }
+
+    if (req.user.role === 'COORDINATOR') {
+      const departmentAliases = await getCoordinatorDepartmentAliasesOrRespond(req, res)
+      if (!departmentAliases) {
+        return
+      }
+
+      if (!isDepartmentWithinAliases(application.preferredDepartment, departmentAliases)) {
+        return res.status(403).json({ message: 'You can only manage applications in your own department' })
+      }
+
+      if (!isDepartmentWithinAliases(normalizedDepartment, departmentAliases)) {
+        return res.status(403).json({ message: 'Coordinators can only create students in their own department' })
+      }
     }
 
     if (application.linkedUserId || application.status === 'CONVERTED') {
@@ -895,6 +1077,17 @@ const deleteStudentApplication = async (req, res) => {
 
     if (!application) {
       return res.status(404).json({ message: 'Student application not found' })
+    }
+
+    if (req.user.role === 'COORDINATOR') {
+      const departmentAliases = await getCoordinatorDepartmentAliasesOrRespond(req, res)
+      if (!departmentAliases) {
+        return
+      }
+
+      if (!isDepartmentWithinAliases(application.preferredDepartment, departmentAliases)) {
+        return res.status(403).json({ message: 'You can only delete applications in your own department' })
+      }
     }
 
     await prisma.studentApplication.delete({

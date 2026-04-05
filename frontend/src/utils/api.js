@@ -191,6 +191,14 @@ const shouldRetryRequest = (error) => {
   return [502, 503, 504].includes(error.response.status)
 }
 
+const requestUsedAccessToken = (requestConfig) => {
+  const authorizationHeader =
+    requestConfig?.headers?.Authorization ||
+    requestConfig?.headers?.authorization
+
+  return typeof authorizationHeader === 'string' && authorizationHeader.startsWith('Bearer ')
+}
+
 // Automatically add token to every request
 api.interceptors.request.use((config) => {
   if (authState.token) {
@@ -206,6 +214,10 @@ export const refreshSession = async () => {
         const { token, user } = response.data
         setAuthState({ token, user })
         return response.data
+      })
+      .catch((error) => {
+        clearAuthState()
+        throw error
       })
       .finally(() => {
         refreshPromise = null
@@ -237,6 +249,7 @@ api.interceptors.response.use(
     if (
       error.response?.status === 401 &&
       !originalRequest?._retry &&
+      requestUsedAccessToken(originalRequest) &&
       !originalRequest?.url?.includes('/auth/login') &&
       !originalRequest?.url?.includes('/auth/refresh') &&
       !originalRequest?.url?.includes('/auth/logout')

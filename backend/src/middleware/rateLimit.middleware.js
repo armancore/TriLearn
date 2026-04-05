@@ -64,6 +64,17 @@ const authLimiter = createLimiter({
   message: 'Too many attempts, please try again later'
 })
 
+const loginLimiter = createLimiter({
+  max: 25,
+  message: 'Too many login attempts, please try again later'
+})
+
+const refreshLimiter = createLimiter({
+  windowMs: 5 * 60 * 1000,
+  max: 60,
+  message: 'Too many session refresh attempts, please try again shortly'
+})
+
 const uploadLimiter = createLimiter({
   max: 40,
   message: 'Too many upload attempts, please try again later'
@@ -103,6 +114,8 @@ const staffStudentIdScanLimiter = createLimiter({
 module.exports = {
   apiLimiter,
   authLimiter,
+  loginLimiter,
+  refreshLimiter,
   uploadLimiter,
   studentUploadLimiter,
   staffUploadLimiter,

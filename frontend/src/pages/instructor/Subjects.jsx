@@ -66,10 +66,10 @@ const InstructorSubjects = () => {
                 <div className={`h-1.5 bg-gradient-to-r ${departmentBar(subject.department)}`} />
                 <div className="p-6">
                 <div className="flex justify-between items-start mb-4">
-                    <span className="text-xs font-bold text-primary bg-primary-50 px-2 py-1 rounded">
+                    <span className="rounded bg-primary-50 px-2 py-1 text-xs font-bold text-primary dark:bg-primary-950/30 dark:text-primary-300">
                       {subject.code}
                     </span>
-                  <span className="text-xs bg-[--color-bg] dark:bg-slate-800 text-[--color-text-muted] dark:text-slate-400 px-2 py-1 rounded">
+                  <span className="rounded bg-[var(--color-surface-muted)] px-2 py-1 text-xs text-[var(--color-text-muted)]">
                     Sem {subject.semester}
                   </span>
                 </div>
@@ -78,60 +78,60 @@ const InstructorSubjects = () => {
                   <p className="text-sm text-[--color-text-muted] dark:text-slate-400 mb-4 line-clamp-2">{subject.description}</p>
                 )}
                 <div className="mb-3 flex flex-wrap gap-2 text-xs text-[--color-text-muted] dark:text-slate-400">
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1">
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--color-surface-muted)] px-3 py-1">
                     <ClipboardList className="h-3.5 w-3.5" />
                     <span>{subject._count?.assignments} assignments</span>
                   </span>
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1">
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--color-surface-muted)] px-3 py-1">
                     <Files className="h-3.5 w-3.5" />
                     <span>{subject._count?.materials} materials</span>
                   </span>
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1">
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--color-surface-muted)] px-3 py-1">
                     <Users className="h-3.5 w-3.5" />
                     <span>{subject._count?.enrollments || 0} students</span>
                   </span>
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1">
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--color-surface-muted)] px-3 py-1">
                     <Percent className="h-3.5 w-3.5" />
                     <span>{subject._count?.attendances} attendance records</span>
                   </span>
                 </div>
                 {subject.department && (
-                  <span className="text-xs bg-primary-50 text-primary px-2 py-1 rounded">
+                  <span className="rounded bg-primary-50 px-2 py-1 text-xs text-primary dark:bg-primary-950/30 dark:text-primary-300">
                     {subject.department}
                   </span>
                 )}
-                <div className="mt-5 flex items-center gap-3 border-t border-slate-200 pt-4">
+                <div className="mt-5 flex items-center gap-3 border-t border-[var(--color-card-border)] pt-4">
                   <div className="ui-role-fill flex h-10 w-10 items-center justify-center rounded-full text-xs font-black text-white">
                     {initialsFromName(subject.instructor?.user?.name)}
                   </div>
                   <div className="min-w-0">
-                    <p className="text-xs text-slate-400">Instructor</p>
-                    <p className="truncate text-sm font-semibold text-slate-900">{subject.instructor?.user?.name || 'Assigned instructor'}</p>
+                    <p className="text-xs text-[var(--color-text-soft)]">Instructor</p>
+                    <p className="truncate text-sm font-semibold text-[var(--color-heading)]">{subject.instructor?.user?.name || 'Assigned instructor'}</p>
                   </div>
-                  <GraduationCap className="ml-auto h-5 w-5 text-slate-300" />
+                  <GraduationCap className="ml-auto h-5 w-5 text-[var(--color-text-soft)]" />
                 </div>
                 <div className="mt-4 grid grid-cols-2 gap-2">
                   <Link
                     to={`/instructor/materials?subject=${subject.id}`}
-                    className="rounded-xl border border-slate-200 px-3 py-2 text-center text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                    className="rounded-xl border border-[var(--color-card-border)] px-3 py-2 text-center text-sm font-medium text-[var(--color-page-text)] transition hover:bg-[var(--color-surface-muted)]"
                   >
                     Materials
                   </Link>
                   <Link
                     to={`/instructor/assignments?subject=${subject.id}`}
-                    className="rounded-xl border border-slate-200 px-3 py-2 text-center text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                    className="rounded-xl border border-[var(--color-card-border)] px-3 py-2 text-center text-sm font-medium text-[var(--color-page-text)] transition hover:bg-[var(--color-surface-muted)]"
                   >
                     Assignments
                   </Link>
                   <Link
                     to={`/instructor/attendance?subject=${subject.id}&semester=${subject.semester}`}
-                    className="rounded-xl border border-slate-200 px-3 py-2 text-center text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                    className="rounded-xl border border-[var(--color-card-border)] px-3 py-2 text-center text-sm font-medium text-[var(--color-page-text)] transition hover:bg-[var(--color-surface-muted)]"
                   >
                     Attendance
                   </Link>
                   <Link
                     to={`/instructor/marks?subject=${subject.id}`}
-                    className="rounded-xl border border-slate-200 px-3 py-2 text-center text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                    className="rounded-xl border border-[var(--color-card-border)] px-3 py-2 text-center text-sm font-medium text-[var(--color-page-text)] transition hover:bg-[var(--color-surface-muted)]"
                   >
                     Exam Marks
                   </Link>

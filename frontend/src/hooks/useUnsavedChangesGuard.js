@@ -2,7 +2,19 @@ import { useEffect, useState } from 'react'
 import { useBlocker } from 'react-router-dom'
 
 const useUnsavedChangesGuard = (enabled) => {
-  const blocker = useBlocker(enabled)
+  let blocker = {
+    state: 'unblocked',
+    reset: undefined,
+    proceed: undefined
+  }
+
+  try {
+    blocker = useBlocker(enabled)
+  } catch {
+    // `useBlocker` requires a data router. Fall back to beforeunload-only
+    // protection when the app is mounted with a standard router.
+  }
+
   const [dialogOpen, setDialogOpen] = useState(false)
 
   useEffect(() => {

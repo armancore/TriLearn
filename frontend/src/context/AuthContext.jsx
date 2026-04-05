@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useRef } from 'react'
+import { createContext, useContext, useState, useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import {
   API_BASE_URL,
@@ -21,7 +21,7 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(getAuthState().user)
   const [token, setToken] = useState(getAuthState().token)
   const [loading, setLoading] = useState(true)
-  const skipInitialRefreshRef = useRef(PUBLIC_AUTH_ROUTES.has(location.pathname))
+  const isPublicAuthRoute = PUBLIC_AUTH_ROUTES.has(location.pathname)
 
   useEffect(() => {
     let isMounted = true
@@ -37,8 +37,17 @@ export const AuthProvider = ({ children }) => {
       navigate('/login', { replace: true })
     })
 
-    if (skipInitialRefreshRef.current) {
-      skipInitialRefreshRef.current = false
+    if (isPublicAuthRoute) {
+      const currentAuthState = getAuthState()
+
+      // Public auth pages should not silently refresh in the background.
+      // If we only have a cached user and no live access token, clear the
+      // stale client session so React dev effect replays do not bounce into
+      // protected screens or spam refresh attempts.
+      if (!currentAuthState.token && currentAuthState.user) {
+        clearClientSession()
+      }
+
       setLoading(false)
       return () => {
         isMounted = false
@@ -62,7 +71,7 @@ export const AuthProvider = ({ children }) => {
       unsubscribe()
       unregisterUnauthorizedHandler()
     }
-  }, [navigate])
+  }, [isPublicAuthRoute, navigate])
 
   const login = (userData, userToken) => {
     setAuthState({ user: userData, token: userToken })

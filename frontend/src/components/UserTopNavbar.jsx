@@ -32,36 +32,36 @@ const UserTopNavbar = ({
 
   const accentStyles = {
     emerald: {
-      shell: 'border-primary-200 bg-[--color-bg-card] dark:bg-slate-800/90',
-      icon: 'border-primary-200 bg-primary-50 text-primary',
+      shell: 'border-primary-200 bg-[var(--color-card-surface)] dark:border-primary-700/30',
+      icon: 'border-primary-200 bg-primary-50 text-primary dark:border-primary-700/30 dark:bg-primary-950/30 dark:text-primary-300',
       active: 'border-primary-700 bg-primary text-white shadow-[0_12px_30px_rgba(26,60,110,0.16)]',
-      idle: 'border-slate-200 bg-[--color-bg-card] dark:bg-slate-800 text-slate-700 hover:border-primary-300 hover:text-primary',
+      idle: 'border-[var(--color-card-border)] bg-[var(--color-card-surface)] text-[var(--color-page-text)] hover:border-primary-300 hover:text-primary',
       profile: 'from-emerald-600 to-emerald-800 text-white',
-      badge: 'bg-primary-50 text-primary'
+      badge: 'bg-primary-50 text-primary dark:bg-primary-950/30 dark:text-primary-300'
     },
     blue: {
-      shell: 'border-primary-200 bg-[--color-bg-card] dark:bg-slate-800/90',
-      icon: 'border-primary-200 bg-primary-50 text-primary',
+      shell: 'border-primary-200 bg-[var(--color-card-surface)] dark:border-primary-700/30',
+      icon: 'border-primary-200 bg-primary-50 text-primary dark:border-primary-700/30 dark:bg-primary-950/30 dark:text-primary-300',
       active: 'border-primary-700 bg-primary text-white shadow-[0_12px_30px_rgba(29,78,216,0.16)]',
-      idle: 'border-slate-200 bg-[--color-bg-card] dark:bg-slate-800 text-slate-700 hover:border-primary-300 hover:text-primary',
+      idle: 'border-[var(--color-card-border)] bg-[var(--color-card-surface)] text-[var(--color-page-text)] hover:border-primary-300 hover:text-primary',
       profile: 'from-blue-600 to-blue-800 text-white',
-      badge: 'bg-primary-50 text-primary'
+      badge: 'bg-primary-50 text-primary dark:bg-primary-950/30 dark:text-primary-300'
     },
     purple: {
-      shell: 'border-primary-200 bg-[--color-bg-card] dark:bg-slate-800/90',
-      icon: 'border-primary-200 bg-primary-50 text-primary',
+      shell: 'border-primary-200 bg-[var(--color-card-surface)] dark:border-primary-700/30',
+      icon: 'border-primary-200 bg-primary-50 text-primary dark:border-primary-700/30 dark:bg-primary-950/30 dark:text-primary-300',
       active: 'border-primary-700 bg-primary-700 text-white shadow-[0_12px_30px_rgba(126,34,206,0.16)]',
-      idle: 'border-slate-200 bg-[--color-bg-card] dark:bg-slate-800 text-slate-700 hover:border-primary-300 hover:text-primary',
+      idle: 'border-[var(--color-card-border)] bg-[var(--color-card-surface)] text-[var(--color-page-text)] hover:border-primary-300 hover:text-primary',
       profile: 'from-purple-600 to-purple-800 text-white',
-      badge: 'bg-primary-50 text-primary'
+      badge: 'bg-primary-50 text-primary dark:bg-primary-950/30 dark:text-primary-300'
     },
     amber: {
-      shell: 'border-accent-200 bg-[--color-bg-card] dark:bg-slate-800/90',
-      icon: 'border-accent-200 bg-accent-50 text-accent-700',
+      shell: 'border-accent-200 bg-[var(--color-card-surface)] dark:border-accent-700/30',
+      icon: 'border-accent-200 bg-accent-50 text-accent-700 dark:border-accent-700/30 dark:bg-accent-950/30 dark:text-accent-300',
       active: 'border-accent-600 bg-accent-600 text-white shadow-[0_12px_30px_rgba(212,137,26,0.18)]',
-      idle: 'border-slate-200 bg-[--color-bg-card] dark:bg-slate-800 text-slate-700 hover:border-accent-300 hover:text-accent-700',
+      idle: 'border-[var(--color-card-border)] bg-[var(--color-card-surface)] text-[var(--color-page-text)] hover:border-accent-300 hover:text-accent-700',
       profile: 'from-amber-500 to-amber-700 text-white',
-      badge: 'bg-accent-50 text-accent-700'
+      badge: 'bg-accent-50 text-accent-700 dark:bg-accent-950/30 dark:text-accent-300'
     }
   }
 
@@ -84,8 +84,8 @@ const UserTopNavbar = ({
               </div>
             )}
             <div className="min-w-0">
-              <p className="text-lg font-black tracking-tight text-slate-900">{title}</p>
-              <p className="truncate text-sm text-slate-500">{subtitle}</p>
+              <p className="text-lg font-black tracking-tight text-[var(--color-heading)]">{title}</p>
+              <p className="truncate text-sm text-[var(--color-text-muted)]">{subtitle}</p>
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-3">
@@ -96,8 +96,8 @@ const UserTopNavbar = ({
               <span>{institutionLabel}</span>
             </div>
             <div className="text-right">
-              <p className="text-sm font-semibold text-slate-900">{user?.name || 'User'}</p>
-              <p className="text-xs uppercase tracking-[0.18em] text-slate-500">{user?.role || 'Member'}</p>
+              <p className="text-sm font-semibold text-[var(--color-heading)]">{user?.name || 'User'}</p>
+              <p className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-muted)]">{user?.role || 'Member'}</p>
             </div>
           </div>
         </div>
@@ -113,7 +113,7 @@ const UserTopNavbar = ({
                   key={item.key}
                   type="button"
                   disabled
-                  className="flex min-w-[150px] shrink-0 items-center gap-3 rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-3 text-left text-slate-400"
+                  className="flex min-w-[150px] shrink-0 items-center gap-3 rounded-2xl border border-dashed border-[var(--color-card-border)] bg-[var(--color-surface-muted)] px-4 py-3 text-left text-[var(--color-text-soft)]"
                 >
                   <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-dashed border-slate-300 bg-[--color-bg-card] dark:bg-slate-800 text-[11px] font-black tracking-[0.16em]">
                     SC
@@ -137,7 +137,7 @@ const UserTopNavbar = ({
                 </span>
                 <span className="flex flex-col">
                   <span className="text-sm font-semibold">{item.label}</span>
-                  <span className={`text-[11px] uppercase tracking-[0.18em] ${isActive ? 'text-white/75' : 'text-slate-400'}`}>
+                  <span className={`text-[11px] uppercase tracking-[0.18em] ${isActive ? 'text-white/75' : 'text-[var(--color-text-soft)]'}`}>
                     Open
                   </span>
                 </span>

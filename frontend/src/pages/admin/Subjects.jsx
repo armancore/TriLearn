@@ -231,18 +231,18 @@ const Subjects = () => {
 
         {/* Success/Error */}
         {success && (
-          <div className="bg-primary-50 text-primary px-4 py-3 rounded-lg mb-4 text-sm">
+          <div className="mb-4 rounded-lg bg-primary-50 px-4 py-3 text-sm text-primary dark:bg-primary-950/30 dark:text-primary-300">
             {success}
           </div>
         )}
         {error && (
-          <div className="bg-accent-50 text-accent-600 px-4 py-3 rounded-lg mb-4 text-sm">
+          <div className="mb-4 rounded-lg bg-accent-50 px-4 py-3 text-sm text-accent-600 dark:bg-accent-950/30 dark:text-accent-300">
             {error}
           </div>
         )}
 
-        <div className="mb-6 rounded-2xl border border-slate-200 bg-[--color-bg-card] dark:bg-slate-800 p-4 shadow-sm dark:shadow-slate-900/50">
-          <label className="mb-2 block text-sm font-medium text-slate-700">Search subjects</label>
+        <div className="mb-6 rounded-2xl border border-[var(--color-card-border)] bg-[var(--color-card-surface)] p-4 shadow-sm dark:shadow-slate-900/50">
+          <label className="mb-2 block text-sm font-medium text-[var(--color-page-text)]">Search subjects</label>
           <input
             type="text"
             value={searchTerm}
@@ -251,7 +251,7 @@ const Subjects = () => {
               setPage(1)
             }}
             placeholder="Search by subject name, code, department, description, or instructor"
-            className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+            className="w-full rounded-xl border border-[var(--color-card-border)] bg-[var(--color-card-surface)] px-4 py-3 text-sm text-[var(--color-page-text)] focus:outline-none focus:ring-2 focus:ring-primary"
           />
         </div>
 
@@ -260,26 +260,26 @@ const Subjects = () => {
           <LoadingSkeleton rows={6} itemClassName="h-44" />
         ) : (
           <>
-          <div className="mb-6 flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50/70 px-5 py-4">
+          <div className="mb-6 flex items-center justify-between rounded-2xl border border-[var(--color-card-border)] bg-[var(--color-surface-muted)] px-5 py-4">
             <div>
-              <h2 className="text-lg font-semibold text-slate-900">Subject Catalog</h2>
-              <p className="text-sm text-slate-500">All active subjects, instructors, and enrollment summaries.</p>
+              <h2 className="text-lg font-semibold text-[var(--color-heading)]">Subject Catalog</h2>
+              <p className="text-sm text-[var(--color-text-muted)]">All active subjects, instructors, and enrollment summaries.</p>
             </div>
             <span className="ui-status-badge ui-status-neutral">{total} records</span>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {subjects.map((subject) => (
-              <div key={subject.id} className="bg-[--color-bg-card] dark:bg-slate-800 rounded-2xl shadow-sm dark:shadow-slate-900/50 p-6 hover:shadow-md dark:shadow-slate-900/50 transition">
+              <div key={subject.id} className="rounded-2xl bg-[var(--color-card-surface)] p-6 shadow-sm transition hover:shadow-md dark:shadow-slate-900/50">
 
                 {/* Subject header */}
                 <div className="flex justify-between items-start mb-4">
                   <div>
-                    <span className="text-xs font-bold text-primary bg-primary-50 px-2 py-1 rounded">
+                    <span className="rounded bg-primary-50 px-2 py-1 text-xs font-bold text-primary dark:bg-primary-950/30 dark:text-primary-300">
                       {subject.code}
                     </span>
                     <h3 className="font-semibold text-[--color-text] dark:text-slate-100 mt-2">{subject.name}</h3>
                   </div>
-                  <span className="text-xs bg-[--color-bg] dark:bg-slate-800 text-[--color-text-muted] dark:text-slate-400 px-2 py-1 rounded">
+                  <span className="rounded bg-[var(--color-surface-muted)] px-2 py-1 text-xs text-[var(--color-text-muted)]">
                     Sem {subject.semester}
                   </span>
                 </div>
@@ -291,8 +291,8 @@ const Subjects = () => {
 
                 {/* Instructor */}
                 <div className="flex items-center gap-2 mb-4">
-                  <span className="text-xs text-gray-400">Instructor:</span>
-                  <span className="text-xs font-medium text-gray-700">
+                  <span className="text-xs text-[var(--color-text-soft)]">Instructor:</span>
+                  <span className="text-xs font-medium text-[var(--color-page-text)]">
                     {subject.instructor?.user?.name || 'Not assigned'}
                   </span>
                 </div>
@@ -307,31 +307,31 @@ const Subjects = () => {
                 {/* Department */}
                 {subject.department && (
                   <div className="mb-4">
-                    <span className="text-xs bg-primary-50 text-primary px-2 py-1 rounded">
+                    <span className="rounded bg-primary-50 px-2 py-1 text-xs text-primary dark:bg-primary-950/30 dark:text-primary-300">
                       {subject.department}
                     </span>
                   </div>
                 )}
 
                 {/* Actions */}
-                <div className="flex gap-2 pt-4 border-t">
+                <div className="flex gap-2 border-t border-[var(--color-card-border)] pt-4">
                   <button
                     onClick={() => openEditModal(subject)}
-                    className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-primary-50 text-primary transition hover:bg-primary-100"
+                    className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-primary-50 text-primary transition hover:bg-primary-100 dark:bg-primary-950/30 dark:text-primary-300 dark:hover:bg-primary-950/50"
                     aria-label={`Edit ${subject.name}`}
                   >
                     <Pencil className="h-4 w-4" />
                   </button>
                   <button
                     onClick={() => openEnrollmentModal(subject)}
-                    className="flex-1 inline-flex items-center justify-center gap-2 text-xs bg-primary-50 text-primary py-2 rounded-lg hover:bg-primary-100 transition font-medium"
+                    className="flex-1 inline-flex items-center justify-center gap-2 rounded-lg bg-primary-50 py-2 text-xs font-medium text-primary transition hover:bg-primary-100 dark:bg-primary-950/30 dark:text-primary-300 dark:hover:bg-primary-950/50"
                   >
                     <Users className="h-4 w-4" />
                     <span>Students</span>
                   </button>
                   <button
                     onClick={() => setSubjectToDelete(subject)}
-                    className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-accent-50 text-accent-600 py-2 transition hover:bg-accent-100"
+                    className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-accent-50 py-2 text-accent-600 transition hover:bg-accent-100 dark:bg-accent-950/30 dark:text-accent-300 dark:hover:bg-accent-950/50"
                     aria-label={`Delete ${subject.name}`}
                   >
                     <Trash2 className="h-4 w-4" />
@@ -373,7 +373,7 @@ const Subjects = () => {
         <Modal title={editSubject ? 'Edit Subject' : 'Add Subject'} onClose={() => setShowModal(false)}>
 
             {error && (
-              <div className="bg-accent-50 text-accent-600 px-4 py-3 rounded-lg mb-4 text-sm">
+              <div className="mb-4 rounded-lg bg-accent-50 px-4 py-3 text-sm text-accent-600 dark:bg-accent-950/30 dark:text-accent-300">
                 {error}
               </div>
             )}
@@ -475,18 +475,18 @@ const Subjects = () => {
       )}
 
       {enrollmentSubject && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-[--color-bg-card] dark:bg-slate-800 rounded-2xl p-8 w-full max-w-4xl shadow-xl dark:shadow-slate-900/50 max-h-[85vh] flex flex-col">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="flex max-h-[85vh] w-full max-w-4xl flex-col rounded-2xl bg-[var(--color-card-surface)] p-8 shadow-xl dark:shadow-slate-900/50">
             <div className="flex justify-between items-center mb-6">
               <div>
-                <h2 className="text-xl font-bold text-[--color-text] dark:text-slate-100">Manage Enrollments</h2>
-                <p className="text-sm text-[--color-text-muted] dark:text-slate-400 mt-1">
+                <h2 className="text-xl font-bold text-[var(--color-heading)]">Manage Enrollments</h2>
+                <p className="mt-1 text-sm text-[var(--color-text-muted)]">
                   {enrollmentSubject.name} ({enrollmentSubject.code})
                 </p>
               </div>
               <button
                 onClick={() => setEnrollmentSubject(null)}
-                className="text-gray-400 hover:text-[--color-text-muted] dark:text-slate-400 text-xl"
+                className="text-xl text-[var(--color-text-soft)] hover:text-[var(--color-text-muted)]"
               >
                 ✕
               </button>
@@ -498,12 +498,12 @@ const Subjects = () => {
                 value={enrollmentSearch}
                 onChange={(e) => setEnrollmentSearch(e.target.value)}
                 placeholder="Search students by name, roll, email, section..."
-                className="flex-1 border border-[--color-border] dark:border-slate-700 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                className="flex-1 rounded-lg border border-[var(--color-card-border)] bg-[var(--color-card-surface)] px-4 py-2 text-sm text-[var(--color-page-text)] focus:outline-none focus:ring-2 focus:ring-primary"
               />
               <button
                 type="button"
                 onClick={applySuggestedEnrollments}
-                className="bg-primary-50 text-primary px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary-100"
+                className="rounded-lg bg-primary-50 px-4 py-2 text-sm font-medium text-primary hover:bg-primary-100 dark:bg-primary-950/30 dark:text-primary-300 dark:hover:bg-primary-950/50"
               >
                 Apply Suggested
               </button>
@@ -518,7 +518,7 @@ const Subjects = () => {
             ) : (
               <div className="flex-1 overflow-y-auto space-y-3 pr-1">
                 {filteredEnrollmentStudents.map((student) => (
-                  <label key={student.id} className="flex items-start gap-3 border rounded-xl p-4 hover:bg-[--color-bg] dark:bg-slate-900 cursor-pointer">
+                  <label key={student.id} className="flex cursor-pointer items-start gap-3 rounded-xl border border-[var(--color-card-border)] p-4 hover:bg-[var(--color-surface-muted)]">
                     <input
                       type="checkbox"
                       checked={student.enrolled}
@@ -532,12 +532,12 @@ const Subjects = () => {
                           <p className="text-sm text-[--color-text-muted] dark:text-slate-400 mt-1">{student.rollNumber} • {student.email}</p>
                         </div>
                         {student.suggested && (
-                          <span className="text-xs bg-primary-50 text-primary px-2 py-1 rounded-full font-medium">
+                          <span className="rounded-full bg-primary-50 px-2 py-1 text-xs font-medium text-primary dark:bg-primary-950/30 dark:text-primary-300">
                             Suggested
                           </span>
                         )}
                       </div>
-                      <p className="text-xs text-gray-400 mt-2">
+                      <p className="mt-2 text-xs text-[var(--color-text-soft)]">
                         Semester {student.semester}{student.department ? ` • ${student.department}` : ''}{student.section ? ` • Section ${student.section}` : ''}
                       </p>
                     </div>
@@ -553,7 +553,7 @@ const Subjects = () => {
               </div>
             )}
 
-            <div className="flex gap-3 pt-6 mt-4 border-t">
+            <div className="mt-4 flex gap-3 border-t border-[var(--color-card-border)] pt-6">
               <button
                 type="button"
                 onClick={() => setEnrollmentSubject(null)}

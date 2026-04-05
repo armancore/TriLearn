@@ -8,7 +8,7 @@ const variants = {
   INSTRUCTOR: 'bg-primary-100 text-primary',
   STUDENT: 'bg-primary-100 text-primary',
   GATEKEEPER: 'bg-accent-100 text-accent-700',
-  GENERAL: 'bg-[--color-bg] dark:bg-slate-800 text-gray-700',
+  GENERAL: 'bg-[var(--color-surface-muted)] text-[var(--color-page-text)]',
   EXAM: 'bg-accent-100 text-accent-700',
   URGENT: 'bg-accent-100 text-accent-700',
   EVENT: 'bg-primary-100 text-primary',
@@ -22,7 +22,7 @@ const variants = {
 }
 
 const StatusBadge = ({ status }) => (
-  <span className={`text-xs px-2 py-1 rounded-full font-medium ${variants[status] || 'bg-[--color-bg] dark:bg-slate-800 text-[--color-text-muted] dark:text-slate-400'}`}>
+  <span className={`text-xs px-2 py-1 rounded-full font-medium ${variants[status] || 'bg-[var(--color-surface-muted)] text-[var(--color-text-muted)]'}`}>
     {status}
   </span>
 )

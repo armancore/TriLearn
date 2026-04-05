@@ -457,6 +457,220 @@ test('updateUser does not wipe coordinator department when no department is prov
   assert.equal(coordinatorUpdates.length, 0)
 })
 
+test('updateUser does not wipe student department when no department is provided', async () => {
+  const studentUpdates = []
+  const { updateUser } = loadWithMocks(resolveFromTest('src', 'controllers', 'admin.controller.js'), {
+    '../utils/prisma': {
+      user: {
+        findFirst: async () => ({
+          id: 'user-1',
+          role: 'STUDENT',
+          student: {
+            id: 'student-1',
+            semester: 3,
+            section: 'A',
+            department: 'BCA'
+          },
+          instructor: null,
+          coordinator: null
+        }),
+        update: async () => ({
+          id: 'user-1',
+          name: 'Student One'
+        })
+      },
+      student: {
+        update: async (payload) => {
+          studentUpdates.push(payload)
+          return {
+            id: 'student-1',
+            semester: payload.data.semester,
+            section: payload.data.section,
+            department: 'BCA'
+          }
+        }
+      }
+    },
+    'bcryptjs': {
+      hash: async () => 'hashed'
+    },
+    '../utils/enrollment': {
+      enrollStudentInMatchingSubjects: async () => {}
+    },
+    '../utils/logger': {
+      error: () => {}
+    },
+    './department.controller': {
+      ensureDepartmentExists: async () => true
+    },
+    '../utils/audit': {
+      recordAuditLog: async () => {}
+    },
+    '../utils/mailer': {
+      sendMail: async () => {}
+    },
+    '../utils/emailTemplates': {
+      welcomeTemplate: () => ({ subject: 'Welcome', html: '<p>Welcome</p>', text: 'Welcome' })
+    }
+  })
+
+  const req = {
+    params: { id: 'user-1' },
+    body: {
+      name: 'Student One',
+      phone: '9800000000',
+      address: 'Kathmandu',
+      semester: 4,
+      section: 'B'
+    },
+    user: { id: 'admin-1', role: 'ADMIN' }
+  }
+  const res = createResponse()
+
+  await updateUser(req, res)
+
+  assert.equal(res.statusCode, 200)
+  assert.equal(studentUpdates.length, 1)
+  assert.equal(studentUpdates[0].data.department, undefined)
+  assert.equal(studentUpdates[0].data.semester, 4)
+  assert.equal(studentUpdates[0].data.section, 'B')
+})
+
+test('getAllUsers scopes coordinator queries to their department', async () => {
+  const findManyCalls = []
+  const { getAllUsers } = loadWithMocks(resolveFromTest('src', 'controllers', 'admin.controller.js'), {
+    '../utils/prisma': {
+      department: {
+        findFirst: async () => ({ name: 'BCA', code: 'BCA' })
+      },
+      user: {
+        findMany: async (payload) => {
+          findManyCalls.push(payload)
+          return []
+        },
+        count: async () => 0
+      }
+    },
+    '../utils/pagination': {
+      getPagination: () => ({ page: 1, limit: 20, skip: 0 })
+    },
+    '../utils/enrollment': {
+      enrollStudentInMatchingSubjects: async () => {}
+    },
+    '../utils/logger': {
+      error: () => {}
+    },
+    './department.controller': {
+      ensureDepartmentExists: async () => true
+    },
+    '../utils/audit': {
+      recordAuditLog: async () => {}
+    },
+    '../utils/mailer': {
+      sendMail: async () => {}
+    },
+    '../utils/emailTemplates': {
+      welcomeTemplate: () => ({ subject: 'Welcome', html: '<p>Welcome</p>', text: 'Welcome' })
+    }
+  })
+
+  const req = {
+    query: {},
+    user: { id: 'coordinator-user-1', role: 'COORDINATOR' },
+    coordinator: { department: 'BCA' }
+  }
+  const res = createResponse()
+
+  await getAllUsers(req, res)
+
+  assert.equal(res.statusCode, 200)
+  assert.equal(findManyCalls.length, 1)
+  assert.deepEqual(findManyCalls[0].where.role, { in: ['STUDENT', 'INSTRUCTOR'] })
+  assert.deepEqual(findManyCalls[0].where.AND[0], {
+    OR: [
+      {
+        role: 'STUDENT',
+        student: {
+          is: {
+            department: {
+              in: ['BCA']
+            }
+          }
+        }
+      },
+      {
+        role: 'INSTRUCTOR',
+        instructor: {
+          is: {
+            department: {
+              in: ['BCA']
+            }
+          }
+        }
+      }
+    ]
+  })
+})
+
+test('createStudentFromApplication blocks coordinators from converting another department application', async () => {
+  const { createStudentFromApplication } = loadWithMocks(resolveFromTest('src', 'controllers', 'admin.controller.js'), {
+    '../utils/prisma': {
+      department: {
+        findFirst: async () => ({ name: 'BCA', code: 'BCA' })
+      },
+      studentApplication: {
+        findUnique: async () => ({
+          id: 'application-1',
+          preferredDepartment: 'BBS',
+          linkedUserId: null,
+          status: 'PENDING'
+        })
+      }
+    },
+    'bcryptjs': {
+      hash: async () => 'hashed'
+    },
+    '../utils/enrollment': {
+      enrollStudentInMatchingSubjects: async () => {}
+    },
+    '../utils/logger': {
+      error: () => {}
+    },
+    './department.controller': {
+      ensureDepartmentExists: async () => true
+    },
+    '../utils/audit': {
+      recordAuditLog: async () => {}
+    },
+    '../utils/mailer': {
+      sendMail: async () => {}
+    },
+    '../utils/emailTemplates': {
+      welcomeTemplate: () => ({ subject: 'Welcome', html: '<p>Welcome</p>', text: 'Welcome' })
+    }
+  })
+
+  const req = {
+    params: { id: 'application-1' },
+    body: {
+      studentId: 'STU-001',
+      department: 'BBS',
+      semester: 1,
+      section: 'A'
+    },
+    user: { id: 'coordinator-user-1', role: 'COORDINATOR' },
+    coordinator: { department: 'BCA' }
+  }
+  const res = createResponse()
+
+  await createStudentFromApplication(req, res)
+
+  assert.equal(res.statusCode, 403)
+  assert.deepEqual(res.body, {
+    message: 'You can only manage applications in your own department'
+  })
+})
+
 test('deleteUser blocks deleting the last admin account', async () => {
   const deleteCalls = []
   const { deleteUser } = loadWithMocks(resolveFromTest('src', 'controllers', 'admin.controller.js'), {

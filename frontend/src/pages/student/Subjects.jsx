@@ -63,10 +63,10 @@ const StudentSubjects = () => {
                 <div className={`h-1.5 bg-gradient-to-r ${departmentBar(subject.department)}`} />
                 <div className="p-6">
                 <div className="flex justify-between items-start mb-4">
-                  <span className="text-xs font-bold text-primary bg-primary-50 px-2 py-1 rounded">
+                  <span className="rounded px-2 py-1 text-xs font-bold text-primary bg-primary-50 dark:bg-primary-950/30 dark:text-primary-300">
                     {subject.code}
                   </span>
-                  <span className="text-xs bg-[--color-bg] dark:bg-slate-800 text-[--color-text-muted] dark:text-slate-400 px-2 py-1 rounded">
+                  <span className="rounded bg-[var(--color-surface-muted)] px-2 py-1 text-xs text-[var(--color-text-muted)]">
                     Sem {subject.semester}
                   </span>
                 </div>
@@ -75,41 +75,41 @@ const StudentSubjects = () => {
                   <p className="text-sm text-[--color-text-muted] dark:text-slate-400 mb-4 line-clamp-2">{subject.description}</p>
                 )}
                 <div className="mb-4 flex flex-wrap gap-2 text-xs text-[--color-text-muted] dark:text-slate-400">
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1">
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--color-surface-muted)] px-3 py-1">
                     <ClipboardList className="h-3.5 w-3.5" />
                     <span>{subject._count?.assignments} assignments</span>
                   </span>
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1">
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--color-surface-muted)] px-3 py-1">
                     <Files className="h-3.5 w-3.5" />
                     <span>{subject._count?.materials} materials</span>
                   </span>
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1">
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--color-surface-muted)] px-3 py-1">
                     <BookOpenText className="h-3.5 w-3.5" />
                     <span>Sem {subject.semester}</span>
                   </span>
                 </div>
                 {subject.department && (
                   <div className="mt-3">
-                    <span className="text-xs bg-primary-50 text-primary px-2 py-1 rounded">
+                    <span className="rounded bg-primary-50 px-2 py-1 text-xs text-primary dark:bg-primary-950/30 dark:text-primary-300">
                       {subject.department}
                     </span>
                   </div>
                 )}
-                <div className="mt-5 flex items-center gap-3 border-t border-slate-200 pt-4">
+                <div className="mt-5 flex items-center gap-3 border-t border-[var(--color-card-border)] pt-4">
                   <div className="ui-role-fill flex h-10 w-10 items-center justify-center rounded-full text-xs font-black text-white">
                     {initialsFromName(subject.instructor?.user?.name)}
                   </div>
                   <div className="min-w-0">
-                    <p className="text-xs text-slate-400">Instructor</p>
-                    <p className="truncate text-sm font-semibold text-slate-900">{subject.instructor?.user?.name || 'Not assigned yet'}</p>
+                    <p className="text-xs text-[var(--color-text-soft)]">Instructor</p>
+                    <p className="truncate text-sm font-semibold text-[var(--color-heading)]">{subject.instructor?.user?.name || 'Not assigned yet'}</p>
                   </div>
-                  <GraduationCap className="ml-auto h-5 w-5 text-slate-300" />
+                  <GraduationCap className="ml-auto h-5 w-5 text-[var(--color-text-soft)]" />
                 </div>
                 </div>
               </div>
             ))}
             {subjects.length === 0 && (
-              <div className="col-span-3 text-center py-12 text-gray-400">
+              <div className="col-span-3 py-12 text-center text-[var(--color-text-soft)]">
                 No subjects found
               </div>
             )}

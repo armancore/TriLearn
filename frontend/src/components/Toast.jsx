@@ -6,20 +6,20 @@ const ToastContext = createContext({ showToast: () => {} })
 const toastStyles = {
   success: {
     icon: CheckCircle2,
-    card: 'border-primary-200 bg-[--color-bg-card] dark:bg-slate-800 text-slate-900',
-    iconWrap: 'bg-primary-50 text-primary',
+    card: 'border-primary-200 bg-[var(--color-card-surface)] text-[var(--color-heading)] dark:border-primary-700/40',
+    iconWrap: 'bg-primary-50 text-primary dark:bg-primary-950/30 dark:text-primary-300',
     progress: 'bg-primary-500'
   },
   error: {
     icon: CircleAlert,
-    card: 'border-accent-200 bg-[--color-bg-card] dark:bg-slate-800 text-slate-900',
-    iconWrap: 'bg-accent-50 text-accent-600',
+    card: 'border-accent-200 bg-[var(--color-card-surface)] text-[var(--color-heading)] dark:border-accent-700/40',
+    iconWrap: 'bg-accent-50 text-accent-600 dark:bg-accent-950/30 dark:text-accent-300',
     progress: 'bg-accent'
   },
   info: {
     icon: Info,
-    card: 'border-primary-200 bg-[--color-bg-card] dark:bg-slate-800 text-slate-900',
-    iconWrap: 'bg-primary-50 text-primary',
+    card: 'border-primary-200 bg-[var(--color-card-surface)] text-[var(--color-heading)] dark:border-primary-700/40',
+    iconWrap: 'bg-primary-50 text-primary dark:bg-primary-950/30 dark:text-primary-300',
     progress: 'bg-primary-500'
   }
 }
@@ -84,19 +84,19 @@ const Toast = ({ toast, onDismiss }) => {
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold">{toast.title}</p>
           {toast.description ? (
-            <p className="mt-1 text-sm leading-6 text-slate-500">{toast.description}</p>
+          <p className="mt-1 text-sm leading-6 text-[var(--color-text-muted)]">{toast.description}</p>
           ) : null}
         </div>
         <button
           type="button"
           onClick={() => onDismiss(toast.id)}
-          className="rounded-full p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+          className="rounded-full p-1 text-[var(--color-text-soft)] transition hover:bg-[var(--color-surface-muted)] hover:text-[var(--color-text-muted)]"
           aria-label="Dismiss notification"
         >
           <X className="h-4 w-4" />
         </button>
       </div>
-      <div className="h-1 w-full bg-slate-100">
+      <div className="h-1 w-full bg-[var(--color-surface-muted)]">
         <div
           className={`h-full ${tone.progress}`}
           style={{

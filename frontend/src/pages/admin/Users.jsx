@@ -262,14 +262,14 @@ const Users = () => {
 
         {/* Filter */}
         <div className="mb-6 space-y-4">
-          <div className="rounded-2xl border border-slate-200 bg-[--color-bg-card] dark:bg-slate-800 p-4 shadow-sm dark:shadow-slate-900/50">
-            <label className="mb-2 block text-sm font-medium text-slate-700">Search users</label>
+          <div className="rounded-2xl border border-[var(--color-card-border)] bg-[var(--color-card-surface)] p-4 shadow-sm dark:shadow-slate-900/50">
+            <label className="mb-2 block text-sm font-medium text-[var(--color-page-text)]">Search users</label>
             <input
               type="text"
               value={searchTerm}
               onChange={(event) => setSearchTerm(event.target.value)}
               placeholder="Search by name, email, phone, roll number, or department"
-              className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+              className="w-full rounded-xl border border-[var(--color-card-border)] bg-[var(--color-card-surface)] px-4 py-3 text-sm text-[var(--color-page-text)] focus:outline-none focus:ring-2 focus:ring-primary"
             />
           </div>
           <div className="flex flex-wrap gap-3">
@@ -281,7 +281,7 @@ const Users = () => {
                 className={`px-4 py-2 rounded-lg text-sm font-medium transition
                   ${filterRole === role
                     ? 'bg-primary text-white'
-                    : 'bg-[--color-bg-card] dark:bg-slate-800 text-[--color-text-muted] dark:text-slate-400 hover:bg-[--color-bg] dark:bg-slate-900 border'
+                    : 'border border-[var(--color-card-border)] bg-[var(--color-card-surface)] text-[var(--color-text-muted)] hover:bg-[var(--color-surface-muted)]'
                   }`}
               >
                 {role || 'All'}
@@ -291,7 +291,7 @@ const Users = () => {
         </div>
 
         {/* Users Table */}
-        <div className="bg-[--color-bg-card] dark:bg-slate-800 rounded-2xl shadow-sm dark:shadow-slate-900/50 overflow-hidden">
+        <div className="overflow-hidden rounded-2xl bg-[var(--color-card-surface)] shadow-sm dark:shadow-slate-900/50">
           {loading ? (
             <div className="p-6">
               <LoadingSkeleton rows={6} itemClassName="h-16" />
@@ -318,16 +318,16 @@ const Users = () => {
                 </div>
               ) : (
               <>
-              <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50/70 px-6 py-4">
+              <div className="flex items-center justify-between border-b border-[var(--color-card-border)] bg-[var(--color-surface-muted)] px-6 py-4">
                 <div>
-                  <h2 className="text-lg font-semibold text-slate-900">Directory</h2>
-                  <p className="text-sm text-slate-500">Manage account access, roles, and user status.</p>
+                  <h2 className="text-lg font-semibold text-[var(--color-heading)]">Directory</h2>
+                  <p className="text-sm text-[var(--color-text-muted)]">Manage account access, roles, and user status.</p>
                 </div>
                 <span className="ui-status-badge ui-status-neutral">{total} records</span>
               </div>
               <div className="overflow-x-auto max-h-[720px]">
               <table className="w-full min-w-[840px]">
-                <thead className="sticky top-0 z-10 bg-slate-50">
+                <thead className="sticky top-0 z-10 bg-[var(--color-surface-muted)]">
                   <tr className="text-left text-sm text-[--color-text-muted] dark:text-slate-400">
                     <th scope="col" className="px-6 py-4">Name</th>
                     <th scope="col" className="px-6 py-4">Email</th>
@@ -339,10 +339,10 @@ const Users = () => {
                 </thead>
                 <tbody>
                   {users.map((user) => (
-                    <tr key={user.id} className="border-t border-slate-200 transition-colors hover:bg-primary-50/30">
+                    <tr key={user.id} className="border-t border-[var(--color-card-border)] transition-colors hover:bg-primary-50/30 dark:hover:bg-primary-950/15">
                       <td className="px-6 py-4">
-                        <p className="font-semibold text-slate-900">{user.name}</p>
-                        <p className="mt-1 text-xs text-slate-500">{user.phone || user.email}</p>
+                        <p className="font-semibold text-[var(--color-heading)]">{user.name}</p>
+                        <p className="mt-1 text-xs text-[var(--color-text-muted)]">{user.phone || user.email}</p>
                       </td>
                       <td className="px-6 py-4 text-[--color-text-muted] dark:text-slate-400 text-sm">{user.email}</td>
                       <td className="px-6 py-4">
@@ -448,7 +448,7 @@ const Users = () => {
                     />
                     {errors.studentId && <p className="ui-form-helper-error">{errors.studentId}</p>}
                   </div>
-                  <div className="rounded-lg bg-primary-50 px-4 py-3 text-sm text-primary">
+                  <div className="rounded-lg bg-primary-50 px-4 py-3 text-sm text-primary dark:bg-primary-950/30 dark:text-primary-300">
                     The student will sign in using their personal email address and will be forced to change the default password on first login.
                   </div>
                 </>

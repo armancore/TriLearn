@@ -102,6 +102,8 @@ test('POST /api/v1/auth/login returns the controller response through the real r
     },
     '../middleware/rateLimit.middleware': {
       authLimiter: (_req, _res, next) => next(),
+      loginLimiter: (_req, _res, next) => next(),
+      refreshLimiter: (_req, _res, next) => next(),
       uploadLimiter: (_req, _res, next) => next()
     },
     '../middleware/upload.middleware': {
@@ -153,6 +155,8 @@ test('POST /api/v1/auth/login returns 401 for a wrong password through the real 
     },
     '../middleware/rateLimit.middleware': {
       authLimiter: (_req, _res, next) => next(),
+      loginLimiter: (_req, _res, next) => next(),
+      refreshLimiter: (_req, _res, next) => next(),
       uploadLimiter: (_req, _res, next) => next()
     },
     '../middleware/upload.middleware': {
@@ -210,6 +214,8 @@ test('POST /api/v1/auth/refresh returns a new token when the refresh cookie is v
     },
     '../middleware/rateLimit.middleware': {
       authLimiter: (_req, _res, next) => next(),
+      loginLimiter: (_req, _res, next) => next(),
+      refreshLimiter: (_req, _res, next) => next(),
       uploadLimiter: (_req, _res, next) => next()
     },
     '../middleware/upload.middleware': {
@@ -257,6 +263,8 @@ test('POST /api/v1/auth/refresh returns 401 when the refresh cookie is missing',
     },
     '../middleware/rateLimit.middleware': {
       authLimiter: (_req, _res, next) => next(),
+      loginLimiter: (_req, _res, next) => next(),
+      refreshLimiter: (_req, _res, next) => next(),
       uploadLimiter: (_req, _res, next) => next()
     },
     '../middleware/upload.middleware': {

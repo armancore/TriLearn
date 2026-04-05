@@ -34,6 +34,31 @@ const getSessionLabel = (userAgent) => {
   return userAgent || 'Unknown device'
 }
 
+const toDateInputValue = (value) => {
+  if (!value) {
+    return ''
+  }
+
+  const parsed = new Date(value)
+  return Number.isNaN(parsed.getTime()) ? '' : parsed.toISOString().slice(0, 10)
+}
+
+const formatDateTime = (value) => {
+  if (!value) {
+    return 'Unknown'
+  }
+
+  const parsed = new Date(value)
+  return Number.isNaN(parsed.getTime()) ? 'Unknown' : parsed.toLocaleString()
+}
+
+const getRoleLabel = (role) => ({
+  STUDENT: 'Student',
+  INSTRUCTOR: 'Instructor',
+  COORDINATOR: 'Coordinator',
+  ADMIN: 'Admin'
+}[role] || 'Account')
+
 const buildFormState = (currentUser) => ({
   phone: currentUser.phone || '',
   address: currentUser.address || '',
@@ -47,7 +72,7 @@ const buildFormState = (currentUser) => ({
   localGuardianPhone: currentUser.student?.localGuardianPhone || '',
   permanentAddress: currentUser.student?.permanentAddress || '',
   temporaryAddress: currentUser.student?.temporaryAddress || currentUser.address || '',
-  dateOfBirth: currentUser.student?.dateOfBirth ? new Date(currentUser.student.dateOfBirth).toISOString().slice(0, 10) : '',
+  dateOfBirth: toDateInputValue(currentUser.student?.dateOfBirth),
   section: currentUser.student?.section || ''
 })
 
@@ -228,7 +253,7 @@ const ProfilePage = () => {
       <PageHeader
         title="My Profile"
         subtitle="Keep your contact details current while identity fields remain locked for authenticity."
-        breadcrumbs={[user?.role === 'STUDENT' ? 'Student' : user?.role === 'INSTRUCTOR' ? 'Instructor' : 'Admin', 'Profile']}
+        breadcrumbs={[getRoleLabel(user?.role), 'Profile']}
       />
 
       <Alert type="success" message={success} />
@@ -391,7 +416,7 @@ const ProfilePage = () => {
                       <div>
                         <p className="text-sm font-semibold text-slate-900">{formatActivityLabel(item.action)}</p>
                         <p className="mt-1 text-xs text-slate-500">
-                          {new Date(item.createdAt).toLocaleString()}
+                          {formatDateTime(item.createdAt)}
                         </p>
                       </div>
                       {item.metadata?.ipAddress ? (
@@ -424,9 +449,9 @@ const ProfilePage = () => {
                       ) : null}
                     </div>
                     <p className="mt-2 text-xs text-slate-500">IP: {session.ipAddress || 'Unknown'}</p>
-                    <p className="mt-1 text-xs text-slate-500">Started: {new Date(session.createdAt).toLocaleString()}</p>
-                    <p className="mt-1 text-xs text-slate-500">Last used: {session.lastUsedAt ? new Date(session.lastUsedAt).toLocaleString() : 'Not tracked yet'}</p>
-                    <p className="mt-1 text-xs text-slate-500">Expires: {new Date(session.expiresAt).toLocaleString()}</p>
+                    <p className="mt-1 text-xs text-slate-500">Started: {formatDateTime(session.createdAt)}</p>
+                    <p className="mt-1 text-xs text-slate-500">Last used: {session.lastUsedAt ? formatDateTime(session.lastUsedAt) : 'Not tracked yet'}</p>
+                    <p className="mt-1 text-xs text-slate-500">Expires: {formatDateTime(session.expiresAt)}</p>
                   </div>
                 ))}
               </div>

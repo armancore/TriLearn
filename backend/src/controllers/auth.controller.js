@@ -324,6 +324,10 @@ const login = async (req, res) => {
       return res.status(401).json({ message: 'Invalid credentials' })
     }
 
+    if (user.deletedAt) {
+      return res.status(401).json({ message: 'Invalid credentials' })
+    }
+
     if (user.lockedUntil && user.lockedUntil > new Date()) {
       return res.status(423).json({
         message: 'Too many failed login attempts. Please try again later.'
@@ -789,6 +793,7 @@ const refresh = async (req, res) => {
             email: true,
             role: true,
             isActive: true,
+            deletedAt: true,
             mustChangePassword: true,
             profileCompleted: true
           }
@@ -796,7 +801,7 @@ const refresh = async (req, res) => {
       }
     })
 
-    if (!storedRefreshToken || !storedRefreshToken.user.isActive) {
+    if (!storedRefreshToken || !storedRefreshToken.user.isActive || storedRefreshToken.user.deletedAt) {
       return res.status(401).json({ message: 'Refresh token is invalid or expired' })
     }
 

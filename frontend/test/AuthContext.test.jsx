@@ -34,6 +34,7 @@ const Consumer = () => {
 describe('AuthContext', () => {
   beforeEach(() => {
     getAuthStateMock.mockReturnValue({ user: null, token: null })
+    refreshSessionMock.mockReset()
     refreshSessionMock.mockResolvedValue({ token: 'fresh-token', user: { name: 'Refreshed', role: 'ADMIN' } })
     setAuthStateMock.mockReset()
     subscribeToAuthStateMock.mockImplementation((listener) => {
@@ -57,6 +58,26 @@ describe('AuthContext', () => {
     expect(screen.getByTestId('name')).toHaveTextContent('Cached')
     await waitFor(() => {
       expect(refreshSessionMock).toHaveBeenCalled()
+      expect(screen.getByTestId('loading')).toHaveTextContent('false')
+    })
+  })
+
+  it('skips refresh and clears stale cached users on public auth routes', async () => {
+    getAuthStateMock
+      .mockReturnValueOnce({ user: { name: 'Cached', role: 'ADMIN' }, token: null })
+      .mockReturnValue({ user: { name: 'Cached', role: 'ADMIN' }, token: null })
+
+    render(
+      <MemoryRouter initialEntries={['/login']}>
+        <AuthProvider>
+          <Consumer />
+        </AuthProvider>
+      </MemoryRouter>
+    )
+
+    await waitFor(() => {
+      expect(refreshSessionMock).not.toHaveBeenCalled()
+      expect(setAuthStateMock).toHaveBeenCalledWith({ token: null, user: null })
       expect(screen.getByTestId('loading')).toHaveTextContent('false')
     })
   })
