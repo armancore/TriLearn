@@ -50,6 +50,25 @@ const pdfOnly = (_req, file, cb) => {
   cb(null, true)
 }
 
+const spreadsheetOnly = (_req, file, cb) => {
+  const mimeType = String(file.mimetype || '').toLowerCase()
+  const fileName = String(file.originalname || '').toLowerCase()
+  const isSpreadsheet = (
+    mimeType === 'text/csv' ||
+    mimeType === 'application/csv' ||
+    mimeType === 'application/vnd.ms-excel' ||
+    mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+    fileName.endsWith('.csv') ||
+    fileName.endsWith('.xlsx')
+  )
+
+  if (!isSpreadsheet) {
+    return cb(new Error('Only CSV or XLSX files are allowed'))
+  }
+
+  cb(null, true)
+}
+
 const imageOnly = (_req, file, cb) => {
   const mimeType = String(file.mimetype || '').toLowerCase()
   const fileName = String(file.originalname || '').toLowerCase()
@@ -73,6 +92,14 @@ const createUploadMiddleware = (role) => multer({
 const createImageUploadMiddleware = (maxBytes = 3 * 1024 * 1024) => multer({
   storage,
   fileFilter: imageOnly,
+  limits: {
+    fileSize: maxBytes
+  }
+})
+
+const createSpreadsheetUploadMiddleware = (maxBytes = 5 * 1024 * 1024) => multer({
+  storage,
+  fileFilter: spreadsheetOnly,
   limits: {
     fileSize: maxBytes
   }
@@ -117,6 +144,28 @@ const uploadImage = {
 
       if (error instanceof Error) {
         return res.status(400).json({ message: error.message || 'Unable to upload image' })
+      }
+
+      next(error)
+    })
+  }
+}
+
+const uploadSpreadsheet = {
+  single: (fieldName, { maxBytes = 5 * 1024 * 1024 } = {}) => (req, res, next) => {
+    createSpreadsheetUploadMiddleware(maxBytes).single(fieldName)(req, res, (error) => {
+      if (!error) {
+        return next()
+      }
+
+      if (error instanceof multer.MulterError && error.code === 'LIMIT_FILE_SIZE') {
+        return res.status(413).json({
+          message: `Uploaded spreadsheet exceeds the ${formatBytesInMb(maxBytes)} limit`
+        })
+      }
+
+      if (error instanceof Error) {
+        return res.status(400).json({ message: error.message || 'Unable to upload spreadsheet' })
       }
 
       next(error)
@@ -204,4 +253,4 @@ const removeUploadedFile = async (fileUrl) => {
   }
 }
 
-module.exports = { uploadPdf, uploadImage, uploadPath, validateUploadedPdf, validateUploadedImage, removeUploadedFile }
+module.exports = { uploadPdf, uploadImage, uploadSpreadsheet, uploadPath, validateUploadedPdf, validateUploadedImage, removeUploadedFile }

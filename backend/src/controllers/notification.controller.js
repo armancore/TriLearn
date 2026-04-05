@@ -1,4 +1,8 @@
 const prisma = require('../utils/prisma')
+const {
+  emitNotificationRead,
+  emitNotificationsReadAll
+} = require('../utils/realtime')
 
 const listNotifications = async (req, res) => {
   try {
@@ -70,6 +74,15 @@ const markNotificationRead = async (req, res) => {
       }
     })
 
+    const unreadCount = await prisma.notification.count({
+      where: {
+        userId: req.user.id,
+        isRead: false
+      }
+    })
+
+    emitNotificationRead(req.user.id, updated.id, updated.readAt, unreadCount)
+
     res.json({ notification: updated })
   } catch (error) {
     res.internalError(error)
@@ -88,6 +101,8 @@ const markAllNotificationsRead = async (req, res) => {
         readAt: new Date()
       }
     })
+
+    emitNotificationsReadAll(req.user.id, new Date().toISOString())
 
     res.json({
       message: 'Notifications marked as read.',

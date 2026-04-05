@@ -35,7 +35,7 @@ const BrandLogo = ({
   const palette = theme === 'light'
     ? {
         shell: 'text-[var(--color-heading)]',
-        badge: 'border border-primary-200 bg-[linear-gradient(135deg,#ffffff_0%,#e0ecff_100%)] shadow-[0_14px_36px_rgba(26,60,110,0.12)]',
+        badge: 'ui-brand-logo-badge-light border border-primary-200 bg-[linear-gradient(135deg,#ffffff_0%,#e0ecff_100%)]',
         ring: 'border-primary-300/70',
         orbit: 'bg-primary text-white',
         dot: 'bg-accent',
@@ -43,7 +43,7 @@ const BrandLogo = ({
       }
     : {
         shell: 'text-white',
-        badge: 'border border-white/15 bg-[linear-gradient(135deg,rgba(255,255,255,0.14)_0%,rgba(84,131,195,0.16)_100%)] shadow-[0_18px_42px_rgba(15,23,42,0.3)]',
+        badge: 'ui-brand-logo-badge-dark border border-white/15 bg-[linear-gradient(135deg,rgba(255,255,255,0.14)_0%,rgba(84,131,195,0.16)_100%)]',
         ring: 'border-white/18',
         orbit: 'bg-white text-primary',
         dot: 'bg-accent',

@@ -305,6 +305,7 @@ test('GET /api/v1/admin/stats denies instructors through the real admin route', 
       createGatekeeper: async (_req, res) => res.json({}),
       createInstructor: async (_req, res) => res.json({}),
       createStudent: async (_req, res) => res.json({}),
+      importStudents: async (_req, res) => res.json({}),
       updateUser: async (_req, res) => res.json({}),
       toggleUserStatus: async (_req, res) => res.json({}),
       deleteUser: async (_req, res) => res.json({})

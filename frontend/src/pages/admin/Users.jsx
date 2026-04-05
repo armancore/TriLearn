@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Power, Trash2, UserPlus } from 'lucide-react'
+import { FileSpreadsheet, Power, Trash2, Upload, UserPlus } from 'lucide-react'
 import AdminLayout from '../../layouts/AdminLayout'
 import CoordinatorLayout from '../../layouts/CoordinatorLayout'
 import api from '../../utils/api'
@@ -47,6 +47,10 @@ const Users = () => {
   const [modalType, setModalType] = useState('instructor')
   const [userToDelete, setUserToDelete] = useState(null)
   const [deletingUser, setDeletingUser] = useState(false)
+  const [showImportModal, setShowImportModal] = useState(false)
+  const [importingStudents, setImportingStudents] = useState(false)
+  const [importFile, setImportFile] = useState(null)
+  const [importResult, setImportResult] = useState(null)
   const [error, setError] = useState('')
   const { showToast } = useToast()
   const [filterRole, setFilterRole] = useState('')
@@ -227,6 +231,47 @@ const Users = () => {
     setShowModal(true)
   }
 
+  const openImportModal = () => {
+    setError('')
+    setImportFile(null)
+    setImportResult(null)
+    setShowImportModal(true)
+  }
+
+  const handleImportStudents = async () => {
+    if (!importFile) {
+      setError('Please choose a CSV or XLSX file to import.')
+      return
+    }
+
+    const formData = new FormData()
+    formData.append('file', importFile)
+
+    try {
+      setImportingStudents(true)
+      setError('')
+      const response = await api.post('/admin/users/student-import', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      })
+
+      setImportResult(response.data)
+      await fetchUsers()
+      showToast({
+        title: 'Student import completed.',
+        description: `${response.data.summary?.created || 0} students created, ${response.data.summary?.failed || 0} rows failed.`,
+        type: 'success',
+        duration: 5000
+      })
+    } catch (requestError) {
+      setImportResult(requestError?.response?.data || null)
+      setError(getFriendlyErrorMessage(requestError, 'Unable to import students right now.'))
+    } finally {
+      setImportingStudents(false)
+    }
+  }
+
   const canToggleStatus = (targetUser) => {
     if (!targetUser || targetUser.id === currentUser?.id) {
       return false
@@ -251,7 +296,8 @@ const Users = () => {
             ...(!isCoordinator ? [
               { label: 'Add Coordinator', icon: UserPlus, variant: 'primary', onClick: () => openModal('coordinator') },
               { label: 'Add Instructor', icon: UserPlus, variant: 'primary', onClick: () => openModal('instructor') },
-              { label: 'Add Gate Account', icon: UserPlus, variant: 'primary', onClick: () => openModal('gatekeeper') }
+              { label: 'Add Gate Account', icon: UserPlus, variant: 'primary', onClick: () => openModal('gatekeeper') },
+              { label: 'Import Students', icon: Upload, variant: 'secondary', onClick: openImportModal }
             ] : []),
             { label: 'Add Student', icon: UserPlus, variant: 'primary', onClick: () => openModal('student') }
           ]}
@@ -262,6 +308,24 @@ const Users = () => {
 
         {/* Filter */}
         <div className="mb-6 space-y-4">
+          {!isCoordinator ? (
+            <div className="rounded-2xl border border-dashed border-[var(--color-card-border)] bg-[var(--color-card-surface)] p-4 shadow-sm dark:shadow-slate-900/50">
+              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-[var(--color-heading)]">Bulk student import</p>
+                  <p className="mt-1 text-sm text-[var(--color-text-muted)]">Upload a CSV or XLSX file with `name`, `email`, `studentId`, `department`, `semester`, and `section`. `phone` and `address` are optional.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={openImportModal}
+                  className="inline-flex items-center gap-2 rounded-xl border border-[var(--color-card-border)] bg-[var(--color-surface-muted)] px-4 py-2 text-sm font-semibold text-[var(--color-heading)] transition hover:bg-[var(--color-surface-subtle)]"
+                >
+                  <FileSpreadsheet className="h-4 w-4" />
+                  <span>Upload roster</span>
+                </button>
+              </div>
+            </div>
+          ) : null}
           <div className="rounded-2xl border border-[var(--color-card-border)] bg-[var(--color-card-surface)] p-4 shadow-sm dark:shadow-slate-900/50">
             <label className="mb-2 block text-sm font-medium text-[var(--color-page-text)]">Search users</label>
             <input
@@ -559,6 +623,109 @@ const Users = () => {
                 </button>
               </div>
             </form>
+        </Modal>
+      )}
+
+      {showImportModal && (
+        <Modal
+          title="Import Students"
+          onClose={() => {
+            if (!importingStudents) {
+              setShowImportModal(false)
+            }
+          }}
+        >
+          <Alert type="error" message={error} />
+
+          <div className="space-y-4">
+            <div className="rounded-xl bg-[var(--color-surface-muted)] px-4 py-4 text-sm text-[var(--color-text-muted)]">
+              Use a CSV or XLSX file with these columns: `name`, `email`, `studentId`, `department`, `semester`, `section`.
+              Optional columns: `phone`, `address`. Department can match either the department name or code.
+            </div>
+
+            <label className="ui-form-file">
+              <input
+                type="file"
+                accept=".csv,.xlsx"
+                className="ui-form-file-input"
+                onChange={(event) => {
+                  const nextFile = event.target.files?.[0] || null
+                  setImportFile(nextFile)
+                  setImportResult(null)
+                }}
+              />
+              <span>{importFile ? `${importFile.name} selected` : 'Choose a CSV or XLSX file'}</span>
+            </label>
+
+            {importResult?.summary ? (
+              <div className="rounded-xl border border-[var(--color-card-border)] bg-[var(--color-card-surface)] p-4">
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <div className="rounded-xl bg-[var(--color-surface-muted)] px-4 py-3">
+                    <p className="text-xs uppercase tracking-[0.2em] text-[var(--color-text-soft)]">Processed</p>
+                    <p className="mt-2 text-2xl font-black text-[var(--color-heading)]">{importResult.summary.processed || 0}</p>
+                  </div>
+                  <div className="rounded-xl bg-primary-50 px-4 py-3 dark:bg-primary-950/20">
+                    <p className="text-xs uppercase tracking-[0.2em] text-primary">Created</p>
+                    <p className="mt-2 text-2xl font-black text-primary">{importResult.summary.created || 0}</p>
+                  </div>
+                  <div className="rounded-xl bg-accent-50 px-4 py-3 dark:bg-accent-950/20">
+                    <p className="text-xs uppercase tracking-[0.2em] text-accent-700 dark:text-accent-300">Failed</p>
+                    <p className="mt-2 text-2xl font-black text-accent-700 dark:text-accent-300">{importResult.summary.failed || 0}</p>
+                  </div>
+                </div>
+
+                {Array.isArray(importResult.created) && importResult.created.length > 0 ? (
+                  <div className="mt-4">
+                    <p className="text-sm font-semibold text-[var(--color-heading)]">Created accounts</p>
+                    <div className="mt-2 max-h-48 space-y-2 overflow-y-auto rounded-xl bg-[var(--color-surface-muted)] p-3">
+                      {importResult.created.map((student) => (
+                        <div key={`${student.rowNumber}-${student.studentId}`} className="rounded-lg bg-[var(--color-card-surface)] px-3 py-3 text-sm">
+                          <p className="font-semibold text-[var(--color-heading)]">{student.name} · {student.studentId}</p>
+                          <p className="mt-1 text-[var(--color-text-muted)]">{student.email}</p>
+                          <p className="mt-1 text-[var(--color-text-muted)]">Temp password: <span className="font-medium text-[var(--color-heading)]">{student.temporaryPassword}</span></p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+
+                {Array.isArray(importResult.failures) && importResult.failures.length > 0 ? (
+                  <div className="mt-4">
+                    <p className="text-sm font-semibold text-[var(--color-heading)]">Failed rows</p>
+                    <div className="mt-2 max-h-48 space-y-2 overflow-y-auto rounded-xl bg-[var(--color-surface-muted)] p-3">
+                      {importResult.failures.map((failure) => (
+                        <div key={`${failure.rowNumber}-${failure.studentId || failure.email || failure.message}`} className="rounded-lg bg-[var(--color-card-surface)] px-3 py-3 text-sm">
+                          <p className="font-semibold text-[var(--color-heading)]">Row {failure.rowNumber}</p>
+                          <p className="mt-1 text-[var(--color-text-muted)]">{failure.message}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+
+            <div className="ui-modal-footer">
+              <button
+                type="button"
+                onClick={() => setShowImportModal(false)}
+                disabled={importingStudents}
+                className="flex-1 border border-[--color-border] dark:border-slate-700 text-[--color-text-muted] dark:text-slate-400 py-2 rounded-lg text-sm hover:bg-[--color-bg] dark:bg-slate-900 disabled:opacity-60"
+              >
+                Close
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  void handleImportStudents()
+                }}
+                disabled={!importFile || importingStudents}
+                className="flex-1 bg-primary text-white py-2 rounded-lg text-sm hover:bg-primary font-medium disabled:opacity-60"
+              >
+                {importingStudents ? 'Importing...' : 'Import Students'}
+              </button>
+            </div>
+          </div>
         </Modal>
       )}
 

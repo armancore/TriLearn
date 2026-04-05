@@ -1,3 +1,4 @@
+const http = require('http')
 const express = require('express')
 const cors = require('cors')
 const cookieParser = require('cookie-parser')
@@ -11,6 +12,7 @@ const { uploadPath, uploadPublicPath } = require('./utils/fileStorage')
 const { csrfProtection, getRuntimeEnv, getTrustedOrigins } = require('./middleware/csrf.middleware')
 const prisma = require('./utils/prisma')
 const { scheduleMaintenance } = require('./utils/maintenance')
+const { initRealtime, closeRealtime } = require('./utils/realtime')
 
 dotenv.config()
 validateEnv()
@@ -136,7 +138,12 @@ const startServer = () => {
   }
 
   maintenance = scheduleMaintenance(prisma)
-  server = app.listen(PORT, () => {
+  server = http.createServer(app)
+  initRealtime({
+    server,
+    allowedOrigins
+  })
+  server.listen(PORT, () => {
     logger.info('TriLearn server running', { port: PORT })
   })
 
@@ -154,6 +161,7 @@ const shutdown = async (signal) => {
 
   server.close(async () => {
     try {
+      await closeRealtime()
       await prisma.$disconnect()
       process.exit(0)
     } catch (error) {

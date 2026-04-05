@@ -77,6 +77,7 @@ model Instructor {
   userId     String   @unique
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   department String?
+  departmentDetails Department? @relation("InstructorDepartment", fields: [department], references: [name], onDelete: SetNull, onUpdate: Cascade)
   subjects   Subject[]
   attendances Attendance[]
   assignments Assignment[]
@@ -92,6 +93,7 @@ model Coordinator {
   userId     String   @unique
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   department String?
+  departmentDetails Department? @relation("CoordinatorDepartment", fields: [department], references: [name], onDelete: SetNull, onUpdate: Cascade)
 }
 
 model Student {
@@ -102,6 +104,7 @@ model Student {
   semester     Int
   section      String?
   department   String?
+  departmentDetails Department? @relation("StudentDepartment", fields: [department], references: [name], onDelete: SetNull, onUpdate: Cascade)
   guardianName String?
   guardianPhone String?
   fatherName   String?
@@ -138,6 +141,7 @@ model Subject {
   description  String?
   semester     Int
   department   String?
+  departmentDetails Department? @relation("SubjectDepartment", fields: [department], references: [name], onDelete: SetNull, onUpdate: Cascade)
   instructorId String?
   instructor   Instructor? @relation(fields: [instructorId], references: [id], onDelete: SetNull)
   createdAt    DateTime @default(now())
@@ -451,6 +455,10 @@ model Department {
   description String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  students    Student[] @relation("StudentDepartment")
+  instructors Instructor[] @relation("InstructorDepartment")
+  coordinators Coordinator[] @relation("CoordinatorDepartment")
+  subjects    Subject[] @relation("SubjectDepartment")
 }
 
 model StudentApplication {

@@ -20,6 +20,10 @@ const ChangePassword = () => {
     const validationErrors = {}
     if (!formValues.currentPassword) validationErrors.currentPassword = 'Current password is required'
     if (!formValues.newPassword) validationErrors.newPassword = 'New password is required'
+    else if (formValues.newPassword.length < 8) validationErrors.newPassword = 'Password must be at least 8 characters'
+    else if (!/[A-Z]/.test(formValues.newPassword)) validationErrors.newPassword = 'Password must contain an uppercase letter'
+    else if (!/[a-z]/.test(formValues.newPassword)) validationErrors.newPassword = 'Password must contain a lowercase letter'
+    else if (!/[0-9]/.test(formValues.newPassword)) validationErrors.newPassword = 'Password must contain a number'
     if (formValues.newPassword !== formValues.confirmPassword) validationErrors.confirmPassword = 'Passwords do not match'
     return validationErrors
   })

@@ -103,21 +103,9 @@ const updateDepartment = async (req, res) => {
       return res.status(400).json({ message: 'Department name and code are required' })
     }
 
-    const updated = await prisma.$transaction(async (tx) => {
-      const department = await tx.department.update({
-        where: { id },
-        data: { name, code, description }
-      })
-
-      if (existing.name !== name) {
-        await Promise.all([
-          tx.student.updateMany({ where: { department: existing.name }, data: { department: name } }),
-          tx.instructor.updateMany({ where: { department: existing.name }, data: { department: name } }),
-          tx.subject.updateMany({ where: { department: existing.name }, data: { department: name } })
-        ])
-      }
-
-      return department
+    const updated = await prisma.department.update({
+      where: { id },
+      data: { name, code, description }
     })
 
     res.json({

@@ -1,4 +1,7 @@
 const prisma = require('../utils/prisma')
+const fs = require('fs')
+const path = require('path')
+const ExcelJS = require('exceljs')
 const { enrollStudentInMatchingSubjects } = require('../utils/enrollment')
 const { getPagination } = require('../utils/pagination')
 const logger = require('../utils/logger')
@@ -21,6 +24,157 @@ const buildContainsSearch = (search) => ({
   contains: search,
   mode: 'insensitive'
 })
+
+const normalizeImportHeader = (value) => String(value || '')
+  .trim()
+  .toLowerCase()
+  .replace(/[^a-z0-9]/g, '')
+
+const STUDENT_IMPORT_HEADER_ALIASES = {
+  name: ['name', 'fullname', 'studentname'],
+  email: ['email', 'studentemail', 'personalemail'],
+  studentId: ['studentid', 'rollnumber', 'rollno', 'roll'],
+  phone: ['phone', 'mobile', 'mobilenumber'],
+  address: ['address', 'temporaryaddress'],
+  department: ['department', 'departmentname'],
+  semester: ['semester', 'sem'],
+  section: ['section']
+}
+
+const resolveStudentImportColumns = (headerValues = []) => {
+  const normalizedHeaders = headerValues.map((value) => normalizeImportHeader(value))
+
+  return Object.entries(STUDENT_IMPORT_HEADER_ALIASES).reduce((acc, [field, aliases]) => {
+    const columnIndex = normalizedHeaders.findIndex((header) => aliases.includes(header))
+    if (columnIndex >= 0) {
+      acc[field] = columnIndex + 1
+    }
+    return acc
+  }, {})
+}
+
+const loadStudentImportRows = async (filePath, originalName) => {
+  const extension = path.extname(String(originalName || filePath)).toLowerCase()
+  const workbook = new ExcelJS.Workbook()
+
+  if (extension === '.csv') {
+    await workbook.csv.readFile(filePath)
+  } else if (extension === '.xlsx') {
+    await workbook.xlsx.readFile(filePath)
+  } else {
+    throw new Error('Please upload a CSV or XLSX file')
+  }
+
+  const worksheet = workbook.worksheets[0]
+  if (!worksheet) {
+    throw new Error('The uploaded file does not contain any worksheet data')
+  }
+
+  const headerRow = worksheet.getRow(1)
+  const headerValues = Array.from({ length: headerRow.cellCount }, (_, index) => headerRow.getCell(index + 1).text)
+  const columns = resolveStudentImportColumns(headerValues)
+  const requiredColumns = ['name', 'email', 'studentId', 'department', 'semester', 'section']
+  const missingColumns = requiredColumns.filter((field) => !columns[field])
+
+  if (missingColumns.length > 0) {
+    throw new Error(`Missing required columns: ${missingColumns.join(', ')}`)
+  }
+
+  const rows = []
+
+  for (let rowNumber = 2; rowNumber <= worksheet.rowCount; rowNumber += 1) {
+    const row = worksheet.getRow(rowNumber)
+    const entry = {
+      rowNumber,
+      name: columns.name ? row.getCell(columns.name).text.trim() : '',
+      email: columns.email ? row.getCell(columns.email).text.trim() : '',
+      studentId: columns.studentId ? row.getCell(columns.studentId).text.trim() : '',
+      phone: columns.phone ? row.getCell(columns.phone).text.trim() : '',
+      address: columns.address ? row.getCell(columns.address).text.trim() : '',
+      department: columns.department ? row.getCell(columns.department).text.trim() : '',
+      semester: columns.semester ? row.getCell(columns.semester).text.trim() : '',
+      section: columns.section ? row.getCell(columns.section).text.trim() : ''
+    }
+
+    const hasData = Object.values(entry).some((value) => value && String(value).trim() !== '')
+    if (hasData) {
+      rows.push(entry)
+    }
+  }
+
+  return rows
+}
+
+const buildDepartmentLookup = async () => {
+  const departments = await prisma.department.findMany({
+    select: {
+      name: true,
+      code: true
+    }
+  })
+
+  return departments.reduce((acc, department) => {
+    acc[normalizeDepartmentValue(department.name).toLowerCase()] = department.name
+    acc[normalizeDepartmentValue(department.code).toLowerCase()] = department.name
+    return acc
+  }, {})
+}
+
+const buildStudentImportError = (rowNumber, message, student) => ({
+  rowNumber,
+  status: 'failed',
+  name: student?.name || '',
+  email: student?.email || '',
+  studentId: student?.studentId || '',
+  message
+})
+
+const createStudentAccountRecord = async ({
+  name,
+  email,
+  studentId,
+  phone,
+  address,
+  semester,
+  section,
+  department
+}) => {
+  const temporaryPassword = getStudentTemporaryPassword()
+  const hashedPassword = await hashPassword(temporaryPassword)
+
+  const user = await prisma.user.create({
+    data: {
+      name,
+      email,
+      password: hashedPassword,
+      role: 'STUDENT',
+      phone,
+      address,
+      mustChangePassword: true,
+      profileCompleted: false,
+      student: {
+        create: {
+          rollNumber: studentId,
+          semester,
+          section,
+          department
+        }
+      }
+    },
+    include: { student: true }
+  })
+
+  await enrollStudentInMatchingSubjects({
+    studentId: user.student.id,
+    semester: user.student.semester,
+    department: user.student.department
+  })
+
+  return {
+    user,
+    temporaryPassword
+  }
+}
 
 const normalizeDepartmentValue = (value) => String(value || '').trim()
 
@@ -494,37 +648,17 @@ const createStudent = async (req, res) => {
       }
     }
 
-    const temporaryPassword = getStudentTemporaryPassword()
-    const hashedPassword = await hashPassword(temporaryPassword)
-
-    const user = await prisma.user.create({
-      data: {
-        name,
-        email: normalizedEmail,
-        password: hashedPassword,
-        role: 'STUDENT',
-        phone,
-        address,
-        mustChangePassword: true,
-        profileCompleted: false,
-        student: {
-          create: {
-            rollNumber: normalizedStudentId,
-            semester: semester || 1,
-            section,
-            department: normalizedDepartment
-          }
-        }
-      },
-      include: { student: true }
+    const { user, temporaryPassword } = await createStudentAccountRecord({
+      name,
+      email: normalizedEmail,
+      studentId: normalizedStudentId,
+      phone,
+      address,
+      semester: semester || 1,
+      section,
+      department: normalizedDepartment
     })
     clearStatsCache()
-
-    await enrollStudentInMatchingSubjects({
-      studentId: user.student.id,
-      semester: user.student.semester,
-      department: user.student.department
-    })
 
     res.status(201).json({
       message: 'Student created and enrolled in matching semester subjects successfully!',
@@ -836,6 +970,179 @@ const deleteUser = async (req, res) => {
   }
 }
 
+const importStudents = async (req, res) => {
+  const uploadedFilePath = req.file?.path
+
+  try {
+    if (!req.file?.path) {
+      return res.status(400).json({ message: 'Please upload a CSV or XLSX file to import students' })
+    }
+
+    const importedRows = await loadStudentImportRows(req.file.path, req.file.originalname)
+    if (importedRows.length === 0) {
+      return res.status(400).json({ message: 'The uploaded file does not contain any student rows' })
+    }
+
+    const departmentLookup = await buildDepartmentLookup()
+    const seenEmails = new Set()
+    const seenStudentIds = new Set()
+    const normalizedRows = []
+    const failures = []
+
+    importedRows.forEach((row) => {
+      const normalizedEmail = row.email.trim().toLowerCase()
+      const normalizedStudentId = row.studentId.trim().toUpperCase()
+      const normalizedDepartmentKey = normalizeDepartmentValue(row.department).toLowerCase()
+      const resolvedDepartment = departmentLookup[normalizedDepartmentKey] || null
+      const semester = Number.parseInt(row.semester, 10)
+
+      if (!row.name || row.name.trim().length < 2) {
+        failures.push(buildStudentImportError(row.rowNumber, 'Name must be at least 2 characters long', row))
+        return
+      }
+
+      if (!/\S+@\S+\.\S+/.test(normalizedEmail)) {
+        failures.push(buildStudentImportError(row.rowNumber, 'Email must be a valid email address', row))
+        return
+      }
+
+      if (!normalizedStudentId) {
+        failures.push(buildStudentImportError(row.rowNumber, 'Student ID is required', row))
+        return
+      }
+
+      if (!resolvedDepartment) {
+        failures.push(buildStudentImportError(row.rowNumber, 'Department must match an existing department name or code', row))
+        return
+      }
+
+      if (!Number.isInteger(semester) || semester < 1 || semester > 8) {
+        failures.push(buildStudentImportError(row.rowNumber, 'Semester must be a number between 1 and 8', row))
+        return
+      }
+
+      if (!row.section || row.section.trim().length < 1) {
+        failures.push(buildStudentImportError(row.rowNumber, 'Section is required', row))
+        return
+      }
+
+      if (seenEmails.has(normalizedEmail)) {
+        failures.push(buildStudentImportError(row.rowNumber, 'This email is duplicated in the import file', row))
+        return
+      }
+
+      if (seenStudentIds.has(normalizedStudentId)) {
+        failures.push(buildStudentImportError(row.rowNumber, 'This student ID is duplicated in the import file', row))
+        return
+      }
+
+      seenEmails.add(normalizedEmail)
+      seenStudentIds.add(normalizedStudentId)
+
+      normalizedRows.push({
+        rowNumber: row.rowNumber,
+        name: row.name.trim(),
+        email: normalizedEmail,
+        studentId: normalizedStudentId,
+        phone: row.phone.trim() || null,
+        address: row.address.trim() || null,
+        department: resolvedDepartment,
+        semester,
+        section: row.section.trim()
+      })
+    })
+
+    const [existingUsers, existingStudents] = await Promise.all([
+      prisma.user.findMany({
+        where: {
+          email: { in: normalizedRows.map((row) => row.email) }
+        },
+        select: { email: true }
+      }),
+      prisma.student.findMany({
+        where: {
+          rollNumber: { in: normalizedRows.map((row) => row.studentId) }
+        },
+        select: { rollNumber: true }
+      })
+    ])
+
+    const existingEmails = new Set(existingUsers.map((user) => user.email.toLowerCase()))
+    const existingStudentIds = new Set(existingStudents.map((student) => student.rollNumber.toUpperCase()))
+    const rowsToCreate = []
+
+    normalizedRows.forEach((row) => {
+      if (existingEmails.has(row.email)) {
+        failures.push(buildStudentImportError(row.rowNumber, 'An account already exists with this email address', row))
+        return
+      }
+
+      if (existingStudentIds.has(row.studentId)) {
+        failures.push(buildStudentImportError(row.rowNumber, 'Student ID already exists', row))
+        return
+      }
+
+      rowsToCreate.push(row)
+    })
+
+    const created = []
+
+    for (const row of rowsToCreate) {
+      try {
+        const { user, temporaryPassword } = await createStudentAccountRecord(row)
+        created.push({
+          rowNumber: row.rowNumber,
+          status: 'created',
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          studentId: user.student.rollNumber,
+          department: user.student.department,
+          semester: user.student.semester,
+          section: user.student.section,
+          temporaryPassword
+        })
+      } catch (error) {
+        failures.push(buildStudentImportError(row.rowNumber, error?.message || 'Unable to create the student account', row))
+      }
+    }
+
+    if (created.length > 0) {
+      clearStatsCache()
+
+      await recordAuditLog({
+        actorId: req.user.id,
+        actorRole: req.user.role,
+        action: 'USER_BULK_IMPORTED',
+        entityType: 'User',
+        metadata: {
+          importedStudents: created.length,
+          failedRows: failures.length
+        }
+      })
+    }
+
+    res.status(created.length > 0 ? 201 : 400).json({
+      message: created.length > 0
+        ? 'Student import completed.'
+        : 'No student accounts were created from the uploaded file.',
+      summary: {
+        processed: importedRows.length,
+        created: created.length,
+        failed: failures.length
+      },
+      created,
+      failures
+    })
+  } catch (error) {
+    res.internalError(error, 'Unable to import students')
+  } finally {
+    if (uploadedFilePath) {
+      await fs.promises.unlink(uploadedFilePath).catch(() => {})
+    }
+  }
+}
+
 const getStudentApplications = async (req, res) => {
   try {
     const { status } = req.query
@@ -1126,6 +1433,7 @@ module.exports = {
   createCoordinator,
   createInstructor,
   createStudent,
+  importStudents,
   updateUser,
   toggleUserStatus,
   deleteUser

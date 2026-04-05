@@ -3,6 +3,7 @@
   --tracking-heading-tight: -0.03em;
 
   --color-page-bg: #F3F6FB;
+  --gradient-homepage-bg: linear-gradient(180deg, #f6f8fc 0%, #f2f5f9 52%, #edf3f0 100%);
   --color-page-text: #1A1A2E;
   --color-surface-muted: #EEF2F9;
   --color-surface-subtle: #E5ECF6;
@@ -25,6 +26,8 @@
   --color-card-border: #E5E7EB;
   --shadow-card-sm: 0 1px 2px 0 rgba(15, 36, 71, 0.08), 0 10px 24px -18px rgba(15, 36, 71, 0.22);
   --shadow-card-md: 0 18px 36px -24px rgba(15, 36, 71, 0.28), 0 8px 18px -12px rgba(15, 36, 71, 0.16);
+  --shadow-brand-logo-light: 0 14px 36px rgba(26, 60, 110, 0.12);
+  --shadow-brand-logo-dark: 0 18px 42px rgba(15, 23, 42, 0.3);
   --radius-card: 1rem;
   --transition-card: box-shadow 180ms ease, transform 180ms ease, border-color 180ms ease;
 
@@ -44,6 +47,7 @@ html[data-theme="dark"] {
   color-scheme: dark;
 
   --color-page-bg: #0F172A;
+  --gradient-homepage-bg: linear-gradient(180deg, #081120 0%, #0c1830 48%, #122033 100%);
   --color-page-text: #F1F5F9;
   --color-surface-muted: #111C33;
   --color-surface-subtle: #16213D;
@@ -65,6 +69,8 @@ html[data-theme="dark"] {
   --color-card-border: rgba(148, 163, 184, 0.24);
   --shadow-card-sm: 0 18px 42px -28px rgba(4, 11, 20, 0.92), 0 6px 16px -10px rgba(15, 23, 42, 0.55);
   --shadow-card-md: 0 28px 56px -34px rgba(4, 11, 20, 0.98), 0 10px 24px -12px rgba(15, 23, 42, 0.62);
+  --shadow-brand-logo-light: 0 18px 42px rgba(4, 11, 20, 0.26);
+  --shadow-brand-logo-dark: 0 24px 48px rgba(2, 6, 23, 0.55);
 
   --color-badge-bg: #16213D;
   --color-badge-text: #D4E0F0;
@@ -120,6 +126,18 @@ html[data-theme="dark"] {
     radial-gradient(circle at bottom left, var(--color-sidebar-overlay-bottom), transparent 48%);
   border-color: var(--color-sidebar-border);
   color: #e2e8f0;
+}
+
+@utility ui-homepage-gradient {
+  background-image: var(--gradient-homepage-bg);
+}
+
+@utility ui-brand-logo-badge-light {
+  box-shadow: var(--shadow-brand-logo-light);
+}
+
+@utility ui-brand-logo-badge-dark {
+  box-shadow: var(--shadow-brand-logo-dark);
 }
 
 @utility ui-nav-pill-active {

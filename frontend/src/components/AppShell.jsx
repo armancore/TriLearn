@@ -2,8 +2,11 @@ import { Bell, CheckCheck, LogOut, Menu, Moon, PanelLeftClose, PanelLeftOpen, Su
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import api, { resolveFileUrl } from '../utils/api'
+import { useAuth } from '../context/AuthContext'
 import { useTheme } from '../context/ThemeContext'
+import { useToast } from './Toast'
 import BrandLogo from './BrandLogo'
+import useLiveNotifications from '../hooks/useLiveNotifications'
 
 const initialsFromName = (name = '') =>
   name
@@ -38,6 +41,8 @@ const AppShell = ({
   const [unreadCount, setUnreadCount] = useState(0)
   const notificationsRef = useRef(null)
   const navigate = useNavigate()
+  const { token } = useAuth()
+  const { showToast } = useToast()
   const { resolvedTheme, toggleTheme } = useTheme()
   const roleThemeClass = roleThemeClasses[roleTheme] || roleThemeClasses.admin
   const isDesktopCollapsed = sidebarCollapsed && !mobileOpen
@@ -153,6 +158,57 @@ const AppShell = ({
       // Keep UX quiet for notification interactions.
     }
   }
+
+  const handleIncomingNotification = useCallback(({ notification }) => {
+    if (!notification?.id) {
+      return
+    }
+
+    setNotifications((current) => {
+      const next = [notification, ...current.filter((item) => item.id !== notification.id)]
+      return next.slice(0, 8)
+    })
+    setUnreadCount((current) => current + (notification.isRead ? 0 : 1))
+    showToast({
+      title: notification.title,
+      description: notification.message,
+      type: 'info',
+      duration: 4500
+    })
+  }, [showToast])
+
+  const handleNotificationRead = useCallback(({ notificationId, readAt, unreadCount: nextUnreadCount }) => {
+    if (!notificationId) {
+      return
+    }
+
+    setNotifications((current) => current.map((item) => (
+      item.id === notificationId
+        ? { ...item, isRead: true, readAt: item.readAt || readAt || new Date().toISOString() }
+        : item
+    )))
+
+    if (typeof nextUnreadCount === 'number') {
+      setUnreadCount(nextUnreadCount)
+    }
+  }, [])
+
+  const handleNotificationsReadAll = useCallback(({ readAt, unreadCount: nextUnreadCount }) => {
+    setNotifications((current) => current.map((item) => ({
+      ...item,
+      isRead: true,
+      readAt: item.readAt || readAt || new Date().toISOString()
+    })))
+    setUnreadCount(typeof nextUnreadCount === 'number' ? nextUnreadCount : 0)
+  }, [])
+
+  useLiveNotifications({
+    enabled: Boolean(user?.id),
+    token,
+    onNotification: handleIncomingNotification,
+    onNotificationRead: handleNotificationRead,
+    onNotificationsReadAll: handleNotificationsReadAll
+  })
 
   return (
     <div className={`h-screen overflow-hidden bg-[var(--color-page-bg)] text-[var(--color-page-text)] ${roleThemeClass}`} data-role-theme={roleTheme}>

@@ -2,6 +2,8 @@ const express = require('express')
 const router = express.Router()
 const { protect, allowRoles } = require('../middleware/auth.middleware')
 const { attachActorProfiles } = require('../middleware/profile.middleware')
+const { staffUploadLimiter } = require('../middleware/rateLimit.middleware')
+const { uploadSpreadsheet } = require('../middleware/upload.middleware')
 const { validate } = require('../middleware/validate.middleware')
 const { schemas } = require('../validators/schemas')
 const {
@@ -16,6 +18,7 @@ const {
   createGatekeeper,
   createInstructor,
   createStudent,
+  importStudents,
   updateUser,
   toggleUserStatus,
   deleteUser
@@ -35,6 +38,7 @@ router.post('/users/coordinator', allowRoles('ADMIN'), validate(schemas.admin.cr
 router.post('/users/gatekeeper', allowRoles('ADMIN'), validate(schemas.admin.createGatekeeper), createGatekeeper)
 router.post('/users/instructor', allowRoles('ADMIN'), validate(schemas.admin.createInstructor), createInstructor)
 router.post('/users/student', allowRoles('ADMIN', 'COORDINATOR'), validate(schemas.admin.createStudent), createStudent)
+router.post('/users/student-import', allowRoles('ADMIN'), staffUploadLimiter, uploadSpreadsheet.single('file'), importStudents)
 router.put('/users/:id', allowRoles('ADMIN', 'COORDINATOR'), validate(schemas.admin.updateUser), updateUser)
 router.patch('/users/:id/toggle-status', allowRoles('ADMIN', 'COORDINATOR'), validate(schemas.admin.userId), toggleUserStatus)
 router.delete('/users/:id', allowRoles('ADMIN'), validate(schemas.admin.userId), deleteUser)

@@ -1,4 +1,5 @@
 const prisma = require('./prisma')
+const { emitNotificationCreated } = require('./realtime')
 
 const uniqueUserIds = (userIds = []) => [...new Set(userIds.filter(Boolean))]
 
@@ -31,6 +32,32 @@ const dispatchPushNotifications = async ({ userIds }) => {
   return { count: pushTargets.length }
 }
 
+const insertNotificationRecord = async ({
+  userId,
+  type,
+  title,
+  message,
+  link = null,
+  metadata = null,
+  dedupeKey = null
+}) => prisma.notification.create({
+  data: {
+    userId,
+    type,
+    title,
+    message,
+    link,
+    metadata,
+    dedupeKey
+  }
+}).catch((error) => {
+  if (error?.code === 'P2002' && dedupeKey) {
+    return null
+  }
+
+  throw error
+})
+
 const createNotification = async ({
   userId,
   type,
@@ -44,25 +71,18 @@ const createNotification = async ({
     return null
   }
 
-  return prisma.notification.create({
-    data: {
-      userId,
-      type,
-      title,
-      message,
-      link,
-      metadata,
-      dedupeKey
-    }
-  }).catch((error) => {
-    if (error?.code === 'P2002' && dedupeKey) {
-      return null
-    }
-
-    throw error
+  return insertNotificationRecord({
+    userId,
+    type,
+    title,
+    message,
+    link,
+    metadata,
+    dedupeKey
   }).then(async (notification) => {
     if (notification) {
       await dispatchPushNotifications({ userIds: [userId] })
+      emitNotificationCreated(userId, notification)
     }
 
     return notification
@@ -84,21 +104,29 @@ const createNotifications = async ({
     return { count: 0 }
   }
 
-  const result = await prisma.notification.createMany({
-    data: recipients.map((userId) => ({
-      userId,
-      type,
-      title,
-      message,
-      link,
-      metadata,
-      dedupeKey: typeof dedupeKeyFactory === 'function' ? dedupeKeyFactory(userId) : null
-    })),
-    skipDuplicates: true
+  const createdNotifications = await Promise.all(recipients.map((userId) => insertNotificationRecord({
+    userId,
+    type,
+    title,
+    message,
+    link,
+    metadata,
+    dedupeKey: typeof dedupeKeyFactory === 'function' ? dedupeKeyFactory(userId) : null
+  })))
+  const deliveredNotifications = createdNotifications.filter(Boolean)
+
+  if (!deliveredNotifications.length) {
+    return { count: 0 }
+  }
+
+  await dispatchPushNotifications({ userIds: deliveredNotifications.map((notification) => notification.userId) })
+  deliveredNotifications.forEach((notification) => {
+    emitNotificationCreated(notification.userId, notification)
   })
 
-  await dispatchPushNotifications({ userIds: recipients })
-  return result
+  return {
+    count: deliveredNotifications.length
+  }
 }
 
 module.exports = {
