@@ -157,7 +157,7 @@ npm install
 
 ### 2. Configure environment
 
-Create `backend/.env` from [`.env.example`](/C:/Users/arman/EduNexus/.env.example).
+Create `backend/.env` from [`.env.example`](.env.example).
 
 Important backend values:
 
@@ -191,7 +191,7 @@ Notes:
 - Set `REDIS_URL` in production to enable shared rate limiting across instances.
 - `MAIL_FROM=EduNexus <onboarding@resend.dev>` works for Resend testing. Use a verified domain for real delivery.
 
-Create `frontend/.env`:
+Create `frontend/.env` from [`frontend/.env.example`](frontend/.env.example):
 
 ```env
 VITE_API_URL=http://localhost:5000/api/v1
@@ -247,6 +247,7 @@ Default local URLs:
 - `npm run start`
 - `npm run lint`
 - `npm test`
+- `npm run test:db`
 - `npm run prisma:generate`
 - `npm run prisma:migrate:dev`
 - `npm run prisma:migrate:deploy`
@@ -265,6 +266,22 @@ Backend coverage now includes:
 - controller behavior tests
 - utility unit tests for token, enrollment, and sanitization helpers
 - Supertest integration smoke tests for HTTP responses
+- optional real-database integration tests against a migrated PostgreSQL test database
+
+To run the real-database backend suite:
+
+1. Create a dedicated PostgreSQL test database.
+2. Set `TEST_DATABASE_URL` to that database connection string.
+3. Run Prisma migrations against that test database.
+
+PowerShell example from `backend`:
+
+```powershell
+$env:TEST_DATABASE_URL="postgresql://USER:PASSWORD@localhost:5432/edunexus_test?connection_limit=10&pool_timeout=20"
+$env:DATABASE_URL=$env:TEST_DATABASE_URL
+npx prisma migrate dev --skip-generate
+npm run test:db
+```
 
 GitHub Actions runs:
 
@@ -298,7 +315,6 @@ Well covered for local development, demos, and iterative product work:
 
 Still reasonable future work:
 
-- full API response envelope standardization
 - deeper end-to-end integration tests with isolated test database seeding
 - mobile push notifications
 - cloud object storage

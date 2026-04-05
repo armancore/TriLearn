@@ -1,4 +1,4 @@
-const rateLimit = require('express-rate-limit')
+const { ipKeyGenerator, rateLimit } = require('express-rate-limit')
 const { RedisStore } = require('rate-limit-redis')
 const { createClient } = require('redis')
 
@@ -38,14 +38,21 @@ const getRedisStore = () => {
   return redisStore
 }
 
-const createLimiter = ({ max, message }) => rateLimit({
-  windowMs: 15 * 60 * 1000,
+const createLimiter = ({ max, message, windowMs = 15 * 60 * 1000, keyGenerator }) => rateLimit({
+  windowMs,
   max,
   standardHeaders: true,
   legacyHeaders: false,
   message: { message },
+  keyGenerator,
   store: getRedisStore()
 })
+
+const actorRateLimitKey = (req) => (
+  req.user?.id
+    ? `${req.user.role || 'USER'}:${req.user.id}`
+    : ipKeyGenerator(req.ip || '')
+)
 
 const apiLimiter = createLimiter({
   max: 300,
@@ -72,10 +79,34 @@ const staffUploadLimiter = createLimiter({
   message: 'Too many staff upload attempts, please try again later'
 })
 
+const studentQrScanLimiter = createLimiter({
+  windowMs: 5 * 60 * 1000,
+  max: 12,
+  message: 'Too many attendance QR scan attempts, please wait a moment and try again',
+  keyGenerator: actorRateLimitKey
+})
+
+const dailyQrScanLimiter = createLimiter({
+  windowMs: 5 * 60 * 1000,
+  max: 12,
+  message: 'Too many daily attendance scan attempts, please wait a moment and try again',
+  keyGenerator: actorRateLimitKey
+})
+
+const staffStudentIdScanLimiter = createLimiter({
+  windowMs: 5 * 60 * 1000,
+  max: 30,
+  message: 'Too many student ID scan attempts, please wait a moment and try again',
+  keyGenerator: actorRateLimitKey
+})
+
 module.exports = {
   apiLimiter,
   authLimiter,
   uploadLimiter,
   studentUploadLimiter,
-  staffUploadLimiter
+  staffUploadLimiter,
+  studentQrScanLimiter,
+  dailyQrScanLimiter,
+  staffStudentIdScanLimiter
 }

@@ -28,7 +28,7 @@ const listNotifications = async (req, res) => {
       })
     ])
 
-    res.json({ notifications, unreadCount, total, page, limit })
+    res.json({ total, page, limit, unreadCount, notifications })
   } catch (error) {
     res.internalError(error)
   }

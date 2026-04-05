@@ -2,6 +2,11 @@ const express = require('express')
 const router = express.Router()
 const { protect, allowRoles } = require('../middleware/auth.middleware')
 const { attachActorProfiles } = require('../middleware/profile.middleware')
+const {
+  studentQrScanLimiter,
+  dailyQrScanLimiter,
+  staffStudentIdScanLimiter
+} = require('../middleware/rateLimit.middleware')
 const { validate } = require('../middleware/validate.middleware')
 const { schemas } = require('../validators/schemas')
 const {
@@ -46,7 +51,7 @@ router.use(attachActorProfiles)
 // Instructor routes
 router.post('/generate-daily-qr', allowRoles('GATEKEEPER'), generateDailyAttendanceQR)
 router.get('/gatekeeper/live-qr', allowRoles('GATEKEEPER'), getLiveGateAttendanceQr)
-router.post('/scan-student-id', allowRoles('GATEKEEPER', 'INSTRUCTOR', 'COORDINATOR'), validate(schemas.attendance.scanStudentId), scanStudentIdAttendance)
+router.post('/scan-student-id', staffStudentIdScanLimiter, allowRoles('GATEKEEPER', 'INSTRUCTOR', 'COORDINATOR'), validate(schemas.attendance.scanStudentId), scanStudentIdAttendance)
 router.get('/gate-settings', allowRoles('ADMIN', 'COORDINATOR'), validate(schemas.attendance.gateSettings), getGateAttendanceSettings)
 router.post('/gate-settings/windows', allowRoles('ADMIN', 'COORDINATOR'), validate(schemas.attendance.createGateWindow), createGateScanWindow)
 router.put('/gate-settings/windows/:id', allowRoles('ADMIN', 'COORDINATOR'), validate(schemas.attendance.updateGateWindow), updateGateScanWindow)
@@ -63,8 +68,8 @@ router.get('/subject/:subjectId/roster', allowRoles('INSTRUCTOR', 'COORDINATOR',
 router.get('/subject/:subjectId', allowRoles('INSTRUCTOR', 'COORDINATOR', 'ADMIN'), validate(schemas.attendance.getBySubject), getAttendanceBySubject)
 
 // Student routes
-router.post('/scan-daily-qr', allowRoles('STUDENT'), validate(schemas.attendance.scanQr), markDailyAttendanceQR)
-router.post('/scan-qr', allowRoles('STUDENT'), validate(schemas.attendance.scanQr), markAttendanceQR)
+router.post('/scan-daily-qr', dailyQrScanLimiter, allowRoles('STUDENT'), validate(schemas.attendance.scanQr), markDailyAttendanceQR)
+router.post('/scan-qr', studentQrScanLimiter, allowRoles('STUDENT'), validate(schemas.attendance.scanQr), markAttendanceQR)
 router.get('/my', allowRoles('STUDENT'), getMyAttendance)
 router.get('/my/export', allowRoles('STUDENT'), exportMyAttendancePdf)
 router.get('/tickets/my', allowRoles('STUDENT'), getMyAbsenceTickets)

@@ -132,7 +132,7 @@ const getAbsenceTicketsForStaff = async (req, res) => {
       prisma.absenceTicket.count({ where })
     ])
 
-    res.json({ tickets, total, page, limit })
+    res.json({ total, page, limit, tickets })
   } catch (error) {
     res.internalError(error)
   }

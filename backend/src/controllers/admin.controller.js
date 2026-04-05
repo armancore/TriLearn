@@ -688,7 +688,7 @@ const getStudentApplications = async (req, res) => {
       prisma.studentApplication.count({ where: filters })
     ])
 
-    res.json({ applications, total, page, limit })
+    res.json({ total, page, limit, applications })
   } catch (error) {
     res.internalError(error)
   }
