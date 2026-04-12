@@ -1,342 +1,408 @@
 # TriLearn
 
-TriLearn is a full-stack campus management system for semester-based colleges. It combines admissions intake, student onboarding, role-based academic operations, attendance tracking, study resources, notices, marks, in-app notifications, and profile/session management in one platform.
+TriLearn is a full-stack college management system designed for semester-based institutions. It centralises every academic operation — student intake, enrollment, attendance, marks, assignments, study materials, timetables, and real-time notifications — into a single platform, accessible to all five roles that run a college: administrators, coordinators, instructors, gatekeepers, and students.
 
-## Highlights
+The name represents the three core pillars of any institution: **student**, **teacher**, and **institution** — all connected in one system.
 
-- Role-based workspaces for `ADMIN`, `COORDINATOR`, `INSTRUCTOR`, `GATEKEEPER`, and `STUDENT`
-- Public student intake form before account creation
-- Student onboarding with first-login password change and welcome email
-- Password reset email flow via SMTP
-- Department, subject, routine, assignment, material, notice, and marks management
-- Instructor QR attendance, Student QR attendance windows, and student ID-card QR scanning
-- Absence tickets with review workflow
-- In-app notification center with unread polling
-- Device token registration and notification persistence, with FCM delivery still scaffolded
-- Student marks summary chart
-- Dark mode with manual toggle and system-aware theming
-- Recent account activity and active-session tracking on the profile page
-- Attendance exports in PDF and Excel
+---
 
-## Tech Stack
+## Overview
 
-- Frontend: React, Vite, React Router, Axios, Tailwind CSS
-- Backend: Node.js, Express
-- Database: PostgreSQL
-- ORM: Prisma
-- Auth: JWT access token + refresh token cookie sessions
-- Email: Nodemailer over Resend SMTP
-- Validation: Zod
-- Logging: Winston
-- Security: Helmet, rate limiting, signed QR payloads, upload signature validation
-- Testing: Node test runner, Supertest
-- CI: GitHub Actions
+| | |
+|--|--|
+| **Backend** | Node.js · Express 5 · PostgreSQL · Prisma ORM |
+| **Frontend** | React 19 · Vite · Tailwind CSS v4 |
+| **Real-time** | Socket.IO |
+| **Auth** | JWT access tokens + rotating refresh tokens |
+| **API endpoints** | 107 |
+| **Database models** | 23 |
+| **Migrations** | 32 |
+| **Test coverage** | 14 test files · 3,400+ lines |
 
-## Core Modules
+---
 
-### Admissions and onboarding
+## What TriLearn replaces
 
-- Public `student-intake` flow for collecting student identity and guardian details
-- Admin/coordinator review flow for student applications
-- Student account creation from reviewed applications
-- Strong temporary student passwords with forced password change
+Colleges typically manage academic operations through a combination of spreadsheets, paper records, and expensive third-party software that charges per-student licensing fees, stores institutional data on external servers, and offers little to no customisation for local academic structures.
 
-### Authentication and account security
+TriLearn is a self-hostable alternative. The institution owns the server, owns the database, and controls every piece of student data. There are no recurring licensing fees, no vendor lock-in, and no dependency on external availability.
 
-- JWT access tokens with refresh-token rotation
-- Forgot/reset password flow when SMTP is configured
-- Account activity timeline in profile
-- Active session list with sign-out-all-devices action
-- Helmet security headers
-- Optional Redis-backed distributed rate limiting via `REDIS_URL`
-
-### Attendance
-
-- Instructor subject QR generation and scanning
-- Manual attendance marking
-- Gatekeeper Student QR attendance windows
-- Student ID card QR scanning by staff
-- Holiday-aware attendance behavior
-- Automatic absence creation after valid windows close
-- Absence ticket submission and review
-
-### Academic features
-
-- Department-aware subjects and routines
-- Assignments and study materials
-- Marks entry and marks publication
-- Notices with in-app notifications
-- Attendance reporting and exports
+---
 
 ## Roles
 
-### `ADMIN`
+TriLearn has five distinct roles. Each role sees only what it needs and can act only within its scope.
 
-- Full system management
-- Creates and manages users, departments, subjects, routines, notices, and attendance settings
-- Reviews student applications and converts them into accounts
-- Only role that can create coordinator and gatekeeper accounts
+**Admin** — Full system access. Creates and manages departments, subjects, and all staff accounts. Has visibility across the entire institution.
 
-### `COORDINATOR`
+**Coordinator** — Department-scoped management. Reviews and approves student intake applications, converts them to accounts, publishes exam results, and generates attendance and marks reports for their department.
 
-- Department-scoped academic operations
-- Reviews applications and creates student accounts
-- Manages routines, subjects, notices, attendance windows, and academic reports for their department
-- Can create student accounts, but not coordinator or gatekeeper accounts
+**Instructor** — Subject-level operations. Generates attendance QR codes, marks attendance manually, creates and grades assignments, enters exam marks, and uploads study materials for their assigned subjects.
 
-### `INSTRUCTOR`
+**Gatekeeper** — Entrance-level attendance. Generates daily gate QR codes and scans student ID cards at the college entrance to record arrival-based attendance.
 
-- Manages assigned subjects
-- Marks attendance manually or with QR flows
-- Uploads assignments and materials
-- Enters and publishes marks
+**Student** — Personal academic view. Sees their own timetable, attendance record, marks, assignments, and notices. Submits assignments, raises absence requests, and downloads their marksheet.
 
-### `GATEKEEPER`
+---
 
-- Runs the Student QR page during attendance windows
-- Scans student ID QR cards for gate attendance
-- Uses the base authenticated user record directly because there is no separate gatekeeper profile model yet
+## Features
 
-### `STUDENT`
+### Student intake and onboarding
 
-- Completes profile after first login
-- Views subjects, routine, attendance, assignments, materials, notices, tickets, and marks
-- Uses Student QR attendance and ID card QR features
+Prospective students submit an online intake form with personal, guardian, and academic details. No account is created at this stage. A coordinator reviews the application, sets the department and semester, and converts it to a live student account with a single action. The student receives a welcome email with a temporary password and is automatically enrolled in all matching subjects for their semester and department.
 
-## Important Routes
+For bulk onboarding, administrators can import hundreds of students at once from a CSV or XLSX spreadsheet. The system validates each row, reports any failures with row numbers, and sends welcome emails to all successfully created accounts.
 
-### Public
+### Attendance
 
-- `/`
-- `/login`
-- `/forgot-password`
-- `/reset-password`
-- `/student-intake`
+Three mechanisms cover every attendance scenario a college encounters.
 
-### Protected examples
+**Subject QR attendance** — The instructor generates a time-limited QR code for a specific class. Students open the scanner in the app and scan it to mark themselves present. Each QR is cryptographically signed with HMAC-SHA256 and expires after a configurable window. A used or expired code is rejected; the same code cannot mark a student present twice.
 
-- `/admin`
-- `/coordinator`
-- `/instructor`
-- `/student`
-- `/student/profile`
-- `/student/id-card`
-- `/gatekeeper`
+**Gate QR attendance** — The gatekeeper generates a daily rotating QR code at the college entrance. Students scan it on arrival. The system checks the student's semester against the configured time windows for that day and automatically marks them present across all scheduled classes falling within that window. Holiday dates are excluded from calculations.
 
-## Key API Groups
+**Manual attendance** — Instructors enter attendance by hand against any date, for makeup classes, off-campus sessions, or corrections to existing records.
 
-- `/api/auth`
-- `/api/v1/auth`
-- `/api/v1/admin`
-- `/api/v1/departments`
-- `/api/v1/subjects`
-- `/api/v1/routines`
-- `/api/v1/attendance`
-- `/api/v1/assignments`
-- `/api/v1/materials`
-- `/api/v1/marks`
-- `/api/v1/notices`
-- `/api/v1/notifications`
+Students see their per-subject attendance percentage in real time. When a student misses a class, they can submit an absence ticket with a written reason. The relevant instructor or coordinator reviews the ticket and approves or rejects it. The student receives an instant notification on the outcome.
 
-## Local Setup
+### Marks and examinations
 
-### Prerequisites
+Instructors enter marks per subject for five exam types: Internal, Midterm, Final, Pre-board, and Practical. Entered marks are not visible to students until a coordinator explicitly publishes them — preventing accidental early disclosure and allowing coordinators to review results before release.
 
-- Node.js 22 recommended
-- PostgreSQL
-- npm
+Once published, students see a full subject-wise breakdown with obtained marks, total marks, percentage, letter grade, and grade point. Overall GPA is calculated across all subjects. Students can download a formatted marksheet PDF at any time. A cohort ranking shows each student's rank and percentile within their semester and department without exposing any other student's name or score.
 
-### 1. Install dependencies
+### Assignments
 
-```bash
-git clone <your-repo-url>
-cd TriLearn
+Instructors create assignments with a title, description, optional question PDF, due date, and total marks. Students submit their answer PDFs through the platform before the deadline. Instructors review each submission individually and record a marks and written feedback. Completed grade sheets export to XLSX.
 
-cd backend
-npm install
+### Study materials
 
-cd ../frontend
-npm install
+Instructors upload PDF study materials against their assigned subjects. Students can only see and download materials for subjects they are enrolled in. Access is enforced at the file-serving layer — a direct URL to an upload file returns a 403 unless the requester has a valid session and the correct enrollment record.
+
+### Class routine
+
+A weekly timetable system with built-in conflict detection. Creating a routine entry that would double-book the same instructor or the same room in an overlapping time slot is rejected before it is saved. Combined groups allow a single timetable entry to appear across multiple sections, which is common for shared electives and language courses.
+
+### Notice board
+
+Staff post notices with a type (General, Exam, Holiday, Event, Urgent) and an audience scope (All, Students only, Instructors only). Notices can be narrowed further to a specific department and semester. Every posted notice triggers an instant in-app notification for all users it targets.
+
+### Real-time notifications
+
+All significant events deliver instant notifications to the affected user via Socket.IO without requiring a page refresh — marks published, new assignment posted, absence ticket reviewed, notice published. The notification centre shows unread count and a full history. A device token model is already in the database for future FCM mobile push notifications.
+
+### Departments
+
+A managed department registry used as a reference across students, instructors, subjects, coordinators, and routines. Departments enforce consistent filtering and scoping throughout the system — a coordinator with access to the BIT department cannot see or modify records belonging to BCA.
+
+### Audit log
+
+Every significant action is recorded to an append-only audit log: logins, user creation, marks changes, attendance records, file uploads, notice posts. The log stores actor ID, role, action type, target entity, and metadata. Users can review their own session history and active devices. Admins have full access to the log across all users.
+
+---
+
+## Technical architecture
+
+### Request lifecycle
+
+Every API request passes through a consistent middleware chain before reaching a controller:
+
+```
+Request
+  → CORS validation
+  → Helmet security headers
+  → Rate limiter (Redis-backed)
+  → CSRF origin check
+  → protect()         — JWT verification + database user lookup
+  → allowRoles()      — role gate for the specific endpoint
+  → attachActorProfiles() — attaches req.student / req.instructor / req.coordinator
+  → validate()        — Zod schema validation of body and query
+  → Controller
+  → Prisma ORM
+  → PostgreSQL
 ```
 
-### 2. Configure environment
+### File handling
 
-Create `backend/.env` from [`.env.example`](.env.example).
+Uploaded files go through a three-stage pipeline before being stored:
 
-Important backend values:
+1. **MIME filter** — Multer rejects files that do not match the expected type at the field level
+2. **Magic-byte validation** — the first bytes of the saved file are read and compared against known file signatures, catching extension spoofing regardless of what the client declares
+3. **Image re-encoding** — Sharp re-processes every uploaded image through a clean encode, stripping all metadata and neutralising any embedded payload
 
-```env
-DATABASE_URL=postgresql://USER:PASSWORD@localhost:5432/trilearn?connection_limit=10&pool_timeout=20
-JWT_SECRET=change_this_to_a_long_random_string
-JWT_REFRESH_SECRET=change_this_to_a_different_long_random_string
-ACCESS_TOKEN_EXPIRES_IN=15m
-REFRESH_TOKEN_EXPIRES_DAYS=7
-PORT=5000
-NODE_ENV=development
-FRONTEND_URL=http://localhost:5173
-QR_SIGNING_SECRET=change_this_to_a_long_random_string
-BCRYPT_SALT_ROUNDS=12
-REDIS_URL=
-DEFAULT_STUDENT_PASSWORD=
-RESEND_SMTP_HOST=smtp.resend.com
-RESEND_SMTP_PORT=465
-RESEND_SMTP_USER=resend
-RESEND_SMTP_PASS=
-MAIL_FROM=TriLearn <onboarding@resend.dev>
-ENABLE_PASSWORD_RESET=true
-UPLOAD_DIR=backend/uploads
-UPLOAD_PUBLIC_PATH=/uploads
-UPLOAD_BASE_URL=
-```
+Files are served through an authenticated controller that performs a database lookup and a role-based access check before streaming any file. No upload directory is publicly accessible.
 
-Notes:
+### Authentication
 
-- Leave `DEFAULT_STUDENT_PASSWORD` blank to auto-generate a strong temporary password.
-- Set `REDIS_URL` in production to enable shared rate limiting across instances.
-- `MAIL_FROM=TriLearn <onboarding@resend.dev>` works for Resend testing. Use a verified domain for real delivery.
+Access tokens are short-lived JWTs (15 minutes by default) kept in memory on the frontend — never in localStorage. Refresh tokens are longer-lived JWTs stored as SHA-256 hashes in the database. On every refresh, the old token is revoked and a new one is issued. A leaked refresh token database does not expose usable tokens. The frontend Axios client handles token refresh automatically and transparently on 401 responses.
 
-Create `frontend/.env` from [`frontend/.env.example`](frontend/.env.example):
+### Real-time
 
-```env
-VITE_API_URL=http://localhost:5000/api/v1
-```
+Socket.IO runs on the same Node.js server. Connections are authenticated via JWT on handshake. Each user joins a private room keyed to their user ID. All notification events are emitted directly to the relevant user's room.
 
-Frontend auth bootstrap note:
+---
 
-- `AuthProvider` restores sessions with `POST /api/v1/auth/refresh` on protected app routes.
-- Public auth pages like `/login`, `/forgot-password`, `/reset-password`, and `/student-intake` now skip that silent refresh call so a missing refresh cookie does not spam expected `401` requests in the browser console.
-
-### 3. Run database migrations
-
-From `backend`:
-
-```bash
-npx prisma migrate deploy
-npx prisma generate
-```
-
-For active development:
-
-```bash
-npx prisma migrate dev
-```
-
-### 4. Start the app
-
-Backend:
-
-```bash
-cd backend
-npm run dev
-```
-
-Frontend:
-
-```bash
-cd frontend
-npm run dev
-```
-
-Default local URLs:
-
-- Frontend: `http://localhost:5173`
-- Backend API: `http://localhost:5000/api/v1`
-- Health: `http://localhost:5000/health`
-
-## Scripts
+## Stack reference
 
 ### Backend
 
-- `npm run dev`
-- `npm run start`
-- `npm run lint`
-- `npm test`
-- `npm run test:db`
-- `npm run prisma:generate`
-- `npm run prisma:migrate:dev`
-- `npm run prisma:migrate:deploy`
+| Package | Purpose |
+|---------|---------|
+| Express 5 | HTTP server and routing |
+| Prisma 7 + PostgreSQL | ORM and database |
+| jsonwebtoken | JWT signing and verification |
+| bcryptjs | Password hashing |
+| Socket.IO 4 | Real-time WebSocket server |
+| Multer 2 | Multipart file upload handling |
+| Sharp | Image processing and re-encoding |
+| PDFKit | Server-side PDF generation |
+| ExcelJS | XLSX export |
+| Nodemailer | Email delivery via Resend SMTP |
+| Zod 4 | Request validation schemas |
+| express-rate-limit + Redis | Rate limiting with shared Redis store |
+| Helmet | HTTP security headers |
+| Winston | Structured logging |
+| qrcode | QR code image generation |
 
 ### Frontend
 
-- `npm run dev`
-- `npm run lint`
-- `npm run build`
-- `npm run preview`
+| Package | Purpose |
+|---------|---------|
+| React 19 | UI framework |
+| Vite 8 | Build tool and dev server |
+| Tailwind CSS v4 | Utility-first styling |
+| React Router v7 | Client-side routing |
+| Axios | HTTP client with interceptors |
+| Socket.IO Client | Real-time connection |
+| Framer Motion | Animations and transitions |
+| jsQR | In-browser QR code scanning |
+| Lucide React | Icon library |
 
-## Testing and CI
+---
 
-Backend coverage now includes:
+## Project structure
 
-- controller behavior tests
-- utility unit tests for token, enrollment, and sanitization helpers
-- Supertest integration smoke tests for HTTP responses
-- optional real-database integration tests against a migrated PostgreSQL test database
-
-To run the real-database backend suite:
-
-1. Create a dedicated PostgreSQL test database.
-2. Set `TEST_DATABASE_URL` to that database connection string.
-3. Run Prisma migrations against that test database.
-
-PowerShell example from `backend`:
-
-```powershell
-$env:TEST_DATABASE_URL="postgresql://USER:PASSWORD@localhost:5432/trilearn_test?connection_limit=10&pool_timeout=20"
-$env:DATABASE_URL=$env:TEST_DATABASE_URL
-npx prisma migrate dev --skip-generate
-npm run test:db
+```
+TriLearn/
+├── backend/
+│   ├── src/
+│   │   ├── controllers/
+│   │   │   ├── attendance/         # QR, manual, tickets, settings, export
+│   │   │   ├── admin.controller.js
+│   │   │   ├── auth.controller.js
+│   │   │   ├── assignment.controller.js
+│   │   │   ├── marks.controller.js
+│   │   │   ├── notice.controller.js
+│   │   │   ├── routine.controller.js
+│   │   │   ├── studyMaterial.controller.js
+│   │   │   ├── subject.controller.js
+│   │   │   ├── upload.controller.js
+│   │   │   └── ...
+│   │   ├── middleware/
+│   │   │   ├── auth.middleware.js
+│   │   │   ├── csrf.middleware.js
+│   │   │   ├── rateLimit.middleware.js
+│   │   │   ├── upload.middleware.js
+│   │   │   └── validate.middleware.js
+│   │   ├── routes/                 # One router per domain
+│   │   ├── utils/                  # Prisma, logger, mailer, tokens, realtime
+│   │   ├── validators/             # Zod schemas for every endpoint
+│   │   └── jobs/                   # Background token cleanup
+│   ├── prisma/
+│   │   ├── schema.prisma           # 23 models
+│   │   └── migrations/             # 32 migrations
+│   ├── test/                       # 14 test files, 3,400+ lines
+│   └── Dockerfile
+└── frontend/
+    └── src/
+        ├── pages/
+        │   ├── admin/              # 8 pages
+        │   ├── coordinator/        # 1 page
+        │   ├── instructor/         # 9 pages
+        │   ├── student/            # 11 pages
+        │   ├── gate/               # 1 page
+        │   ├── auth/               # 5 pages
+        │   └── shared/             # 3 pages
+        ├── components/             # Modal, Toast, LoadingSkeleton, Pagination, etc.
+        ├── hooks/                  # useApi (abort-safe), useForm
+        ├── context/                # AuthContext, SocketContext, ReferenceDataContext
+        └── utils/                  # API client, file helpers, QR scanner
 ```
 
-Migration note:
+---
 
-- `20260402183000_add_absence_tickets_and_cleanup` creates the absence ticket status column before `20260402234500_fix_absence_ticket_status_enum` converts it to the enum type. Keep migration order intact when bootstrapping older databases.
+## Getting started
 
-GitHub Actions runs:
+### Prerequisites
 
-- backend lint
-- backend tests
-- frontend lint
-- frontend build
+- Node.js 22
+- PostgreSQL 15 or later
+- Redis (optional in development, required in production)
 
-Workflow file: [.github/workflows/ci.yml](/C:/Users/arman/TriLearn/.github/workflows/ci.yml)
+### Installation
 
-## Security Notes
+```bash
+# 1. Clone the repository
+git clone https://github.com/Arman-techiee/TriLearn.git
+cd TriLearn
 
-- Helmet is enabled for standard HTTP security headers.
-- JSON request bodies are size-limited.
-- Uploads validate actual file signatures, not only extensions.
-- Access tokens are type-checked in auth middleware.
-- Auth middleware expects the access token in the `Authorization: Bearer <token>` header (JWTs live in frontend memory, so there is no cookie-based access token).
-- QR payload signing reads secrets at runtime and fails safely if secrets are missing.
-- Refresh tokens track session metadata for profile visibility.
-- User deletion is still a hard delete today, so related attendance, marks, and submission records cascade with the user.
-- Protected requests now hydrate role profile context from the main auth lookup to avoid a second profile query per request.
+# 2. Install backend dependencies
+cd backend && npm install
 
-## Current Product Status
+# 3. Install frontend dependencies
+cd ../frontend && npm install
+```
 
-Well covered for local development, demos, and iterative product work:
+### Configuration
 
-- authentication and onboarding
-- attendance flows
-- notices, assignments, materials, and marks
-- in-app notifications
-- dark mode
-- recent activity and active sessions
-- backend linting, tests, and CI
+```bash
+cp backend/.env.example backend/.env
+# Edit backend/.env with your values
+```
 
-Still reasonable future work:
+### Database setup
 
-- deeper end-to-end integration tests with isolated test database seeding
-- mobile push notifications
-- cloud object storage
-- advanced analytics/reporting
-- soft-delete or archival workflows for student record retention instead of hard-delete cascades
+```bash
+cd backend
+npx prisma migrate dev --name init
+npx prisma generate
+```
 
-## Why This Fits A Nepal College Workflow
+### Running locally
 
-- semester and section-based academic structure
-- coordinator as department-level academic operator
-- gate-style attendance flow
-- institution-issued roll numbers
-- phone-first student experience
-- exportable attendance reports for academic administration
+```bash
+# Backend  →  http://localhost:5000
+cd backend && npm run dev
+
+# Frontend  →  http://localhost:5173
+cd frontend && npm run dev
+```
+
+---
+
+## Environment variables
+
+```env
+# ── Core (required) ───────────────────────────────────────
+NODE_ENV=development
+DATABASE_URL=postgresql://user:password@localhost:5432/trilearn
+JWT_SECRET=<random string, 32+ characters>
+JWT_REFRESH_SECRET=<random string, 32+ characters>
+QR_SIGNING_SECRET=<random string, 32+ characters>
+FRONTEND_URL=http://localhost:5173
+
+# ── Redis ─────────────────────────────────────────────────
+# Optional in development. Required in production — startup aborts without it.
+REDIS_URL=redis://localhost:6379
+
+# ── Email (Resend SMTP) ───────────────────────────────────
+MAIL_FROM=noreply@yourdomain.com
+RESEND_SMTP_HOST=smtp.resend.com
+RESEND_SMTP_PORT=587
+RESEND_SMTP_USER=resend
+RESEND_SMTP_PASS=re_xxxxxxxxxxxxxxxxxxxx
+
+# ── Feature flags ─────────────────────────────────────────
+OPEN_REGISTRATION=false       # Allow public self-registration (disabled by default)
+ENABLE_PASSWORD_RESET=true    # Requires email to be configured
+
+# ── File storage ──────────────────────────────────────────
+UPLOAD_DIR=/app/uploads
+UPLOAD_PUBLIC_PATH=/uploads
+UPLOAD_BASE_URL=              # Leave blank for local disk; set to CDN origin for cloud
+
+# ── Optional ──────────────────────────────────────────────
+PORT=5000
+ATTENDANCE_TIMEZONE=Asia/Kathmandu
+ACCESS_TOKEN_EXPIRES_IN=15m
+REFRESH_TOKEN_EXPIRES_DAYS=7
+```
+
+---
+
+## Deployment
+
+### Docker
+
+```bash
+# Build
+docker build -t trilearn-backend ./backend
+
+# Run
+docker run \
+  --env-file backend/.env \
+  -p 5000:5000 \
+  -v /data/uploads:/app/uploads \
+  trilearn-backend
+```
+
+### Production checklist
+
+- [ ] `NODE_ENV=production`
+- [ ] Unique random values for `JWT_SECRET`, `JWT_REFRESH_SECRET`, and `QR_SIGNING_SECRET` (32+ characters each)
+- [ ] `REDIS_URL` configured — the server refuses to start in production without it
+- [ ] `FRONTEND_URL` set to the exact origin of the deployed frontend
+- [ ] `npx prisma migrate deploy` executed before starting the server
+- [ ] Persistent volume or cloud storage configured for uploads
+- [ ] TLS termination via a reverse proxy (nginx or Caddy) in front of the Node process
+
+### Recommended stack for a pilot deployment
+
+| Component | Provider |
+|-----------|----------|
+| Backend | Railway or Render |
+| Database | Neon or Supabase (PostgreSQL) |
+| Redis | Upstash |
+| Frontend | Vercel or Cloudflare Pages |
+| File storage | Cloudflare R2 (10 GB free tier) |
+
+### Cloud storage migration
+
+Local disk uploads do not survive ephemeral deployments. Before going to production on Railway, Render, or any stateless platform, migrate to cloud storage. The change is contained to three files: `upload.middleware.js`, `fileStorage.js`, and `upload.controller.js`. No other part of the codebase needs to change.
+
+Recommended providers: Cloudflare R2 (S3-compatible, zero egress fees), Supabase Storage, or Amazon S3.
+
+---
+
+## Continuous integration
+
+A GitHub Actions workflow runs on every push and pull request. It installs dependencies, runs ESLint, and executes the full test suite for both backend and frontend.
+
+```
+.github/workflows/ci.yml
+```
+
+---
+
+## Roadmap
+
+- [ ] React Native + Expo mobile app — architecture document and full file structure defined, backend mobile auth mode already implemented
+- [ ] FCM push notifications — device token model and dispatch scaffold already in the codebase
+- [ ] Cloud storage integration (Cloudflare R2)
+
+---
+
+## Author
+
+**Arman Khan**
+BIT Student · Texas College of Management & IT, Kathmandu, Nepal
+
+I am a solo full-stack developer who is building TriLearn entirely independently alongside with my undergraduate coursework. The project started with a straightforward motivation: My own college uses an expensive third-party management system, and I wanted to build something better. That followed as a production-grade platform covering the full academic lifecycle of an institution, with real security, real-time features, and a mobile app in progress — written by me and learning for my career.
+
+My focus is on building practical software that solves real problems in Nepal's education and technology sectors.
+
+- Portfolio — [armankhan.com.np](https://www.armankhan.com.np)
+- LinkedIn — [linkedin.com/in/arman-techiee](https://www.linkedin.com/in/arman-khan-943b29400)
+- GitHub — [github.com/Arman-techiee](https://github.com/Arman-techiee)
+
+---
+
+## License
+
+Copyright © 2026 Arman Khan. All rights reserved.
+
+This software and its source code are the exclusive property of Arman Khan. Access to this repository is provided for review and evaluation purposes only.
+
+**You may not** copy, modify, distribute, sublicense, use in production, or create derivative works from this software without explicit written permission from the author.
+
+For licensing inquiries, deployment permissions, or institutional use, contact via LinkedIn or the portfolio above.
