@@ -105,7 +105,8 @@ const AdminRoutine = () => {
         signal,
         params: {
           role: 'INSTRUCTOR',
-          limit: 100
+          limit: 100,
+          ...(isCoordinator ? { includeAssignable: true } : {})
         }
       })
       setInstructors((res.data.users || []).filter((item) => item.instructor?.id))

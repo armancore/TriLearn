@@ -31,8 +31,8 @@ const initialUserValues = {
   section: ''
 }
 
-const coordinatorVisibleRoles = ['', 'INSTRUCTOR', 'STUDENT']
 const allVisibleRoles = ['', 'ADMIN', 'COORDINATOR', 'GATEKEEPER', 'INSTRUCTOR', 'STUDENT']
+const coordinatorVisibleRoles = ['', 'GATEKEEPER', 'INSTRUCTOR', 'STUDENT']
 const normalizeValue = (value) => String(value || '').trim().toLowerCase()
 const getInstructorDepartments = (instructor) => (
   Array.isArray(instructor?.departments) && instructor.departments.length > 0
@@ -221,8 +221,7 @@ const Users = () => {
       setPage(1)
       setShowModal(false)
       setValues({
-        ...initialUserValues,
-        department: isCoordinator ? normalizedCoordinatorDepartment : ''
+        ...initialUserValues
       })
       setErrors({})
     } catch (err) {
@@ -270,8 +269,7 @@ const Users = () => {
     setModalType(type)
     setError('')
     setValues({
-      ...initialUserValues,
-      department: isCoordinator ? normalizedCoordinatorDepartment : ''
+      ...initialUserValues
     })
     setErrors({})
     setShowModal(true)
@@ -620,10 +618,7 @@ const Users = () => {
                 <div>
                   <label className="ui-form-label">Departments</label>
                   <div className="grid gap-2 rounded-xl border border-[var(--color-card-border)] bg-[var(--color-surface-muted)] p-3 sm:grid-cols-2">
-                    {(isCoordinator
-                      ? departments.filter((department) => normalizeValue(department.name) === normalizeValue(normalizedCoordinatorDepartment))
-                      : departments
-                    ).map((department) => {
+                    {departments.map((department) => {
                       const checked = values.departments.includes(department.name)
 
                       return (
@@ -652,10 +647,7 @@ const Users = () => {
                     className={`ui-form-input ${errors.department ? 'ui-form-input-error' : ''}`}
                   >
                     <option value="">Select Department</option>
-                    {(isCoordinator
-                      ? departments.filter((department) => normalizeValue(department.name) === normalizeValue(normalizedCoordinatorDepartment))
-                      : departments
-                    ).map((department) => (
+                    {departments.map((department) => (
                       <option key={department.id} value={department.name}>
                         {department.name} ({department.code})
                       </option>

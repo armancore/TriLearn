@@ -1,7 +1,6 @@
 const prisma = require('../utils/prisma')
 const { getPagination } = require('../utils/pagination')
 const { ensureDepartmentExists } = require('./department.controller')
-const { instructorHasDepartment } = require('../utils/instructorDepartments')
 const {
   enrollMatchingStudentsInSubject,
   syncMatchingStudentsForSubject
@@ -27,27 +26,15 @@ const ensureCoordinatorDepartmentScope = async (req, res, departmentValue, messa
   return coordinatorDepartments
 }
 
-const ensureCoordinatorInstructorScope = async (req, res, instructorId, departmentAliases, message = 'You can only assign instructors from your own department') => {
-  if (req.user.role !== 'COORDINATOR' || !instructorId) {
+const ensureCoordinatorInstructorScope = async (req, res, instructorId) => {
+  if (!instructorId) {
     return true
   }
 
-  const instructor = await prisma.instructor.findUnique({
-    where: { id: instructorId },
-    select: {
-      id: true,
-      department: true,
-      departments: true
-    }
-  })
+  const instructor = await prisma.instructor.findUnique({ where: { id: instructorId } })
 
   if (!instructor) {
     res.status(404).json({ message: 'Instructor not found' })
-    return false
-  }
-
-  if (!departmentAliases.includes('*') && !departmentAliases.some((alias) => instructorHasDepartment(instructor, alias))) {
-    res.status(403).json({ message })
     return false
   }
 
@@ -174,7 +161,7 @@ const createSubject = async (req, res) => {
       return
     }
 
-    const instructorAllowed = await ensureCoordinatorInstructorScope(req, res, instructorId, departmentAliases || [])
+    const instructorAllowed = await ensureCoordinatorInstructorScope(req, res, instructorId)
     if (!instructorAllowed) {
       return
     }
@@ -337,7 +324,7 @@ const updateSubject = async (req, res) => {
         return
       }
 
-      const instructorAllowed = await ensureCoordinatorInstructorScope(req, res, instructorId, nextDepartmentAliases)
+      const instructorAllowed = await ensureCoordinatorInstructorScope(req, res, instructorId)
       if (!instructorAllowed) {
         return
       }
@@ -443,7 +430,7 @@ const assignInstructor = async (req, res) => {
       return
     }
 
-    const instructorAllowed = await ensureCoordinatorInstructorScope(req, res, instructorId, departmentAliases)
+    const instructorAllowed = await ensureCoordinatorInstructorScope(req, res, instructorId)
     if (!instructorAllowed) {
       return
     }

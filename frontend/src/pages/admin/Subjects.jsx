@@ -80,7 +80,8 @@ const Subjects = () => {
         signal,
         params: {
           role: 'INSTRUCTOR',
-          limit: 100
+          limit: 100,
+          ...(isCoordinator ? { includeAssignable: true } : {})
         }
       })
       setInstructors((res.data.users || []).filter((inst) => inst.instructor?.id))
@@ -88,7 +89,7 @@ const Subjects = () => {
       if (isRequestCanceled(error)) return
       logger.error('Failed to load instructors', error)
     }
-  }, [])
+  }, [isCoordinator])
 
   useEffect(() => {
     const controller = new AbortController()

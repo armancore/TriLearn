@@ -1,6 +1,4 @@
 const prisma = require('../utils/prisma')
-const { instructorHasDepartment } = require('../utils/instructorDepartments')
-
 const ensureCoordinatorDepartmentScope = async (req, res, departmentValue, message = 'You can only manage routines in your own department') => {
   if (req.user.role !== 'COORDINATOR') {
     return null
@@ -140,10 +138,6 @@ const validateRoutineAcademicScope = async ({ subjectId, instructorId, departmen
 
   if (normalizedDepartment !== normalizedSubjectDepartment) {
     return { error: { status: 400, message: 'Routine department must match the selected subject department.' } }
-  }
-
-  if (!instructorHasDepartment(instructor, normalizedDepartment)) {
-    return { error: { status: 400, message: 'Routine instructor must belong to the selected department.' } }
   }
 
   return { subject, instructor }

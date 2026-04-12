@@ -257,10 +257,28 @@ const getManagedUserDepartments = (user) => {
   return []
 }
 
+const isCoordinatorInstructorDepartmentUpdate = (req, user, hasInstructorDepartmentUpdate) => (
+  req?.user?.role === 'COORDINATOR' &&
+  user?.role === 'INSTRUCTOR' &&
+  hasInstructorDepartmentUpdate
+)
+
 const coordinatorCanManageUser = (req, user) => {
+  if (req?.user?.role !== 'COORDINATOR') {
+    return true
+  }
+
+  if (!user || ['ADMIN', 'COORDINATOR'].includes(user.role)) {
+    return false
+  }
+
+  if (user.role === 'GATEKEEPER') {
+    return true
+  }
+
   const coordinatorDepartments = getCoordinatorDepartments(req)
   if (coordinatorDepartments.length === 0) {
-    return true
+    return ['STUDENT', 'INSTRUCTOR', 'GATEKEEPER'].includes(user.role)
   }
 
   const targetDepartments = getManagedUserDepartments(user)
@@ -315,17 +333,18 @@ const getAdminStats = async (req, res) => {
 // ================================
 const getAllUsers = async (req, res) => {
   try {
-    const { role, isActive, search } = req.query
+    const { role, isActive, search, includeAssignable } = req.query
     const { page, limit, skip } = getPagination(req.query)
 
     const filters = { deletedAt: null }
     const andFilters = []
-    const coordinatorDepartments = getCoordinatorDepartments(req)
+    if (req.user?.role === 'COORDINATOR') {
+      const allowedRoles = ['STUDENT', 'INSTRUCTOR', 'GATEKEEPER']
+      const canSearchAssignableInstructors = includeAssignable === 'true' && role === 'INSTRUCTOR'
 
-    if (coordinatorDepartments.length > 0) {
-      const allowedRoles = ['STUDENT', 'INSTRUCTOR']
-
-      if (role) {
+      if (canSearchAssignableInstructors) {
+        filters.role = 'INSTRUCTOR'
+      } else if (role) {
         if (!allowedRoles.includes(role)) {
           return res.json({ total: 0, page, limit, users: [] })
         }
@@ -334,31 +353,6 @@ const getAllUsers = async (req, res) => {
       } else {
         filters.role = { in: allowedRoles }
       }
-
-      andFilters.push({
-        OR: [
-          {
-            role: 'STUDENT',
-            student: {
-              is: {
-                department: {
-                  in: coordinatorDepartments
-                }
-              }
-            }
-          },
-          {
-            role: 'INSTRUCTOR',
-            instructor: {
-              is: {
-                department: {
-                  in: coordinatorDepartments
-                }
-              }
-            }
-          }
-        ]
-      })
     } else if (role) {
       filters.role = role
     }
@@ -768,7 +762,7 @@ const updateUser = async (req, res) => {
       return res.status(404).json({ message: 'User not found' })
     }
 
-    if (!coordinatorCanManageUser(req, user)) {
+    if (!isCoordinatorInstructorDepartmentUpdate(req, user, hasInstructorDepartmentUpdate) && !coordinatorCanManageUser(req, user)) {
       return res.status(403).json({ message: 'You can only manage users in your own department' })
     }
 
@@ -793,9 +787,21 @@ const updateUser = async (req, res) => {
       const coordinatorDepartments = getCoordinatorDepartments(req)
       if (
         coordinatorDepartments.length > 0 &&
-        !instructorDepartments.departments.every((value) => coordinatorDepartments.includes(value))
+        req.user?.role === 'COORDINATOR'
       ) {
-        return res.status(403).json({ message: 'You can only manage users in your own department' })
+        const currentInstructorDepartments = normalizeDepartmentList([
+          ...(Array.isArray(user.instructor?.departments) ? user.instructor.departments : []),
+          user.instructor?.department
+        ])
+        const addedDepartments = instructorDepartments.departments.filter((value) => !currentInstructorDepartments.includes(value))
+        const removedDepartments = currentInstructorDepartments.filter((value) => !instructorDepartments.departments.includes(value))
+
+        if (
+          addedDepartments.some((value) => !coordinatorDepartments.includes(value)) ||
+          removedDepartments.some((value) => !coordinatorDepartments.includes(value))
+        ) {
+          return res.status(403).json({ message: 'You can only manage your own department assignments for instructors' })
+        }
       }
 
       await prisma.instructor.update({
@@ -1561,6 +1567,8 @@ module.exports = {
   toggleUserStatus,
   deleteUser
 }
+
+
 
 
 
