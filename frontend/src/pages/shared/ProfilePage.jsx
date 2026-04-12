@@ -259,10 +259,10 @@ const ProfilePage = () => {
       <Alert type="success" message={success} />
       <Alert type="error" message={error} />
 
-      <form onSubmit={saveProfile} className="rounded-3xl bg-[--color-bg-card] dark:bg-slate-800 p-6 shadow-sm dark:shadow-slate-900/50 md:p-8">
-        <div className="mb-8 flex flex-col gap-5 rounded-2xl border border-slate-200 bg-slate-50 p-5 md:flex-row md:items-center md:justify-between">
+      <form onSubmit={saveProfile} className="rounded-3xl bg-[--color-bg-card] p-6 shadow-sm dark:shadow-slate-900/50 md:p-8">
+        <div className="mb-8 flex flex-col gap-5 rounded-2xl border border-[var(--color-card-border)] bg-[var(--color-surface-muted)] p-5 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-4">
-            <div className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-3xl bg-slate-200 text-slate-500">
+            <div className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-3xl bg-[var(--color-surface-subtle)] text-[var(--color-text-muted)]">
               {avatarPreviewUrl ? (
                 <img src={avatarPreviewUrl} alt={`${profile?.name || 'User'} avatar`} className="h-full w-full object-cover" />
               ) : (
@@ -270,12 +270,12 @@ const ProfilePage = () => {
               )}
             </div>
             <div>
-              <p className="text-base font-semibold text-slate-900">Profile photo</p>
-              <p className="mt-1 text-sm text-slate-500">Upload a clear square image for your account profile.</p>
+              <p className="text-base font-semibold text-[var(--color-text)]">Profile photo</p>
+              <p className="mt-1 text-sm text-[var(--color-text-muted)]">Upload a clear square image for your account profile.</p>
             </div>
           </div>
           <div className="flex flex-col gap-3 sm:flex-row">
-            <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-slate-300 bg-[--color-bg-card] dark:bg-slate-800 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+            <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-[var(--color-card-border)] bg-[--color-bg-card] px-4 py-2 text-sm font-medium text-[var(--color-text-muted)] hover:bg-[var(--color-surface-muted)]">
               <Camera className="h-4 w-4" />
               <span>{selectedAvatarFile ? 'Change photo' : 'Choose photo'}</span>
               <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" className="hidden" onChange={handleAvatarFileChange} />
@@ -383,11 +383,11 @@ const ProfilePage = () => {
         </div>
       </form>
 
-      <section className="mt-8 rounded-3xl bg-[--color-bg-card] dark:bg-slate-800 p-6 shadow-sm dark:shadow-slate-900/50 md:p-8">
-        <div className="flex flex-col gap-3 border-b border-slate-200 pb-5 md:flex-row md:items-center md:justify-between">
+      <section className="mt-8 rounded-3xl bg-[--color-bg-card] p-6 shadow-sm dark:shadow-slate-900/50 md:p-8">
+        <div className="flex flex-col gap-3 border-b border-[var(--color-card-border)] pb-5 md:flex-row md:items-center md:justify-between">
           <div>
-            <h2 className="text-xl font-semibold text-slate-900">Recent activity</h2>
-            <p className="mt-1 text-sm text-slate-500">Track sign-ins and review active sessions tied to your account.</p>
+            <h2 className="text-xl font-semibold text-[var(--color-text)]">Recent activity</h2>
+            <p className="mt-1 text-sm text-[var(--color-text-muted)]">Track sign-ins and review active sessions tied to your account.</p>
           </div>
           <button
             type="button"
@@ -403,28 +403,28 @@ const ProfilePage = () => {
 
         <div className="mt-6 grid gap-6 lg:grid-cols-[1.2fr,0.8fr]">
           <div>
-            <h3 className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">Timeline</h3>
+            <h3 className="text-sm font-semibold uppercase tracking-[0.2em] text-[var(--color-text-muted)]">Timeline</h3>
             {activityLoading ? (
-              <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-5 text-sm text-slate-500">Loading account activity...</div>
+              <div className="mt-4 rounded-2xl border border-[var(--color-card-border)] bg-[var(--color-surface-muted)] px-4 py-5 text-sm text-[var(--color-text-muted)]">Loading account activity...</div>
             ) : activityItems.length === 0 ? (
-              <div className="mt-4 rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-5 text-sm text-slate-500">No recent account activity recorded yet.</div>
+              <div className="mt-4 rounded-2xl border border-dashed border-[var(--color-card-border)] bg-[var(--color-surface-muted)] px-4 py-5 text-sm text-[var(--color-text-muted)]">No recent account activity recorded yet.</div>
             ) : (
               <div className="mt-4 space-y-3">
                 {activityItems.map((item) => (
-                  <div key={item.id} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+                  <div key={item.id} className="rounded-2xl border border-[var(--color-card-border)] bg-[var(--color-surface-muted)] px-4 py-4">
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <p className="text-sm font-semibold text-slate-900">{formatActivityLabel(item.action)}</p>
-                        <p className="mt-1 text-xs text-slate-500">
+                        <p className="text-sm font-semibold text-[var(--color-text)]">{formatActivityLabel(item.action)}</p>
+                        <p className="mt-1 text-xs text-[var(--color-text-muted)]">
                           {formatDateTime(item.createdAt)}
                         </p>
                       </div>
                       {item.metadata?.ipAddress ? (
-                        <span className="rounded-full bg-[--color-bg-card] dark:bg-slate-800 px-3 py-1 text-xs font-medium text-slate-500">{item.metadata.ipAddress}</span>
+                        <span className="rounded-full bg-[--color-bg-card] px-3 py-1 text-xs font-medium text-[var(--color-text-muted)]">{item.metadata.ipAddress}</span>
                       ) : null}
                     </div>
                     {item.metadata?.userAgent ? (
-                      <p className="mt-3 text-sm text-slate-600">{getSessionLabel(item.metadata.userAgent)}</p>
+                      <p className="mt-3 text-sm text-[var(--color-text-muted)]">{getSessionLabel(item.metadata.userAgent)}</p>
                     ) : null}
                   </div>
                 ))}
@@ -433,25 +433,25 @@ const ProfilePage = () => {
           </div>
 
           <div>
-            <h3 className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">Active sessions</h3>
+            <h3 className="text-sm font-semibold uppercase tracking-[0.2em] text-[var(--color-text-muted)]">Active sessions</h3>
             {activityLoading ? (
-              <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-5 text-sm text-slate-500">Loading active sessions...</div>
+              <div className="mt-4 rounded-2xl border border-[var(--color-card-border)] bg-[var(--color-surface-muted)] px-4 py-5 text-sm text-[var(--color-text-muted)]">Loading active sessions...</div>
             ) : sessions.length === 0 ? (
-              <div className="mt-4 rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-5 text-sm text-slate-500">No active sessions found.</div>
+              <div className="mt-4 rounded-2xl border border-dashed border-[var(--color-card-border)] bg-[var(--color-surface-muted)] px-4 py-5 text-sm text-[var(--color-text-muted)]">No active sessions found.</div>
             ) : (
               <div className="mt-4 space-y-3">
                 {sessions.map((session) => (
-                  <div key={session.id} className="rounded-2xl border border-slate-200 bg-[--color-bg-card] dark:bg-slate-800 px-4 py-4 shadow-sm dark:shadow-slate-900/50">
+                  <div key={session.id} className="rounded-2xl border border-[var(--color-card-border)] bg-[var(--color-surface-muted)] px-4 py-4 shadow-sm dark:shadow-slate-900/50">
                     <div className="flex items-center justify-between gap-3">
-                      <p className="text-sm font-semibold text-slate-900">{getSessionLabel(session.userAgent)}</p>
+                      <p className="text-sm font-semibold text-[var(--color-text)]">{getSessionLabel(session.userAgent)}</p>
                       {session.current ? (
                         <span className="rounded-full bg-primary-100 px-3 py-1 text-xs font-semibold text-primary">Current</span>
                       ) : null}
                     </div>
-                    <p className="mt-2 text-xs text-slate-500">IP: {session.ipAddress || 'Unknown'}</p>
-                    <p className="mt-1 text-xs text-slate-500">Started: {formatDateTime(session.createdAt)}</p>
-                    <p className="mt-1 text-xs text-slate-500">Last used: {session.lastUsedAt ? formatDateTime(session.lastUsedAt) : 'Not tracked yet'}</p>
-                    <p className="mt-1 text-xs text-slate-500">Expires: {formatDateTime(session.expiresAt)}</p>
+                    <p className="mt-2 text-xs text-[var(--color-text-muted)]">IP: {session.ipAddress || 'Unknown'}</p>
+                    <p className="mt-1 text-xs text-[var(--color-text-muted)]">Started: {formatDateTime(session.createdAt)}</p>
+                    <p className="mt-1 text-xs text-[var(--color-text-muted)]">Last used: {session.lastUsedAt ? formatDateTime(session.lastUsedAt) : 'Not tracked yet'}</p>
+                    <p className="mt-1 text-xs text-[var(--color-text-muted)]">Expires: {formatDateTime(session.expiresAt)}</p>
                   </div>
                 ))}
               </div>

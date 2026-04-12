@@ -160,7 +160,7 @@ const getMyAttendance = async (req, res) => {
       present: subject.present,
       absent: subject.absent,
       late: subject.late,
-      percentage: `${((subject.present / subject.total) * 100).toFixed(1)}%`
+      percentage: `${(((subject.present + subject.late) / subject.total) * 100).toFixed(1)}%`
     })).sort((left, right) => left.code.localeCompare(right.code))
 
     res.json({ total, page, limit, attendance, summary })
@@ -219,7 +219,7 @@ const exportMyAttendancePdf = async (req, res) => {
     const subjectSummaries = Object.values(summaryMap)
       .map((entry) => ({
         ...entry,
-        percentage: entry.total > 0 ? Number(((entry.present / entry.total) * 100).toFixed(1)) : 0
+        percentage: entry.total > 0 ? Number((((entry.present + entry.late) / entry.total) * 100).toFixed(1)) : 0
       }))
       .sort((left, right) => left.subject.code.localeCompare(right.subject.code))
 
@@ -402,7 +402,7 @@ const getMonthlyAttendanceReport = async (req, res) => {
         absent,
         late,
         totalRecorded,
-        percentage: totalRecorded > 0 ? ((present / totalRecorded) * 100).toFixed(1) : '0.0',
+        percentage: totalRecorded > 0 ? (((present + late) / totalRecorded) * 100).toFixed(1) : '0.0',
         dailyStatuses
       }
     })

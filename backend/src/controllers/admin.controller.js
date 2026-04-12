@@ -1,4 +1,5 @@
 const prisma = require('../utils/prisma')
+const crypto = require('crypto')
 const fs = require('fs')
 const path = require('path')
 const ExcelJS = require('exceljs')
@@ -127,6 +128,15 @@ const buildStudentImportError = (rowNumber, message, student) => ({
   email: student?.email || '',
   studentId: student?.studentId || '',
   message
+})
+
+const getStudentImportSubjectFilter = (semester, department) => ({
+  semester,
+  OR: [
+    { department: null },
+    { department: '' },
+    ...(department ? [{ department }] : [])
+  ]
 })
 
 const createStudentAccountRecord = async ({
@@ -1027,8 +1037,8 @@ const importStudents = async (req, res) => {
         return
       }
 
-      if (!Number.isInteger(semester) || semester < 1 || semester > 8) {
-        failures.push(buildStudentImportError(row.rowNumber, 'Semester must be a number between 1 and 8', row))
+      if (!Number.isInteger(semester) || semester < 1 || semester > 12) {
+        failures.push(buildStudentImportError(row.rowNumber, 'Semester must be a number between 1 and 12', row))
         return
       }
 
@@ -1096,35 +1106,120 @@ const importStudents = async (req, res) => {
       rowsToCreate.push(row)
     })
 
-    const created = []
+    let created = []
 
-    for (const row of rowsToCreate) {
+    if (rowsToCreate.length > 0) {
       try {
-        const { user, temporaryPassword } = await createStudentAccountRecord(row)
+        const preparedRows = await Promise.all(rowsToCreate.map(async (row) => {
+          const temporaryPassword = getStudentTemporaryPassword()
+          const hashedPassword = await hashPassword(temporaryPassword)
 
-        const { subject, html, text } = welcomeTemplate({
-          name: user.name,
-          email: user.email,
-          tempPassword: temporaryPassword
+          return {
+            ...row,
+            userId: crypto.randomUUID(),
+            studentProfileId: crypto.randomUUID(),
+            temporaryPassword,
+            hashedPassword
+          }
+        }))
+
+        const createdRows = await prisma.$transaction(async (tx) => {
+          const uniqueSemesterDepartments = Array.from(new Map(
+            preparedRows.map((row) => [
+              `${row.semester}::${row.department || ''}`,
+              { semester: row.semester, department: row.department || null }
+            ])
+          ).values())
+
+          const subjectGroups = await Promise.all(uniqueSemesterDepartments.map(async ({ semester, department }) => {
+            const subjects = await tx.subject.findMany({
+              where: getStudentImportSubjectFilter(semester, department),
+              select: { id: true }
+            })
+
+            return [`${semester}::${department || ''}`, subjects]
+          }))
+
+          const subjectMap = new Map(subjectGroups)
+
+          await tx.user.createMany({
+            data: preparedRows.map((row) => ({
+              id: row.userId,
+              name: row.name,
+              email: row.email,
+              password: row.hashedPassword,
+              role: 'STUDENT',
+              phone: row.phone,
+              address: row.address,
+              mustChangePassword: true,
+              profileCompleted: false
+            }))
+          })
+
+          await tx.student.createMany({
+            data: preparedRows.map((row) => ({
+              id: row.studentProfileId,
+              userId: row.userId,
+              rollNumber: row.studentId,
+              semester: row.semester,
+              section: row.section,
+              department: row.department
+            }))
+          })
+
+          const enrollmentRows = preparedRows.flatMap((row) => (
+            (subjectMap.get(`${row.semester}::${row.department || ''}`) || []).map((subject) => ({
+              subjectId: subject.id,
+              studentId: row.studentProfileId
+            }))
+          ))
+
+          if (enrollmentRows.length > 0) {
+            await tx.subjectEnrollment.createMany({
+              data: enrollmentRows,
+              skipDuplicates: true
+            })
+          }
+
+          return preparedRows.map((row) => ({
+            rowNumber: row.rowNumber,
+            status: 'created',
+            id: row.userId,
+            name: row.name,
+            email: row.email,
+            studentId: row.studentId,
+            department: row.department,
+            semester: row.semester,
+            section: row.section,
+            temporaryPassword: row.temporaryPassword
+          }))
         })
 
-        await sendMail({ to: user.email, subject, html, text })
-          .catch((error) => logger.error('Welcome email failed', { message: error.message, stack: error.stack, userId: user.id }))
+        created = createdRows
 
-        created.push({
-          rowNumber: row.rowNumber,
-          status: 'created',
-          id: user.id,
-          name: user.name,
-          email: user.email,
-          studentId: user.student.rollNumber,
-          department: user.student.department,
-          semester: user.student.semester,
-          section: user.student.section,
-          temporaryPassword
+        await Promise.allSettled(created.map(async (row) => {
+          const { subject, html, text } = welcomeTemplate({
+            name: row.name,
+            email: row.email,
+            tempPassword: row.temporaryPassword
+          })
+
+          await sendMail({ to: row.email, subject, html, text })
+        })).then((results) => {
+          results.forEach((result, index) => {
+            if (result.status === 'rejected') {
+              logger.error('Welcome email failed', {
+                message: result.reason?.message,
+                stack: result.reason?.stack,
+                userId: created[index]?.id
+              })
+            }
+          })
         })
       } catch (error) {
-        failures.push(buildStudentImportError(row.rowNumber, error?.message || 'Unable to create the student account', row))
+        rowsToCreate.forEach((row) => {
+          failures.push(buildStudentImportError(row.rowNumber, error?.message || 'Unable to create the student accounts', row))
+        })
       }
     }
 

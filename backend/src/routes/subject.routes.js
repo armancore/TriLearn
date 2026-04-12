@@ -1,6 +1,7 @@
 const express = require('express')
 const router = express.Router()
 const { protect, allowRoles } = require('../middleware/auth.middleware')
+const { attachActorProfiles } = require('../middleware/profile.middleware')
 const { validate } = require('../middleware/validate.middleware')
 const { schemas } = require('../validators/schemas')
 const {
@@ -16,6 +17,7 @@ const {
 
 // All routes protected
 router.use(protect)
+router.use(attachActorProfiles)
 
 // Admin only
 router.post('/', allowRoles('ADMIN', 'COORDINATOR'), validate(schemas.subjects.create), createSubject)

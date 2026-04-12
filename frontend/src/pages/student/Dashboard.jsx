@@ -82,11 +82,13 @@ const StudentDashboard = () => {
     ])
   ), [attendanceSummary])
 
-  const overallAttendance = attendanceSummary.length > 0
-    ? Math.round(attendanceSummary.reduce((sum, item) => {
-      const value = Number.parseFloat(String(item.percentage).replace('%', '')) || 0
-      return sum + value
-    }, 0) / attendanceSummary.length)
+  const overallAttendanceTotals = attendanceSummary.reduce((totals, item) => ({
+    attended: totals.attended + (item.present ?? 0) + (item.late ?? 0),
+    total: totals.total + (item.total ?? 0)
+  }), { attended: 0, total: 0 })
+
+  const overallAttendance = overallAttendanceTotals.total > 0
+    ? Math.round((overallAttendanceTotals.attended / overallAttendanceTotals.total) * 100)
     : 0
 
   const upcomingAssignments = [...assignments]
@@ -163,11 +165,11 @@ const StudentDashboard = () => {
 
         <div className="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
           <section className="space-y-6">
-            <div className="rounded-2xl bg-[--color-bg-card] dark:bg-slate-800 p-6 shadow-sm dark:shadow-slate-900/50">
+            <div className="rounded-2xl bg-[--color-bg-card] p-6 shadow-sm dark:shadow-slate-900/50">
               <div className="mb-4 flex items-center justify-between gap-4">
                 <div>
-                  <h2 className="text-lg font-semibold text-slate-900">Today&apos;s Routine</h2>
-                  <p className="text-sm text-slate-500">
+                  <h2 className="text-lg font-semibold text-[var(--color-text)]">Today&apos;s Routine</h2>
+                  <p className="text-sm text-[var(--color-text-muted)]">
                     {getTodayName().charAt(0) + getTodayName().slice(1).toLowerCase()} schedule for your enrolled classes.
                   </p>
                 </div>
@@ -185,19 +187,19 @@ const StudentDashboard = () => {
               ) : (
                 <div className="space-y-3">
                   {todayRoutine.map((routine) => (
-                    <div key={routine.id} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+                    <div key={routine.id} className="rounded-2xl border border-[var(--color-card-border)] bg-[var(--color-surface-muted)] px-4 py-4">
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                         <div>
-                          <p className="text-sm font-semibold text-slate-900">{routine.subject?.name}</p>
-                          <p className="mt-1 text-xs text-slate-500">{routine.subject?.code}</p>
-                          <p className="mt-2 text-xs text-slate-500">
+                          <p className="text-sm font-semibold text-[var(--color-text)]">{routine.subject?.name}</p>
+                          <p className="mt-1 text-xs text-[var(--color-text-muted)]">{routine.subject?.code}</p>
+                          <p className="mt-2 text-xs text-[var(--color-text-muted)]">
                             {routine.department || routine.subject?.department || 'General'} • Semester {routine.semester}{routine.section ? ` • Section ${routine.section}` : ''}
                           </p>
                         </div>
-                        <div className="text-sm text-slate-600">
+                        <div className="text-sm text-[var(--color-text-muted)]">
                           <p className="font-medium">{routine.startTime} - {routine.endTime}</p>
-                          <p className="mt-1 text-xs text-slate-500">{routine.room ? `Room ${routine.room}` : 'Room not assigned'}</p>
-                          <p className="mt-1 text-xs text-slate-500">{routine.instructor?.user?.name || 'Instructor not assigned'}</p>
+                          <p className="mt-1 text-xs text-[var(--color-text-muted)]">{routine.room ? `Room ${routine.room}` : 'Room not assigned'}</p>
+                          <p className="mt-1 text-xs text-[var(--color-text-muted)]">{routine.instructor?.user?.name || 'Instructor not assigned'}</p>
                         </div>
                       </div>
                     </div>
@@ -206,11 +208,11 @@ const StudentDashboard = () => {
               )}
             </div>
 
-            <div className="rounded-2xl bg-[--color-bg-card] dark:bg-slate-800 p-6 shadow-sm dark:shadow-slate-900/50">
+            <div className="rounded-2xl bg-[--color-bg-card] p-6 shadow-sm dark:shadow-slate-900/50">
               <div className="mb-4 flex items-center justify-between gap-4">
                 <div>
-                  <h2 className="text-lg font-semibold text-slate-900">Upcoming Assignments</h2>
-                  <p className="text-sm text-slate-500">The next deadlines from your current modules.</p>
+                  <h2 className="text-lg font-semibold text-[var(--color-text)]">Upcoming Assignments</h2>
+                  <p className="text-sm text-[var(--color-text-muted)]">The next deadlines from your current modules.</p>
                 </div>
                 <Link to="/student/assignments" className="text-sm font-medium text-[var(--color-role-accent)] hover:underline">
                   All assignments
@@ -226,15 +228,15 @@ const StudentDashboard = () => {
               ) : (
                 <div className="space-y-3">
                   {upcomingAssignments.map((assignment) => (
-                    <div key={assignment.id} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+                    <div key={assignment.id} className="rounded-2xl border border-[var(--color-card-border)] bg-[var(--color-surface-muted)] px-4 py-4">
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                         <div>
-                          <p className="text-sm font-semibold text-slate-900">{assignment.title}</p>
-                          <p className="mt-1 text-xs text-slate-500">{assignment.subject?.name} ({assignment.subject?.code})</p>
+                          <p className="text-sm font-semibold text-[var(--color-text)]">{assignment.title}</p>
+                          <p className="mt-1 text-xs text-[var(--color-text-muted)]">{assignment.subject?.name} ({assignment.subject?.code})</p>
                         </div>
-                        <div className="text-sm text-slate-600">
+                        <div className="text-sm text-[var(--color-text-muted)]">
                           <p className="font-medium">{formatDate(assignment.dueDate, { month: 'short', day: 'numeric', year: 'numeric' })}</p>
-                          <p className="mt-1 text-xs text-slate-500">{assignment.totalMarks} marks</p>
+                          <p className="mt-1 text-xs text-[var(--color-text-muted)]">{assignment.totalMarks} marks</p>
                         </div>
                       </div>
                     </div>
@@ -245,11 +247,11 @@ const StudentDashboard = () => {
           </section>
 
           <aside className="space-y-6">
-            <div className="rounded-2xl bg-[--color-bg-card] dark:bg-slate-800 p-6 shadow-sm dark:shadow-slate-900/50">
+            <div className="rounded-2xl bg-[--color-bg-card] p-6 shadow-sm dark:shadow-slate-900/50">
               <div className="mb-4 flex items-center justify-between gap-4">
                 <div>
-                  <h2 className="text-lg font-semibold text-slate-900">Attendance Snapshot</h2>
-                  <p className="text-sm text-slate-500">Your strongest and weakest attendance trends by subject.</p>
+                  <h2 className="text-lg font-semibold text-[var(--color-text)]">Attendance Snapshot</h2>
+                  <p className="text-sm text-[var(--color-text-muted)]">Your strongest and weakest attendance trends by subject.</p>
                 </div>
                 <Link to="/student/attendance" className="text-sm font-medium text-[var(--color-role-accent)] hover:underline">
                   Full attendance
@@ -265,31 +267,31 @@ const StudentDashboard = () => {
               ) : (
                 <div className="space-y-3">
                   {attendanceHighlights.map((subject) => (
-                    <div key={subject.id} className="rounded-2xl border border-slate-200 px-4 py-4">
+                    <div key={subject.id} className="rounded-2xl border border-[var(--color-card-border)] bg-[var(--color-surface-muted)] px-4 py-4">
                       <div className="flex items-start justify-between gap-3">
                         <div>
-                          <p className="text-sm font-semibold text-slate-900">{subject.name}</p>
-                          <p className="mt-1 text-xs text-slate-500">{subject.code}</p>
+                          <p className="text-sm font-semibold text-[var(--color-text)]">{subject.name}</p>
+                          <p className="mt-1 text-xs text-[var(--color-text-muted)]">{subject.code}</p>
                         </div>
                         <span className={`rounded-full px-3 py-1 text-xs font-semibold ${subject.percentage >= 80 ? 'bg-primary-100 text-primary' : 'bg-accent-100 text-accent-700'}`}>
                           {subject.percentage.toFixed(0)}%
                         </span>
                       </div>
-                      <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100">
+                      <div className="mt-3 h-2 overflow-hidden rounded-full bg-[var(--color-surface-subtle)]">
                         <div className={`h-full rounded-full ${subject.percentage >= 80 ? 'bg-primary-500' : 'bg-accent'}`} style={{ width: `${Math.min(subject.percentage, 100)}%` }} />
                       </div>
-                      <p className="mt-2 text-xs text-slate-500">{subject.present} present out of {subject.total} records</p>
+                      <p className="mt-2 text-xs text-[var(--color-text-muted)]">{subject.present} present out of {subject.total} records</p>
                     </div>
                   ))}
                 </div>
               )}
             </div>
 
-            <div className="rounded-2xl bg-[--color-bg-card] dark:bg-slate-800 p-6 shadow-sm dark:shadow-slate-900/50">
+            <div className="rounded-2xl bg-[--color-bg-card] p-6 shadow-sm dark:shadow-slate-900/50">
               <div className="mb-4 flex items-center justify-between gap-4">
                 <div>
-                  <h2 className="text-lg font-semibold text-slate-900">Recent Notices</h2>
-                  <p className="text-sm text-slate-500">The latest updates posted for students.</p>
+                  <h2 className="text-lg font-semibold text-[var(--color-text)]">Recent Notices</h2>
+                  <p className="text-sm text-[var(--color-text-muted)]">The latest updates posted for students.</p>
                 </div>
                 <Link to="/student/notices" className="text-sm font-medium text-[var(--color-role-accent)] hover:underline">
                   All notices
@@ -305,31 +307,31 @@ const StudentDashboard = () => {
               ) : (
                 <div className="space-y-3">
                   {recentNotices.map((notice) => (
-                    <div key={notice.id} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+                    <div key={notice.id} className="rounded-2xl border border-[var(--color-card-border)] bg-[var(--color-surface-muted)] px-4 py-4">
                       <div className="flex items-center justify-between gap-3">
-                        <span className="rounded-full bg-slate-200 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-700">
+                        <span className="rounded-full bg-[var(--color-surface-subtle)] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--color-text-muted)]">
                           {notice.type}
                         </span>
-                        <span className="text-xs text-slate-400">
+                        <span className="text-xs text-[var(--color-text-soft)]">
                           {formatDate(notice.createdAt, { month: 'short', day: 'numeric' })}
                         </span>
                       </div>
-                      <p className="mt-3 text-sm font-semibold text-slate-900">{notice.title}</p>
-                      <p className="mt-2 line-clamp-2 text-sm text-slate-500">{notice.content}</p>
+                      <p className="mt-3 text-sm font-semibold text-[var(--color-text)]">{notice.title}</p>
+                      <p className="mt-2 line-clamp-2 text-sm text-[var(--color-text-muted)]">{notice.content}</p>
                     </div>
                   ))}
                 </div>
               )}
             </div>
 
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-5 py-5 shadow-sm dark:shadow-slate-900/50">
+            <div className="rounded-2xl border border-[var(--color-card-border)] bg-[var(--color-surface-muted)] px-5 py-5 shadow-sm dark:shadow-slate-900/50">
               <div className="flex items-center gap-3">
                 <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[var(--color-role-accent)]/10 text-[var(--color-role-accent)]">
                   <BookOpenText className="h-5 w-5" />
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-slate-900">{subjects.length} enrolled subjects</p>
-                  <p className="text-xs text-slate-500">
+                  <p className="text-sm font-semibold text-[var(--color-text)]">{subjects.length} enrolled subjects</p>
+                  <p className="text-xs text-[var(--color-text-muted)]">
                     {user?.student?.department || 'Department pending'}{user?.student?.semester ? ` • Semester ${user.student.semester}` : ''}
                   </p>
                 </div>

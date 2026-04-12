@@ -237,7 +237,7 @@ const getRankingSummary = async ({ student, examType, overallGpa }) => {
 
   const rank = rankedStudents.findIndex((entry) => entry.studentId === student.id) + 1
   const percentile = rank > 0 && cohortStudents.length > 0
-    ? Number((((cohortStudents.length - rank) / cohortStudents.length) * 100).toFixed(2))
+    ? Number((((cohortStudents.length - rank + 1) / cohortStudents.length) * 100).toFixed(2))
     : 0
 
   return {

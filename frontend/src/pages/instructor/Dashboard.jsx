@@ -9,6 +9,12 @@ import api from '../../utils/api'
 import { useAuth } from '../../context/AuthContext'
 import logger from '../../utils/logger'
 
+const noticeBadgeClasses = {
+  EXAM: 'ui-status-badge ui-status-warning',
+  URGENT: 'ui-status-badge ui-status-danger',
+  EVENT: 'ui-status-badge ui-status-info'
+}
+
 const InstructorDashboard = () => {
   const { user } = useAuth()
   const [stats, setStats] = useState({
@@ -94,9 +100,9 @@ const InstructorDashboard = () => {
 
         {/* Stats */}
         <div className="grid grid-cols-1 gap-6 mb-8 md:grid-cols-3">
-          <StatCard title="My Subjects" value={stats.totalSubjects} icon={BookOpenText} iconClassName="from-emerald-500 to-green-600" trend="+3.1%" trendLabel="scheduled this term" />
-          <StatCard title="Assignments" value={stats.totalAssignments} icon={ClipboardList} iconClassName="from-blue-500 to-cyan-600" trend="+6.4%" trendLabel="awaiting review" />
-          <StatCard title="Notices" value={stats.totalNotices} icon={BellRing} iconClassName="from-violet-500 to-purple-600" trend="+1.8%" trendLabel="campus updates" />
+          <StatCard title="My Subjects" value={stats.totalSubjects} icon={BookOpenText} iconClassName="from-emerald-500 to-green-600" trend={`${subjects.length} shown`} trendLabel="latest teaching load" />
+          <StatCard title="Assignments" value={stats.totalAssignments} icon={ClipboardList} iconClassName="from-blue-500 to-cyan-600" trend={`${stats.totalAssignments} total`} trendLabel="currently published" />
+          <StatCard title="Notices" value={stats.totalNotices} icon={BellRing} iconClassName="from-violet-500 to-purple-600" trend={`${notices.length} recent`} trendLabel="latest updates" />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -134,14 +140,10 @@ const InstructorDashboard = () => {
               {notices.map((notice) => (
                 <div key={notice.id} className="p-3 bg-[--color-bg] dark:bg-slate-900 rounded-xl">
                   <div className="flex items-center gap-2 mb-1">
-                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium
-                      ${notice.type === 'EXAM' ? 'bg-accent-100 text-accent-700' :
-                        notice.type === 'URGENT' ? 'bg-accent-100 text-accent-700' :
-                        notice.type === 'EVENT' ? 'bg-primary-100 text-primary' :
-                        'bg-[--color-bg] dark:bg-slate-800 text-gray-700'}`}>
+                    <span className={noticeBadgeClasses[notice.type] || 'ui-status-badge ui-status-neutral'}>
                       {notice.type}
                     </span>
-                    <span className="text-xs text-gray-400">
+                    <span className="text-xs text-[var(--color-text-soft)]">
                       {new Date(notice.createdAt).toLocaleDateString()}
                     </span>
                   </div>

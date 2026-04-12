@@ -275,9 +275,20 @@ const Assignments = () => {
     try {
       const marksValue = document.getElementById(`grade-${submissionId}`)?.value
       const feedbackValue = document.getElementById(`feedback-${submissionId}`)?.value || ''
+      const parsedMarks = Number.parseInt(marksValue, 10)
+
+      if (!Number.isInteger(parsedMarks)) {
+        setError('Please enter a valid whole number for marks before saving.')
+        return
+      }
+
+      if (parsedMarks < 0 || parsedMarks > (showSubmissions?.totalMarks ?? 0)) {
+        setError(`Marks must be between 0 and ${showSubmissions?.totalMarks ?? 0}.`)
+        return
+      }
 
       await api.patch(`/assignments/submissions/${submissionId}/grade`, {
-        obtainedMarks: parseInt(marksValue, 10),
+        obtainedMarks: parsedMarks,
         feedback: feedbackValue
       })
 

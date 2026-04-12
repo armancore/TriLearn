@@ -351,7 +351,7 @@ const schemas = {
         phone: optionalString(30),
         address: optionalString(255),
         department: z.string().trim().min(2).max(100),
-        semester: z.coerce.number().int().min(1).max(8),
+        semester: z.coerce.number().int().min(1).max(12),
         section: z.string().trim().min(1).max(20)
       })
     },
@@ -362,7 +362,7 @@ const schemas = {
         phone: optionalString(30),
         address: optionalString(255),
         department: optionalString(100),
-        semester: z.coerce.number().int().min(1).max(8).optional(),
+        semester: z.coerce.number().int().min(1).max(12).optional(),
         section: optionalString(20)
       })
     },

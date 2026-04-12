@@ -204,8 +204,7 @@ const notifyUsersAboutNotice = async (notice) => {
           : '/admin/notices'
   )
 
-  for (const user of users) {
-    await createNotifications({
+  await Promise.all(users.map((user) => createNotifications({
       userIds: [user.id],
       type: 'NOTICE_POSTED',
       title: notice.title,
@@ -217,8 +216,7 @@ const notifyUsersAboutNotice = async (notice) => {
         type: notice.type
       },
       dedupeKeyFactory: (userId) => `notice:${notice.id}:${userId}`
-    })
-  }
+    })))
 }
 
 // ================================

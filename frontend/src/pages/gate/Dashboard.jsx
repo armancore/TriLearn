@@ -50,17 +50,24 @@ const GateDashboard = () => {
 
   useEffect(() => {
     const controller = new AbortController()
+    const timeoutIds = new Set()
     void fetchLiveQr({ signal: controller.signal })
 
     const intervalId = window.setInterval(() => {
       const intervalController = new AbortController()
       void fetchLiveQr({ silent: true, signal: intervalController.signal })
-      window.setTimeout(() => intervalController.abort(), 14000)
+      const timeoutId = window.setTimeout(() => {
+        intervalController.abort()
+        timeoutIds.delete(timeoutId)
+      }, 14000)
+      timeoutIds.add(timeoutId)
     }, 15000)
 
     return () => {
       controller.abort()
       window.clearInterval(intervalId)
+      timeoutIds.forEach((timeoutId) => window.clearTimeout(timeoutId))
+      timeoutIds.clear()
     }
   }, [fetchLiveQr])
 

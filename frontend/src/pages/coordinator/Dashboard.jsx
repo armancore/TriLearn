@@ -318,19 +318,19 @@ const CoordinatorDashboard = () => {
       title: 'Assignment pressure',
       value: upcomingAssignments.length,
       description: `${overdueAssignments.length} overdue items need follow-up`,
-      tone: 'border-amber-200 bg-amber-50 text-amber-900'
+      tone: 'border-amber-200/70 bg-amber-50/80 text-[var(--color-text)] dark:border-amber-400/25 dark:bg-amber-500/10'
     },
     {
       title: 'Unpublished marks',
       value: unpublishedMarks.length,
       description: `${marksReview.stats.published || 0} results are already visible`,
-      tone: 'border-violet-200 bg-violet-50 text-violet-900'
+      tone: 'border-violet-200/70 bg-violet-50/80 text-[var(--color-text)] dark:border-violet-400/25 dark:bg-violet-500/10'
     },
     {
       title: 'Pending absence requests',
       value: pendingTickets.length,
       description: `${tickets.length} total department tickets`,
-      tone: 'border-rose-200 bg-rose-50 text-rose-900'
+      tone: 'border-rose-200/70 bg-rose-50/80 text-[var(--color-text)] dark:border-rose-400/25 dark:bg-rose-500/10'
     }
   ]
 
@@ -357,32 +357,32 @@ const CoordinatorDashboard = () => {
           <div className="mb-6 rounded-lg bg-accent-50 px-4 py-3 text-sm text-accent-600">{error}</div>
         ) : null}
 
-        <section className="mb-8 overflow-hidden rounded-[2rem] border border-slate-200 bg-[radial-gradient(circle_at_top_left,rgba(14,165,233,0.18),transparent_34%),radial-gradient(circle_at_bottom_right,rgba(16,185,129,0.14),transparent_34%),linear-gradient(135deg,#f8fafc_0%,#eef6ff_46%,#f6fffb_100%)] p-6 shadow-sm dark:shadow-slate-900/50 md:p-8">
+        <section className="mb-8 overflow-hidden rounded-[2rem] border border-[var(--color-card-border)] bg-[radial-gradient(circle_at_top_left,rgba(14,165,233,0.14),transparent_34%),radial-gradient(circle_at_bottom_right,rgba(16,185,129,0.12),transparent_34%),linear-gradient(135deg,var(--color-bg-card)_0%,var(--color-surface-muted)_46%,var(--color-surface-subtle)_100%)] p-6 shadow-sm dark:shadow-slate-900/50 md:p-8">
           <div className="grid gap-6 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
             <div>
-              <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-sky-200 bg-white/80 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-sky-700">
+              <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-sky-200/60 bg-[color-mix(in_srgb,var(--color-bg-card)_84%,transparent)] px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-sky-700 dark:border-sky-400/20 dark:text-sky-300">
                 <Sparkles className="h-3.5 w-3.5" />
                 <span>{departmentName} operations</span>
               </div>
-              <h2 className="max-w-3xl text-3xl font-black tracking-tight text-slate-900 md:text-4xl">
+              <h2 className="max-w-3xl text-3xl font-black tracking-tight text-[var(--color-text)] md:text-4xl">
                 Keep the department aligned, on schedule, and ready to publish.
               </h2>
-              <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600 md:text-base">
+              <p className="mt-3 max-w-2xl text-sm leading-6 text-[var(--color-text-muted)] md:text-base">
                 This view surfaces what needs attention first: student-facing delays, attendance drift, routine setup, and academic delivery across the current semester mix.
               </p>
 
               <div className="mt-6 grid gap-3 sm:grid-cols-3">
                 {commandMetrics.map((metric) => (
-                  <div key={metric.label} className="rounded-2xl border border-white/70 bg-white/80 px-4 py-4 backdrop-blur">
-                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">{metric.label}</p>
-                    <p className="mt-3 text-3xl font-black text-slate-900">{metric.value}</p>
-                    <p className="mt-2 text-sm text-slate-500">{metric.detail}</p>
+                  <div key={metric.label} className="rounded-2xl border border-[var(--color-card-border)] bg-[color-mix(in_srgb,var(--color-bg-card)_88%,transparent)] px-4 py-4 backdrop-blur">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--color-text-muted)]">{metric.label}</p>
+                    <p className="mt-3 text-3xl font-black text-[var(--color-text)]">{metric.value}</p>
+                    <p className="mt-2 text-sm text-[var(--color-text-muted)]">{metric.detail}</p>
                   </div>
                 ))}
               </div>
             </div>
 
-            <div className="rounded-[1.75rem] border border-slate-200 bg-slate-950 p-5 text-white shadow-[0_24px_60px_-30px_rgba(15,23,42,0.65)] md:p-6">
+            <div className="rounded-[1.75rem] border border-[var(--color-card-border)] bg-slate-950 p-5 text-white shadow-[0_24px_60px_-30px_rgba(15,23,42,0.65)] md:p-6">
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Current month pulse</p>
@@ -399,7 +399,7 @@ const CoordinatorDashboard = () => {
                       <option value="">No semesters</option>
                     ) : (
                       availableSemesters.map((semester) => (
-                        <option key={semester} value={semester} className="text-slate-900">
+                        <option key={semester} value={semester} className="text-[var(--color-text)]">
                           Semester {semester}
                         </option>
                       ))

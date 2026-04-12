@@ -92,25 +92,25 @@ const Dashboard = () => {
 
         {/* Stats */}
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4 mb-8">
-          <StatCard title="Total Users" value={stats.totalUsers} icon={Users} iconClassName="from-blue-500 to-indigo-600" trend="+8.4%" trendLabel="this month" />
-          <StatCard title="Students" value={stats.totalStudents} icon={GraduationCap} iconClassName="from-emerald-500 to-green-600" trend="+5.2%" trendLabel="active enrollments" />
-          <StatCard title="Instructors" value={stats.totalInstructors} icon={ShieldUser} iconClassName="from-violet-500 to-purple-600" trend="+2.1%" trendLabel="teaching staff" />
-          <StatCard title="Subjects" value={stats.totalSubjects} icon={BookOpenText} iconClassName="from-amber-500 to-orange-500" trend="+3.8%" trendLabel="curriculum growth" />
+          <StatCard title="Total Users" value={stats.totalUsers} icon={Users} iconClassName="from-blue-500 to-indigo-600" trend={`${recentUsers.length} recent`} trendLabel="latest accounts shown" />
+          <StatCard title="Students" value={stats.totalStudents} icon={GraduationCap} iconClassName="from-emerald-500 to-green-600" trend={`${stats.totalStudents} total`} trendLabel="active enrollments" />
+          <StatCard title="Instructors" value={stats.totalInstructors} icon={ShieldUser} iconClassName="from-violet-500 to-purple-600" trend={`${stats.totalInstructors} total`} trendLabel="teaching staff" />
+          <StatCard title="Subjects" value={stats.totalSubjects} icon={BookOpenText} iconClassName="from-amber-500 to-orange-500" trend={`${stats.totalSubjects} total`} trendLabel="curriculum entries" />
         </div>
 
         {/* Recent Users */}
         <div className="ui-card rounded-2xl p-6">
-          <h2 className="ui-heading-tight mb-4 text-lg font-semibold text-slate-900">Recent Users</h2>
+          <h2 className="ui-heading-tight mb-4 text-lg font-semibold text-[var(--color-text)]">Recent Users</h2>
           <div className="space-y-3">
             {recentUsers.map((user) => (
-              <div key={user.id} className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-slate-50/90 px-4 py-4 transition hover:-translate-y-0.5 hover:shadow-md dark:shadow-slate-900/50 sm:flex-row sm:items-center sm:justify-between">
+              <div key={user.id} className="flex flex-col gap-3 rounded-2xl border border-[var(--color-card-border)] bg-[color-mix(in_srgb,var(--color-surface-muted)_88%,transparent)] px-4 py-4 transition hover:-translate-y-0.5 hover:shadow-md dark:shadow-slate-900/50 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex min-w-0 items-center gap-3">
                   <div className="ui-role-fill flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-sm font-black text-white">
                     {initialsFromName(user.name)}
                   </div>
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-bold text-slate-900">{user.name}</p>
-                    <p className="truncate text-xs text-slate-500">{user.email}</p>
+                    <p className="truncate text-sm font-bold text-[var(--color-text)]">{user.name}</p>
+                    <p className="truncate text-xs text-[var(--color-text-muted)]">{user.email}</p>
                   </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-3">

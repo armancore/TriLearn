@@ -34,10 +34,11 @@ const AttendanceRing = ({ percentage }) => {
     <div
       className="relative flex h-20 w-20 shrink-0 items-center justify-center rounded-full"
       style={{
-        background: `conic-gradient(${tone} ${numericPercentage * 3.6}deg, rgba(226,232,240,0.9) 0deg)`
+        '--attendance-ring-track': 'var(--color-card-border)',
+        background: `conic-gradient(${tone} ${numericPercentage * 3.6}deg, var(--attendance-ring-track) 0deg)`
       }}
     >
-      <div className="flex h-[58px] w-[58px] items-center justify-center rounded-full bg-[--color-bg-card] dark:bg-slate-800 text-sm font-black text-slate-900 shadow-inner">
+      <div className="flex h-[58px] w-[58px] items-center justify-center rounded-full bg-[--color-bg-card] dark:bg-slate-800 text-sm font-black text-slate-900 dark:text-slate-100 shadow-inner">
         {percentage}
       </div>
     </div>

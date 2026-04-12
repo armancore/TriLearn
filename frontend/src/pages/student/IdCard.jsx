@@ -68,7 +68,7 @@ const StudentIdCard = () => {
                         className="h-10 w-10 rounded-2xl border border-white/20 object-cover bg-[--color-bg-card] dark:bg-slate-800"
                       />
                     ) : (
-                      <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[--color-bg-card] dark:bg-slate-800 text-sm font-black text-slate-900">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[--color-bg-card] dark:bg-slate-800 text-sm font-black text-[var(--color-text)]">
                         {String(profile?.name || 'S').split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase()}
                       </div>
                     )}
@@ -118,8 +118,8 @@ const StudentIdCard = () => {
                   </div>
                 </div>
 
-                <div className="relative flex w-full shrink-0 flex-col justify-between rounded-[26px] bg-[--color-bg-card] dark:bg-slate-800 p-5 text-slate-900 shadow-2xl dark:shadow-slate-900/50 lg:w-[260px]">
-                  <div className="mb-5 flex items-center gap-3 rounded-3xl bg-slate-50 p-3">
+                <div className="relative flex w-full shrink-0 flex-col justify-between rounded-[26px] bg-[--color-bg-card] p-5 text-[var(--color-text)] shadow-2xl dark:shadow-slate-900/50 lg:w-[260px]">
+                  <div className="mb-5 flex items-center gap-3 rounded-3xl bg-[var(--color-surface-muted)] p-3">
                     {avatarUrl ? (
                       <img
                         src={avatarUrl}
@@ -127,43 +127,43 @@ const StudentIdCard = () => {
                         className="h-16 w-16 rounded-2xl object-cover"
                       />
                     ) : (
-                      <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-200 text-lg font-black text-slate-700">
+                      <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-[var(--color-surface-subtle)] text-lg font-black text-[var(--color-text-muted)]">
                         {String(profile?.name || 'S').split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase()}
                       </div>
                     )}
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold text-slate-900">{profile?.name}</p>
-                      <p className="mt-1 text-xs text-slate-500">{profile?.student?.rollNumber || 'Student ID pending'}</p>
+                      <p className="truncate text-sm font-semibold text-[var(--color-text)]">{profile?.name}</p>
+                      <p className="mt-1 text-xs text-[var(--color-text-muted)]">{profile?.student?.rollNumber || 'Student ID pending'}</p>
                     </div>
                   </div>
 
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">Student QR</p>
-                      <p className="mt-1 text-sm font-semibold text-slate-900">Scan for details</p>
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[var(--color-text-soft)]">Student QR</p>
+                      <p className="mt-1 text-sm font-semibold text-[var(--color-text)]">Scan for details</p>
                     </div>
-                    <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-100 text-slate-700">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[var(--color-surface-muted)] text-[var(--color-text-muted)]">
                       <QrCode className="h-5 w-5" />
                     </div>
                   </div>
 
-                  <div className="mt-5 overflow-hidden rounded-3xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="mt-5 overflow-hidden rounded-3xl border border-[var(--color-card-border)] bg-[var(--color-surface-muted)] p-4">
                     {studentQrCode ? (
                       <img src={studentQrCode} alt="Student identity QR" className="w-full rounded-2xl bg-[--color-bg-card] dark:bg-slate-800" />
                     ) : (
-                      <div className="flex aspect-square items-center justify-center rounded-2xl bg-[--color-bg-card] dark:bg-slate-800 text-sm text-slate-400">
+                      <div className="flex aspect-square items-center justify-center rounded-2xl bg-[--color-bg-card] dark:bg-slate-800 text-sm text-[var(--color-text-soft)]">
                         Loading QR...
                       </div>
                     )}
                   </div>
 
-                  <div className="mt-5 rounded-2xl bg-slate-50 px-4 py-3">
-                    <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+                  <div className="mt-5 rounded-2xl bg-[var(--color-surface-muted)] px-4 py-3">
+                    <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-[var(--color-text-soft)]">
                       <CreditCard className="h-4 w-4" />
                       <span>Identity Snapshot</span>
                     </div>
-                    <p className="mt-2 text-sm font-semibold text-slate-900">{profile?.email}</p>
-                    <p className="mt-1 text-xs text-slate-500">Keep this card visible when needed for campus verification.</p>
+                    <p className="mt-2 text-sm font-semibold text-[var(--color-text)]">{profile?.email}</p>
+                    <p className="mt-1 text-xs text-[var(--color-text-muted)]">Keep this card visible when needed for campus verification.</p>
                   </div>
                 </div>
               </div>

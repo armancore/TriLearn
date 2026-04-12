@@ -82,7 +82,7 @@ const RoutineView = ({
                   className={`whitespace-nowrap rounded-full border px-4 py-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-role-accent)] focus-visible:ring-offset-2 ${
                     activeDay === day
                       ? 'border-[var(--color-role-accent)] bg-[var(--color-role-accent)] text-white'
-                      : 'border-slate-200 bg-[--color-bg-card] dark:bg-slate-800 text-slate-600 hover:bg-slate-50'
+                      : 'border-[var(--color-card-border)] bg-[--color-bg-card] text-[var(--color-text-muted)] hover:bg-[var(--color-surface-muted)]'
                   }`}
                 >
                   {DAY_SHORT[day]}
@@ -95,35 +95,35 @@ const RoutineView = ({
                 <div
                   key={day}
                   className={`rounded-2xl border p-4 shadow-sm dark:shadow-slate-900/50 ${
-                    day === today ? 'border-[var(--color-role-accent)]/30 bg-[var(--color-role-soft)]' : 'border-slate-200 bg-[--color-bg-card] dark:bg-slate-800'
+                    day === today ? 'border-[var(--color-role-accent)]/30 bg-[var(--color-role-soft)]' : 'border-[var(--color-card-border)] bg-[--color-bg-card]'
                   } ${activeDay === day ? 'ring-2 ring-[var(--color-role-accent)]/20' : ''}`}
                 >
                   <div className="mb-4 flex items-center justify-between">
                     <div>
-                      <p className={`text-sm font-bold ${day === today ? 'text-[var(--color-role-accent)]' : 'text-slate-700'}`}>{DAY_SHORT[day]}</p>
-                      <p className="text-xs text-slate-400">{byDay[day].length} classes</p>
+                      <p className={`text-sm font-bold ${day === today ? 'text-[var(--color-role-accent)]' : 'text-[var(--color-text)]'}`}>{DAY_SHORT[day]}</p>
+                      <p className="text-xs text-[var(--color-text-soft)]">{byDay[day].length} classes</p>
                     </div>
                     {day === today ? <span className="ui-status-badge">Today</span> : null}
                   </div>
 
                   <div className="space-y-3">
                     {byDay[day].length === 0 ? (
-                      <div className="rounded-xl border border-dashed border-slate-200 px-3 py-6 text-center text-xs text-slate-400">
+                      <div className="rounded-xl border border-dashed border-[var(--color-card-border)] px-3 py-6 text-center text-xs text-[var(--color-text-soft)]">
                         No classes
                       </div>
                     ) : (
                       byDay[day].map((routine) => (
                         <div key={routine.id} className={`rounded-2xl border p-4 ${subjectColorMap[routine.subjectId]}`}>
-                          <span className="mb-3 inline-flex rounded-full bg-[--color-bg-card] dark:bg-slate-800/80 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-700">
+                          <span className="mb-3 inline-flex rounded-full bg-[--color-bg-card] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--color-text-muted)]">
                             {timeRange(routine.startTime, routine.endTime)}
                           </span>
-                          <h3 className="font-semibold text-slate-900">{routine.subject?.name}</h3>
-                          <p className="mt-1 text-sm text-slate-600">{routine.subject?.code}</p>
-                          <p className="mt-2 text-xs text-slate-600">
+                          <h3 className="font-semibold text-[var(--color-text)]">{routine.subject?.name}</h3>
+                          <p className="mt-1 text-sm text-[var(--color-text-muted)]">{routine.subject?.code}</p>
+                          <p className="mt-2 text-xs text-[var(--color-text-muted)]">
                             {routine.department || routine.subject?.department || 'General'} • Semester {routine.semester}{routine.section ? ` • Section ${routine.section}` : ''}
                           </p>
-                          <p className="mt-2 text-xs text-slate-600">Instructor: {routine.instructor?.user?.name}</p>
-                          {routine.room ? <p className="mt-1 text-xs text-slate-600">Room: {routine.room}</p> : null}
+                          <p className="mt-2 text-xs text-[var(--color-text-muted)]">Instructor: {routine.instructor?.user?.name}</p>
+                          {routine.room ? <p className="mt-1 text-xs text-[var(--color-text-muted)]">Room: {routine.room}</p> : null}
                         </div>
                       ))
                     )}
