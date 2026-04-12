@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { BellRing, BookOpenText, CalendarDays, ClipboardList, Percent } from 'lucide-react'
+import { ArrowRight, BellRing, BookOpenText, CalendarDays, ClipboardList, Percent } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import StudentLayout from '../../layouts/StudentLayout'
 import Alert from '../../components/Alert'
@@ -247,6 +247,56 @@ const StudentDashboard = () => {
           </section>
 
           <aside className="space-y-6">
+            <div className="rounded-2xl bg-[--color-bg-card] p-6 shadow-sm dark:shadow-slate-900/50">
+              <div className="mb-4 flex items-center justify-between gap-4">
+                <div>
+                  <h2 className="text-lg font-semibold text-[var(--color-text)]">Enrolled Subjects</h2>
+                  <p className="text-sm text-[var(--color-text-muted)]">Open any subject to view assignments, study materials, and what is coming next.</p>
+                </div>
+                <Link to="/student/subjects" className="text-sm font-medium text-[var(--color-role-accent)] hover:underline">
+                  All subjects
+                </Link>
+              </div>
+
+              {subjects.length === 0 ? (
+                <EmptyState
+                  icon="📘"
+                  title="No enrolled subjects yet"
+                  description="Your subjects will appear here once your enrollment is active."
+                />
+              ) : (
+                <div className="space-y-3">
+                  {subjects.slice(0, 4).map((subject) => (
+                    <div key={subject.id} className="rounded-2xl border border-[var(--color-card-border)] bg-[var(--color-surface-muted)] px-4 py-4">
+                      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                        <div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="text-sm font-semibold text-[var(--color-text)]">{subject.name}</p>
+                            <span className="rounded-full bg-[var(--color-surface-subtle)] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--color-text-muted)]">
+                              {subject.code}
+                            </span>
+                          </div>
+                          <p className="mt-2 text-xs text-[var(--color-text-muted)]">
+                            {subject.department || user?.student?.department || 'General'} • Semester {subject.semester}
+                          </p>
+                          <p className="mt-2 text-xs text-[var(--color-text-muted)]">
+                            {subject._count?.assignments ?? 0} assignments • {subject._count?.materials ?? 0} study materials
+                          </p>
+                        </div>
+                        <Link
+                          to={`/student/subjects/${subject.id}/learnings`}
+                          className="inline-flex items-center justify-center gap-2 rounded-xl bg-[var(--color-role-accent)] px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90"
+                        >
+                          Learnings
+                          <ArrowRight className="h-4 w-4" />
+                        </Link>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
             <div className="rounded-2xl bg-[--color-bg-card] p-6 shadow-sm dark:shadow-slate-900/50">
               <div className="mb-4 flex items-center justify-between gap-4">
                 <div>

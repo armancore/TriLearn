@@ -522,12 +522,6 @@ const buildStaffReviewFilters = ({ req, subjectId, examType }) => {
     where.examType = examType
   }
 
-  if (req.user.role === 'COORDINATOR') {
-    where.subject = {
-      department: req.coordinator?.department || '__no_department__'
-    }
-  }
-
   return where
 }
 
@@ -990,23 +984,16 @@ const publishMarks = async (req, res) => {
   try {
     const { subjectId, examType } = req.body
 
-    if (req.user.role !== 'COORDINATOR') {
-      return res.status(403).json({ message: 'Only coordinators can publish exam results' })
+    if (!['COORDINATOR', 'ADMIN'].includes(req.user.role)) {
+      return res.status(403).json({ message: 'Only admins and coordinators can publish exam results' })
     }
 
     if (examType === 'PRACTICAL') {
       return res.status(400).json({ message: 'Practical marks remain internal and cannot be published for students.' })
     }
 
-    if (!req.coordinator?.department) {
-      return res.status(403).json({ message: 'Coordinator department is not configured yet' })
-    }
-
     const where = {
       examType,
-      subject: {
-        department: req.coordinator.department
-      },
       ...(subjectId ? { subjectId } : {})
     }
 
@@ -1024,7 +1011,7 @@ const publishMarks = async (req, res) => {
       }
     })
 
-    const scopeLabel = subjectId ? 'module' : 'department'
+    const scopeLabel = subjectId ? 'module' : 'selected scope'
     res.json({
       message: `${examType} results published successfully for the selected ${scopeLabel}.`,
       count: result.count
@@ -1058,9 +1045,9 @@ const publishMarks = async (req, res) => {
       metadata: {
         examType,
         subjectId: subjectId || null,
-        department: req.coordinator.department
+        audience: req.user.role
       },
-      dedupeKeyFactory: (userId) => `marks-published:${userId}:${examType}:${subjectId || req.coordinator.department}`
+      dedupeKeyFactory: (userId) => `marks-published:${userId}:${examType}:${subjectId || req.user.role}`
     })
 
     await recordAuditLog({
@@ -1069,10 +1056,10 @@ const publishMarks = async (req, res) => {
       action: 'MARKS_PUBLISHED',
       entityType: 'Mark',
       metadata: {
-        subjectId: subjectId || 'ALL_DEPARTMENT_SUBJECTS',
+        subjectId: subjectId || 'ALL_SELECTED_SUBJECTS',
         examType,
         count: result.count,
-        department: req.coordinator.department
+        audience: req.user.role
       }
     })
   } catch (error) {

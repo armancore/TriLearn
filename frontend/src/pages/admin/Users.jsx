@@ -30,8 +30,9 @@ const initialUserValues = {
   section: ''
 }
 
-const coordinatorVisibleRoles = ['', 'INSTRUCTOR', 'STUDENT']
+const coordinatorVisibleRoles = ['', 'COORDINATOR', 'INSTRUCTOR', 'STUDENT']
 const allVisibleRoles = ['', 'ADMIN', 'COORDINATOR', 'GATEKEEPER', 'INSTRUCTOR', 'STUDENT']
+const normalizeValue = (value) => String(value || '').trim().toLowerCase()
 
 const Users = () => {
   const { user: currentUser } = useAuth()
@@ -58,6 +59,10 @@ const Users = () => {
   const debouncedSearchTerm = useDebouncedValue(searchTerm, 300)
   const visibleRoles = isCoordinator ? coordinatorVisibleRoles : allVisibleRoles
   const coordinatorDepartment = currentUser?.coordinator?.department || ''
+  const normalizedCoordinatorDepartment = departments.find((department) => (
+    normalizeValue(department.name) === normalizeValue(coordinatorDepartment) ||
+    normalizeValue(department.code) === normalizeValue(coordinatorDepartment)
+  ))?.name || coordinatorDepartment
   const validateUserForm = (values) => {
     const validationErrors = {}
 
@@ -180,13 +185,13 @@ const Users = () => {
       } else {
         showToast({ title: `${modalType} created successfully.` })
       }
-      setFilterRole(modalType === 'student' ? 'STUDENT' : modalType === 'instructor' ? 'INSTRUCTOR' : '')
+      setFilterRole(modalType === 'student' ? 'STUDENT' : modalType === 'instructor' ? 'INSTRUCTOR' : modalType === 'gatekeeper' ? 'GATEKEEPER' : '')
       setSearchTerm('')
       setPage(1)
       setShowModal(false)
       setValues({
         ...initialUserValues,
-        department: isCoordinator ? coordinatorDepartment : ''
+        department: isCoordinator ? normalizedCoordinatorDepartment : ''
       })
       setErrors({})
     } catch (err) {
@@ -235,7 +240,7 @@ const Users = () => {
     setError('')
     setValues({
       ...initialUserValues,
-      department: isCoordinator ? coordinatorDepartment : ''
+      department: isCoordinator ? normalizedCoordinatorDepartment : ''
     })
     setErrors({})
     setShowModal(true)
@@ -291,7 +296,7 @@ const Users = () => {
       return true
     }
 
-    return ['STUDENT', 'INSTRUCTOR'].includes(targetUser.role)
+    return true
   }
 
   return (
@@ -300,12 +305,14 @@ const Users = () => {
 
         <PageHeader
           title="Users"
-          subtitle={isCoordinator ? 'Manage instructors and students for your department' : 'Manage all users in TriLearn'}
+          subtitle={isCoordinator ? 'Manage users across the campus with admin-style access' : 'Manage all users in TriLearn'}
           breadcrumbs={[isCoordinator ? 'Coordinator' : 'Admin', 'Users']}
           actions={[
             ...(isCoordinator
               ? [
-                  { label: 'Add Instructor', icon: UserPlus, variant: 'primary', onClick: () => openModal('instructor') }
+                  { label: 'Add Instructor', icon: UserPlus, variant: 'primary', onClick: () => openModal('instructor') },
+                  { label: 'Add Gate Account', icon: UserPlus, variant: 'primary', onClick: () => openModal('gatekeeper') },
+                  { label: 'Import Students', icon: Upload, variant: 'secondary', onClick: openImportModal }
                 ]
               : [
                   { label: 'Add Coordinator', icon: UserPlus, variant: 'primary', onClick: () => openModal('coordinator') },
@@ -382,7 +389,9 @@ const Users = () => {
                     icon="👥"
                     title="No users found"
                     description={filterRole === 'INSTRUCTOR'
-                      ? 'No instructors matched this filter yet. Create one for your department to get started.'
+                      ? 'No instructors matched this filter yet. Create one to get started.'
+                      : filterRole === 'COORDINATOR'
+                        ? 'No coordinators matched this filter yet.'
                       : filterRole === 'STUDENT'
                         ? 'No students matched this filter yet. Add a student or change the filter.'
                         : 'Try a different role filter or create a new account for your campus.'}
@@ -457,7 +466,7 @@ const Users = () => {
                               <Power className="h-4 w-4" />
                             </button>
                           ) : null}
-                          {!isCoordinator && (
+                          {(currentUser?.role === 'ADMIN' || currentUser?.role === 'COORDINATOR') && (
                             <button
                               type="button"
                               onClick={() => setUserToDelete(user)}

@@ -87,16 +87,6 @@ const resolveNoticeTargeting = (req, { audience, targetDepartment, targetSemeste
     normalizedTarget.targetSemester = null
   }
 
-  if (req.user.role === 'COORDINATOR') {
-    if (!req.coordinator?.department) {
-      return {
-        error: { status: 403, message: 'Coordinator department is not configured yet' }
-      }
-    }
-
-    normalizedTarget.targetDepartment = req.coordinator.department
-  }
-
   if (req.user.role === 'INSTRUCTOR') {
     if (normalizedAudience === 'INSTRUCTORS_ONLY') {
       return {
@@ -115,16 +105,6 @@ const resolveNoticeTargeting = (req, { audience, targetDepartment, targetSemeste
     typeof normalizedTarget.targetDepartment === 'string'
   ) {
     normalizedTarget.targetDepartment = normalizedTarget.targetDepartment.trim()
-  }
-
-  if (
-    req.user.role === 'COORDINATOR' &&
-    targetDepartment &&
-    targetDepartment !== req.coordinator?.department
-  ) {
-    return {
-      error: { status: 403, message: 'Coordinators can only target notices to their own department' }
-    }
   }
 
   if (

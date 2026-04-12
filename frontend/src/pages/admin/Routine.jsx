@@ -9,6 +9,7 @@ import LoadingSkeleton from '../../components/LoadingSkeleton'
 import Modal from '../../components/Modal'
 import PageHeader from '../../components/PageHeader'
 import { useAuth } from '../../context/AuthContext'
+import { useReferenceData } from '../../context/ReferenceDataContext'
 import logger from '../../utils/logger'
 import { isRequestCanceled } from '../../utils/http'
 const DAYS = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY']
@@ -38,8 +39,8 @@ const defaultForm = {
 
 const AdminRoutine = () => {
   const { user } = useAuth()
+  const { departments, loadDepartments } = useReferenceData()
   const isCoordinator = user?.role === 'COORDINATOR'
-  const coordinatorDepartment = user?.coordinator?.department || ''
   const Layout = isCoordinator ? CoordinatorLayout : AdminLayout
   const [routines, setRoutines] = useState([])
   const [subjects, setSubjects] = useState([])
@@ -58,10 +59,11 @@ const AdminRoutine = () => {
     void Promise.all([
       fetchRoutines(controller.signal),
       fetchSubjects(controller.signal),
-      fetchInstructors(controller.signal)
+      fetchInstructors(controller.signal),
+      loadDepartments({ signal: controller.signal })
     ])
     return () => controller.abort()
-  }, [])
+  }, [loadDepartments])
 
   const fetchRoutines = async (signal) => {
     try {
@@ -178,6 +180,20 @@ const AdminRoutine = () => {
   })
 
   const normalizeValue = (value) => String(value || '').trim().toLowerCase()
+  const normalizeDepartmentKey = (value) => {
+    const normalizedValue = normalizeValue(value)
+    if (!normalizedValue) {
+      return ''
+    }
+
+    const matchedDepartment = departments.find((department) => (
+      normalizeValue(department.name) === normalizedValue || normalizeValue(department.code) === normalizedValue
+    ))
+
+    return matchedDepartment
+      ? normalizeValue(matchedDepartment.name)
+      : normalizedValue
+  }
 
   const filteredSubjects = subjects.filter((subject) => {
     const semesterMatches = Number(subject.semester) === Number(form.semester)
@@ -190,15 +206,19 @@ const AdminRoutine = () => {
       return true
     }
 
-    return normalizeValue(subject.department) === normalizeValue(form.department)
+    return normalizeDepartmentKey(subject.department) === normalizeDepartmentKey(form.department)
   })
 
   const filteredInstructors = instructors.filter((instructor) => {
+    if (isCoordinator) {
+      return true
+    }
+
     if (!form.department.trim()) {
       return true
     }
 
-    return normalizeValue(instructor.instructor?.department) === normalizeValue(form.department)
+    return normalizeDepartmentKey(instructor.instructor?.department) === normalizeDepartmentKey(form.department)
   })
 
   const handleSubjectChange = (subjectId) => {
@@ -231,8 +251,7 @@ const AdminRoutine = () => {
             onClick: () => {
               setEditRoutine(null)
               setForm({
-                ...defaultForm,
-                department: isCoordinator ? coordinatorDepartment : ''
+                ...defaultForm
               })
               setError('')
               setShowModal(true)
@@ -358,11 +377,8 @@ const AdminRoutine = () => {
                   onChange={(e) => setForm({ ...form, department: e.target.value, subjectId: '' })}
                   className="ui-form-input"
                   placeholder="e.g. BCA"
-                  readOnly={isCoordinator}
+                  readOnly={false}
                 />
-                {isCoordinator ? (
-                  <p className="mt-2 text-xs text-[var(--color-text-soft)]">Routine entries are limited to your coordinator department.</p>
-                ) : null}
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
                 <div>

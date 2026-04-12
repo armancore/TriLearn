@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { getFriendlyErrorMessage } from '../utils/errors'
 import { isRequestCanceled } from '../utils/http'
 
@@ -15,7 +15,7 @@ const useApi = ({ initialData = null, initialLoading = false } = {}) => {
     controllersRef.current.clear()
   }, [])
 
-  const execute = async (request, options = {}) => {
+  const execute = useCallback(async (request, options = {}) => {
     const {
       fallbackMessage = 'Something went wrong',
       clearError = true,
@@ -69,7 +69,7 @@ const useApi = ({ initialData = null, initialLoading = false } = {}) => {
         setLoading(false)
       }
     }
-  }
+  }, [])
 
   return {
     data,

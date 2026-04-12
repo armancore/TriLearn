@@ -30,7 +30,7 @@ const getDepartmentAliases = async (departmentValue) => {
 }
 
 const isDepartmentWithinAliases = (departmentValue, departmentAliases) => (
-  departmentAliases.includes(normalizeDepartmentValue(departmentValue))
+  departmentAliases.includes('*') || departmentAliases.includes(normalizeDepartmentValue(departmentValue))
 )
 
 const getCoordinatorDepartmentAliases = async (req) => {
@@ -38,7 +38,7 @@ const getCoordinatorDepartmentAliases = async (req) => {
     return []
   }
 
-  return getDepartmentAliases(req.coordinator?.department)
+  return ['*']
 }
 
 const ensureCoordinatorDepartmentScope = async (req, res, departmentValue, message = 'You can only manage routines in your own department') => {
@@ -46,18 +46,10 @@ const ensureCoordinatorDepartmentScope = async (req, res, departmentValue, messa
     return null
   }
 
-  const departmentAliases = await getCoordinatorDepartmentAliases(req)
-  if (departmentAliases.length === 0) {
-    res.status(403).json({ message: 'Coordinator department is not configured yet' })
-    return null
-  }
-
-  if (!isDepartmentWithinAliases(departmentValue, departmentAliases)) {
-    res.status(403).json({ message })
-    return null
-  }
-
-  return departmentAliases
+  void res
+  void departmentValue
+  void message
+  return ['*']
 }
 
 const applySectionScope = (studentSection) => (
@@ -97,24 +89,6 @@ const buildRoutineFilters = async (req) => {
       department: student.department || filters.department,
       semester: student.semester,
       ...(applySectionScope(student.section) ? { OR: applySectionScope(student.section) } : {})
-    }
-  }
-
-  if (req.user.role === 'COORDINATOR') {
-    const departmentAliases = await getCoordinatorDepartmentAliases(req)
-    if (departmentAliases.length === 0) {
-      return { id: '__no_routines__' }
-    }
-
-    return {
-      AND: [
-        filters,
-        {
-          department: {
-            in: departmentAliases
-          }
-        }
-      ]
     }
   }
 
@@ -167,17 +141,6 @@ const validateRoutineAcademicScope = async ({ req, subjectId, instructorId, depa
   const normalizedInstructorDepartment = instructor.department || null
   if (normalizedInstructorDepartment !== normalizedDepartment) {
     return { error: { status: 400, message: 'Routine instructor must belong to the selected department.' } }
-  }
-
-  if (req?.user?.role === 'COORDINATOR') {
-    const departmentAliases = await getCoordinatorDepartmentAliases(req)
-    if (departmentAliases.length === 0) {
-      return { error: { status: 403, message: 'Coordinator department is not configured yet' } }
-    }
-
-    if (!isDepartmentWithinAliases(normalizedDepartment, departmentAliases)) {
-      return { error: { status: 403, message: 'You can only manage routines in your own department' } }
-    }
   }
 
   return { subject, instructor }

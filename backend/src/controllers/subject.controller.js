@@ -36,7 +36,7 @@ const getDepartmentAliases = async (departmentValue) => {
 }
 
 const isDepartmentWithinAliases = (departmentValue, departmentAliases) => (
-  departmentAliases.includes(normalizeDepartmentValue(departmentValue))
+  departmentAliases.includes('*') || departmentAliases.includes(normalizeDepartmentValue(departmentValue))
 )
 
 const getCoordinatorDepartmentAliases = async (req) => {
@@ -44,7 +44,7 @@ const getCoordinatorDepartmentAliases = async (req) => {
     return []
   }
 
-  return getDepartmentAliases(req.coordinator?.department)
+  return ['*']
 }
 
 const ensureCoordinatorDepartmentScope = async (req, res, departmentValue, message = 'You can only manage subjects in your own department') => {
@@ -52,18 +52,10 @@ const ensureCoordinatorDepartmentScope = async (req, res, departmentValue, messa
     return null
   }
 
-  const departmentAliases = await getCoordinatorDepartmentAliases(req)
-  if (departmentAliases.length === 0) {
-    res.status(403).json({ message: 'Coordinator department is not configured yet' })
-    return null
-  }
-
-  if (!isDepartmentWithinAliases(departmentValue, departmentAliases)) {
-    res.status(403).json({ message })
-    return null
-  }
-
-  return departmentAliases
+  void res
+  void departmentValue
+  void message
+  return ['*']
 }
 
 const ensureCoordinatorInstructorScope = async (req, res, instructorId, departmentAliases, message = 'You can only assign instructors from your own department') => {
@@ -118,27 +110,6 @@ const buildSubjectVisibilityFilter = async (req, filters = {}) => {
           studentId: student?.id || '__no_student__'
         }
       }
-    }
-  }
-
-  if (user.role === 'COORDINATOR') {
-    const departmentAliases = await getCoordinatorDepartmentAliases(req)
-    if (departmentAliases.length === 0) {
-      return {
-        ...filters,
-        id: '__no_subjects__'
-      }
-    }
-
-    return {
-      AND: [
-        filters,
-        {
-          department: {
-            in: departmentAliases
-          }
-        }
-      ]
     }
   }
 

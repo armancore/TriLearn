@@ -25,8 +25,8 @@ router.use(attachActorProfiles)
 router.post('/', allowRoles('INSTRUCTOR'), validate(schemas.marks.create), addMarks)
 router.post('/bulk', allowRoles('INSTRUCTOR'), validate(schemas.marks.bulkCreate), addMarksBulk)
 router.put('/:id', allowRoles('INSTRUCTOR'), validate(schemas.marks.update), updateMarks)
-router.post('/publish', allowRoles('COORDINATOR'), validate(schemas.marksPublication.publish), publishMarks)
-router.get('/review', allowRoles('COORDINATOR'), validate(schemas.marks.review), getMarksReview)
+router.post('/publish', allowRoles('ADMIN', 'COORDINATOR'), validate(schemas.marksPublication.publish), publishMarks)
+router.get('/review', allowRoles('ADMIN', 'COORDINATOR'), validate(schemas.marks.review), getMarksReview)
 
 // Admin + Instructor
 router.get('/subject/:subjectId', allowRoles('ADMIN', 'COORDINATOR', 'INSTRUCTOR'), validate(schemas.marks.bySubject), getMarksBySubject)

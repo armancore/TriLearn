@@ -14,8 +14,8 @@ router.get('/', getAllDepartments)
 
 router.use(protect)
 
-router.post('/', allowRoles('ADMIN'), validate(schemas.departments.create), createDepartment)
-router.put('/:id', allowRoles('ADMIN'), validate(schemas.departments.update), updateDepartment)
-router.delete('/:id', allowRoles('ADMIN'), validate(schemas.departments.id), deleteDepartment)
+router.post('/', allowRoles('ADMIN', 'COORDINATOR'), validate(schemas.departments.create), createDepartment)
+router.put('/:id', allowRoles('ADMIN', 'COORDINATOR'), validate(schemas.departments.update), updateDepartment)
+router.delete('/:id', allowRoles('ADMIN', 'COORDINATOR'), validate(schemas.departments.id), deleteDepartment)
 
 module.exports = router

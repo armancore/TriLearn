@@ -51,7 +51,7 @@ const AppShell = ({
   const fetchNotifications = useCallback(async (signal) => {
     try {
       const response = await api.get('/notifications', {
-        params: { limit: 8 },
+        params: { limit: 8, unreadOnly: true },
         signal
       })
 
@@ -135,9 +135,7 @@ const AppShell = ({
   const markNotificationRead = async (notification) => {
     try {
       await api.patch(`/notifications/${notification.id}/read`)
-      setNotifications((current) => current.map((item) => (
-        item.id === notification.id ? { ...item, isRead: true, readAt: item.readAt || new Date().toISOString() } : item
-      )))
+      setNotifications((current) => current.filter((item) => item.id !== notification.id))
       setUnreadCount((current) => Math.max(0, current - (notification.isRead ? 0 : 1)))
 
       if (notification.link) {
@@ -152,7 +150,7 @@ const AppShell = ({
   const markAllNotificationsRead = async () => {
     try {
       await api.patch('/notifications/read-all')
-      setNotifications((current) => current.map((item) => ({ ...item, isRead: true, readAt: item.readAt || new Date().toISOString() })))
+      setNotifications([])
       setUnreadCount(0)
     } catch {
       // Keep UX quiet for notification interactions.
@@ -182,11 +180,7 @@ const AppShell = ({
       return
     }
 
-    setNotifications((current) => current.map((item) => (
-      item.id === notificationId
-        ? { ...item, isRead: true, readAt: item.readAt || readAt || new Date().toISOString() }
-        : item
-    )))
+    setNotifications((current) => current.filter((item) => item.id !== notificationId))
 
     if (typeof nextUnreadCount === 'number') {
       setUnreadCount(nextUnreadCount)
@@ -194,11 +188,8 @@ const AppShell = ({
   }, [])
 
   const handleNotificationsReadAll = useCallback(({ readAt, unreadCount: nextUnreadCount }) => {
-    setNotifications((current) => current.map((item) => ({
-      ...item,
-      isRead: true,
-      readAt: item.readAt || readAt || new Date().toISOString()
-    })))
+    void readAt
+    setNotifications([])
     setUnreadCount(typeof nextUnreadCount === 'number' ? nextUnreadCount : 0)
   }, [])
 
@@ -437,7 +428,7 @@ const AppShell = ({
                             className="inline-flex items-center gap-1 rounded-full bg-[var(--color-surface-muted)] px-3 py-1.5 text-xs font-semibold text-[var(--color-text-muted)] hover:bg-[var(--color-surface-subtle)]"
                           >
                             <CheckCheck className="h-3.5 w-3.5" />
-                            <span>Mark all</span>
+                            <span>Clear notifications</span>
                           </button>
                         </div>
 

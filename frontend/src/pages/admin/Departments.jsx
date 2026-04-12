@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Plus } from 'lucide-react'
 import AdminLayout from '../../layouts/AdminLayout'
+import CoordinatorLayout from '../../layouts/CoordinatorLayout'
 import Alert from '../../components/Alert'
 import ConfirmDialog from '../../components/ConfirmDialog'
 import EmptyState from '../../components/EmptyState'
@@ -8,6 +9,7 @@ import LoadingSkeleton from '../../components/LoadingSkeleton'
 import Modal from '../../components/Modal'
 import PageHeader from '../../components/PageHeader'
 import { useToast } from '../../components/Toast'
+import { useAuth } from '../../context/AuthContext'
 import useApi from '../../hooks/useApi'
 import api from '../../utils/api'
 import { getFriendlyErrorMessage } from '../../utils/errors'
@@ -15,6 +17,9 @@ import { getFriendlyErrorMessage } from '../../utils/errors'
 const emptyForm = { name: '', code: '', description: '' }
 
 const Departments = () => {
+  const { user } = useAuth()
+  const isCoordinator = user?.role === 'COORDINATOR'
+  const Layout = isCoordinator ? CoordinatorLayout : AdminLayout
   const [showModal, setShowModal] = useState(false)
   const [editingDepartment, setEditingDepartment] = useState(null)
   const [departmentToDelete, setDepartmentToDelete] = useState(null)
@@ -78,7 +83,7 @@ const Departments = () => {
       setShowModal(false)
       setForm(emptyForm)
       setEditingDepartment(null)
-      fetchDepartments()
+      await fetchDepartments()
     } catch (submitError) {
       setError(getFriendlyErrorMessage(submitError, 'Unable to save the department right now.'))
     }
@@ -102,12 +107,12 @@ const Departments = () => {
   }
 
   return (
-    <AdminLayout>
+    <Layout>
       <div className="p-4 md:p-8">
         <PageHeader
           title="Departments"
           subtitle="Create and manage the departments used across users and subjects."
-          breadcrumbs={['Admin', 'Departments']}
+          breadcrumbs={[isCoordinator ? 'Coordinator' : 'Admin', 'Departments']}
           actions={[{ label: 'Add Department', icon: Plus, variant: 'primary', onClick: openCreateModal }]}
         />
 
@@ -233,7 +238,7 @@ const Departments = () => {
         onClose={() => setDepartmentToDelete(null)}
         onConfirm={handleDelete}
       />
-    </AdminLayout>
+    </Layout>
   )
 }
 

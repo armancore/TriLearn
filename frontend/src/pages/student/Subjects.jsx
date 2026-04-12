@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { Link } from 'react-router-dom'
 import { BookOpenText, ClipboardList, Files, GraduationCap } from 'lucide-react'
 import StudentLayout from '../../layouts/StudentLayout'
 import PageHeader from '../../components/PageHeader'
@@ -105,6 +106,12 @@ const StudentSubjects = () => {
                   </div>
                   <GraduationCap className="ml-auto h-5 w-5 text-[var(--color-text-soft)]" />
                 </div>
+                <Link
+                  to={`/student/subjects/${subject.id}/learnings`}
+                  className="mt-5 inline-flex w-full items-center justify-center rounded-xl bg-[var(--color-role-accent)] px-4 py-2.5 text-sm font-semibold text-white transition hover:opacity-90"
+                >
+                  Learnings
+                </Link>
                 </div>
               </div>
             ))}

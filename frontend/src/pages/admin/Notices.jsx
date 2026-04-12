@@ -136,10 +136,8 @@ const Notices = () => {
   }, [debouncedSearchTerm])
 
   useEffect(() => {
-    if (!isCoordinator) {
-      void loadDepartments()
-    }
-  }, [isCoordinator, loadDepartments])
+    void loadDepartments()
+  }, [loadDepartments])
 
   const refreshNotices = useCallback(async () => {
     refreshControllerRef.current?.abort()
@@ -235,7 +233,7 @@ const Notices = () => {
 
         <PageHeader
           title="Notices"
-          subtitle={isCoordinator ? 'Post and manage targeted notices for your department or instructors' : 'Post and manage targeted notices across departments and semesters'}
+          subtitle={isCoordinator ? 'Post and manage targeted notices across departments and semesters' : 'Post and manage targeted notices across departments and semesters'}
           breadcrumbs={[isCoordinator ? 'Coordinator' : 'Admin', 'Notices']}
           actions={[{ label: 'Post Notice', icon: Plus, variant: 'primary', onClick: openCreateModal }]}
         />
@@ -394,26 +392,17 @@ const Notices = () => {
               </div>
               <div>
                 <label className="ui-form-label">Target Department</label>
-                {isCoordinator ? (
-                  <input
-                    type="text"
-                    value={values.targetDepartment || 'Managed automatically for your department'}
-                    disabled
-                    className="ui-form-input"
-                  />
-                ) : (
-                  <select
-                    name="targetDepartment"
-                    value={values.targetDepartment}
-                    onChange={handleChange}
-                    className="ui-form-input"
-                  >
-                    <option value="">All Departments</option>
-                    {departments.map((department) => (
-                      <option key={department.id} value={department.code}>{department.code}</option>
-                    ))}
-                  </select>
-                )}
+                <select
+                  name="targetDepartment"
+                  value={values.targetDepartment}
+                  onChange={handleChange}
+                  className="ui-form-input"
+                >
+                  <option value="">All Departments</option>
+                  {departments.map((department) => (
+                    <option key={department.id} value={department.code}>{department.code}</option>
+                  ))}
+                </select>
               </div>
               <div>
                 <label className="ui-form-label">Target Semester</label>

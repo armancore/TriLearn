@@ -6,6 +6,7 @@ import {
   CalendarDays,
   ClipboardList,
   CreditCard,
+  LayoutDashboard,
   FileText,
   FolderOpen,
   IdCard,
@@ -20,9 +21,13 @@ const StudentLayout = ({ children, noticesCount = 0 }) => {
   const { user, logout } = useAuth()
   const location = useLocation()
   const navigate = useNavigate()
+  const activePath = location.pathname.startsWith('/student/subjects/')
+    ? '/student/subjects'
+    : location.pathname
 
   const sidebarItems = useMemo(() => ([
-    { path: '/student', label: 'Learnings', icon: BookOpenText, meta: 'Enrolled modules' },
+    { path: '/student', label: 'Dashboard', icon: LayoutDashboard, meta: 'Overview and quick access' },
+    { path: '/student/subjects', label: 'Subjects', icon: BookOpenText, meta: 'Enrolled subjects' },
     { path: '/student/assignments', label: 'Tasks', icon: ClipboardList, meta: 'Assignments and deadlines' },
     { path: '/student/attendance', label: 'Attendance', icon: Percent, meta: 'Attendance records' },
     { path: '/student/requests', label: 'Requests', icon: FileText, meta: 'Absence explanations' },
@@ -56,7 +61,7 @@ const StudentLayout = ({ children, noticesCount = 0 }) => {
       user={user}
       sidebarItems={sidebarItems}
       topItems={topItems}
-      activePath={location.pathname}
+      activePath={activePath}
       onLogout={handleLogout}
     >
       {children}

@@ -8,6 +8,7 @@ import {
   FileText,
   LayoutDashboard,
   Percent,
+  ShieldUser,
   UserCircle2,
   Users
 } from 'lucide-react'
@@ -22,11 +23,12 @@ const CoordinatorLayout = ({ children }) => {
 
   const sidebarItems = useMemo(() => ([
     { path: `${basePath}`, label: 'Dashboard', icon: LayoutDashboard, meta: 'Overview' },
-    { path: `${basePath}/users`, label: 'People', icon: Users, meta: 'Students and instructors' },
+    { path: `${basePath}/users`, label: 'People', icon: Users, meta: 'Campus user management' },
     { path: `${basePath}/applications`, label: 'Admissions', icon: FileText, meta: 'Applications' },
+    { path: `${basePath}/departments`, label: 'Departments', icon: ShieldUser, meta: 'Department setup' },
     { path: `${basePath}/subjects`, label: 'Subjects', icon: BookOpenText, meta: 'Academic setup' },
     { path: `${basePath}/student-qr`, label: 'Student QR', icon: Percent, meta: 'Gate scan windows' },
-    { path: `${basePath}/attendance`, label: 'Attendance', icon: Percent, meta: 'Department attendance' },
+    { path: `${basePath}/attendance`, label: 'Attendance', icon: Percent, meta: 'Campus attendance view' },
     { path: `${basePath}/assignments`, label: 'Assignments', icon: ClipboardList, meta: 'Task tracking' },
     { path: `${basePath}/marks`, label: 'Results', icon: FileText, meta: 'Assessment data' },
     { path: `${basePath}/profile`, label: 'Profile', icon: UserCircle2, meta: 'My account' }
