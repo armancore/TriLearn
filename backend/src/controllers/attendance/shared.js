@@ -1,7 +1,6 @@
 const prisma = require('../../utils/prisma')
-const crypto = require('crypto')
 const { recordAuditLog } = require('../../utils/audit')
-const { getRequiredSecret } = require('../../utils/security')
+const { signQrPayload, verifyQrPayload } = require('../../utils/qrSigning')
 
 const ATTENDANCE_STATUSES = ['PRESENT', 'ABSENT', 'LATE']
 const QR_VALIDITY_MINUTES = 15
@@ -447,46 +446,10 @@ const filterRoutinesForSemesterWindows = ({ routines, baseDate, semester, window
 }
 
 const parseQrPayload = (qrData) => {
-  try {
-    const parsed = JSON.parse(qrData)
-    if (!parsed || typeof parsed !== 'object') return null
-
-    const payload = parsed.payload
-    const signature = parsed.signature
-
-    if (!payload || typeof payload !== 'object' || typeof signature !== 'string') {
-      return null
-    }
-
-    const expectedSignature = crypto
-      .createHmac('sha256', getRequiredSecret('QR_SIGNING_SECRET'))
-      .update(JSON.stringify(payload))
-      .digest('hex')
-
-    const receivedSignature = Buffer.from(signature, 'hex')
-    const expectedBuffer = Buffer.from(expectedSignature, 'hex')
-
-    if (
-      receivedSignature.length !== expectedBuffer.length ||
-      !crypto.timingSafeEqual(receivedSignature, expectedBuffer)
-    ) {
-      return null
-    }
-
-    return payload
-  } catch {
-    return null
-  }
+  return verifyQrPayload(qrData)?.payload || null
 }
 
-const createSignedQrPayload = (payload) => {
-  const signature = crypto
-    .createHmac('sha256', getRequiredSecret('QR_SIGNING_SECRET'))
-    .update(JSON.stringify(payload))
-    .digest('hex')
-
-  return JSON.stringify({ payload, signature })
-}
+const createSignedQrPayload = (payload) => signQrPayload(payload)
 
 const getStudentByIdCardQr = async (qrData) => {
   const parsedQr = parseQrPayload(qrData)

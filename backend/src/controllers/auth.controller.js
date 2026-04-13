@@ -2,14 +2,14 @@ const crypto = require('crypto')
 const bcrypt = require('bcryptjs')
 const QRCode = require('qrcode')
 const prisma = require('../utils/prisma')
-const { enrollStudentInMatchingSubjects } = require('../utils/enrollment')
 const logger = require('../utils/logger')
 const { recordAuditLog } = require('../utils/audit')
 const { buildUploadedFileUrl } = require('../utils/fileStorage')
 const { removeUploadedFile } = require('../middleware/upload.middleware')
 const { sendMail } = require('../utils/mailer')
 const { passwordResetTemplate } = require('../utils/emailTemplates')
-const { hashPassword, getRequiredSecret } = require('../utils/security')
+const { hashPassword } = require('../utils/security')
+const { signQrPayload } = require('../utils/qrSigning')
 const {
   signAccessToken,
   signRefreshToken,
@@ -41,14 +41,6 @@ const GENERIC_ELIGIBILITY_MESSAGE = 'If this email is eligible, you will receive
 const GENERIC_DISABLED_ACCOUNT_MESSAGE = 'Your account has been disabled. Please contact the administration.'
 const DUMMY_PASSWORD_HASH = '$2b$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy'
 
-const createSignedQrPayload = (payload) => JSON.stringify({
-  payload,
-  signature: crypto
-    .createHmac('sha256', getRequiredSecret('QR_SIGNING_SECRET'))
-    .update(JSON.stringify(payload))
-    .digest('hex')
-})
-
 const getRequestUserAgent = (req) => String(req.get('user-agent') || '').slice(0, 255) || null
 
 const getRequestIpAddress = (req) => {
@@ -64,24 +56,6 @@ const waitForMinimumDuration = async (startedAt, minDurationMs) => {
   await new Promise((resolve) => {
     setTimeout(resolve, minDurationMs - elapsed)
   })
-}
-
-const generateStudentRollNumber = () => `STU-${crypto.randomUUID().replace(/-/g, '').slice(0, 10).toUpperCase()}`
-
-const generateUniqueStudentRollNumber = async () => {
-  for (let attempt = 0; attempt < 5; attempt += 1) {
-    const rollNumber = generateStudentRollNumber()
-    const existingStudent = await prisma.student.findUnique({
-      where: { rollNumber },
-      select: { id: true }
-    })
-
-    if (!existingStudent) {
-      return rollNumber
-    }
-  }
-
-  throw new Error('Unable to generate a unique student roll number')
 }
 
 const isMobileClient = (req) => String(req.headers?.['x-client-type'] || '').toLowerCase() === 'mobile'
@@ -421,7 +395,7 @@ const getStudentIdQr = async (req, res) => {
       return res.status(404).json({ message: 'Student profile not found' })
     }
 
-    const qrPayload = createSignedQrPayload({
+    const qrPayload = signQrPayload({
       type: 'STUDENT_ID_CARD',
       studentId: user.student.id,
       rollNumber: user.student.rollNumber,

@@ -1942,6 +1942,7 @@ test('getStudentIdQr includes an expiry timestamp in the signed student QR paylo
 
   const parsed = JSON.parse(encodedPayload)
   const expiresAt = new Date(parsed.payload.expiresAt)
+  assert.equal(parsed.kid, 'legacy')
   assert.equal(parsed.payload.type, 'STUDENT_ID_CARD')
   assert.equal(parsed.payload.studentId, 'student-1')
   assert.equal(parsed.payload.semester, 4)

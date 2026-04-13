@@ -73,6 +73,7 @@ const createResponse = () => {
 }
 
 test('serveUploadedFile denies access to another user avatar', async () => {
+  const auditCalls = []
   const { serveUploadedFile } = loadWithMocks(resolveFromTest('src', 'controllers', 'upload.controller.js'), {
     '../utils/prisma': {
       user: {
@@ -82,6 +83,11 @@ test('serveUploadedFile denies access to another user avatar', async () => {
     '../utils/fileStorage': {
       uploadPath: 'C:\\uploads',
       uploadPublicPath: '/api/v1/uploads'
+    },
+    '../utils/audit': {
+      recordAuditLog: async (payload) => {
+        auditCalls.push(payload)
+      }
     },
     '../middleware/csrf.middleware': {
       getTrustedOrigins: () => []
@@ -99,6 +105,9 @@ test('serveUploadedFile denies access to another user avatar', async () => {
   assert.equal(res.statusCode, 403)
   assert.deepEqual(res.body, { message: 'Access denied' })
   assert.equal(res.sentFile, null)
+  assert.equal(auditCalls.length, 1)
+  assert.equal(auditCalls[0].action, 'UPLOAD_FILE_ACCESS_DENIED')
+  assert.equal(auditCalls[0].entityId, 'avatar.png')
 })
 
 test('validateUploadedPdf writes a valid PDF to disk only after in-memory validation', async () => {
@@ -353,6 +362,9 @@ test('serveUploadedFile serves assignment PDFs with hardened headers', async () 
     '../utils/fileStorage': {
       uploadPath: 'C:\\uploads',
       uploadPublicPath: '/api/v1/uploads'
+    },
+    '../utils/audit': {
+      recordAuditLog: async () => {}
     },
     '../middleware/csrf.middleware': {
       getTrustedOrigins: () => ['http://localhost:5173']

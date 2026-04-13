@@ -2,6 +2,7 @@ const path = require('path')
 const prisma = require('../utils/prisma')
 const { uploadPath, uploadPublicPath } = require('../utils/fileStorage')
 const { getTrustedOrigins } = require('../middleware/csrf.middleware')
+const { recordAuditLog } = require('../utils/audit')
 
 const buildRelativeUploadPath = (fileName) => `${uploadPublicPath}/${fileName}`
 
@@ -136,6 +137,21 @@ const canAccessMaterialFile = async (user, material) => {
   return false
 }
 
+const logUploadAccessDenied = async (req, fileName, resourceType) => {
+  await recordAuditLog({
+    actorId: req.user?.id || null,
+    actorRole: req.user?.role || null,
+    action: 'UPLOAD_FILE_ACCESS_DENIED',
+    entityType: 'UploadFile',
+    entityId: fileName,
+    metadata: {
+      fileName,
+      resourceType,
+      requestPath: req.originalUrl || null
+    }
+  })
+}
+
 const serveUploadedFile = async (req, res) => {
   try {
     const fileName = path.basename(String(req.params.filename || ''))
@@ -154,6 +170,7 @@ const serveUploadedFile = async (req, res) => {
 
     if (avatar) {
       if (!user || (user.id !== avatar.id && !['ADMIN', 'COORDINATOR'].includes(user.role))) {
+        await logUploadAccessDenied(req, fileName, 'AVATAR')
         return res.status(403).json({ message: 'Access denied' })
       }
 
@@ -171,6 +188,7 @@ const serveUploadedFile = async (req, res) => {
 
     if (assignment) {
       if (!(await canAccessAssignmentFile(user, assignment))) {
+        await logUploadAccessDenied(req, fileName, 'ASSIGNMENT')
         return res.status(403).json({ message: 'Access denied' })
       }
 
@@ -192,6 +210,7 @@ const serveUploadedFile = async (req, res) => {
 
     if (submission) {
       if (!(await canAccessSubmissionFile(user, submission))) {
+        await logUploadAccessDenied(req, fileName, 'SUBMISSION')
         return res.status(403).json({ message: 'Access denied' })
       }
 
@@ -209,6 +228,7 @@ const serveUploadedFile = async (req, res) => {
 
     if (material) {
       if (!(await canAccessMaterialFile(user, material))) {
+        await logUploadAccessDenied(req, fileName, 'MATERIAL')
         return res.status(403).json({ message: 'Access denied' })
       }
 

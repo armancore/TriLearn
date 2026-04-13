@@ -68,6 +68,12 @@ const actorRateLimitKey = (req) => (
     : ipKeyGenerator(req.ip || '')
 )
 
+const forgotPasswordRateLimitKey = (req) => {
+  const email = String(req.body?.email || '').trim().toLowerCase()
+  const ipKey = ipKeyGenerator(req.ip || '')
+  return `${ipKey}:${email || 'unknown-email'}`
+}
+
 const apiLimiter = createLimiter({
   max: 300,
   message: 'Too many requests, please try again later'
@@ -78,8 +84,14 @@ const authLimiter = createLimiter({
   message: 'Too many attempts, please try again later'
 })
 
+const forgotPasswordLimiter = createLimiter({
+  max: 5,
+  message: 'Too many password reset attempts, please try again later',
+  keyGenerator: forgotPasswordRateLimitKey
+})
+
 const loginLimiter = createLimiter({
-  max: 25,
+  max: 5,
   message: 'Too many login attempts, please try again later'
 })
 
@@ -135,6 +147,8 @@ const staffStudentIdScanLimiter = createLimiter({
 module.exports = {
   apiLimiter,
   authLimiter,
+  forgotPasswordLimiter,
+  forgotPasswordRateLimitKey,
   loginLimiter,
   refreshLimiter,
   logoutLimiter,

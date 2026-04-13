@@ -56,6 +56,12 @@ test('GET /ping returns an ok response', async () => {
 
   assert.equal(response.status, 200)
   assert.deepEqual(response.body, { status: 'ok' })
+  assert.match(response.headers['content-security-policy'] || '', /default-src 'self'/)
+  assert.match(response.headers['content-security-policy'] || '', /script-src 'self'/)
+  assert.equal(
+    response.headers['strict-transport-security'],
+    'max-age=63072000; includeSubDomains; preload'
+  )
 })
 
 test('GET /health returns only a minimal public status payload', async () => {
@@ -109,6 +115,7 @@ test('POST /api/v1/auth/login returns the controller response through the real r
     },
     '../middleware/rateLimit.middleware': {
       authLimiter: (_req, _res, next) => next(),
+      forgotPasswordLimiter: (_req, _res, next) => next(),
       loginLimiter: (_req, _res, next) => next(),
       refreshLimiter: (_req, _res, next) => next(),
       logoutLimiter: (_req, _res, next) => next(),
@@ -163,6 +170,7 @@ test('POST /api/v1/auth/login returns 401 for a wrong password through the real 
     },
     '../middleware/rateLimit.middleware': {
       authLimiter: (_req, _res, next) => next(),
+      forgotPasswordLimiter: (_req, _res, next) => next(),
       loginLimiter: (_req, _res, next) => next(),
       refreshLimiter: (_req, _res, next) => next(),
       logoutLimiter: (_req, _res, next) => next(),
@@ -223,6 +231,7 @@ test('POST /api/v1/auth/refresh returns a new token when the refresh cookie is v
     },
     '../middleware/rateLimit.middleware': {
       authLimiter: (_req, _res, next) => next(),
+      forgotPasswordLimiter: (_req, _res, next) => next(),
       loginLimiter: (_req, _res, next) => next(),
       refreshLimiter: (_req, _res, next) => next(),
       logoutLimiter: (_req, _res, next) => next(),
@@ -273,6 +282,7 @@ test('POST /api/v1/auth/refresh returns 401 when the refresh cookie is missing',
     },
     '../middleware/rateLimit.middleware': {
       authLimiter: (_req, _res, next) => next(),
+      forgotPasswordLimiter: (_req, _res, next) => next(),
       loginLimiter: (_req, _res, next) => next(),
       refreshLimiter: (_req, _res, next) => next(),
       logoutLimiter: (_req, _res, next) => next(),
@@ -324,6 +334,7 @@ test('POST /api/v1/auth/logout runs the logout limiter before the controller', a
     },
     '../middleware/rateLimit.middleware': {
       authLimiter: (_req, _res, next) => next(),
+      forgotPasswordLimiter: (_req, _res, next) => next(),
       loginLimiter: (_req, _res, next) => next(),
       refreshLimiter: (_req, _res, next) => next(),
       logoutLimiter: (_req, _res, next) => {
@@ -351,6 +362,63 @@ test('POST /api/v1/auth/logout runs the logout limiter before the controller', a
   assert.equal(response.status, 200)
   assert.equal(logoutLimiterCalled, true)
   assert.deepEqual(response.body, { message: 'Logged out successfully' })
+})
+
+test('POST /api/v1/auth/forgot-password runs the dedicated forgot-password limiter before the controller', async () => {
+  let forgotPasswordLimiterCalled = false
+
+  const authRoutes = loadWithMocks(resolveFromTest('src', 'routes', 'auth.routes.js'), {
+    '../controllers/auth.controller': {
+      register: async (_req, res) => res.status(501).json({ message: 'unused' }),
+      submitStudentIntake: async (_req, res) => res.status(501).json({ message: 'unused' }),
+      login: async (_req, res) => res.status(501).json({ message: 'unused' }),
+      refresh: async (_req, res) => res.status(501).json({ message: 'unused' }),
+      logout: async (_req, res) => res.status(501).json({ message: 'unused' }),
+      getMe: async (_req, res) => res.status(501).json({ message: 'unused' }),
+      getStudentIdQr: async (_req, res) => res.status(501).json({ message: 'unused' }),
+      updateProfile: async (_req, res) => res.status(501).json({ message: 'unused' }),
+      uploadAvatar: async (_req, res) => res.status(501).json({ message: 'unused' }),
+      changePassword: async (_req, res) => res.status(501).json({ message: 'unused' }),
+      completeProfile: async (_req, res) => res.status(501).json({ message: 'unused' }),
+      forgotPassword: async (_req, res) => res.status(200).json({ message: 'ok' }),
+      resetPassword: async (_req, res) => res.status(501).json({ message: 'unused' }),
+      getActivity: async (_req, res) => res.status(501).json({ message: 'unused' }),
+      logoutAll: async (_req, res) => res.status(501).json({ message: 'unused' })
+    },
+    '../middleware/auth.middleware': {
+      protect: (_req, _res, next) => next(),
+      allowRoles: () => (_req, _res, next) => next()
+    },
+    '../middleware/rateLimit.middleware': {
+      authLimiter: (_req, _res, next) => next(),
+      forgotPasswordLimiter: (_req, _res, next) => {
+        forgotPasswordLimiterCalled = true
+        next()
+      },
+      loginLimiter: (_req, _res, next) => next(),
+      refreshLimiter: (_req, _res, next) => next(),
+      logoutLimiter: (_req, _res, next) => next(),
+      uploadLimiter: (_req, _res, next) => next()
+    },
+    '../middleware/upload.middleware': {
+      uploadImage: {
+        single: () => (_req, _res, next) => next()
+      },
+      validateUploadedImage: (_req, _res, next) => next()
+    }
+  })
+
+  const testApp = express()
+  testApp.use(express.json())
+  testApp.use('/api/v1/auth', authRoutes)
+
+  const response = await request(testApp)
+    .post('/api/v1/auth/forgot-password')
+    .send({ email: 'student@example.com' })
+
+  assert.equal(response.status, 200)
+  assert.equal(forgotPasswordLimiterCalled, true)
+  assert.deepEqual(response.body, { message: 'ok' })
 })
 
 test('PATCH /api/v1/auth/complete-profile rejects invalid dateOfBirth values before the controller runs', async () => {
@@ -386,6 +454,7 @@ test('PATCH /api/v1/auth/complete-profile rejects invalid dateOfBirth values bef
     },
     '../middleware/rateLimit.middleware': {
       authLimiter: (_req, _res, next) => next(),
+      forgotPasswordLimiter: (_req, _res, next) => next(),
       loginLimiter: (_req, _res, next) => next(),
       refreshLimiter: (_req, _res, next) => next(),
       logoutLimiter: (_req, _res, next) => next(),
