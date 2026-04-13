@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Plus } from 'lucide-react'
 import AdminLayout from '../../layouts/AdminLayout'
 import CoordinatorLayout from '../../layouts/CoordinatorLayout'
@@ -59,17 +59,6 @@ const AdminRoutine = () => {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
 
-  useEffect(() => {
-    const controller = new AbortController()
-    void Promise.all([
-      fetchRoutines(controller.signal),
-      fetchSubjects(controller.signal),
-      fetchInstructors(controller.signal),
-      loadDepartments({ signal: controller.signal })
-    ])
-    return () => controller.abort()
-  }, [loadDepartments])
-
   const fetchRoutines = async (signal) => {
     try {
       setLoading(true)
@@ -99,7 +88,7 @@ const AdminRoutine = () => {
     }
   }
 
-  const fetchInstructors = async (signal) => {
+  const fetchInstructors = useCallback(async (signal) => {
     try {
       const res = await api.get('/admin/users', {
         signal,
@@ -115,7 +104,18 @@ const AdminRoutine = () => {
       logger.error(err)
       setError(err.response?.data?.message || 'Unable to load instructors right now.')
     }
-  }
+  }, [isCoordinator])
+
+  useEffect(() => {
+    const controller = new AbortController()
+    void Promise.all([
+      fetchRoutines(controller.signal),
+      fetchSubjects(controller.signal),
+      fetchInstructors(controller.signal),
+      loadDepartments({ signal: controller.signal })
+    ])
+    return () => controller.abort()
+  }, [fetchInstructors, loadDepartments])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
