@@ -1,59 +1,9 @@
 const path = require('path')
-const jwt = require('jsonwebtoken')
 const prisma = require('../utils/prisma')
 const { uploadPath, uploadPublicPath } = require('../utils/fileStorage')
 const { getTrustedOrigins } = require('../middleware/csrf.middleware')
 
 const buildRelativeUploadPath = (fileName) => `${uploadPublicPath}/${fileName}`
-
-const getAccessSecret = () => {
-  if (!process.env.JWT_SECRET) {
-    throw new Error('JWT_SECRET must be configured')
-  }
-
-  return process.env.JWT_SECRET
-}
-
-const getAuthenticatedUser = async (req) => {
-  const token = req.headers.authorization?.split(' ')[1]
-  if (!token) {
-    return null
-  }
-
-  const decoded = jwt.verify(token, getAccessSecret())
-  if (decoded?.type !== 'access') {
-    return null
-  }
-
-  const user = await prisma.user.findUnique({
-    where: {
-      id: decoded.id,
-      deletedAt: null
-    },
-    select: {
-      id: true,
-      role: true,
-      isActive: true,
-      student: {
-        select: {
-          id: true
-        }
-      },
-      instructor: {
-        select: {
-          id: true
-        }
-      },
-      coordinator: {
-        select: {
-          id: true
-        }
-      }
-    }
-  })
-
-  return user?.isActive ? user : null
-}
 
 const setUploadSecurityHeaders = (res) => {
   const allowedFrameAncestors = ["'self'"]
@@ -67,14 +17,41 @@ const setUploadSecurityHeaders = (res) => {
 
   res.setHeader('X-Content-Type-Options', 'nosniff')
   res.setHeader('Cross-Origin-Resource-Policy', 'same-site')
-  res.setHeader('Content-Security-Policy', `default-src 'none'; frame-ancestors ${allowedFrameAncestors.join(' ')}; sandbox allow-downloads`)
+  res.setHeader('Content-Security-Policy', `default-src 'none'; frame-ancestors ${allowedFrameAncestors.join(' ')}; sandbox allow-scripts allow-downloads`)
 }
 
-const sendUploadFile = (res, fileName) => {
+const getSafeContentType = (fileName) => {
+  const extension = path.extname(String(fileName || '')).toLowerCase()
+
+  if (extension === '.pdf') {
+    return 'application/pdf'
+  }
+
+  if (['.png', '.jpg', '.jpeg', '.webp', '.gif'].includes(extension)) {
+    return ({
+      '.png': 'image/png',
+      '.jpg': 'image/jpeg',
+      '.jpeg': 'image/jpeg',
+      '.webp': 'image/webp',
+      '.gif': 'image/gif'
+    })[extension]
+  }
+
+  return 'application/octet-stream'
+}
+
+const sendUploadFile = (res, fileName, { forceAttachment = false } = {}) => {
   setUploadSecurityHeaders(res)
+  const contentType = getSafeContentType(fileName)
+  const shouldForceAttachment = forceAttachment || contentType === 'application/octet-stream'
+
   res.sendFile(path.join(uploadPath, fileName), {
     headers: {
-      'Cache-Control': 'private, no-store'
+      'Cache-Control': 'private, no-store',
+      'Content-Type': contentType,
+      'Content-Disposition': shouldForceAttachment
+        ? `attachment; filename="${path.basename(fileName)}"`
+        : 'inline'
     }
   })
 }
@@ -164,18 +141,19 @@ const serveUploadedFile = async (req, res) => {
 
     const relativePath = buildRelativeUploadPath(fileName)
 
+    const user = req.user
+
     const avatar = await prisma.user.findFirst({
       where: { avatar: relativePath },
       select: { id: true }
     })
 
     if (avatar) {
-      return sendUploadFile(res, fileName)
-    }
+      if (!user || (user.id !== avatar.id && !['ADMIN', 'COORDINATOR'].includes(user.role))) {
+        return res.status(403).json({ message: 'Access denied' })
+      }
 
-    const user = await getAuthenticatedUser(req)
-    if (!user) {
-      return res.status(401).json({ message: 'No token, access denied' })
+      return sendUploadFile(res, fileName)
     }
 
     const assignment = await prisma.assignment.findFirst({

@@ -4,7 +4,8 @@ import StudentLayout from '../../layouts/StudentLayout'
 import Alert from '../../components/Alert'
 import LoadingSkeleton from '../../components/LoadingSkeleton'
 import PageHeader from '../../components/PageHeader'
-import api, { resolveFileUrl } from '../../utils/api'
+import useProtectedObjectUrl from '../../hooks/useProtectedObjectUrl'
+import api from '../../utils/api'
 import { getFriendlyErrorMessage } from '../../utils/errors'
 import { isRequestCanceled } from '../../utils/http'
 
@@ -13,7 +14,7 @@ const StudentIdCard = () => {
   const [studentQrCode, setStudentQrCode] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const avatarUrl = resolveFileUrl(profile?.avatar)
+  const avatarUrl = useProtectedObjectUrl(profile?.avatar)
 
   useEffect(() => {
     const controller = new AbortController()

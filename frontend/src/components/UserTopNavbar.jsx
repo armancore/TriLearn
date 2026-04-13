@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom'
-import { resolveFileUrl } from '../utils/api'
+import useProtectedObjectUrl from '../hooks/useProtectedObjectUrl'
 
 const navItems = [
   { key: 'learnings', label: 'Learnings' },
@@ -28,7 +28,7 @@ const UserTopNavbar = ({
   accent = 'emerald'
 }) => {
   const location = useLocation()
-  const avatarUrl = resolveFileUrl(user?.avatar)
+  const avatarUrl = useProtectedObjectUrl(user?.avatar)
 
   const accentStyles = {
     emerald: {

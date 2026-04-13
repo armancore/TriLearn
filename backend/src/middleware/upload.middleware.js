@@ -1,5 +1,6 @@
 const fs = require('fs')
 const path = require('path')
+const crypto = require('crypto')
 const multer = require('multer')
 const sharp = require('sharp')
 const logger = require('../utils/logger')
@@ -29,19 +30,22 @@ const getUploadLimitForRole = (role) => {
 }
 
 const formatBytesInMb = (bytes) => `${Math.round((bytes / (1024 * 1024)) * 10) / 10} MB`
+const generateUploadedFileName = (originalname) => {
+  const safeName = String(originalname || 'upload.pdf').replace(/[^a-zA-Z0-9.-]/g, '_')
+  return `${crypto.randomUUID()}-${safeName}`
+}
 
 const storage = multer.diskStorage({
   destination: (_req, _file, cb) => {
     cb(null, uploadPath)
   },
   filename: (_req, file, cb) => {
-    const safeName = file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_')
-    cb(null, `${Date.now()}-${safeName}`)
+    cb(null, generateUploadedFileName(file.originalname))
   }
 })
 
 const pdfOnly = (_req, file, cb) => {
-  const isPdf = file.mimetype === 'application/pdf' || file.originalname.toLowerCase().endsWith('.pdf')
+  const isPdf = String(file.mimetype || '').toLowerCase() === 'application/pdf'
 
   if (!isPdf) {
     return cb(new Error('Only PDF files are allowed'))
@@ -82,7 +86,7 @@ const imageOnly = (_req, file, cb) => {
 }
 
 const createUploadMiddleware = (role) => multer({
-  storage,
+  storage: multer.memoryStorage(),
   fileFilter: pdfOnly,
   limits: {
     fileSize: getUploadLimitForRole(role)
@@ -174,25 +178,28 @@ const uploadSpreadsheet = {
 }
 
 const validateUploadedPdf = async (req, res, next) => {
-  if (!req.file?.path) {
+  if (!req.file?.buffer) {
     return next()
   }
 
   try {
-    const fileHandle = await fs.promises.open(req.file.path, 'r')
-    const signatureBuffer = Buffer.alloc(5)
-    await fileHandle.read(signatureBuffer, 0, 5, 0)
-    await fileHandle.close()
+    const signatureBuffer = req.file.buffer.subarray(0, 5)
 
     if (signatureBuffer.toString() !== '%PDF-') {
-      await fs.promises.unlink(req.file.path).catch(() => {})
       return res.status(400).json({ message: 'Uploaded file content is not a valid PDF' })
     }
+
+    const fileName = generateUploadedFileName(req.file.originalname)
+    const filePath = path.join(uploadPath, fileName)
+
+    await fs.promises.writeFile(filePath, req.file.buffer)
+
+    req.file.filename = fileName
+    req.file.path = filePath
 
     next()
   } catch (error) {
     logger.error(error.message, { stack: error.stack })
-    await fs.promises.unlink(req.file.path).catch(() => {})
     res.status(400).json({ message: 'Unable to validate uploaded file' })
   }
 }

@@ -10,8 +10,9 @@ import LoadingSkeleton from '../../components/LoadingSkeleton'
 import PageHeader from '../../components/PageHeader'
 import { useToast } from '../../components/Toast'
 import { useAuth } from '../../context/AuthContext'
+import useProtectedObjectUrl from '../../hooks/useProtectedObjectUrl'
 import useUnsavedChangesGuard from '../../hooks/useUnsavedChangesGuard'
-import api, { resolveFileUrl } from '../../utils/api'
+import api from '../../utils/api'
 import { getFriendlyErrorMessage } from '../../utils/errors'
 import { isRequestCanceled } from '../../utils/http'
 
@@ -94,13 +95,14 @@ const ProfilePage = () => {
   const [form, setForm] = useState(buildFormState({}))
   const [initialForm, setInitialForm] = useState(buildFormState({}))
 
+  const protectedAvatarUrl = useProtectedObjectUrl(profile?.avatar || user?.avatar)
   const avatarPreviewUrl = useMemo(() => {
     if (selectedAvatarFile) {
       return URL.createObjectURL(selectedAvatarFile)
     }
 
-    return resolveFileUrl(profile?.avatar || user?.avatar)
-  }, [profile?.avatar, selectedAvatarFile, user?.avatar])
+    return protectedAvatarUrl
+  }, [protectedAvatarUrl, selectedAvatarFile])
   const hasUnsavedChanges = useMemo(() => (
     selectedAvatarFile !== null || JSON.stringify(form) !== JSON.stringify(initialForm)
   ), [form, initialForm, selectedAvatarFile])

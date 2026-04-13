@@ -7,8 +7,9 @@ const helmet = require('helmet')
 const logger = require('./utils/logger')
 const validateEnv = require('./utils/validateEnv')
 const { apiLimiter } = require('./middleware/rateLimit.middleware')
+const { protect } = require('./middleware/auth.middleware')
 const { requestId } = require('./middleware/requestId.middleware')
-const { uploadPath, uploadPublicPath } = require('./utils/fileStorage')
+const { uploadPublicPath } = require('./utils/fileStorage')
 const { csrfProtection, getRuntimeEnv, getTrustedOrigins, isTrustedOrigin } = require('./middleware/csrf.middleware')
 const { serveUploadedFile } = require('./controllers/upload.controller')
 const prisma = require('./utils/prisma')
@@ -60,7 +61,7 @@ app.use((req, res, next) => {
 })
 app.use(apiLimiter)
 app.use(csrfProtection)
-app.get(`${uploadPublicPath}/:filename`, serveUploadedFile)
+app.get(`${uploadPublicPath}/:filename`, protect, serveUploadedFile)
 
 // Routes
 const authRoutes = require('./routes/auth.routes')
@@ -90,23 +91,8 @@ apiV1.use('/notifications', notificationRoutes)
 
 app.use('/api/v1', apiV1)
 
-app.get('/health', async (_req, res) => {
-  try {
-    await require('./utils/prisma').$queryRaw`SELECT 1`
-    res.json({
-      status: 'ok',
-      database: 'ok',
-      uptime: process.uptime(),
-      timestamp: new Date().toISOString()
-    })
-  } catch (error) {
-    logger.error(error.message, { stack: error.stack })
-    res.status(503).json({
-      status: 'error',
-      database: 'unavailable',
-      timestamp: new Date().toISOString()
-    })
-  }
+app.get('/health', (_req, res) => {
+  res.json({ status: 'ok' })
 })
 
 app.get('/ping', (_req, res) => {

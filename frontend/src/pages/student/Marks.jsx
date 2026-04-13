@@ -42,7 +42,6 @@ const emptySummary = {
     rank: null,
     cohortSize: 0,
     percentile: 0,
-    topStudents: [],
     scope: {
       semester: null,
       department: null
@@ -174,7 +173,7 @@ const StudentMarks = () => {
               <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
                 <div>
                   <p className="text-sm font-semibold text-[var(--color-heading)]">Result Session</p>
-                  <p className="mt-1 text-sm text-[var(--color-text-muted)]">Choose a published exam result to view your GPA, ranking, and subject trends.</p>
+                  <p className="mt-1 text-sm text-[var(--color-text-muted)]">Choose a published exam result to view your GPA, class standing, and subject trends.</p>
                 </div>
                 <div className="w-full md:max-w-xs">
                   <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.18em] text-[var(--color-text-muted)]">Select Exam</label>
@@ -292,24 +291,6 @@ const StudentMarks = () => {
                       </div>
                     </div>
 
-                    {summary.ranking.topStudents.length > 0 && (
-                      <div className="ui-card rounded-3xl p-5 md:p-6">
-                        <h2 className="text-lg font-semibold text-[var(--color-heading)]">Top Performance Range</h2>
-                        <div className="mt-4 space-y-3">
-                          {summary.ranking.topStudents.map((student, index) => (
-                            <div key={`top-student-${index}`} className="flex items-center justify-between gap-3 rounded-2xl bg-[var(--color-surface-muted)] px-4 py-3">
-                              <div className="min-w-0">
-                                <p className="text-xs text-[var(--color-text-muted)]">Rank #{index + 1}</p>
-                              </div>
-                              <div className="text-right">
-                                <p className="text-sm font-semibold text-[var(--color-heading)]">{student.overallGpa.toFixed(2)} GPA</p>
-                                <p className="text-xs text-[var(--color-text-muted)]">{student.overallPercentage}%</p>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
                   </div>
                 </div>
 

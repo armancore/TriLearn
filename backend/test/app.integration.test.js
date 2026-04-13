@@ -58,6 +58,13 @@ test('GET /ping returns an ok response', async () => {
   assert.deepEqual(response.body, { status: 'ok' })
 })
 
+test('GET /health returns only a minimal public status payload', async () => {
+  const response = await request(app).get('/health')
+
+  assert.equal(response.status, 200)
+  assert.deepEqual(response.body, { status: 'ok' })
+})
+
 test('unknown routes return a JSON 404 response', async () => {
   const response = await request(app).get('/definitely-not-a-route')
 

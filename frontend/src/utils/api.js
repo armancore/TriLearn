@@ -215,7 +215,7 @@ export const isEmbeddablePdfUrl = (fileUrl) => {
 
     return (
       parsedUrl.origin === apiOriginUrl.origin &&
-      /^\/uploads\//i.test(parsedUrl.pathname) &&
+      /^\/(?:api\/v1\/)?uploads\//i.test(parsedUrl.pathname) &&
       /\.pdf$/i.test(parsedUrl.pathname)
     )
   } catch {
@@ -233,7 +233,7 @@ export const isProtectedUploadUrl = (fileUrl) => {
     const parsedUrl = new URL(resolvedUrl)
     const apiOriginUrl = new URL(API_ORIGIN)
 
-    return parsedUrl.origin === apiOriginUrl.origin && /^\/uploads\//i.test(parsedUrl.pathname)
+    return parsedUrl.origin === apiOriginUrl.origin && /^\/(?:api\/v1\/)?uploads\//i.test(parsedUrl.pathname)
   } catch {
     return false
   }

@@ -296,6 +296,142 @@ test('register blocks self-registration when OPEN_REGISTRATION is disabled', asy
   }
 })
 
+test('register returns a generic response when the email already exists', async () => {
+  const previousOpenRegistration = process.env.OPEN_REGISTRATION
+  process.env.OPEN_REGISTRATION = 'true'
+
+  try {
+    const { register } = loadWithMocks(resolveFromTest('src', 'controllers', 'auth.controller.js'), authControllerMocks({
+      '../utils/prisma': {
+        user: {
+          findUnique: async () => ({
+            id: 'user-1',
+            email: 'student@example.com'
+          })
+        }
+      },
+      '../utils/security': {
+        hashPassword: async () => 'hashed-password',
+        getRequiredSecret: () => 'test-secret'
+      }
+    }))
+
+    const req = {
+      body: {
+        name: 'Student User',
+        email: 'student@example.com',
+        password: 'Password123'
+      }
+    }
+    const res = createResponse()
+
+    await register(req, res)
+
+    assert.equal(res.statusCode, 200)
+    assert.deepEqual(res.body, {
+      message: 'If this email is eligible, you will receive further instructions.'
+    })
+  } finally {
+    if (previousOpenRegistration === undefined) {
+      delete process.env.OPEN_REGISTRATION
+    } else {
+      process.env.OPEN_REGISTRATION = previousOpenRegistration
+    }
+  }
+})
+
+test('submitStudentIntake returns a generic response when a matching user already exists', async () => {
+  const { submitStudentIntake } = loadWithMocks(resolveFromTest('src', 'controllers', 'auth.controller.js'), authControllerMocks({
+    '../utils/prisma': {
+      studentApplication: {
+        findUnique: async () => null
+      },
+      user: {
+        findUnique: async () => ({
+          id: 'user-1',
+          email: 'student@example.com'
+        })
+      }
+    },
+    '../utils/security': {
+      hashPassword: async () => 'hashed-password',
+      getRequiredSecret: () => 'test-secret'
+    }
+  }))
+
+  const req = {
+    body: {
+      fullName: 'Student User',
+      email: 'student@example.com',
+      phone: '9800000000',
+      fatherName: 'Father',
+      motherName: 'Mother',
+      fatherPhone: '9800000001',
+      motherPhone: '9800000002',
+      bloodGroup: 'A+',
+      localGuardianName: 'Guardian',
+      localGuardianAddress: 'Kathmandu',
+      localGuardianPhone: '9800000003',
+      permanentAddress: 'Bhaktapur',
+      temporaryAddress: 'Lalitpur',
+      dateOfBirth: '2005-01-01',
+      preferredDepartment: 'BCA'
+    }
+  }
+  const res = createResponse()
+
+  await submitStudentIntake(req, res)
+
+  assert.equal(res.statusCode, 200)
+  assert.deepEqual(res.body, {
+    message: 'If this email is eligible, you will receive further instructions.'
+  })
+})
+
+test('login hides suspension reasons from the response', async () => {
+  process.env.QR_SIGNING_SECRET = 'test-qr-secret'
+
+  const { login } = loadWithMocks(resolveFromTest('src', 'controllers', 'auth.controller.js'), authControllerMocks({
+    '../utils/prisma': {
+      user: {
+        findUnique: async () => ({
+          id: 'user-1',
+          email: 'student@example.com',
+          password: 'hashed-password',
+          role: 'STUDENT',
+          isActive: false,
+          suspensionReason: 'Under investigation for plagiarism in BIT234',
+          failedLoginAttempts: 0,
+          lockedUntil: null
+        })
+      }
+    },
+    'bcryptjs': {
+      compare: async () => true,
+      hash: async () => 'hashed'
+    },
+    '../utils/security': {
+      hashPassword: async () => 'hashed-password',
+      getRequiredSecret: () => 'test-secret'
+    }
+  }))
+
+  const req = {
+    body: {
+      email: 'student@example.com',
+      password: 'Password123'
+    }
+  }
+  const res = createResponse()
+
+  await login(req, res)
+
+  assert.equal(res.statusCode, 403)
+  assert.deepEqual(res.body, {
+    message: 'Your account has been disabled. Please contact the administration.'
+  })
+})
+
 test('allowRoles blocks unauthorized roles with 403', async () => {
   const { allowRoles } = loadWithMocks(resolveFromTest('src', 'middleware', 'auth.middleware.js'), {
     '../utils/prisma': {
@@ -585,7 +721,7 @@ test('getAllUsers scopes coordinator queries to their department', async () => {
 
   assert.equal(res.statusCode, 200)
   assert.equal(findManyCalls.length, 1)
-  assert.deepEqual(findManyCalls[0].where.role, { in: ['STUDENT', 'INSTRUCTOR'] })
+  assert.deepEqual(findManyCalls[0].where.role, { in: ['STUDENT', 'INSTRUCTOR', 'GATEKEEPER'] })
   assert.deepEqual(findManyCalls[0].where.AND[0], {
     OR: [
       {
@@ -602,11 +738,23 @@ test('getAllUsers scopes coordinator queries to their department', async () => {
         role: 'INSTRUCTOR',
         instructor: {
           is: {
-            department: {
-              in: ['BCA']
-            }
+            OR: [
+              {
+                department: {
+                  in: ['BCA']
+                }
+              },
+              {
+                departments: {
+                  hasSome: ['BCA']
+                }
+              }
+            ]
           }
         }
+      },
+      {
+        role: 'GATEKEEPER'
       }
     ]
   })
@@ -1167,6 +1315,52 @@ test('getAllMaterials returns paginated metadata', async () => {
   assert.equal(res.body.total, 12)
 })
 
+test('createMaterial blocks instructors from uploading materials to another instructor subject', async () => {
+  const { createMaterial } = loadWithMocks(resolveFromTest('src', 'controllers', 'studyMaterial.controller.js'), {
+    '../utils/prisma': {
+      subject: {
+        findUnique: async () => ({
+          id: 'subject-1',
+          instructorId: 'instructor-2'
+        })
+      },
+      studyMaterial: {
+        create: async () => {
+          throw new Error('studyMaterial.create should not be called')
+        }
+      }
+    },
+    '../utils/fileStorage': {
+      buildUploadedFileUrl: () => '/api/v1/uploads/material.pdf'
+    },
+    '../utils/pagination': {
+      getPagination: () => ({ page: 1, limit: 20, skip: 0 })
+    },
+    '../utils/sanitize': {
+      sanitizePlainText: (value) => value
+    }
+  })
+
+  const req = {
+    body: {
+      title: 'Week 1 Slides',
+      description: 'Introduction notes',
+      subjectId: 'subject-1'
+    },
+    file: { filename: 'material.pdf' },
+    user: { role: 'INSTRUCTOR' },
+    instructor: { id: 'instructor-1' }
+  }
+  const res = createResponse()
+
+  await createMaterial(req, res)
+
+  assert.equal(res.statusCode, 403)
+  assert.deepEqual(res.body, {
+    message: 'You can only upload materials for your assigned subjects'
+  })
+})
+
 test('getAbsenceTicketsForStaff returns paginated metadata', async () => {
   const findManyCalls = []
   const { getAbsenceTicketsForStaff } = loadWithMocks(resolveFromTest('src', 'controllers', 'attendance', 'tickets.controller.js'), {
@@ -1298,7 +1492,7 @@ test('submitStudentIntake upserts the application payload and returns success', 
   await submitStudentIntake(req, res)
 
   assert.equal(res.statusCode, 201)
-  assert.match(res.body.message, /submitted successfully/i)
+  assert.equal(res.body.message, 'If this email is eligible, you will receive further instructions.')
   assert.equal(upsertCalls.length, 1)
   assert.equal(upsertCalls[0].where.email, 'arman@example.com')
   assert.equal(upsertCalls[0].create.preferredDepartment, 'BCA')
@@ -1353,7 +1547,7 @@ test('submitStudentIntake allows resubmission when a prior application was revie
   assert.equal(upsertCalls[0].update.reviewedBy, null)
 })
 
-test('submitStudentIntake still blocks duplicate pending applications', async () => {
+test('submitStudentIntake returns a generic response for duplicate pending applications', async () => {
   process.env.QR_SIGNING_SECRET = 'test-qr-secret'
 
   const { submitStudentIntake } = loadWithMocks(resolveFromTest('src', 'controllers', 'auth.controller.js'), authControllerMocks({
@@ -1393,9 +1587,9 @@ test('submitStudentIntake still blocks duplicate pending applications', async ()
 
   await submitStudentIntake(req, res)
 
-  assert.equal(res.statusCode, 400)
+  assert.equal(res.statusCode, 200)
   assert.deepEqual(res.body, {
-    message: 'An application with this email has already been submitted.'
+    message: 'If this email is eligible, you will receive further instructions.'
   })
 })
 
@@ -1661,6 +1855,80 @@ test('exportMyMarksheetPdf streams a semester marksheet for published student re
   assert.ok(docOperations.some((operation) => operation[0] === 'text' && /Semester Marksheet/i.test(operation[1])))
   assert.ok(docOperations.some((operation) => operation[0] === 'text' && /Database Systems/i.test(operation[1])))
   assert.ok(docOperations.some((operation) => operation[0] === 'end'))
+})
+
+test('getMyMarksSummary returns student rank metrics without peer leaderboard data', async () => {
+  const { getMyMarksSummary } = loadWithMocks(resolveFromTest('src', 'controllers', 'marks.controller.js'), {
+    '../utils/prisma': {
+      mark: {
+        findMany: async ({ where, distinct } = {}) => {
+          if (distinct) {
+            return [{ examType: 'FINAL' }]
+          }
+
+          if (where?.studentId === 'student-1') {
+            return [
+              {
+                id: 'mark-1',
+                studentId: 'student-1',
+                subjectId: 'subject-1',
+                obtainedMarks: 88,
+                totalMarks: 100,
+                remarks: '',
+                subject: { name: 'Database Systems', code: 'DBS101', semester: 3 }
+              }
+            ]
+          }
+
+          return [
+            {
+              studentId: 'student-1',
+              obtainedMarks: 88,
+              totalMarks: 100,
+              subject: { code: 'DBS101' }
+            },
+            {
+              studentId: 'student-2',
+              obtainedMarks: 75,
+              totalMarks: 100,
+              subject: { code: 'DBS101' }
+            }
+          ]
+        },
+        count: async () => 1
+      },
+      student: {
+        findMany: async () => ([
+          { id: 'student-1', user: { id: 'user-1', name: 'Arman Dev' } },
+          { id: 'student-2', user: { id: 'user-2', name: 'Student Two' } }
+        ])
+      }
+    },
+    '../utils/pagination': {
+      getPagination: () => ({ page: 1, limit: 10, skip: 0 })
+    },
+    '../utils/audit': {
+      recordAuditLog: async () => {}
+    },
+    '../utils/notifications': {
+      createNotifications: async () => {}
+    },
+    pdfkit: class MockPdfDocument {}
+  })
+
+  const req = {
+    query: { examType: 'FINAL' },
+    student: { id: 'student-1', semester: 3, department: 'BCA' }
+  }
+  const res = createResponse()
+
+  await getMyMarksSummary(req, res)
+
+  assert.equal(res.statusCode, 200)
+  assert.equal(res.body.ranking.rank, 1)
+  assert.equal(res.body.ranking.cohortSize, 2)
+  assert.equal(res.body.ranking.percentile, 100)
+  assert.equal('topStudents' in res.body.ranking, false)
 })
 
 test('getDayRange uses the configured attendance timezone for date boundaries', () => {

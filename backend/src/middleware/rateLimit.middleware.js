@@ -5,6 +5,9 @@ const { createClient } = require('redis')
 let redisClient
 let redisStore
 let memoryStoreWarningShown = false
+let rateLimitDisabledWarningShown = false
+
+const areRateLimitsDisabled = () => process.env.DISABLE_RATE_LIMITS === 'true'
 
 const getRedisStore = () => {
   const redisUrl = process.env.REDIS_URL
@@ -38,15 +41,26 @@ const getRedisStore = () => {
   return redisStore
 }
 
-const createLimiter = ({ max, message, windowMs = 15 * 60 * 1000, keyGenerator }) => rateLimit({
-  windowMs,
-  max,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { message },
-  keyGenerator,
-  store: getRedisStore()
-})
+const createLimiter = ({ max, message, windowMs = 15 * 60 * 1000, keyGenerator }) => {
+  if (areRateLimitsDisabled()) {
+    if (!rateLimitDisabledWarningShown) {
+      rateLimitDisabledWarningShown = true
+      console.warn('Warning: rate limiting is disabled because DISABLE_RATE_LIMITS=true')
+    }
+
+    return (_req, _res, next) => next()
+  }
+
+  return rateLimit({
+    windowMs,
+    max,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { message },
+    keyGenerator,
+    store: getRedisStore()
+  })
+}
 
 const actorRateLimitKey = (req) => (
   req.user?.id

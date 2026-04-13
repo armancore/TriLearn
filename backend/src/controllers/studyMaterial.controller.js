@@ -25,6 +25,14 @@ const resolveMaterialManager = async (req, subjectId) => {
     return { error: { status: 403, message: 'Instructor profile not found' } }
   }
 
+  if (!subject.instructorId) {
+    return { error: { status: 403, message: 'No instructor assigned to this subject' } }
+  }
+
+  if (subject.instructorId !== instructor.id) {
+    return { error: { status: 403, message: 'You can only upload materials for your assigned subjects' } }
+  }
+
   return { subject, instructorId: instructor.id }
 }
 

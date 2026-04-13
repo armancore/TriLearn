@@ -35,6 +35,8 @@ const buildAuthUser = (user) => ({
 const isPasswordResetEnabled = () => process.env.ENABLE_PASSWORD_RESET === 'true'
 const MAX_FAILED_LOGIN_ATTEMPTS = 5
 const LOGIN_LOCKOUT_MINUTES = 15
+const GENERIC_ELIGIBILITY_MESSAGE = 'If this email is eligible, you will receive further instructions.'
+const GENERIC_DISABLED_ACCOUNT_MESSAGE = 'Your account has been disabled. Please contact the administration.'
 
 const createSignedQrPayload = (payload) => JSON.stringify({
   payload,
@@ -187,7 +189,7 @@ const register = async (req, res) => {
     })
 
     if (existingUser) {
-      return res.status(400).json({ message: 'User already exists with this email' })
+      return res.status(200).json({ message: GENERIC_ELIGIBILITY_MESSAGE })
     }
 
     const hashedPassword = await hashPassword(password)
@@ -255,12 +257,10 @@ const submitStudentIntake = async (req, res) => {
       preferredDepartment
     } = req.body
 
-    const existingApplication = await prisma.studentApplication.findUnique({
-      where: { email }
-    })
+    const existingApplication = await prisma.studentApplication.findUnique({ where: { email } })
 
     if (existingApplication && !['CONVERTED', 'REVIEWED'].includes(existingApplication.status)) {
-      return res.status(400).json({ message: 'An application with this email has already been submitted.' })
+      return res.status(200).json({ message: GENERIC_ELIGIBILITY_MESSAGE })
     }
 
     const existingUser = await prisma.user.findUnique({
@@ -268,7 +268,7 @@ const submitStudentIntake = async (req, res) => {
     })
 
     if (existingUser) {
-      return res.status(400).json({ message: 'An account already exists with this email address.' })
+      return res.status(200).json({ message: GENERIC_ELIGIBILITY_MESSAGE })
     }
 
     await prisma.studentApplication.upsert({
@@ -316,9 +316,7 @@ const submitStudentIntake = async (req, res) => {
       }
     })
 
-    res.status(201).json({
-      message: 'Your details have been submitted successfully. The institution can now review them and create your student account.'
-    })
+    res.status(201).json({ message: GENERIC_ELIGIBILITY_MESSAGE })
   } catch (error) {
     res.internalError(error)
   }
@@ -366,10 +364,14 @@ const login = async (req, res) => {
     }
 
     if (!user.isActive) {
+      logger.warn('Suspended user login blocked', {
+        userId: user.id,
+        email: user.email,
+        suspensionReason: user.suspensionReason || null
+      })
+
       return res.status(403).json({
-        message: user.suspensionReason
-          ? `Your account is suspended. Reason: ${user.suspensionReason}`
-          : 'Your account is disabled'
+        message: GENERIC_DISABLED_ACCOUNT_MESSAGE
       })
     }
 

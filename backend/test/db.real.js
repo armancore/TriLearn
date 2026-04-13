@@ -57,7 +57,7 @@ test('POST /api/v1/auth/student-intake persists an application in the real datab
       .send(buildStudentIntakePayload(email))
 
     assert.equal(response.status, 201)
-    assert.match(response.body.message, /submitted successfully/i)
+    assert.equal(response.body.message, 'If this email is eligible, you will receive further instructions.')
 
     const saved = await prisma.studentApplication.findUnique({
       where: { email }
@@ -107,6 +107,7 @@ test('POST /api/v1/auth/student-intake resets a reviewed application back to pen
       .send(buildStudentIntakePayload(email))
 
     assert.equal(response.status, 201)
+    assert.equal(response.body.message, 'If this email is eligible, you will receive further instructions.')
 
     const updated = await prisma.studentApplication.findUnique({
       where: { email }

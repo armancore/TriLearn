@@ -5,7 +5,7 @@ const uploadPath = process.env.UPLOAD_DIR
   ? path.resolve(process.env.UPLOAD_DIR)
   : path.join(__dirname, '..', '..', 'uploads')
 
-const uploadPublicPath = process.env.UPLOAD_PUBLIC_PATH || '/uploads'
+const uploadPublicPath = process.env.UPLOAD_PUBLIC_PATH || '/api/v1/uploads'
 const uploadBaseUrl = (process.env.UPLOAD_BASE_URL || '').trim().replace(/\/$/, '')
 
 if (!fs.existsSync(uploadPath)) {

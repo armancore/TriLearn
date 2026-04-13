@@ -1,12 +1,13 @@
 import { Bell, CheckCheck, LogOut, Menu, Moon, PanelLeftClose, PanelLeftOpen, SunMedium, X } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import api, { resolveFileUrl } from '../utils/api'
+import api from '../utils/api'
 import { useAuth } from '../context/AuthContext'
 import { useTheme } from '../context/ThemeContext'
 import { useToast } from './Toast'
 import BrandLogo from './BrandLogo'
 import useLiveNotifications from '../hooks/useLiveNotifications'
+import useProtectedObjectUrl from '../hooks/useProtectedObjectUrl'
 
 const initialsFromName = (name = '') =>
   name
@@ -46,7 +47,7 @@ const AppShell = ({
   const { resolvedTheme, toggleTheme } = useTheme()
   const roleThemeClass = roleThemeClasses[roleTheme] || roleThemeClasses.admin
   const isDesktopCollapsed = sidebarCollapsed && !mobileOpen
-  const avatarUrl = resolveFileUrl(user?.avatar)
+  const avatarUrl = useProtectedObjectUrl(user?.avatar)
 
   const fetchNotifications = useCallback(async (signal) => {
     try {

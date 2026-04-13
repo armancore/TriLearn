@@ -156,7 +156,7 @@ const getPublishedStudentMarks = async ({ studentId, examType, skip, take }) => 
   }
 }
 
-const getRankingSummary = async ({ student, examType, overallGpa }) => {
+const getRankingSummary = async ({ student, examType }) => {
   const cohortStudents = await prisma.student.findMany({
     where: {
       semester: student.semester,
@@ -181,8 +181,7 @@ const getRankingSummary = async ({ student, examType, overallGpa }) => {
     return {
       rank: null,
       cohortSize: 0,
-      percentile: 0,
-      topStudents: []
+      percentile: 0
     }
   }
 
@@ -243,12 +242,7 @@ const getRankingSummary = async ({ student, examType, overallGpa }) => {
   return {
     rank: rank || null,
     cohortSize: cohortStudents.length,
-    percentile,
-    topStudents: rankedStudents.slice(0, 5).map((entry) => ({
-      overallGpa: entry.overallGpa,
-      overallPercentage: entry.overallPercentage
-    })),
-    currentStudentGpa: overallGpa
+    percentile
   }
 }
 
@@ -276,8 +270,7 @@ const getMyMarksSummary = async (req, res) => {
         ranking: {
           rank: null,
           cohortSize: 0,
-          percentile: 0,
-          topStudents: []
+          percentile: 0
         }
       })
     }
@@ -291,8 +284,7 @@ const getMyMarksSummary = async (req, res) => {
     const weakestSubject = [...resultSheet.subjects].sort((left, right) => left.percentage - right.percentage)[0] || null
     const ranking = await getRankingSummary({
       student,
-      examType: selectedExamType,
-      overallGpa: resultSheet.overallGpa
+      examType: selectedExamType
     })
 
     res.json({
@@ -357,8 +349,7 @@ const getStudentMarksheetPayload = async ({ student, examType }) => {
   const weakestSubject = [...resultSheet.subjects].sort((left, right) => left.percentage - right.percentage)[0] || null
   const ranking = await getRankingSummary({
     student,
-    examType: selectedExamType,
-    overallGpa: resultSheet.overallGpa
+    examType: selectedExamType
   })
 
   const studentProfile = await prisma.student.findUnique({

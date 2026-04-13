@@ -33,7 +33,6 @@ const initialUserValues = {
 
 const allVisibleRoles = ['', 'ADMIN', 'COORDINATOR', 'GATEKEEPER', 'INSTRUCTOR', 'STUDENT']
 const coordinatorVisibleRoles = ['', 'GATEKEEPER', 'INSTRUCTOR', 'STUDENT']
-const normalizeValue = (value) => String(value || '').trim().toLowerCase()
 const getInstructorDepartments = (instructor) => (
   Array.isArray(instructor?.departments) && instructor.departments.length > 0
     ? instructor.departments
@@ -64,11 +63,6 @@ const Users = () => {
   const [searchTerm, setSearchTerm] = useState('')
   const debouncedSearchTerm = useDebouncedValue(searchTerm, 300)
   const visibleRoles = isCoordinator ? coordinatorVisibleRoles : allVisibleRoles
-  const coordinatorDepartment = currentUser?.coordinator?.department || ''
-  const normalizedCoordinatorDepartment = departments.find((department) => (
-    normalizeValue(department.name) === normalizeValue(coordinatorDepartment) ||
-    normalizeValue(department.code) === normalizeValue(coordinatorDepartment)
-  ))?.name || coordinatorDepartment
   const validateUserForm = (values) => {
     const validationErrors = {}
 
@@ -211,7 +205,9 @@ const Users = () => {
         const loginEmail = res.data.user?.email
         showToast({
           title: 'Student account created.',
-          description: `Login email: ${loginEmail}. The student must change the temporary password on first login.`
+          description: res.data.welcomeEmailSent
+            ? `Login email: ${loginEmail}. Temporary login instructions were sent by email.`
+            : `Login email: ${loginEmail}. The account was created, but the welcome email could not be delivered.`
         })
       } else {
         showToast({ title: `${modalType} created successfully.` })

@@ -14,6 +14,7 @@ const requiredProductionMail = [
   'RESEND_SMTP_USER',
   'RESEND_SMTP_PASS'
 ]
+const validNodeEnvironments = new Set(['development', 'test', 'production'])
 
 const validateEnv = () => {
   const missing = required.filter((key) => !process.env[key])
@@ -27,6 +28,11 @@ const validateEnv = () => {
     console.warn('Warning: RESEND_SMTP_PASS not set - emails disabled')
   }
 
+  if (!validNodeEnvironments.has(process.env.NODE_ENV)) {
+    console.error(`Invalid NODE_ENV value: ${process.env.NODE_ENV}. Expected one of: development, test, production`)
+    process.exit(1)
+  }
+
   if (process.env.NODE_ENV === 'production') {
     const missingProductionMail = requiredProductionMail.filter((key) => !String(process.env[key] || '').trim())
 
@@ -38,6 +44,11 @@ const validateEnv = () => {
 
   if (process.env.NODE_ENV === 'production' && !process.env.REDIS_URL) {
     console.error('Missing required env var: REDIS_URL. Production rate limiting must use Redis.')
+    process.exit(1)
+  }
+
+  if (process.env.NODE_ENV === 'production' && process.env.DISABLE_RATE_LIMITS === 'true') {
+    console.error('Invalid configuration: DISABLE_RATE_LIMITS=true is not allowed in production.')
     process.exit(1)
   }
 

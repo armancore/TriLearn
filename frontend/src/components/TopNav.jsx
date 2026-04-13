@@ -11,7 +11,7 @@ import {
 } from 'lucide-react'
 import { useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { resolveFileUrl } from '../utils/api'
+import useProtectedObjectUrl from '../hooks/useProtectedObjectUrl'
 
 const topItems = [
   { key: 'routine', label: 'Routine', icon: CalendarDays },
@@ -34,7 +34,7 @@ const initialsFromName = (name = '') =>
 const TopNav = ({ user, noticesCount = 0, links = {}, onOpenSidebar, onLogout }) => {
   const location = useLocation()
   const [menuOpen, setMenuOpen] = useState(false)
-  const avatarUrl = resolveFileUrl(user?.avatar)
+  const avatarUrl = useProtectedObjectUrl(user?.avatar)
 
   return (
     <div className="rounded-[2rem] border border-white/10 bg-[--color-bg-card] dark:bg-slate-800/[0.07] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_24px_80px_rgba(0,0,0,0.32)] backdrop-blur-xl">

@@ -189,6 +189,26 @@ const createStudentAccountRecord = async ({
   }
 }
 
+const sendStudentWelcomeEmail = async ({ name, email, temporaryPassword, userId }) => {
+  const { subject, html, text } = welcomeTemplate({
+    name,
+    email,
+    tempPassword: temporaryPassword
+  })
+
+  try {
+    await sendMail({ to: email, subject, html, text })
+    return true
+  } catch (error) {
+    logger.error('Welcome email failed', {
+      message: error.message,
+      stack: error.stack,
+      userId
+    })
+    return false
+  }
+}
+
 const normalizeDepartmentValue = (value) => String(value || '').trim()
 
 const resolveInstructorDepartmentsInput = async ({ department, departments }) => {
@@ -341,6 +361,7 @@ const getAllUsers = async (req, res) => {
     if (req.user?.role === 'COORDINATOR') {
       const allowedRoles = ['STUDENT', 'INSTRUCTOR', 'GATEKEEPER']
       const canSearchAssignableInstructors = includeAssignable === 'true' && role === 'INSTRUCTOR'
+      const coordinatorDepartments = getCoordinatorDepartments(req)
 
       if (canSearchAssignableInstructors) {
         filters.role = 'INSTRUCTOR'
@@ -352,6 +373,53 @@ const getAllUsers = async (req, res) => {
         filters.role = role
       } else {
         filters.role = { in: allowedRoles }
+      }
+
+      if (coordinatorDepartments.length > 0) {
+        const departmentScopedRoles = []
+
+        if (!role || role === 'STUDENT') {
+          departmentScopedRoles.push({
+            role: 'STUDENT',
+            student: {
+              is: {
+                department: {
+                  in: coordinatorDepartments
+                }
+              }
+            }
+          })
+        }
+
+        if (!role || role === 'INSTRUCTOR') {
+          departmentScopedRoles.push({
+            role: 'INSTRUCTOR',
+            instructor: {
+              is: {
+                OR: [
+                  {
+                    department: {
+                      in: coordinatorDepartments
+                    }
+                  },
+                  {
+                    departments: {
+                      hasSome: coordinatorDepartments
+                    }
+                  }
+                ]
+              }
+            }
+          })
+        }
+
+        if (!role || role === 'GATEKEEPER') {
+          departmentScopedRoles.push({ role: 'GATEKEEPER' })
+        }
+
+        andFilters.push({
+          OR: departmentScopedRoles
+        })
       }
     } else if (role) {
       filters.role = role
@@ -674,7 +742,7 @@ const createStudent = async (req, res) => {
       return res.status(403).json({ message: 'Coordinators can only create students in their own department' })
     }
 
-    const { user } = await createStudentAccountRecord({
+    const { user, temporaryPassword } = await createStudentAccountRecord({
       name,
       email: normalizedEmail,
       studentId: normalizedStudentId,
@@ -684,10 +752,18 @@ const createStudent = async (req, res) => {
       section,
       department: normalizedDepartment
     })
+    const welcomeEmailSent = await sendStudentWelcomeEmail({
+      name: user.name,
+      email: user.email,
+      temporaryPassword,
+      userId: user.id
+    })
     clearStatsCache()
 
     res.status(201).json({
-      message: 'Student created and enrolled in matching semester subjects successfully!',
+      message: welcomeEmailSent
+        ? 'Student created and enrolled in matching semester subjects successfully!'
+        : 'Student created successfully, but the welcome email could not be delivered.',
       user: {
         id: user.id,
         name: user.name,
@@ -695,7 +771,8 @@ const createStudent = async (req, res) => {
         role: user.role,
         rollNumber: user.student.rollNumber,
         semester: user.student.semester
-      }
+      },
+      welcomeEmailSent
     })
 
     await recordAuditLog({
@@ -1279,7 +1356,7 @@ const importStudents = async (req, res) => {
         created: created.length,
         failed: failures.length
       },
-      created: created.map(({ temporaryPassword, ...row }) => row),
+      created: created.map(({ temporaryPassword: _temporaryPassword, ...row }) => row),
       failures
     })
   } catch (error) {
@@ -1469,17 +1546,17 @@ const createStudentFromApplication = async (req, res) => {
       department: user.student.department
     })
 
-    const { subject, html, text } = welcomeTemplate({
+    const welcomeEmailSent = await sendStudentWelcomeEmail({
       name: user.name,
       email: user.email,
-      tempPassword: temporaryPassword
+      temporaryPassword,
+      userId: user.id
     })
 
-    await sendMail({ to: user.email, subject, html, text })
-      .catch((error) => logger.error('Welcome email failed', { message: error.message, stack: error.stack, userId: user.id }))
-
     res.status(201).json({
-      message: 'Student account created from application successfully!',
+      message: welcomeEmailSent
+        ? 'Student account created from application successfully!'
+        : 'Student account created, but the welcome email could not be delivered.',
       user: {
         id: user.id,
         name: user.name,
@@ -1487,7 +1564,8 @@ const createStudentFromApplication = async (req, res) => {
         role: user.role,
         rollNumber: user.student.rollNumber,
         semester: user.student.semester,
-      }
+      },
+      welcomeEmailSent
     })
 
     await recordAuditLog({
