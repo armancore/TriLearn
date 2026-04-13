@@ -1,4 +1,5 @@
 const prisma = require('../utils/prisma')
+const { Prisma } = require('@prisma/client')
 const { getPagination } = require('../utils/pagination')
 const { recordAuditLog } = require('../utils/audit')
 const { createNotifications } = require('../utils/notifications')
@@ -158,27 +159,50 @@ const getPublishedStudentMarks = async ({ studentId, examType, skip, take }) => 
 }
 
 const getRankingSummary = async ({ student, examType }) => {
-  const cohortStudents = await prisma.student.findMany({
-    where: {
-      semester: student.semester,
-      ...(student.department ? { department: student.department } : {}),
-      user: { isActive: true }
-    },
-    select: {
-      id: true,
-      user: {
-        select: {
-          id: true,
-          name: true
-        }
-      }
-    },
-    orderBy: [
-      { rollNumber: 'asc' }
-    ]
-  })
+  const departmentCondition = student.department
+    ? Prisma.sql`AND s."department" = ${student.department}`
+    : Prisma.empty
 
-  if (cohortStudents.length === 0) {
+  const rankedRows = await prisma.$queryRaw`
+    WITH ranked AS (
+      SELECT
+        s.id AS "studentId",
+        ROW_NUMBER() OVER (
+          ORDER BY
+            COALESCE(AVG(
+              CASE
+                WHEN m."totalMarks" > 0 AND ((m."obtainedMarks"::decimal / m."totalMarks"::decimal) * 100) >= 90 THEN 4.0
+                WHEN m."totalMarks" > 0 AND ((m."obtainedMarks"::decimal / m."totalMarks"::decimal) * 100) >= 80 THEN 3.6
+                WHEN m."totalMarks" > 0 AND ((m."obtainedMarks"::decimal / m."totalMarks"::decimal) * 100) >= 70 THEN 3.2
+                WHEN m."totalMarks" > 0 AND ((m."obtainedMarks"::decimal / m."totalMarks"::decimal) * 100) >= 60 THEN 2.8
+                WHEN m."totalMarks" > 0 AND ((m."obtainedMarks"::decimal / m."totalMarks"::decimal) * 100) >= 50 THEN 2.4
+                WHEN m."totalMarks" > 0 AND ((m."obtainedMarks"::decimal / m."totalMarks"::decimal) * 100) >= 40 THEN 2.0
+                ELSE 0.0
+              END
+            ), 0) DESC,
+            COALESCE((SUM(m."obtainedMarks")::decimal / NULLIF(SUM(m."totalMarks"), 0)) * 100, 0) DESC,
+            u.name ASC
+        )::int AS rank,
+        COUNT(*) OVER ()::int AS "cohortSize"
+      FROM "Student" s
+      INNER JOIN "User" u
+        ON u.id = s."userId"
+       AND u."isActive" = true
+      LEFT JOIN "Mark" m
+        ON m."studentId" = s.id
+       AND m."isPublished" = true
+       AND m."examType" = ${examType}
+      WHERE s.semester = ${student.semester}
+      ${departmentCondition}
+      GROUP BY s.id, u.name
+    )
+    SELECT "studentId", rank, "cohortSize"
+    FROM ranked
+    WHERE "studentId" = ${student.id}
+  `
+
+  const rankingRow = rankedRows[0]
+  if (!rankingRow) {
     return {
       rank: null,
       cohortSize: 0,
@@ -186,63 +210,15 @@ const getRankingSummary = async ({ student, examType }) => {
     }
   }
 
-  const studentIds = cohortStudents.map((entry) => entry.id)
-  const cohortMarks = await prisma.mark.findMany({
-    where: {
-      studentId: { in: studentIds },
-      isPublished: true,
-      examType
-    },
-    include: {
-      subject: {
-        select: {
-          code: true
-        }
-      }
-    },
-    orderBy: [
-      { subject: { code: 'asc' } }
-    ]
-  })
-
-  const marksByStudentId = cohortMarks.reduce((accumulator, mark) => {
-    if (!accumulator.has(mark.studentId)) {
-      accumulator.set(mark.studentId, [])
-    }
-
-    accumulator.get(mark.studentId).push(mark)
-    return accumulator
-  }, new Map())
-
-  const rankedStudents = cohortStudents.map((entry) => {
-    const resultSheet = buildStudentResultSheet(marksByStudentId.get(entry.id) || [])
-    return {
-      studentId: entry.id,
-      userId: entry.user.id,
-      name: entry.user.name,
-      overallGpa: resultSheet.overallGpa,
-      overallPercentage: resultSheet.overallPercentage
-    }
-  }).sort((left, right) => {
-    if (right.overallGpa !== left.overallGpa) {
-      return right.overallGpa - left.overallGpa
-    }
-
-    if (right.overallPercentage !== left.overallPercentage) {
-      return right.overallPercentage - left.overallPercentage
-    }
-
-    return left.name.localeCompare(right.name)
-  })
-
-  const rank = rankedStudents.findIndex((entry) => entry.studentId === student.id) + 1
-  const percentile = rank > 0 && cohortStudents.length > 0
-    ? Number((((cohortStudents.length - rank + 1) / cohortStudents.length) * 100).toFixed(2))
+  const rank = Number(rankingRow.rank) || null
+  const cohortSize = Number(rankingRow.cohortSize) || 0
+  const percentile = rank && cohortSize > 0
+    ? Number((((cohortSize - rank + 1) / cohortSize) * 100).toFixed(2))
     : 0
 
   return {
-    rank: rank || null,
-    cohortSize: cohortStudents.length,
+    rank,
+    cohortSize,
     percentile
   }
 }

@@ -9,7 +9,6 @@ const resolvedUploadPublicPaths = Array.isArray(uploadPublicPaths) && uploadPubl
   ? uploadPublicPaths
   : [uploadPublicPath || '/api/v1/uploads']
 
-const buildRelativeUploadPath = (fileName) => `${uploadPublicPath}/${fileName}`
 const buildRelativeUploadPaths = (fileName) => resolvedUploadPublicPaths.map((publicPath) => `${publicPath}/${fileName}`)
 
 const setUploadSecurityHeaders = (res) => {
@@ -190,7 +189,6 @@ const serveUploadedFile = async (req, res) => {
       return res.status(404).json({ message: 'File not found' })
     }
 
-    const relativePath = buildRelativeUploadPath(fileName)
     const relativePaths = buildRelativeUploadPaths(fileName)
 
     const user = req.user

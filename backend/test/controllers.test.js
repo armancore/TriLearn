@@ -2213,6 +2213,7 @@ test('getOwnedSubject blocks coordinators from managing attendance outside their
 
 test('exportMyMarksheetPdf streams a semester marksheet for published student results', async () => {
   const docOperations = []
+  let rankingQueryCalled = false
   class MockPdfDocument {
     constructor() {
       this.y = 0
@@ -2256,6 +2257,10 @@ test('exportMyMarksheetPdf streams a semester marksheet for published student re
 
   const { exportMyMarksheetPdf } = loadWithMocks(resolveFromTest('src', 'controllers', 'marks.controller.js'), {
     '../utils/prisma': {
+      $queryRaw: async () => {
+        rankingQueryCalled = true
+        return [{ studentId: 'student-1', rank: 1, cohortSize: 2 }]
+      },
       mark: {
         findMany: async ({ where, distinct } = {}) => {
           if (distinct) {
@@ -2285,28 +2290,11 @@ test('exportMyMarksheetPdf streams a semester marksheet for published student re
             ]
           }
 
-          return [
-            {
-              studentId: 'student-1',
-              obtainedMarks: 88,
-              totalMarks: 100,
-              subject: { code: 'DBS101' }
-            },
-            {
-              studentId: 'student-2',
-              obtainedMarks: 70,
-              totalMarks: 100,
-              subject: { code: 'DBS101' }
-            }
-          ]
+          throw new Error('cohort marks should not be loaded into memory')
         },
         count: async () => 2
       },
       student: {
-        findMany: async () => ([
-          { id: 'student-1', user: { id: 'user-1', name: 'Arman Dev' } },
-          { id: 'student-2', user: { id: 'user-2', name: 'Student Two' } }
-        ]),
         findUnique: async () => ({
           id: 'student-1',
           rollNumber: 'STU-001',
@@ -2339,14 +2327,20 @@ test('exportMyMarksheetPdf streams a semester marksheet for published student re
 
   assert.equal(res.headers['Content-Type'], 'application/pdf')
   assert.match(res.headers['Content-Disposition'], /marksheet-stu-001-sem-3-final\.pdf/i)
+  assert.equal(rankingQueryCalled, true)
   assert.ok(docOperations.some((operation) => operation[0] === 'text' && /Semester Marksheet/i.test(operation[1])))
   assert.ok(docOperations.some((operation) => operation[0] === 'text' && /Database Systems/i.test(operation[1])))
   assert.ok(docOperations.some((operation) => operation[0] === 'end'))
 })
 
 test('getMyMarksSummary returns student rank metrics without peer leaderboard data', async () => {
+  let rankingQueryCalled = false
   const { getMyMarksSummary } = loadWithMocks(resolveFromTest('src', 'controllers', 'marks.controller.js'), {
     '../utils/prisma': {
+      $queryRaw: async () => {
+        rankingQueryCalled = true
+        return [{ studentId: 'student-1', rank: 1, cohortSize: 2 }]
+      },
       mark: {
         findMany: async ({ where, distinct } = {}) => {
           if (distinct) {
@@ -2367,28 +2361,9 @@ test('getMyMarksSummary returns student rank metrics without peer leaderboard da
             ]
           }
 
-          return [
-            {
-              studentId: 'student-1',
-              obtainedMarks: 88,
-              totalMarks: 100,
-              subject: { code: 'DBS101' }
-            },
-            {
-              studentId: 'student-2',
-              obtainedMarks: 75,
-              totalMarks: 100,
-              subject: { code: 'DBS101' }
-            }
-          ]
+          throw new Error('cohort marks should not be loaded into memory')
         },
         count: async () => 1
-      },
-      student: {
-        findMany: async () => ([
-          { id: 'student-1', user: { id: 'user-1', name: 'Arman Dev' } },
-          { id: 'student-2', user: { id: 'user-2', name: 'Student Two' } }
-        ])
       }
     },
     '../utils/pagination': {
@@ -2412,6 +2387,7 @@ test('getMyMarksSummary returns student rank metrics without peer leaderboard da
   await getMyMarksSummary(req, res)
 
   assert.equal(res.statusCode, 200)
+  assert.equal(rankingQueryCalled, true)
   assert.equal(res.body.ranking.rank, 1)
   assert.equal(res.body.ranking.cohortSize, 2)
   assert.equal(res.body.ranking.percentile, 100)

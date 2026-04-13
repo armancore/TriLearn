@@ -59,6 +59,10 @@ test('GET /ping returns an ok response', async () => {
   assert.match(response.headers['content-security-policy'] || '', /default-src 'self'/)
   assert.match(response.headers['content-security-policy'] || '', /script-src 'self'/)
   assert.equal(
+    response.headers['permissions-policy'],
+    'camera=(), microphone=(), geolocation=()'
+  )
+  assert.equal(
     response.headers['strict-transport-security'],
     'max-age=63072000; includeSubDomains; preload'
   )

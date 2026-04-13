@@ -49,6 +49,10 @@ app.use(helmet({
     preload: true
   }
 }))
+app.use((_req, res, next) => {
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()')
+  next()
+})
 app.use(cors({
   origin: (origin, callback) => {
     if (!origin) return callback(null, true)
