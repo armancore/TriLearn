@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from 'react'
-import { ArrowUpCircle, FileSpreadsheet, Power, Trash2, Upload, UserPlus } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { ArrowUpCircle, FileSpreadsheet, PencilLine, Power, Trash2, Upload, UserPlus } from 'lucide-react'
 import AdminLayout from '../../layouts/AdminLayout'
 import CoordinatorLayout from '../../layouts/CoordinatorLayout'
 import api from '../../utils/api'
@@ -41,6 +41,7 @@ const semesterFilterOptions = [
   })),
   { value: 'graduate', label: 'Graduates' }
 ]
+const academicSemesterOptions = Array.from({ length: 8 }, (_, index) => String(index + 1))
 const getInstructorDepartments = (instructor) => (
   Array.isArray(instructor?.departments) && instructor.departments.length > 0
     ? instructor.departments
@@ -78,6 +79,13 @@ const Users = () => {
   const [importFile, setImportFile] = useState(null)
   const [importResult, setImportResult] = useState(null)
   const [studentToPromote, setStudentToPromote] = useState(null)
+  const [studentToManageSection, setStudentToManageSection] = useState(null)
+  const [studentSectionForm, setStudentSectionForm] = useState({ department: '', semester: '1', section: '' })
+  const [updatingStudentSection, setUpdatingStudentSection] = useState(false)
+  const [studentSectionError, setStudentSectionError] = useState('')
+  const [selectedStudentIds, setSelectedStudentIds] = useState([])
+  const [bulkSectionForm, setBulkSectionForm] = useState({ department: '', semester: '1', section: '' })
+  const [bulkAssigningSection, setBulkAssigningSection] = useState(false)
   const [error, setError] = useState('')
   const { showToast } = useToast()
   const [filterRole, setFilterRole] = useState('')
@@ -85,6 +93,25 @@ const Users = () => {
   const [searchTerm, setSearchTerm] = useState('')
   const debouncedSearchTerm = useDebouncedValue(searchTerm, 300)
   const visibleRoles = isCoordinator ? coordinatorVisibleRoles : allVisibleRoles
+  const departmentSectionMap = useMemo(() => (
+    departments.reduce((acc, department) => {
+      const semesterMap = {}
+      ;(department.semesterSections || []).forEach((entry) => {
+        semesterMap[String(entry.semester)] = Array.isArray(entry.sections) ? entry.sections : []
+      })
+
+      acc[department.name] = semesterMap
+      return acc
+    }, {})
+  ), [departments])
+
+  const getSectionOptions = useCallback((departmentName, semester) => (
+    departmentSectionMap[departmentName]?.[String(semester)] || []
+  ), [departmentSectionMap])
+
+  const studentsOnPage = useMemo(() => (
+    users.filter((user) => Boolean(user.student))
+  ), [users])
   const validateUserForm = (values) => {
     const validationErrors = {}
 
@@ -114,8 +141,13 @@ const Users = () => {
       if (Number.isNaN(semester) || semester < 1 || semester > 8) {
         validationErrors.semester = 'Semester must be between 1 and 8'
       }
-      if (!values.section.trim()) {
+      const sectionOptions = getSectionOptions(values.department, values.semester)
+      if (sectionOptions.length === 0) {
+        validationErrors.section = 'Create a section for this department and semester in Departments first.'
+      } else if (!values.section.trim()) {
         validationErrors.section = 'Section is required'
+      } else if (!sectionOptions.includes(values.section.trim().toUpperCase())) {
+        validationErrors.section = 'Select a valid configured section.'
       }
     }
 
@@ -156,6 +188,46 @@ const Users = () => {
       logger.error('Failed to load departments', fetchError)
     })
   }, [loadDepartments])
+
+  useEffect(() => {
+    if (modalType !== 'student') {
+      return
+    }
+
+    const sectionOptions = getSectionOptions(values.department, values.semester)
+    if (sectionOptions.length === 0) {
+      if (values.section) {
+        setValues((current) => ({ ...current, section: '' }))
+      }
+      return
+    }
+
+    if (!sectionOptions.includes(values.section)) {
+      setValues((current) => ({ ...current, section: sectionOptions[0] }))
+    }
+  }, [getSectionOptions, modalType, setValues, values.department, values.section, values.semester])
+
+  useEffect(() => {
+    setSelectedStudentIds((current) => current.filter((id) => studentsOnPage.some((student) => student.id === id)))
+  }, [studentsOnPage])
+
+  useEffect(() => {
+    if (bulkSectionForm.department) {
+      return
+    }
+
+    const firstDepartment = departments[0]?.name || ''
+    if (!firstDepartment) {
+      return
+    }
+
+    const initialSectionOptions = getSectionOptions(firstDepartment, bulkSectionForm.semester)
+    setBulkSectionForm((current) => ({
+      ...current,
+      department: firstDepartment,
+      section: initialSectionOptions[0] || ''
+    }))
+  }, [bulkSectionForm.department, bulkSectionForm.semester, departments, getSectionOptions])
 
   const fetchUsers = useCallback(async (signal) => {
     try {
@@ -332,6 +404,73 @@ const Users = () => {
     }
   }
 
+  const openStudentSectionModal = (studentUser) => {
+    const currentDepartment = studentUser?.student?.department || ''
+    const currentSemester = String(studentUser?.student?.semester || '1')
+    const sectionOptions = getSectionOptions(currentDepartment, currentSemester)
+    const currentSection = String(studentUser?.student?.section || '').toUpperCase()
+
+    setStudentSectionForm({
+      department: currentDepartment,
+      semester: currentSemester,
+      section: sectionOptions.includes(currentSection) ? currentSection : sectionOptions[0] || ''
+    })
+    setStudentSectionError('')
+    setStudentToManageSection(studentUser)
+  }
+
+  const handleUpdateStudentSection = async (event) => {
+    event.preventDefault()
+    if (!studentToManageSection?.id) {
+      return
+    }
+
+    const sectionOptions = getSectionOptions(studentSectionForm.department, studentSectionForm.semester)
+    if (sectionOptions.length === 0) {
+      setStudentSectionError('No section is configured for this department and semester yet.')
+      return
+    }
+
+    if (!studentSectionForm.section || !sectionOptions.includes(studentSectionForm.section)) {
+      setStudentSectionError('Select a valid section.')
+      return
+    }
+
+    try {
+      setUpdatingStudentSection(true)
+      setStudentSectionError('')
+      await api.put(`/admin/users/${studentToManageSection.id}`, {
+        department: studentSectionForm.department,
+        semester: Number(studentSectionForm.semester),
+        section: studentSectionForm.section
+      })
+
+      setUsers((current) => current.map((entry) => (
+        entry.id === studentToManageSection.id
+          ? {
+              ...entry,
+              student: {
+                ...entry.student,
+                department: studentSectionForm.department,
+                semester: Number(studentSectionForm.semester),
+                section: studentSectionForm.section
+              }
+            }
+          : entry
+      )))
+
+      showToast({
+        title: 'Student section updated.',
+        description: `${studentToManageSection.name} is now in semester ${studentSectionForm.semester}, section ${studentSectionForm.section}.`
+      })
+      setStudentToManageSection(null)
+    } catch (requestError) {
+      setStudentSectionError(getFriendlyErrorMessage(requestError, 'Unable to update student section right now.'))
+    } finally {
+      setUpdatingStudentSection(false)
+    }
+  }
+
   const openModal = (type) => {
     setModalType(type)
     setError('')
@@ -393,6 +532,77 @@ const Users = () => {
     }
 
     return true
+  }
+
+  const handleToggleStudentSelection = (userId) => {
+    setSelectedStudentIds((current) => (
+      current.includes(userId)
+        ? current.filter((id) => id !== userId)
+        : [...current, userId]
+    ))
+  }
+
+  const handleToggleAllStudentsOnPage = () => {
+    const studentIdsOnPage = studentsOnPage.map((student) => student.id)
+    const allSelected = studentIdsOnPage.length > 0 && studentIdsOnPage.every((id) => selectedStudentIds.includes(id))
+
+    setSelectedStudentIds((current) => (
+      allSelected
+        ? current.filter((id) => !studentIdsOnPage.includes(id))
+        : [...new Set([...current, ...studentIdsOnPage])]
+    ))
+  }
+
+  const handleBulkAssignStudentSection = async () => {
+    if (selectedStudentIds.length === 0) {
+      setError('Select at least one student to update section.')
+      return
+    }
+
+    const availableSections = getSectionOptions(bulkSectionForm.department, bulkSectionForm.semester)
+    if (availableSections.length === 0) {
+      setError('No sections are configured for the selected department and semester.')
+      return
+    }
+
+    if (!bulkSectionForm.section || !availableSections.includes(bulkSectionForm.section)) {
+      setError('Select a valid section for bulk update.')
+      return
+    }
+
+    try {
+      setBulkAssigningSection(true)
+      setError('')
+      await api.patch('/admin/users/students/assign-section', {
+        userIds: selectedStudentIds,
+        department: bulkSectionForm.department,
+        semester: Number(bulkSectionForm.semester),
+        section: bulkSectionForm.section
+      })
+
+      setUsers((current) => current.map((entry) => (
+        selectedStudentIds.includes(entry.id) && entry.student
+          ? {
+              ...entry,
+              student: {
+                ...entry.student,
+                department: bulkSectionForm.department,
+                semester: Number(bulkSectionForm.semester),
+                section: bulkSectionForm.section
+              }
+            }
+          : entry
+      )))
+      showToast({
+        title: 'Student sections updated.',
+        description: `Moved ${selectedStudentIds.length} student${selectedStudentIds.length === 1 ? '' : 's'} to semester ${bulkSectionForm.semester}, section ${bulkSectionForm.section}.`
+      })
+      setSelectedStudentIds([])
+    } catch (requestError) {
+      setError(getFriendlyErrorMessage(requestError, 'Unable to bulk update student sections right now.'))
+    } finally {
+      setBulkAssigningSection(false)
+    }
   }
 
   return (
@@ -494,6 +704,94 @@ const Users = () => {
               </button>
             ))}
           </div>
+          <div className="rounded-2xl border border-[var(--color-card-border)] bg-[var(--color-card-surface)] p-4 shadow-sm dark:shadow-slate-900/50">
+            <div className="flex flex-col gap-3">
+              <div>
+                <p className="text-sm font-semibold text-[var(--color-heading)]">Bulk Section Assignment</p>
+                <p className="mt-1 text-xs text-[var(--color-text-muted)]">
+                  Select students in the table and move them together to one section.
+                </p>
+              </div>
+              <div className="grid gap-3 md:grid-cols-4">
+                <div>
+                  <label className="ui-form-label">Department</label>
+                  <select
+                    value={bulkSectionForm.department}
+                    onChange={(event) => {
+                      const nextDepartment = event.target.value
+                      const nextSections = getSectionOptions(nextDepartment, bulkSectionForm.semester)
+                      setBulkSectionForm((current) => ({
+                        ...current,
+                        department: nextDepartment,
+                        section: nextSections[0] || ''
+                      }))
+                    }}
+                    className="ui-form-input"
+                  >
+                    <option value="">Select Department</option>
+                    {departments.map((department) => (
+                      <option key={department.id} value={department.name}>
+                        {department.name} ({department.code})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="ui-form-label">Semester</label>
+                  <select
+                    value={bulkSectionForm.semester}
+                    onChange={(event) => {
+                      const nextSemester = event.target.value
+                      const nextSections = getSectionOptions(bulkSectionForm.department, nextSemester)
+                      setBulkSectionForm((current) => ({
+                        ...current,
+                        semester: nextSemester,
+                        section: nextSections[0] || ''
+                      }))
+                    }}
+                    className="ui-form-input"
+                  >
+                    {academicSemesterOptions.map((semesterOption) => (
+                      <option key={semesterOption} value={semesterOption}>
+                        Semester {semesterOption}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="ui-form-label">Section</label>
+                  <select
+                    value={bulkSectionForm.section}
+                    onChange={(event) => setBulkSectionForm((current) => ({ ...current, section: event.target.value }))}
+                    className="ui-form-input"
+                    disabled={getSectionOptions(bulkSectionForm.department, bulkSectionForm.semester).length === 0}
+                  >
+                    {getSectionOptions(bulkSectionForm.department, bulkSectionForm.semester).length === 0 ? (
+                      <option value="">No configured sections</option>
+                    ) : (
+                      getSectionOptions(bulkSectionForm.department, bulkSectionForm.semester).map((sectionOption) => (
+                        <option key={sectionOption} value={sectionOption}>
+                          {sectionOption}
+                        </option>
+                      ))
+                    )}
+                  </select>
+                </div>
+                <div className="flex items-end">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void handleBulkAssignStudentSection()
+                    }}
+                    disabled={bulkAssigningSection || selectedStudentIds.length === 0}
+                    className="ui-role-fill w-full rounded-lg px-4 py-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {bulkAssigningSection ? 'Updating...' : `Move ${selectedStudentIds.length} Student${selectedStudentIds.length === 1 ? '' : 's'}`}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Users Table */}
@@ -541,6 +839,15 @@ const Users = () => {
               <table className="w-full min-w-[840px]">
                 <thead className="sticky top-0 z-10 bg-[var(--color-surface-muted)]">
                   <tr className="text-left text-sm text-[--color-text-muted] dark:text-slate-400">
+                    <th scope="col" className="px-4 py-4">
+                      <input
+                        type="checkbox"
+                        checked={studentsOnPage.length > 0 && studentsOnPage.every((student) => selectedStudentIds.includes(student.id))}
+                        onChange={handleToggleAllStudentsOnPage}
+                        className="h-4 w-4 accent-[var(--color-role-accent)]"
+                        aria-label="Select all students on this page"
+                      />
+                    </th>
                     <th scope="col" className="px-6 py-4">Name</th>
                     <th scope="col" className="px-6 py-4">Email</th>
                     <th scope="col" className="px-6 py-4">Role</th>
@@ -552,6 +859,17 @@ const Users = () => {
                 <tbody>
                   {users.map((user) => (
                     <tr key={user.id} className="border-t border-[var(--color-card-border)] transition-colors hover:bg-primary-50/30 dark:hover:bg-primary-950/15">
+                      <td className="px-4 py-4">
+                        {user.student ? (
+                          <input
+                            type="checkbox"
+                            checked={selectedStudentIds.includes(user.id)}
+                            onChange={() => handleToggleStudentSelection(user.id)}
+                            className="h-4 w-4 accent-[var(--color-role-accent)]"
+                            aria-label={`Select ${user.name}`}
+                          />
+                        ) : null}
+                      </td>
                       <td className="px-6 py-4">
                         <p className="font-semibold text-[var(--color-heading)]">{user.name}</p>
                         <p className="mt-1 text-xs text-[var(--color-text-muted)]">{user.phone || user.email}</p>
@@ -573,6 +891,16 @@ const Users = () => {
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex gap-2">
+                          {user.student ? (
+                            <button
+                              type="button"
+                              onClick={() => openStudentSectionModal(user)}
+                              className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-slate-700 transition hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                              aria-label={`Update ${user.name} section`}
+                            >
+                              <PencilLine className="h-4 w-4" />
+                            </button>
+                          ) : null}
                           {user.student && !user.student.isGraduated ? (
                             <button
                               type="button"
@@ -765,25 +1093,43 @@ const Users = () => {
                 <div className="flex gap-3">
                   <div className="flex-1">
                     <label className="ui-form-label">Semester</label>
-                    <input
+                    <select
                       name="semester"
-                      type="number"
-                      min="1"
-                      max="8"
                       value={values.semester}
                       onChange={handleChange}
                       className={`ui-form-input ${errors.semester ? 'ui-form-input-error' : ''}`}
-                    />
+                    >
+                      {academicSemesterOptions.map((semesterOption) => (
+                        <option key={semesterOption} value={semesterOption}>
+                          Semester {semesterOption}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                   <div className="flex-1">
                     <label className="ui-form-label">Section</label>
-                    <input
+                    <select
                       name="section"
-                      type="text"
                       value={values.section}
                       onChange={handleChange}
                       className={`ui-form-input ${errors.section ? 'ui-form-input-error' : ''}`}
-                    />
+                      disabled={getSectionOptions(values.department, values.semester).length === 0}
+                    >
+                      {getSectionOptions(values.department, values.semester).length === 0 ? (
+                        <option value="">No sections configured</option>
+                      ) : (
+                        getSectionOptions(values.department, values.semester).map((sectionOption) => (
+                          <option key={sectionOption} value={sectionOption}>
+                            {sectionOption}
+                          </option>
+                        ))
+                      )}
+                    </select>
+                    {getSectionOptions(values.department, values.semester).length === 0 ? (
+                      <p className="mt-2 text-xs text-[var(--color-text-soft)]">
+                        Create sections from Departments first for this semester.
+                      </p>
+                    ) : null}
                   </div>
                 </div>
               )}
@@ -911,6 +1257,116 @@ const Users = () => {
               </button>
             </div>
           </div>
+        </Modal>
+      )}
+
+      {studentToManageSection && (
+        <Modal
+          title={`Update Section · ${studentToManageSection.name}`}
+          onClose={() => {
+            if (!updatingStudentSection) {
+              setStudentToManageSection(null)
+              setStudentSectionError('')
+            }
+          }}
+        >
+          <Alert type="error" message={studentSectionError} />
+
+          <form onSubmit={handleUpdateStudentSection} className="space-y-4">
+            <div>
+              <label className="ui-form-label">Department</label>
+              <select
+                value={studentSectionForm.department}
+                onChange={(event) => {
+                  const nextDepartment = event.target.value
+                  const nextSectionOptions = getSectionOptions(nextDepartment, studentSectionForm.semester)
+                  setStudentSectionForm((current) => ({
+                    ...current,
+                    department: nextDepartment,
+                    section: nextSectionOptions[0] || ''
+                  }))
+                }}
+                className="ui-form-input"
+                required
+              >
+                <option value="">Select Department</option>
+                {departments.map((department) => (
+                  <option key={department.id} value={department.name}>
+                    {department.name} ({department.code})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <label className="ui-form-label">Semester</label>
+                <select
+                  value={studentSectionForm.semester}
+                  onChange={(event) => {
+                    const nextSemester = event.target.value
+                    const nextSectionOptions = getSectionOptions(studentSectionForm.department, nextSemester)
+                    setStudentSectionForm((current) => ({
+                      ...current,
+                      semester: nextSemester,
+                      section: nextSectionOptions[0] || ''
+                    }))
+                  }}
+                  className="ui-form-input"
+                >
+                  {academicSemesterOptions.map((semesterOption) => (
+                    <option key={semesterOption} value={semesterOption}>
+                      Semester {semesterOption}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="ui-form-label">Section</label>
+                <select
+                  value={studentSectionForm.section}
+                  onChange={(event) => setStudentSectionForm((current) => ({ ...current, section: event.target.value }))}
+                  className="ui-form-input"
+                  disabled={getSectionOptions(studentSectionForm.department, studentSectionForm.semester).length === 0}
+                >
+                  {getSectionOptions(studentSectionForm.department, studentSectionForm.semester).length === 0 ? (
+                    <option value="">No configured sections</option>
+                  ) : (
+                    getSectionOptions(studentSectionForm.department, studentSectionForm.semester).map((sectionOption) => (
+                      <option key={sectionOption} value={sectionOption}>
+                        {sectionOption}
+                      </option>
+                    ))
+                  )}
+                </select>
+              </div>
+            </div>
+
+            {getSectionOptions(studentSectionForm.department, studentSectionForm.semester).length === 0 ? (
+              <p className="rounded-lg border border-[var(--color-card-border)] bg-[var(--color-surface-muted)] px-3 py-2 text-sm text-[var(--color-text-muted)]">
+                No sections exist for this department and semester. Create one from Departments first.
+              </p>
+            ) : null}
+
+            <div className="ui-modal-footer">
+              <button
+                type="button"
+                onClick={() => setStudentToManageSection(null)}
+                className="flex-1 rounded-lg border border-[var(--color-card-border)] py-2 text-sm text-[var(--color-text-muted)] hover:bg-[var(--color-surface-muted)]"
+                disabled={updatingStudentSection}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="ui-role-fill flex-1 rounded-lg py-2 text-sm font-medium disabled:opacity-60"
+                disabled={updatingStudentSection || getSectionOptions(studentSectionForm.department, studentSectionForm.semester).length === 0}
+              >
+                {updatingStudentSection ? 'Updating...' : 'Save Section'}
+              </button>
+            </div>
+          </form>
         </Modal>
       )}
 

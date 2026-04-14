@@ -408,11 +408,15 @@ html[data-theme="dark"] {
     box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-role-accent) 18%, white);
   }
 
-  &:disabled,
-  &:read-only {
+  &:disabled {
     background: var(--color-surface-muted);
     color: var(--color-text-soft);
     cursor: not-allowed;
+  }
+
+  &[readonly] {
+    background: var(--color-surface-muted);
+    color: var(--color-text-soft);
   }
 }
 

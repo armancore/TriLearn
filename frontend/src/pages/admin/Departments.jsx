@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Plus, UserPlus, Users } from 'lucide-react'
+import { Layers, Plus, Trash2, UserPlus, Users } from 'lucide-react'
 import AdminLayout from '../../layouts/AdminLayout'
 import CoordinatorLayout from '../../layouts/CoordinatorLayout'
 import Alert from '../../components/Alert'
@@ -17,6 +17,7 @@ import { isRequestCanceled } from '../../utils/http'
 import logger from '../../utils/logger'
 
 const emptyForm = { name: '', code: '', description: '' }
+const emptySectionForm = { semester: '1', section: '' }
 const emptyInstructorForm = { name: '', email: '', password: '', phone: '', departments: [] }
 const emptyExistingInstructorState = { search: '', selectedId: '' }
 
@@ -52,6 +53,12 @@ const Departments = () => {
   const [assignableInstructors, setAssignableInstructors] = useState([])
   const [loadingAssignableInstructors, setLoadingAssignableInstructors] = useState(false)
   const [instructorError, setInstructorError] = useState('')
+  const [showSectionModal, setShowSectionModal] = useState(false)
+  const [selectedDepartmentSections, setSelectedDepartmentSections] = useState([])
+  const [loadingSections, setLoadingSections] = useState(false)
+  const [creatingSection, setCreatingSection] = useState(false)
+  const [deletingSectionId, setDeletingSectionId] = useState('')
+  const [sectionForm, setSectionForm] = useState(emptySectionForm)
   const { showToast } = useToast()
 
   const selectedDepartmentInstructors = useMemo(() => (
@@ -197,6 +204,88 @@ const Departments = () => {
     })
     setError('')
     setShowModal(true)
+  }
+
+  const fetchDepartmentSections = async (department) => {
+    if (!department?.id) {
+      return
+    }
+
+    try {
+      setLoadingSections(true)
+      setInstructorError('')
+      const response = await api.get(`/departments/${department.id}/sections`, {
+        timeout: 10000
+      })
+      setSelectedDepartmentSections(response.data.sections || [])
+    } catch (requestError) {
+      logger.error('Failed to load department sections', requestError)
+      setInstructorError(getFriendlyErrorMessage(requestError, 'Unable to load sections for this department right now.'))
+    } finally {
+      setLoadingSections(false)
+    }
+  }
+
+  const openSectionModal = (department) => {
+    setSelectedDepartment(department)
+    setSectionForm(emptySectionForm)
+    setSelectedDepartmentSections([])
+    setInstructorError('')
+    setShowSectionModal(true)
+    void fetchDepartmentSections(department)
+  }
+
+  const handleCreateSection = async (event) => {
+    event.preventDefault()
+    if (!selectedDepartment?.id) {
+      setInstructorError('Please choose a department first.')
+      return
+    }
+
+    try {
+      setCreatingSection(true)
+      setInstructorError('')
+      await api.post(`/departments/${selectedDepartment.id}/sections`, {
+        semester: Number(sectionForm.semester),
+        section: sectionForm.section
+      })
+      showToast({
+        title: 'Section created successfully.',
+        description: `${selectedDepartment.name} semester ${sectionForm.semester} now includes section ${sectionForm.section.toUpperCase()}.`
+      })
+      setSectionForm((current) => ({ ...current, section: '' }))
+      await Promise.all([
+        fetchDepartmentSections(selectedDepartment),
+        fetchDepartments(),
+        loadDepartments({ force: true })
+      ])
+    } catch (requestError) {
+      setInstructorError(getFriendlyErrorMessage(requestError, 'Unable to create section right now.'))
+    } finally {
+      setCreatingSection(false)
+    }
+  }
+
+  const handleDeleteSection = async (sectionId) => {
+    if (!selectedDepartment?.id || !sectionId) {
+      return
+    }
+
+    try {
+      setDeletingSectionId(sectionId)
+      setInstructorError('')
+      await api.delete(`/departments/${selectedDepartment.id}/sections/${sectionId}`)
+      showToast({ title: 'Section removed successfully.' })
+      await Promise.all([
+        fetchDepartmentSections(selectedDepartment),
+        fetchDepartments(),
+        loadDepartments({ force: true })
+      ])
+    } catch (requestError) {
+      setInstructorError(getFriendlyErrorMessage(requestError, 'Unable to delete section right now.'))
+    } finally {
+      setDeletingSectionId('')
+    }
   }
 
   const handleSubmit = async (e) => {
@@ -397,7 +486,32 @@ const Departments = () => {
                     <UserPlus className="h-4 w-4" />
                     <span>Add Instructor</span>
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => openSectionModal(department)}
+                    className="inline-flex items-center justify-center gap-2 rounded-lg border border-[var(--color-card-border)] bg-[var(--color-surface-muted)] px-3 py-2 text-xs font-medium text-[var(--color-heading)] transition hover:bg-[var(--color-surface-subtle)] sm:col-span-2"
+                  >
+                    <Layers className="h-4 w-4" />
+                    <span>Manage Semester Sections</span>
+                  </button>
                 </div>
+
+                {Array.isArray(department.semesterSections) && department.semesterSections.length > 0 ? (
+                  <div className="mb-4 rounded-xl border border-[var(--color-card-border)] bg-[var(--color-surface-muted)] p-3">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--color-text-soft)]">Semester Sections</p>
+                    <div className="mt-2 space-y-2">
+                      {department.semesterSections.map((entry) => (
+                        <p key={`${department.id}-${entry.semester}`} className="text-xs text-[var(--color-text-muted)]">
+                          Semester {entry.semester}: <span className="font-medium text-[var(--color-heading)]">{entry.sections.join(', ')}</span>
+                        </p>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mb-4 rounded-xl border border-dashed border-[var(--color-card-border)] bg-[var(--color-surface-muted)] px-3 py-2 text-xs text-[var(--color-text-muted)]">
+                    No semester sections configured yet.
+                  </div>
+                )}
 
                 <div className="flex gap-2 border-t border-[var(--color-card-border)] pt-4">
                   <button
@@ -731,6 +845,103 @@ const Departments = () => {
               </div>
             </form>
           )}
+        </Modal>
+      )}
+
+      {showSectionModal && (
+        <Modal
+          title={`Manage Sections · ${selectedDepartment?.name || 'Department'}`}
+          onClose={() => {
+            if (!creatingSection && !deletingSectionId) {
+              setShowSectionModal(false)
+              setSectionForm(emptySectionForm)
+              setSelectedDepartmentSections([])
+              setInstructorError('')
+            }
+          }}
+        >
+          <Alert type="error" message={instructorError} />
+
+          <form onSubmit={handleCreateSection} className="space-y-4">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <label className="ui-form-label">Semester</label>
+                <select
+                  value={sectionForm.semester}
+                  onChange={(event) => setSectionForm((current) => ({ ...current, semester: event.target.value }))}
+                  className="ui-form-input"
+                >
+                  {Array.from({ length: 8 }, (_, index) => (
+                    <option key={index + 1} value={String(index + 1)}>
+                      Semester {index + 1}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="ui-form-label">Section Name</label>
+                <input
+                  type="text"
+                  value={sectionForm.section}
+                  onChange={(event) => setSectionForm((current) => ({ ...current, section: event.target.value.toUpperCase() }))}
+                  className="ui-form-input"
+                  placeholder="e.g. A"
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="ui-modal-footer">
+              <button
+                type="button"
+                onClick={() => setShowSectionModal(false)}
+                className="flex-1 rounded-lg border border-[var(--color-card-border)] py-2 text-sm text-[var(--color-text-muted)] hover:bg-[var(--color-surface-muted)]"
+                disabled={creatingSection}
+              >
+                Close
+              </button>
+              <button
+                type="submit"
+                className="ui-role-fill flex-1 rounded-lg py-2 text-sm font-medium disabled:opacity-60"
+                disabled={creatingSection}
+              >
+                {creatingSection ? 'Adding...' : 'Add Section'}
+              </button>
+            </div>
+          </form>
+
+          <div className="mt-4">
+            <p className="text-sm font-semibold text-[var(--color-heading)]">Configured Sections</p>
+            {loadingSections ? (
+              <LoadingSkeleton rows={3} itemClassName="h-14" />
+            ) : selectedDepartmentSections.length === 0 ? (
+              <div className="mt-3 rounded-xl border border-dashed border-[var(--color-card-border)] bg-[var(--color-surface-muted)] px-4 py-6 text-sm text-[var(--color-text-muted)]">
+                No sections added yet for this department.
+              </div>
+            ) : (
+              <div className="mt-3 space-y-2">
+                {selectedDepartmentSections.map((entry) => (
+                  <div key={entry.id} className="flex items-center justify-between rounded-xl border border-[var(--color-card-border)] bg-[var(--color-card-surface)] px-4 py-3">
+                    <div>
+                      <p className="text-sm font-semibold text-[var(--color-heading)]">Section {entry.section}</p>
+                      <p className="text-xs text-[var(--color-text-muted)]">Semester {entry.semester}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void handleDeleteSection(entry.id)
+                      }}
+                      className="status-absent inline-flex items-center gap-1 rounded-lg border px-3 py-1.5 text-xs font-medium disabled:opacity-60"
+                      disabled={deletingSectionId === entry.id}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      <span>{deletingSectionId === entry.id ? 'Removing...' : 'Remove'}</span>
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </Modal>
       )}
 

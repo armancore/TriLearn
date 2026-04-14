@@ -326,7 +326,7 @@ const Learnings = () => {
                   }}
                   className="text-xl text-[var(--color-text-soft)] hover:text-[var(--color-text-muted)]"
                 >
-                  ✕
+                  X
                 </button>
               </div>
             </div>
@@ -360,3 +360,4 @@ const Learnings = () => {
 }
 
 export default Learnings
+

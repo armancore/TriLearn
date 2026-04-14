@@ -324,7 +324,7 @@ const StudentMaterials = () => {
                   }}
                   className="text-xl text-[var(--color-text-soft)] hover:text-[var(--color-text-muted)]"
                 >
-                  ✕
+                  X
                 </button>
               </div>
             </div>
@@ -358,5 +358,6 @@ const StudentMaterials = () => {
 }
 
 export default StudentMaterials
+
 
 

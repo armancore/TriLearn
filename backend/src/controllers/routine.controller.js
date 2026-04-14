@@ -169,6 +169,7 @@ const getOverlapFilter = ({ dayOfWeek, startTime, endTime, section, room, depart
       },
       {
         instructorId,
+        combinedGroupId: combinedGroupId ? { not: combinedGroupId } : undefined,
         OR: overlapConditions
       }
     ].filter(Boolean)

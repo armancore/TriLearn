@@ -8,23 +8,35 @@ export const ReferenceDataProvider = ({ children }) => {
   const { user } = useAuth()
   const [subjects, setSubjects] = useState([])
   const [departments, setDepartments] = useState([])
+  const subjectsRef = useRef([])
+  const departmentsRef = useRef([])
   const subjectRequestRef = useRef(null)
   const departmentRequestRef = useRef(null)
 
   useEffect(() => {
+    subjectsRef.current = subjects
+  }, [subjects])
+
+  useEffect(() => {
+    departmentsRef.current = departments
+  }, [departments])
+
+  useEffect(() => {
     subjectRequestRef.current = null
     departmentRequestRef.current = null
+    subjectsRef.current = []
+    departmentsRef.current = []
     setSubjects([])
     setDepartments([])
   }, [user?.id, user?.role])
 
   const loadSubjects = useCallback(async ({ force = false, signal } = {}) => {
-    if (!force && subjects.length > 0) {
-      return subjects
+    if (!force && subjectsRef.current.length > 0) {
+      return subjectsRef.current
     }
 
     if (signal?.aborted) {
-      return subjects
+      return subjectsRef.current
     }
 
     if (subjectRequestRef.current) {
@@ -70,15 +82,15 @@ export const ReferenceDataProvider = ({ children }) => {
         }
       )
     })
-  }, [subjects])
+  }, [])
 
   const loadDepartments = useCallback(async ({ force = false, signal } = {}) => {
-    if (!force && departments.length > 0) {
-      return departments
+    if (!force && departmentsRef.current.length > 0) {
+      return departmentsRef.current
     }
 
     if (signal?.aborted) {
-      return departments
+      return departmentsRef.current
     }
 
     if (departmentRequestRef.current) {
@@ -122,7 +134,7 @@ export const ReferenceDataProvider = ({ children }) => {
         }
       )
     })
-  }, [departments])
+  }, [])
 
   const value = useMemo(() => ({
     subjects,

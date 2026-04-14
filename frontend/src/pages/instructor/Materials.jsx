@@ -482,7 +482,7 @@ const InstructorMaterials = () => {
                   }}
                   className="text-gray-400 hover:text-[--color-text-muted] dark:text-slate-400 text-xl"
                 >
-                  ✕
+                  X
                 </button>
               </div>
             </div>
@@ -525,5 +525,6 @@ const InstructorMaterials = () => {
 }
 
 export default InstructorMaterials
+
 
 

@@ -495,7 +495,7 @@ const Subjects = () => {
                 onClick={() => setEnrollmentSubject(null)}
                 className="text-xl text-[var(--color-text-soft)] hover:text-[var(--color-text-muted)]"
               >
-                ✕
+                X
               </button>
             </div>
 
@@ -603,6 +603,7 @@ const Subjects = () => {
 }
 
 export default Subjects
+
 
 
 

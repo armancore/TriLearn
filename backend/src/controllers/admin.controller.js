@@ -314,6 +314,35 @@ const sendStudentWelcomeEmail = async ({ name, email, temporaryPassword, userId 
 }
 
 const normalizeDepartmentValue = (value) => String(value || '').trim()
+const normalizeSectionValue = (value) => {
+  const sanitizedSection = sanitizeOptionalPlainText(value)
+  return sanitizedSection ? sanitizedSection.toUpperCase() : null
+}
+
+const sectionScopeKey = ({ department, semester, section }) => (
+  `${normalizeDepartmentValue(department).toLowerCase()}::${Number(semester)}::${normalizeSectionValue(section) || ''}`
+)
+
+const hasDepartmentSection = async ({ department, semester, section }) => {
+  if (!department || !semester || !section) {
+    return false
+  }
+
+  const record = await prisma.departmentSection.findFirst({
+    where: {
+      semester: Number(semester),
+      section: normalizeSectionValue(section),
+      department: {
+        is: {
+          name: normalizeDepartmentValue(department)
+        }
+      }
+    },
+    select: { id: true }
+  })
+
+  return Boolean(record)
+}
 
 const resolveInstructorDepartmentsInput = async ({ department, departments }) => {
   const requestedDepartments = normalizeDepartmentList(
@@ -857,7 +886,7 @@ const createStudent = async (req, res) => {
     const normalizedDepartment = department?.trim() || null
     const normalizedStudentId = studentId.trim().toUpperCase()
     const normalizedEmail = email.trim().toLowerCase()
-    const sanitizedSection = sanitizePlainText(section)
+    const normalizedSection = normalizeSectionValue(section)
 
     const [existingUser, existingStudent] = await Promise.all([
       prisma.user.findUnique({ where: { email: normalizedEmail } }),
@@ -883,6 +912,16 @@ const createStudent = async (req, res) => {
       return res.status(403).json({ message: 'Coordinators can only create students in their own department' })
     }
 
+    const validSection = await hasDepartmentSection({
+      department: normalizedDepartment,
+      semester: semester || 1,
+      section: normalizedSection
+    })
+
+    if (!validSection) {
+      return res.status(400).json({ message: 'Please create this section under the selected department and semester first' })
+    }
+
     const { user, temporaryPassword } = await createStudentAccountRecord({
       name,
       email: normalizedEmail,
@@ -890,7 +929,7 @@ const createStudent = async (req, res) => {
       phone,
       address,
       semester: semester || 1,
-      section: sanitizedSection,
+      section: normalizedSection,
       department: normalizedDepartment
     })
     const welcomeEmailSent = await sendStudentWelcomeEmail({
@@ -947,7 +986,7 @@ const updateUser = async (req, res) => {
     const sanitizedName = name === undefined ? undefined : sanitizePlainText(name)
     const sanitizedPhone = phone === undefined ? undefined : sanitizeOptionalPlainText(phone)
     const sanitizedAddress = address === undefined ? undefined : sanitizeOptionalPlainText(address)
-    const sanitizedSection = section === undefined ? undefined : sanitizeOptionalPlainText(section)
+    const normalizedSection = section === undefined ? undefined : normalizeSectionValue(section)
     const hasInstructorDepartmentUpdate = (
       Object.prototype.hasOwnProperty.call(req.body, 'department') ||
       Object.prototype.hasOwnProperty.call(req.body, 'departments')
@@ -1055,13 +1094,29 @@ const updateUser = async (req, res) => {
         return res.status(400).json({ message: `Semester must be between 1 and ${MAX_STUDENT_SEMESTER}` })
       }
 
+      const nextDepartment = normalizedDepartment ?? user.student?.department
+      const nextSemester = semester ?? user.student?.semester
+      const nextSection = normalizedSection === undefined ? user.student?.section : normalizedSection
+
+      if (nextSection) {
+        const validSection = await hasDepartmentSection({
+          department: nextDepartment,
+          semester: nextSemester,
+          section: nextSection
+        })
+
+        if (!validSection) {
+          return res.status(400).json({ message: 'Please choose a section that exists for the selected department and semester' })
+        }
+      }
+
       const shouldResetGraduation = semester !== undefined
 
       const updatedStudent = await prisma.student.update({
         where: { userId: id },
         data: {
           semester,
-          section: sanitizedSection,
+          section: normalizedSection,
           department: normalizedDepartment ?? undefined,
           ...(shouldResetGraduation
             ? {
@@ -1249,6 +1304,119 @@ const deleteUser = async (req, res) => {
   }
 }
 
+const bulkAssignStudentSection = async (req, res) => {
+  try {
+    const { userIds, department, semester, section } = req.body
+    const normalizedDepartment = normalizeDepartmentValue(department)
+    const normalizedSection = normalizeSectionValue(section)
+
+    const validDepartment = await ensureDepartmentExists(normalizedDepartment)
+    if (!validDepartment) {
+      return res.status(400).json({ message: 'Please select a valid department' })
+    }
+
+    const coordinatorDepartments = getCoordinatorDepartments(req)
+    if (coordinatorDepartments.length > 0 && !coordinatorDepartments.includes(normalizedDepartment)) {
+      return res.status(403).json({ message: 'You can only manage students in your own department' })
+    }
+
+    const validSection = await hasDepartmentSection({
+      department: normalizedDepartment,
+      semester,
+      section: normalizedSection
+    })
+    if (!validSection) {
+      return res.status(400).json({ message: 'Please choose a section configured for the selected department and semester' })
+    }
+
+    const targetUsers = await prisma.user.findMany({
+      where: {
+        id: { in: userIds },
+        role: 'STUDENT',
+        deletedAt: null
+      },
+      select: {
+        id: true,
+        role: true,
+        student: {
+          select: {
+            id: true,
+            department: true,
+            semester: true,
+            section: true
+          }
+        }
+      }
+    })
+
+    if (targetUsers.length !== userIds.length) {
+      return res.status(400).json({ message: 'Some selected users are missing or not student accounts' })
+    }
+
+    const blockedUser = targetUsers.find((user) => !coordinatorCanManageUser(req, user))
+    if (blockedUser) {
+      return res.status(403).json({ message: 'You can only manage students in your own department' })
+    }
+
+    const updatedStudents = await prisma.$transaction(async (tx) => {
+      const updates = []
+
+      for (const targetUser of targetUsers) {
+        const updatedStudent = await tx.student.update({
+          where: { userId: targetUser.id },
+          data: {
+            department: normalizedDepartment,
+            semester,
+            section: normalizedSection,
+            isGraduated: false,
+            graduationYear: null,
+            graduatedAt: null
+          },
+          select: {
+            id: true,
+            userId: true,
+            department: true,
+            semester: true,
+            section: true
+          }
+        })
+
+        updates.push(updatedStudent)
+      }
+
+      return updates
+    })
+
+    await Promise.all(updatedStudents.map((student) => (
+      syncStudentEnrollmentForSemester({
+        studentId: student.id,
+        semester: student.semester,
+        department: student.department
+      })
+    )))
+
+    res.json({
+      message: `Updated sections for ${updatedStudents.length} student${updatedStudents.length === 1 ? '' : 's'}.`,
+      updated: updatedStudents.length
+    })
+
+    await recordAuditLog({
+      actorId: req.user.id,
+      actorRole: req.user.role,
+      action: 'STUDENT_SECTION_BULK_ASSIGNED',
+      entityType: 'Student',
+      metadata: {
+        userIds,
+        department: normalizedDepartment,
+        semester,
+        section: normalizedSection
+      }
+    })
+  } catch (error) {
+    res.internalError(error)
+  }
+}
+
 const promoteStudentSemester = async (req, res) => {
   try {
     const { id } = req.params
@@ -1389,7 +1557,26 @@ const importStudents = async (req, res) => {
       return res.status(400).json({ message: 'The uploaded file does not contain any student rows' })
     }
 
-    const departmentLookup = await buildDepartmentLookup()
+    const [departmentLookup, configuredSections] = await Promise.all([
+      buildDepartmentLookup(),
+      prisma.departmentSection.findMany({
+        select: {
+          semester: true,
+          section: true,
+          department: {
+            select: { name: true }
+          }
+        }
+      })
+    ])
+
+    const sectionScopeSet = new Set(
+      configuredSections.map((entry) => sectionScopeKey({
+        department: entry.department?.name,
+        semester: entry.semester,
+        section: entry.section
+      }))
+    )
     const coordinatorDepartments = getCoordinatorDepartments(req)
     const seenEmails = new Set()
     const seenStudentIds = new Set()
@@ -1405,7 +1592,7 @@ const importStudents = async (req, res) => {
       const sanitizedName = sanitizePlainText(row.name)
       const sanitizedPhone = sanitizeOptionalPlainText(row.phone) || null
       const sanitizedAddress = sanitizeOptionalPlainText(row.address) || null
-      const sanitizedSection = sanitizePlainText(row.section)
+      const sanitizedSection = normalizeSectionValue(row.section)
 
       if (!sanitizedName || sanitizedName.length < 2) {
         failures.push(buildStudentImportError(row.rowNumber, 'Name must be at least 2 characters long', row))
@@ -1439,6 +1626,17 @@ const importStudents = async (req, res) => {
 
       if (!sanitizedSection || sanitizedSection.length < 1) {
         failures.push(buildStudentImportError(row.rowNumber, 'Section is required', row))
+        return
+      }
+
+      const configuredSectionKey = sectionScopeKey({
+        department: resolvedDepartment,
+        semester,
+        section: sanitizedSection
+      })
+
+      if (!sectionScopeSet.has(configuredSectionKey)) {
+        failures.push(buildStudentImportError(row.rowNumber, 'Section is not configured for this department and semester', row))
         return
       }
 
@@ -1739,6 +1937,7 @@ const createStudentFromApplication = async (req, res) => {
     const { studentId, department, semester, section } = req.body
     const normalizedStudentId = studentId.trim().toUpperCase()
     const normalizedDepartment = department.trim()
+    const normalizedSection = normalizeSectionValue(section || '')
 
     const application = await prisma.studentApplication.findUnique({
       where: { id }
@@ -1778,6 +1977,21 @@ const createStudentFromApplication = async (req, res) => {
       return res.status(400).json({ message: 'Student ID already exists' })
     }
 
+    const sectionToAssign = normalizedSection || normalizeSectionValue(application.preferredSection)
+    if (!sectionToAssign) {
+      return res.status(400).json({ message: 'Section is required to create a student account from application' })
+    }
+
+    const validSection = await hasDepartmentSection({
+      department: normalizedDepartment,
+      semester,
+      section: sectionToAssign
+    })
+
+    if (!validSection) {
+      return res.status(400).json({ message: 'Please create this section under the selected department and semester first' })
+    }
+
     const temporaryPassword = getStudentTemporaryPassword()
     const hashedPassword = await hashPassword(temporaryPassword)
 
@@ -1795,7 +2009,7 @@ const createStudentFromApplication = async (req, res) => {
           create: {
             rollNumber: normalizedStudentId,
             semester,
-            section: sanitizeOptionalPlainText(section || application.preferredSection),
+            section: sectionToAssign,
             department: normalizedDepartment,
             guardianName: sanitizeOptionalPlainText(application.fatherName),
             guardianPhone: sanitizeOptionalPlainText(application.fatherPhone),
@@ -1825,7 +2039,7 @@ const createStudentFromApplication = async (req, res) => {
         linkedUserId: user.id,
         preferredDepartment: normalizedDepartment,
         preferredSemester: semester,
-        preferredSection: section || application.preferredSection
+        preferredSection: sectionToAssign
       }
     })
 
@@ -1867,7 +2081,7 @@ const createStudentFromApplication = async (req, res) => {
         linkedUserId: user.id,
         department: normalizedDepartment,
         semester,
-        section: section || application.preferredSection
+        section: sectionToAssign
       }
     })
   } catch (error) {
@@ -1933,6 +2147,7 @@ module.exports = {
   createStudent,
   importStudents,
   updateUser,
+  bulkAssignStudentSection,
   promoteStudentSemester,
   toggleUserStatus,
   deleteUser

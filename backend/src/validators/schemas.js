@@ -312,6 +312,11 @@ const departmentBody = z.object({
   description: optionalString(500)
 })
 
+const departmentSectionBody = z.object({
+  semester: studentSemesterSchema,
+  section: z.string().trim().min(1).max(20)
+})
+
 const qrBody = z.object({
   qrData: z.string().trim().min(10)
 })
@@ -554,6 +559,14 @@ const schemas = {
         semester: studentSemesterSchema,
         section: optionalString(20)
       })
+    },
+    bulkAssignStudentSection: {
+      body: z.object({
+        userIds: z.array(z.string().uuid()).min(1).max(500),
+        department: z.string().trim().min(2).max(100),
+        semester: studentSemesterSchema,
+        section: z.string().trim().min(1).max(20)
+      })
     }
   },
   subjects: {
@@ -694,7 +707,20 @@ const schemas = {
   departments: {
     create: { body: departmentBody },
     update: { params: uuidParam, body: departmentBody },
-    id: { params: uuidParam }
+    id: { params: uuidParam },
+    createSection: { params: uuidParam, body: departmentSectionBody },
+    getSections: {
+      params: uuidParam,
+      query: z.object({
+        semester: z.preprocess(emptyToUndefined, studentSemesterSchema.optional())
+      })
+    },
+    sectionId: {
+      params: z.object({
+        id: z.string().uuid(),
+        sectionId: z.string().uuid()
+      })
+    }
   },
   assignments: {
     create: { body: assignmentBody },

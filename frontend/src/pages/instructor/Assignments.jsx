@@ -525,7 +525,7 @@ const Assignments = () => {
           <div className="bg-[--color-bg-card] dark:bg-slate-800 rounded-2xl p-8 w-full max-w-3xl shadow-xl dark:shadow-slate-900/50 max-h-[80vh] overflow-y-auto">
             <div className="mb-6 flex items-center justify-between border-b border-[var(--color-card-border)] pb-4 dark:border-slate-700">
               <h2 className="text-xl font-bold text-[var(--color-heading)]">Submissions — {showSubmissions.title}</h2>
-              <button onClick={() => setShowSubmissions(null)} className="text-xl text-[var(--color-text-soft)] hover:text-[var(--color-text-muted)]">✕</button>
+              <button onClick={() => setShowSubmissions(null)} className="text-xl text-[var(--color-text-soft)] hover:text-[var(--color-text-muted)]">X</button>
             </div>
             <div className="space-y-4">
               {showSubmissions.submissions?.length === 0 && (
@@ -635,7 +635,7 @@ const Assignments = () => {
                   onClick={closePreview}
                   className="text-xl text-[var(--color-text-soft)] hover:text-[var(--color-text-muted)]"
                 >
-                  ✕
+                  X
                 </button>
               </div>
             </div>
@@ -673,3 +673,4 @@ const Assignments = () => {
 }
 
 export default Assignments
+

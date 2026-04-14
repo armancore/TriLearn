@@ -442,7 +442,6 @@ model Routine {
   @@index([subjectId])
   @@index([instructorId])
   @@index([combinedGroupId])
-  @@unique([instructorId, dayOfWeek, startTime])
 }
 
 enum DayOfWeek {
@@ -466,6 +465,21 @@ model Department {
   instructors Instructor[] @relation("InstructorDepartment")
   coordinators Coordinator[] @relation("CoordinatorDepartment")
   subjects    Subject[] @relation("SubjectDepartment")
+  sections    DepartmentSection[]
+}
+
+model DepartmentSection {
+  id           String     @id @default(uuid())
+  departmentId String
+  department   Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  semester     Int
+  section      String
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@index([departmentId, semester])
+  @@index([departmentId, section])
+  @@unique([departmentId, semester, section])
 }
 
 model StudentApplication {
