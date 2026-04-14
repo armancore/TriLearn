@@ -302,15 +302,9 @@ const getProfileSelect = () => ({
 // ================================
 // REGISTER
 // ================================
-const register = async (req, res) => {
-  try {
-    return res.status(403).json({
-      message: 'Self-registration is disabled. Please apply through the student intake form.'
-    })
-  } catch (error) {
-    res.internalError(error)
-  }
-}
+const register = (_req, res) => res.status(403).json({
+  message: 'Self-registration is disabled. Please apply through the student intake form.'
+})
 
 const submitStudentIntake = async (req, res) => {
   const startedAt = Date.now()
