@@ -42,10 +42,12 @@ const STUDENT_ID_QR_VALIDITY_HOURS = 24
 const LOGOUT_MIN_RESPONSE_MS = 75
 const STUDENT_INTAKE_MIN_RESPONSE_MS = 75
 const LOGIN_MIN_RESPONSE_MS = 75
+const FORGOT_PASSWORD_MIN_RESPONSE_MS = 75
 const LOGIN_CAPTCHA_THRESHOLD = 3
 const LOGIN_CAPTCHA_TTL_MS = 5 * 60 * 1000
 const GENERIC_ELIGIBILITY_MESSAGE = 'If this email is eligible, you will receive further instructions.'
 const GENERIC_DISABLED_ACCOUNT_MESSAGE = 'Your account has been disabled. Please contact the administration.'
+const GENERIC_FORGOT_PASSWORD_MESSAGE = 'If an account with that email exists, a reset link has been sent.'
 const DUMMY_PASSWORD_HASH = '$2b$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy'
 
 const getRequestUserAgent = (req) => String(req.get('user-agent') || '').slice(0, 255) || null
@@ -70,7 +72,6 @@ const respondGenericEligibility = async (res, startedAt) => {
   return res.status(200).json({ message: GENERIC_ELIGIBILITY_MESSAGE })
 }
 
-const isMobileClient = (req) => String(req.headers?.['x-client-type'] || '').toLowerCase() === 'mobile'
 const sanitizeOptionalPlainText = (value) => (value == null ? value : sanitizePlainText(value))
 const normalizeEmail = (value) => String(value || '').trim().toLowerCase()
 const refreshUserSelect = {
@@ -224,13 +225,10 @@ const issueAuthSession = async (user, res, req, previousRefreshToken) => {
     })
   })
 
-  if (!isMobileClient(req)) {
-    res.cookie('refreshToken', refreshToken, getRefreshCookieOptions(req))
-  }
+  res.cookie('refreshToken', refreshToken, getRefreshCookieOptions(req))
 
   return {
-    accessToken,
-    refreshToken: isMobileClient(req) ? refreshToken : undefined
+    accessToken
   }
 }
 
@@ -421,9 +419,11 @@ const login = async (req, res) => {
     }
 
     if (user.lockedUntil && user.lockedUntil > new Date()) {
+      const retryAfterSeconds = Math.max(1, Math.ceil((user.lockedUntil.getTime() - Date.now()) / 1000))
       await waitForMinimumDuration(startedAt, LOGIN_MIN_RESPONSE_MS)
-      return res.status(423).json({
-        message: 'Too many failed login attempts. Please try again later.'
+      return res.status(401).json({
+        message: 'Invalid credentials',
+        retryAfter: retryAfterSeconds
       })
     }
 
@@ -501,7 +501,6 @@ const login = async (req, res) => {
         ? 'Login successful. Please change your password to continue.'
         : 'Login successful!',
       token: session.accessToken,
-      refreshToken: session.refreshToken,
       user: buildAuthUser(authUser || user)
     })
   } catch (error) {
@@ -823,6 +822,8 @@ const completeProfile = async (req, res) => {
 // FORGOT PASSWORD
 // ================================
 const forgotPassword = async (req, res) => {
+  const startedAt = Date.now()
+
   try {
     if (!isPasswordResetEnabled()) {
       return res.status(501).json({
@@ -830,45 +831,46 @@ const forgotPassword = async (req, res) => {
       })
     }
 
-    const { email } = req.body
+    const email = normalizeEmail(req.body?.email)
 
     const user = await prisma.user.findUnique({
       where: { email }
     })
 
-    if (!user) {
-      return res.json({
-        message: 'If the account exists, password reset instructions have been prepared.'
+    if (user) {
+      const resetToken = crypto.randomBytes(32).toString('hex')
+      const resetTokenHash = hashToken(resetToken)
+      const expiresAt = getResetTokenExpiry()
+
+      await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          passwordResetTokenHash: resetTokenHash,
+          passwordResetExpiresAt: expiresAt
+        }
       })
+
+      const resetUrl = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`
+      const { subject, html, text } = passwordResetTemplate({
+        name: user.name,
+        resetUrl
+      })
+
+      sendMail({ to: user.email, subject, html, text })
+        .then(() => {
+          logger.info('Password reset email queued', {
+            userId: user.id,
+            email: user.email
+          })
+        })
+        .catch((mailError) => {
+          logger.error(mailError.message, { stack: mailError.stack, userId: user.id })
+        })
     }
 
-    const resetToken = crypto.randomBytes(32).toString('hex')
-    const resetTokenHash = hashToken(resetToken)
-    const expiresAt = getResetTokenExpiry()
-
-    await prisma.user.update({
-      where: { id: user.id },
-      data: {
-        passwordResetTokenHash: resetTokenHash,
-        passwordResetExpiresAt: expiresAt
-      }
-    })
-
-    const resetUrl = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`
-    const { subject, html, text } = passwordResetTemplate({
-      name: user.name,
-      resetUrl
-    })
-
-    await sendMail({ to: user.email, subject, html, text })
-
-    logger.info('Password reset email sent', {
-      userId: user.id,
-      email: user.email
-    })
-
-    res.json({
-      message: 'If the account exists, password reset instructions have been sent.'
+    await waitForMinimumDuration(startedAt, FORGOT_PASSWORD_MIN_RESPONSE_MS)
+    return res.status(200).json({
+      message: GENERIC_FORGOT_PASSWORD_MESSAGE
     })
   } catch (error) {
     res.internalError(error)
@@ -931,7 +933,7 @@ const resetPassword = async (req, res) => {
 
 const refresh = async (req, res) => {
   try {
-    const refreshToken = req.body?.refreshToken || req.cookies?.refreshToken
+    const refreshToken = req.cookies?.refreshToken
 
     if (!refreshToken) {
       return res.status(401).json({ message: 'Refresh token is required' })
@@ -998,7 +1000,6 @@ const refresh = async (req, res) => {
     res.json({
       message: 'Token refreshed successfully',
       token: session.accessToken,
-      refreshToken: session.refreshToken,
       user: buildAuthUser(storedRefreshToken.user)
     })
   } catch (error) {
@@ -1011,7 +1012,7 @@ const logout = async (req, res) => {
   const startedAt = Date.now()
 
   try {
-    const refreshToken = req.body?.refreshToken || req.cookies?.refreshToken
+    const refreshToken = req.cookies?.refreshToken
     const tokenToHash = refreshToken || `logout-placeholder:${req.ip || 'unknown'}`
 
     await prisma.refreshToken.updateMany({

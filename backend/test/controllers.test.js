@@ -379,10 +379,110 @@ test('login blocks requests while the account is locked', async () => {
 
   await login(req, res)
 
-  assert.equal(res.statusCode, 423)
-  assert.deepEqual(res.body, {
-    message: 'Too many failed login attempts. Please try again later.'
-  })
+  assert.equal(res.statusCode, 401)
+  assert.equal(res.body.message, 'Invalid credentials')
+  assert.equal(typeof res.body.retryAfter, 'number')
+  assert.ok(res.body.retryAfter > 0)
+})
+
+test('forgotPassword returns the same generic response when account exists and queues reset email', async () => {
+  const userUpdates = []
+  const sendMailCalls = []
+
+  const { forgotPassword } = loadWithMocks(resolveFromTest('src', 'controllers', 'auth.controller.js'), authControllerMocks({
+    '../utils/prisma': {
+      user: {
+        findUnique: async () => ({
+          id: 'user-1',
+          name: 'Student User',
+          email: 'student@example.com'
+        }),
+        update: async (payload) => {
+          userUpdates.push(payload)
+          return payload
+        }
+      }
+    },
+    '../utils/mailer': {
+      sendMail: (payload) => {
+        sendMailCalls.push(payload)
+        return Promise.resolve()
+      }
+    }
+  }))
+
+  const previousFlag = process.env.ENABLE_PASSWORD_RESET
+  process.env.ENABLE_PASSWORD_RESET = 'true'
+
+  try {
+    const req = {
+      body: { email: 'Student@Example.com' }
+    }
+    const res = createResponse()
+
+    await forgotPassword(req, res)
+
+    assert.equal(res.statusCode, 200)
+    assert.deepEqual(res.body, {
+      message: 'If an account with that email exists, a reset link has been sent.'
+    })
+    assert.equal(userUpdates.length, 1)
+    assert.equal(sendMailCalls.length, 1)
+  } finally {
+    if (previousFlag === undefined) {
+      delete process.env.ENABLE_PASSWORD_RESET
+    } else {
+      process.env.ENABLE_PASSWORD_RESET = previousFlag
+    }
+  }
+})
+
+test('forgotPassword returns the same generic response when account does not exist', async () => {
+  const userUpdates = []
+  const sendMailCalls = []
+
+  const { forgotPassword } = loadWithMocks(resolveFromTest('src', 'controllers', 'auth.controller.js'), authControllerMocks({
+    '../utils/prisma': {
+      user: {
+        findUnique: async () => null,
+        update: async (payload) => {
+          userUpdates.push(payload)
+          return payload
+        }
+      }
+    },
+    '../utils/mailer': {
+      sendMail: (payload) => {
+        sendMailCalls.push(payload)
+        return Promise.resolve()
+      }
+    }
+  }))
+
+  const previousFlag = process.env.ENABLE_PASSWORD_RESET
+  process.env.ENABLE_PASSWORD_RESET = 'true'
+
+  try {
+    const req = {
+      body: { email: 'missing@example.com' }
+    }
+    const res = createResponse()
+
+    await forgotPassword(req, res)
+
+    assert.equal(res.statusCode, 200)
+    assert.deepEqual(res.body, {
+      message: 'If an account with that email exists, a reset link has been sent.'
+    })
+    assert.equal(userUpdates.length, 0)
+    assert.equal(sendMailCalls.length, 0)
+  } finally {
+    if (previousFlag === undefined) {
+      delete process.env.ENABLE_PASSWORD_RESET
+    } else {
+      process.env.ENABLE_PASSWORD_RESET = previousFlag
+    }
+  }
 })
 
 test('resetPassword revokes existing refresh tokens inside the password reset transaction', async () => {
@@ -2444,6 +2544,134 @@ test('markAttendanceQR rejects replay when attendance already exists for the sam
     message: 'Attendance has already been recorded for this subject today.'
   })
   assert.equal(createCalls.length, 0)
+})
+
+test('scanStudentIdAttendance requires subjectId for instructor and coordinator scans', async () => {
+  let gateEligibilityCalls = 0
+  let ownedSubjectCalls = 0
+
+  const { scanStudentIdAttendance } = loadWithMocks(resolveFromTest('src', 'controllers', 'attendance', 'qr.controller.js'), {
+    './shared': {
+      QR_VALIDITY_MINUTES: 15,
+      prisma: {
+        subjectEnrollment: { findUnique: async () => ({ id: 'enrollment-1' }) },
+        attendance: { upsert: async () => ({ id: 'attendance-1' }) }
+      },
+      getDayRange: () => ({
+        start: new Date('2026-04-03T00:00:00.000Z'),
+        end: new Date('2026-04-04T00:00:00.000Z')
+      }),
+      getOwnedSubject: async () => {
+        ownedSubjectCalls += 1
+        return { subject: { id: 'subject-1', name: 'DBS', code: 'DBS101', instructorId: 'instructor-1' }, instructor: { id: 'instructor-1' } }
+      },
+      createSignedQrPayload: () => 'signed',
+      hashQrPayload: () => 'hashed',
+      parseQrPayload: () => ({}),
+      getDailyGateWindows: async () => ({}),
+      normalizeSemesterList: () => [],
+      getEligibleGateAttendanceForStudent: async () => {
+        gateEligibilityCalls += 1
+        return {}
+      },
+      upsertPresentAttendanceForRoutines: async () => ({ markedSubjects: [] }),
+      getStudentByIdCardQr: async () => ({
+        student: {
+          id: 'student-1',
+          rollNumber: 'BCA-001',
+          semester: 4,
+          section: 'A',
+          user: { name: 'Arman Dev' }
+        }
+      }),
+      recordAuditLog: async () => {}
+    },
+    qrcode: {
+      toDataURL: async () => 'data:image/png;base64,qr'
+    }
+  })
+
+  const req = {
+    body: { qrData: 'student-id-qr' },
+    user: { id: 'instructor-user-1', role: 'INSTRUCTOR' }
+  }
+  const res = createResponse()
+
+  await scanStudentIdAttendance(req, res)
+
+  assert.equal(res.statusCode, 400)
+  assert.deepEqual(res.body, { message: 'subjectId is required for instructor/coordinator scans' })
+  assert.equal(gateEligibilityCalls, 0)
+  assert.equal(ownedSubjectCalls, 0)
+})
+
+test('scanStudentIdAttendance allows gatekeeper scans without subjectId', async () => {
+  let ownedSubjectCalls = 0
+  let upsertCalls = 0
+
+  const { scanStudentIdAttendance } = loadWithMocks(resolveFromTest('src', 'controllers', 'attendance', 'qr.controller.js'), {
+    './shared': {
+      QR_VALIDITY_MINUTES: 15,
+      prisma: {
+        subjectEnrollment: { findUnique: async () => ({ id: 'enrollment-1' }) },
+        attendance: { upsert: async () => ({ id: 'attendance-1' }) }
+      },
+      getDayRange: () => ({
+        start: new Date('2026-04-03T00:00:00.000Z'),
+        end: new Date('2026-04-04T00:00:00.000Z')
+      }),
+      getOwnedSubject: async () => {
+        ownedSubjectCalls += 1
+        return {}
+      },
+      createSignedQrPayload: () => 'signed',
+      hashQrPayload: () => 'hashed',
+      parseQrPayload: () => ({}),
+      getDailyGateWindows: async () => ({}),
+      normalizeSemesterList: () => [],
+      getEligibleGateAttendanceForStudent: async () => ({
+        routines: [{ id: 'routine-1', subjectId: 'subject-1' }],
+        gateDay: {
+          dayRange: {
+            start: new Date('2026-04-03T00:00:00.000Z'),
+            end: new Date('2026-04-04T00:00:00.000Z')
+          }
+        }
+      }),
+      upsertPresentAttendanceForRoutines: async () => {
+        upsertCalls += 1
+        return {
+          markedSubjects: [{ subjectId: 'subject-1', status: 'PRESENT' }]
+        }
+      },
+      getStudentByIdCardQr: async () => ({
+        student: {
+          id: 'student-1',
+          rollNumber: 'BCA-001',
+          semester: 4,
+          section: 'A',
+          user: { name: 'Arman Dev' }
+        }
+      }),
+      recordAuditLog: async () => {}
+    },
+    qrcode: {
+      toDataURL: async () => 'data:image/png;base64,qr'
+    }
+  })
+
+  const req = {
+    body: { qrData: 'student-id-qr' },
+    user: { id: 'gatekeeper-user-1', role: 'GATEKEEPER' }
+  }
+  const res = createResponse()
+
+  await scanStudentIdAttendance(req, res)
+
+  assert.equal(res.statusCode, 201)
+  assert.equal(res.body.mode, 'GATE_WINDOW')
+  assert.equal(upsertCalls, 1)
+  assert.equal(ownedSubjectCalls, 0)
 })
 
 test('getStudentIdQr includes an expiry timestamp in the signed student QR payload', async () => {

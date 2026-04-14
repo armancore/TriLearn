@@ -289,11 +289,12 @@ const generateDailyAttendanceQR = async (req, res) => {
 const scanStudentIdAttendance = async (req, res) => {
   try {
     const { qrData, subjectId, attendanceDate } = req.body
+    const { role } = req.user
     const scanned = await getStudentByIdCardQr(qrData)
     if (scanned.error) return res.status(scanned.error.status).json({ message: scanned.error.message })
     const { student } = scanned
 
-    if (req.user.role === 'GATEKEEPER' || !subjectId) {
+    if (role === 'GATEKEEPER') {
       const eligibility = await getEligibleGateAttendanceForStudent(student, new Date())
       if (eligibility.error) return res.status(eligibility.error.status).json({ message: eligibility.error.message })
 
@@ -320,6 +321,10 @@ const scanStudentIdAttendance = async (req, res) => {
         markedSubjects: result.markedSubjects,
         date: eligibility.gateDay.dayRange.start
       })
+    }
+
+    if (!subjectId) {
+      return res.status(400).json({ message: 'subjectId is required for instructor/coordinator scans' })
     }
 
     const access = await getOwnedSubject(subjectId, req)

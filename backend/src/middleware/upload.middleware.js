@@ -3,6 +3,7 @@ const path = require('path')
 const crypto = require('crypto')
 const multer = require('multer')
 const sharp = require('sharp')
+const { fileTypeFromBuffer } = require('file-type')
 const { PDFDocument } = require('pdf-lib')
 const logger = require('../utils/logger')
 const { uploadPath } = require('../utils/fileStorage')
@@ -42,15 +43,6 @@ const generateUploadedFileName = (originalname) => {
   const safeName = sanitizeUploadedOriginalName(originalname)
   return `${crypto.randomUUID()}-${safeName}`
 }
-
-const storage = multer.diskStorage({
-  destination: (_req, _file, cb) => {
-    cb(null, uploadPath)
-  },
-  filename: (_req, file, cb) => {
-    cb(null, generateUploadedFileName(file.originalname))
-  }
-})
 
 const pdfOnly = (_req, file, cb) => {
   file.originalname = sanitizeUploadedOriginalName(file.originalname)
@@ -124,7 +116,7 @@ const createImageUploadMiddleware = (maxBytes = 3 * 1024 * 1024) => multer({
 })
 
 const createSpreadsheetUploadMiddleware = (maxBytes = 5 * 1024 * 1024) => multer({
-  storage,
+  storage: multer.memoryStorage(),
   fileFilter: spreadsheetOnly,
   limits: {
     fileSize: maxBytes
@@ -268,6 +260,69 @@ const validateUploadedImage = async (req, res, next) => {
   }
 }
 
+const SPREADSHEET_MIME_ALLOWLIST = new Set([
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.ms-excel'
+])
+
+const hasLegacyXlsSignature = (buffer) => (
+  Buffer.from(buffer || []).subarray(0, 8).toString('hex').toLowerCase() === 'd0cf11e0a1b11ae1'
+)
+
+const isLikelyCsvUpload = (file, detectedType) => {
+  if (detectedType) {
+    return false
+  }
+
+  const mimeType = String(file?.mimetype || '').toLowerCase()
+  const fileName = String(file?.originalname || '').toLowerCase()
+  const declaredAsCsv = mimeType === 'text/csv' || mimeType === 'application/csv' || fileName.endsWith('.csv')
+
+  if (!declaredAsCsv) {
+    return false
+  }
+
+  const sample = Buffer.from(file?.buffer || []).subarray(0, 4096)
+  return !sample.includes(0)
+}
+
+const validateUploadedSpreadsheet = async (req, res, next) => {
+  if (!req.file?.buffer) {
+    return next()
+  }
+
+  try {
+    req.file.originalname = sanitizeUploadedOriginalName(req.file.originalname, 'upload.xlsx')
+    const detectedType = await fileTypeFromBuffer(req.file.buffer)
+
+    const isAllowedSpreadsheetType = Boolean(detectedType && SPREADSHEET_MIME_ALLOWLIST.has(detectedType.mime))
+    const isLegacyXls = hasLegacyXlsSignature(req.file.buffer)
+    const isCsv = isLikelyCsvUpload(req.file, detectedType)
+
+    if (!isAllowedSpreadsheetType && !isLegacyXls && !isCsv) {
+      return res.status(400).json({
+        message: 'Invalid file: content does not match a valid spreadsheet format'
+      })
+    }
+
+    const fileName = generateUploadedFileName(req.file.originalname)
+    const filePath = path.join(uploadPath, fileName)
+
+    await fs.promises.writeFile(filePath, req.file.buffer)
+
+    req.file.filename = fileName
+    req.file.path = filePath
+
+    return next()
+  } catch (error) {
+    logger.error(error.message, { stack: error.stack })
+    if (req.file?.path) {
+      await fs.promises.unlink(req.file.path).catch(() => {})
+    }
+    return res.status(400).json({ message: 'Unable to validate uploaded spreadsheet' })
+  }
+}
+
 const removeUploadedFile = async (fileUrl) => {
   if (!fileUrl) return
 
@@ -280,4 +335,13 @@ const removeUploadedFile = async (fileUrl) => {
   }
 }
 
-module.exports = { uploadPdf, uploadImage, uploadSpreadsheet, uploadPath, validateUploadedPdf, validateUploadedImage, removeUploadedFile }
+module.exports = {
+  uploadPdf,
+  uploadImage,
+  uploadSpreadsheet,
+  uploadPath,
+  validateUploadedPdf,
+  validateUploadedImage,
+  validateUploadedSpreadsheet,
+  removeUploadedFile
+}

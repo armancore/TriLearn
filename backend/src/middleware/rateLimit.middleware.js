@@ -83,12 +83,11 @@ const forgotPasswordRateLimitKey = (req) => {
 
 const loginRateLimitKey = (req) => {
   const email = String(req.body?.email || '').trim().toLowerCase()
-  const ipKey = ipKeyGenerator(req.ip || '')
-  return `${ipKey}:${email || 'unknown-email'}`
+  return email || ipKeyGenerator(req.ip || '')
 }
 
 const refreshRateLimitKey = (req) => {
-  const refreshToken = req.body?.refreshToken || req.cookies?.refreshToken
+  const refreshToken = req.cookies?.refreshToken
 
   if (!refreshToken) {
     return ipKeyGenerator(req.ip || '')

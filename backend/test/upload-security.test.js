@@ -441,6 +441,155 @@ test('validateUploadedImage rejects invalid image content before any disk write'
   assert.equal(req.file.path, undefined)
 })
 
+test('validateUploadedSpreadsheet writes a valid spreadsheet to disk only after byte-level validation', async () => {
+  const writeCalls = []
+  const { validateUploadedSpreadsheet } = loadWithMocks(resolveFromTest('src', 'middleware', 'upload.middleware.js'), {
+    fs: {
+      promises: {
+        writeFile: async (filePath, buffer) => {
+          writeCalls.push({ filePath, buffer: Buffer.from(buffer) })
+        },
+        unlink: async () => {}
+      }
+    },
+    'file-type': {
+      fileTypeFromBuffer: async () => ({
+        ext: 'xlsx',
+        mime: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      })
+    },
+    sharp: () => ({
+      rotate: () => ({
+        toFile: async () => {}
+      })
+    }),
+    '../utils/logger': {
+      error: () => {}
+    },
+    '../utils/fileStorage': {
+      uploadPath: 'C:\\uploads'
+    }
+  })
+
+  const req = {
+    file: {
+      originalname: 'students.xlsx',
+      mimetype: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      buffer: Buffer.from('PK\x03\x04pretend-xlsx')
+    }
+  }
+  const res = createResponse()
+  let nextCalled = false
+
+  await validateUploadedSpreadsheet(req, res, () => {
+    nextCalled = true
+  })
+
+  assert.equal(nextCalled, true)
+  assert.equal(writeCalls.length, 1)
+  assert.match(writeCalls[0].filePath, /students\.xlsx$/i)
+  assert.equal(req.file.filename.endsWith('-students.xlsx'), true)
+  assert.match(String(req.file.path), /students\.xlsx$/i)
+})
+
+test('validateUploadedSpreadsheet rejects spoofed spreadsheet uploads before any disk write', async () => {
+  const writeCalls = []
+  const { validateUploadedSpreadsheet } = loadWithMocks(resolveFromTest('src', 'middleware', 'upload.middleware.js'), {
+    fs: {
+      promises: {
+        writeFile: async (...args) => {
+          writeCalls.push(args)
+        },
+        unlink: async () => {}
+      }
+    },
+    'file-type': {
+      fileTypeFromBuffer: async () => ({
+        ext: 'png',
+        mime: 'image/png'
+      })
+    },
+    sharp: () => ({
+      rotate: () => ({
+        toFile: async () => {}
+      })
+    }),
+    '../utils/logger': {
+      error: () => {}
+    },
+    '../utils/fileStorage': {
+      uploadPath: 'C:\\uploads'
+    }
+  })
+
+  const req = {
+    file: {
+      originalname: 'students.xlsx',
+      mimetype: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      buffer: Buffer.from('not-a-real-sheet')
+    }
+  }
+  const res = createResponse()
+  let nextCalled = false
+
+  await validateUploadedSpreadsheet(req, res, () => {
+    nextCalled = true
+  })
+
+  assert.equal(nextCalled, false)
+  assert.equal(res.statusCode, 400)
+  assert.deepEqual(res.body, {
+    message: 'Invalid file: content does not match a valid spreadsheet format'
+  })
+  assert.equal(writeCalls.length, 0)
+})
+
+test('validateUploadedSpreadsheet allows CSV files when content is plain text', async () => {
+  const writeCalls = []
+  const { validateUploadedSpreadsheet } = loadWithMocks(resolveFromTest('src', 'middleware', 'upload.middleware.js'), {
+    fs: {
+      promises: {
+        writeFile: async (filePath, buffer) => {
+          writeCalls.push({ filePath, buffer: Buffer.from(buffer) })
+        },
+        unlink: async () => {}
+      }
+    },
+    'file-type': {
+      fileTypeFromBuffer: async () => undefined
+    },
+    sharp: () => ({
+      rotate: () => ({
+        toFile: async () => {}
+      })
+    }),
+    '../utils/logger': {
+      error: () => {}
+    },
+    '../utils/fileStorage': {
+      uploadPath: 'C:\\uploads'
+    }
+  })
+
+  const req = {
+    file: {
+      originalname: 'students.csv',
+      mimetype: 'text/csv',
+      buffer: Buffer.from('name,email\nTest User,test@example.com\n', 'utf8')
+    }
+  }
+  const res = createResponse()
+  let nextCalled = false
+
+  await validateUploadedSpreadsheet(req, res, () => {
+    nextCalled = true
+  })
+
+  assert.equal(nextCalled, true)
+  assert.equal(writeCalls.length, 1)
+  assert.match(writeCalls[0].filePath, /students\.csv$/i)
+})
+
 test('uploadPdf rejects files unless the MIME type is application/pdf', async () => {
   const { uploadPdf } = loadWithMocks(resolveFromTest('src', 'middleware', 'upload.middleware.js'), {
     sharp: () => ({

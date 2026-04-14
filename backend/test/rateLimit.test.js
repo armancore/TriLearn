@@ -57,17 +57,35 @@ test('staffStudentIdScanLimiter throttles repeated scans per staff user', async 
   })
 })
 
-test('loginRateLimitKey combines IP and normalized email address', () => {
-  const req = {
+test('loginRateLimitKey keys by normalized email regardless of spoofable IP changes', () => {
+  const firstReq = {
     ip: '127.0.0.1',
     body: {
       email: ' Student@Example.com '
     }
   }
+  const secondReq = {
+    ip: '203.0.113.45',
+    body: {
+      email: 'student@example.com'
+    }
+  }
+
+  const firstLoginKey = loginRateLimitKey(firstReq)
+  const secondLoginKey = loginRateLimitKey(secondReq)
+  const forgotPasswordKey = forgotPasswordRateLimitKey(firstReq)
+
+  assert.equal(firstLoginKey, 'student@example.com')
+  assert.equal(secondLoginKey, 'student@example.com')
+  assert.notEqual(firstLoginKey, forgotPasswordKey)
+})
+
+test('loginRateLimitKey falls back to IP when email is missing', () => {
+  const req = {
+    ip: '127.0.0.1',
+    body: {}
+  }
 
   const loginKey = loginRateLimitKey(req)
-  const forgotPasswordKey = forgotPasswordRateLimitKey(req)
-
-  assert.equal(loginKey, forgotPasswordKey)
-  assert.match(loginKey, /student@example\.com$/)
+  assert.ok(typeof loginKey === 'string' && loginKey.length > 0)
 })

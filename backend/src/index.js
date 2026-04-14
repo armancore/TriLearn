@@ -27,6 +27,11 @@ let isShuttingDown = false
 
 const shouldExposeInternalErrors = () => String(process.env.DEBUG_ERRORS || '').trim().toLowerCase() === 'true'
 const INTERNAL_HEALTHCHECK_HEADER = 'x-health-check-key'
+const getTrustProxySetting = () => {
+  const configured = String(process.env.TRUST_PROXY || '').trim()
+  return configured || 'loopback'
+}
+
 const getErrorMessage = (error, fallbackMessage = 'Something went wrong') => {
   const errorMessage = error instanceof Error ? error.message : String(error)
   return shouldExposeInternalErrors() ? (errorMessage || fallbackMessage) : fallbackMessage
@@ -72,7 +77,7 @@ const requireInternalHealthcheck = (req, res, next) => {
   return res.status(404).json({ message: 'Route not found' })
 }
 
-app.set('trust proxy', 1)
+app.set('trust proxy', getTrustProxySetting())
 app.use(requestId)
 app.use(helmet({
   contentSecurityPolicy: {
