@@ -3,7 +3,7 @@ const { buildUploadedFileUrl } = require('../utils/fileStorage')
 const { getPagination } = require('../utils/pagination')
 const ExcelJS = require('exceljs')
 const PDFDocument = require('pdfkit')
-const { sanitizePlainText } = require('../utils/sanitize')
+const { sanitizePlainText, sanitizeXlsxCell } = require('../utils/sanitize')
 
 const resolveAssignmentManager = async (req, subjectId) => {
   const { user, instructor } = req
@@ -547,8 +547,15 @@ const exportAssignmentGrades = async (req, res) => {
 
     rows.forEach((row) => {
       sheet.addRow({
-        ...row,
-        submittedAt: new Date(row.submittedAt).toLocaleString()
+        studentName: sanitizeXlsxCell(row.studentName),
+        rollNumber: sanitizeXlsxCell(row.rollNumber),
+        email: sanitizeXlsxCell(row.email),
+        submittedAt: sanitizeXlsxCell(new Date(row.submittedAt).toLocaleString()),
+        status: sanitizeXlsxCell(row.status),
+        obtainedMarks: row.obtainedMarks,
+        totalMarks: row.totalMarks,
+        percentage: row.percentage,
+        feedback: sanitizeXlsxCell(row.feedback || '')
       })
     })
 

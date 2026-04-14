@@ -162,6 +162,13 @@ const getRetryAfterMs = (error, fallbackMs = 60_000) => {
   return fallbackMs
 }
 
+const sanitizeAxiosError = (error) => ({
+  message: error?.message,
+  status: error?.response?.status,
+  url: error?.config?.url,
+  method: error?.config?.method
+})
+
 const setRefreshCooldown = (cooldownUntil) => {
   refreshCooldownUntil = cooldownUntil
   writeStoredRefreshCooldownUntil(cooldownUntil)
@@ -437,6 +444,10 @@ export const refreshSession = async () => {
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
+    if (import.meta.env.DEV) {
+      console.error('API Error:', sanitizeAxiosError(error))
+    }
+
     const originalRequest = error.config
 
     if (

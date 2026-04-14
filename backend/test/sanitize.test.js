@@ -1,7 +1,7 @@
 const test = require('node:test')
 const assert = require('node:assert/strict')
 
-const { sanitizePlainText } = require('../src/utils/sanitize')
+const { sanitizePlainText, sanitizeXlsxCell } = require('../src/utils/sanitize')
 
 test('sanitizePlainText strips html and control characters', () => {
   const input = '<p>Hello&nbsp;<strong>World</strong></p>\u0007'
@@ -25,4 +25,19 @@ test('sanitizePlainText returns an empty string for non-strings', () => {
   assert.equal(sanitizePlainText(null), '')
   assert.equal(sanitizePlainText(undefined), '')
   assert.equal(sanitizePlainText(42), '')
+})
+
+test('sanitizeXlsxCell neutralizes leading formula characters in strings', () => {
+  assert.equal(sanitizeXlsxCell('=SUM(A1:A3)'), '\'=SUM(A1:A3)')
+  assert.equal(sanitizeXlsxCell('+cmd'), '\'+cmd')
+  assert.equal(sanitizeXlsxCell('-2+3'), '\'-2+3')
+  assert.equal(sanitizeXlsxCell('@evil'), '\'@evil')
+  assert.equal(sanitizeXlsxCell('\tHIDDEN'), '\'\tHIDDEN')
+  assert.equal(sanitizeXlsxCell('\rCARRIAGE'), '\'\rCARRIAGE')
+})
+
+test('sanitizeXlsxCell leaves safe values unchanged', () => {
+  assert.equal(sanitizeXlsxCell('Student User'), 'Student User')
+  assert.equal(sanitizeXlsxCell(42), 42)
+  assert.equal(sanitizeXlsxCell(null), null)
 })

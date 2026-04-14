@@ -119,4 +119,49 @@ describe('api auth persistence', () => {
       profileCompleted: true
     })
   })
+
+  it('logs only sanitized axios metadata in response interceptor errors', async () => {
+    const apiClient = createAxiosClient()
+    const refreshClient = createAxiosClient()
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    vi.doMock('axios', () => ({
+      default: {
+        create: vi.fn()
+          .mockReturnValueOnce(apiClient)
+          .mockReturnValueOnce(refreshClient)
+      }
+    }))
+
+    await import('../src/utils/api')
+
+    const interceptorReject = apiClient.interceptors.response.use.mock.calls[0][1]
+    const error = {
+      message: 'Request failed',
+      config: {
+        url: '/auth/login',
+        method: 'post',
+        headers: {
+          Authorization: 'Bearer secret-token'
+        },
+        data: {
+          password: 'super-secret'
+        }
+      },
+      response: {
+        status: 401
+      }
+    }
+
+    await expect(interceptorReject(error)).rejects.toBe(error)
+    expect(errorSpy).toHaveBeenCalled()
+    expect(errorSpy).toHaveBeenCalledWith('API Error:', {
+      message: 'Request failed',
+      status: 401,
+      url: '/auth/login',
+      method: 'post'
+    })
+    expect(String(errorSpy.mock.calls[0][1])).not.toContain('secret-token')
+    expect(String(errorSpy.mock.calls[0][1])).not.toContain('super-secret')
+  })
 })

@@ -2034,6 +2034,88 @@ test('createAssignment blocks instructors from creating assignments for subjects
   })
 })
 
+test('exportAssignmentGrades neutralizes formula-like cell values in XLSX output', async () => {
+  const addedRows = []
+  let writeCalled = false
+
+  const { exportAssignmentGrades } = loadWithMocks(resolveFromTest('src', 'controllers', 'assignment.controller.js'), {
+    '../utils/prisma': {
+      assignment: {
+        findUnique: async () => ({
+          id: 'assignment-1',
+          title: 'Final Report',
+          dueDate: new Date('2026-04-14T10:00:00.000Z'),
+          totalMarks: 100,
+          subject: {
+            name: 'Database Systems',
+            code: 'DBS101'
+          },
+          submissions: [
+            {
+              student: {
+                rollNumber: '=ROLL-01',
+                user: {
+                  name: '=HYPERLINK("http://evil","click")',
+                  email: '+attacker@example.com'
+                }
+              },
+              submittedAt: new Date('2026-04-14T09:00:00.000Z'),
+              status: '@SUBMITTED',
+              obtainedMarks: 95,
+              feedback: '-needs review'
+            }
+          ]
+        })
+      }
+    },
+    '../utils/fileStorage': {
+      buildUploadedFileUrl: () => null
+    },
+    '../utils/pagination': {
+      getPagination: () => ({ page: 1, limit: 20, skip: 0 })
+    },
+    exceljs: {
+      Workbook: class MockWorkbook {
+        addWorksheet() {
+          return {
+            columns: [],
+            addRow: (row) => {
+              addedRows.push(row)
+            }
+          }
+        }
+
+        xlsx = {
+          write: async () => {
+            writeCalled = true
+          }
+        }
+      }
+    },
+    pdfkit: class MockPdfDocument {}
+  })
+
+  const req = {
+    params: { id: 'assignment-1' },
+    query: { format: 'xlsx' },
+    user: { role: 'COORDINATOR' }
+  }
+  const res = createResponse()
+  res.end = () => {}
+
+  await exportAssignmentGrades(req, res)
+
+  assert.equal(res.statusCode, 200)
+  assert.equal(writeCalled, true)
+  assert.equal(addedRows.length, 1)
+  assert.equal(addedRows[0].studentName.startsWith('\''), true)
+  assert.equal(addedRows[0].rollNumber.startsWith('\''), true)
+  assert.equal(addedRows[0].email.startsWith('\''), true)
+  assert.equal(addedRows[0].status.startsWith('\''), true)
+  assert.equal(addedRows[0].feedback.startsWith('\''), true)
+  assert.equal(addedRows[0].obtainedMarks, 95)
+})
+
 test('getAllMaterials returns paginated metadata', async () => {
   const findManyCalls = []
   const { getAllMaterials } = loadWithMocks(resolveFromTest('src', 'controllers', 'studyMaterial.controller.js'), {

@@ -49,6 +49,15 @@ const sanitizePlainText = (value) => {
     .trim()
 }
 
+const sanitizeXlsxCell = (value) => {
+  if (typeof value !== 'string') {
+    return value
+  }
+
+  return /^[=+\-@\t\r]/.test(value) ? `'${value}` : value
+}
+
 module.exports = {
-  sanitizePlainText
+  sanitizePlainText,
+  sanitizeXlsxCell
 }
