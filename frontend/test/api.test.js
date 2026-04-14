@@ -11,6 +11,7 @@ const createAxiosClient = () => ({
 
 describe('api auth persistence', () => {
   beforeEach(() => {
+    vi.restoreAllMocks()
     vi.resetModules()
     window.sessionStorage.clear()
   })
@@ -163,5 +164,67 @@ describe('api auth persistence', () => {
     })
     expect(String(errorSpy.mock.calls[0][1])).not.toContain('secret-token')
     expect(String(errorSpy.mock.calls[0][1])).not.toContain('super-secret')
+  })
+
+  it('does not log canceled requests in response interceptor errors', async () => {
+    const apiClient = createAxiosClient()
+    const refreshClient = createAxiosClient()
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    vi.doMock('axios', () => ({
+      default: {
+        create: vi.fn()
+          .mockReturnValueOnce(apiClient)
+          .mockReturnValueOnce(refreshClient)
+      }
+    }))
+
+    await import('../src/utils/api')
+
+    const interceptorReject = apiClient.interceptors.response.use.mock.calls[0][1]
+    const canceledError = {
+      message: 'canceled',
+      code: 'ERR_CANCELED',
+      name: 'CanceledError',
+      config: {
+        url: '/notifications',
+        method: 'get'
+      }
+    }
+
+    await expect(interceptorReject(canceledError)).rejects.toBe(canceledError)
+    expect(errorSpy).not.toHaveBeenCalled()
+  })
+
+  it('does not log protected-route 401 errors when there is no session hint', async () => {
+    const apiClient = createAxiosClient()
+    const refreshClient = createAxiosClient()
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    vi.doMock('axios', () => ({
+      default: {
+        create: vi.fn()
+          .mockReturnValueOnce(apiClient)
+          .mockReturnValueOnce(refreshClient)
+      }
+    }))
+
+    const { setAuthState } = await import('../src/utils/api')
+    setAuthState({ token: null, user: null })
+
+    const interceptorReject = apiClient.interceptors.response.use.mock.calls[0][1]
+    const unauthorizedError = {
+      message: 'Request failed with status code 401',
+      config: {
+        url: '/notifications',
+        method: 'get'
+      },
+      response: {
+        status: 401
+      }
+    }
+
+    await expect(interceptorReject(unauthorizedError)).rejects.toBe(unauthorizedError)
+    expect(errorSpy).not.toHaveBeenCalled()
   })
 })

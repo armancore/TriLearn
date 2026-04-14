@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { isRequestCanceled } from './http'
 
 const normalizeApiBaseUrl = (rawValue) => {
   const fallbackUrl = 'http://localhost:5000/api/v1'
@@ -352,7 +353,7 @@ const shouldRetryRequest = (error) => {
     return false
   }
 
-  if (error.code === 'ERR_CANCELED') {
+  if (isRequestCanceled(error)) {
     return false
   }
 
@@ -444,7 +445,17 @@ export const refreshSession = async () => {
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
-    if (import.meta.env.DEV) {
+    const shouldSuppressExpectedUnauthorizedError = (
+      error?.response?.status === 401 &&
+      !hasSessionHint() &&
+      !isAuthRouteRequest(error?.config)
+    )
+
+    if (
+      import.meta.env.DEV &&
+      !isRequestCanceled(error) &&
+      !shouldSuppressExpectedUnauthorizedError
+    ) {
       console.error('API Error:', sanitizeAxiosError(error))
     }
 
@@ -490,7 +501,11 @@ api.interceptors.response.use(
       }
     }
 
-    if (error.response?.status === 401) {
+    if (
+      error.response?.status === 401 &&
+      !isAuthRouteRequest(originalRequest) &&
+      hasSessionHint()
+    ) {
       handleUnauthorizedRedirect()
     }
 

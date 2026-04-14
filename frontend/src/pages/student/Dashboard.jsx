@@ -52,7 +52,7 @@ const StudentDashboard = () => {
         setNotices(noticesRes.data.notices || [])
         setRoutines(routineRes.data.routines || [])
       } catch (requestError) {
-        if (requestError?.code === 'ERR_CANCELED') {
+        if (requestError?.code === 'ERR_CANCELED' || requestError?.response?.status === 401) {
           return
         }
 

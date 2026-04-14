@@ -95,12 +95,12 @@ export const AuthProvider = ({ children }) => {
   }
 
   const logout = async ({ skipRequest = false } = {}) => {
+    clearClientSession()
+    navigate('/login', { replace: true })
+
     if (!skipRequest) {
       await api.post('/auth/logout').catch(() => null)
     }
-
-    clearClientSession()
-    navigate('/login', { replace: true })
   }
 
   const updateUser = (userData) => {
