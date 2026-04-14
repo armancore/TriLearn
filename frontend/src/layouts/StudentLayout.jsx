@@ -16,6 +16,7 @@ import {
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import AppShell from '../components/AppShell'
+import ErrorBoundary from '../components/ErrorBoundary'
 
 const StudentLayout = ({ children, noticesCount = 0 }) => {
   const { user, logout } = useAuth()
@@ -64,7 +65,9 @@ const StudentLayout = ({ children, noticesCount = 0 }) => {
       activePath={activePath}
       onLogout={handleLogout}
     >
-      {children}
+      <ErrorBoundary>
+        {children}
+      </ErrorBoundary>
     </AppShell>
   )
 }

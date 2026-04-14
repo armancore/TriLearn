@@ -20,7 +20,7 @@ const AuthSplitLayout = ({
     <div className="min-h-screen bg-slate-100">
       <div className={`min-h-screen ${hideAside ? '' : 'grid lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]'}`}>
         {!hideAside ? (
-          <aside className="relative overflow-hidden bg-[#0F172A] px-6 py-10 text-slate-100 sm:px-10 lg:flex lg:flex-col lg:justify-between lg:px-12 lg:py-12">
+          <aside className="relative overflow-hidden bg-slate-900 px-6 py-10 text-slate-100 sm:px-10 lg:flex lg:flex-col lg:justify-between lg:px-12 lg:py-12">
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(59,130,246,0.22),transparent_34%),radial-gradient(circle_at_bottom_left,rgba(99,102,241,0.2),transparent_42%),linear-gradient(160deg,rgba(255,255,255,0.06),transparent_40%)]" />
             <div className="relative z-10">
               <div className="inline-flex rounded-full border border-white/12 bg-[--color-bg-card] px-4 py-2 shadow-lg shadow-slate-950/20 backdrop-blur-sm dark:bg-slate-800/6 dark:shadow-slate-900/50">

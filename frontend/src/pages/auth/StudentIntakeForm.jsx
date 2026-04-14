@@ -251,7 +251,7 @@ const StudentIntakeForm = () => {
       contentWidthClassName="max-w-5xl"
       mainAlign="start"
       mainClassName="py-6 sm:py-8 lg:py-12"
-      cardClassName="overflow-visible bg-[#fcfcfb]"
+      cardClassName="overflow-visible bg-white dark:bg-slate-800"
       hideAside
     >
       <div className="space-y-6 sm:space-y-8">

@@ -2,6 +2,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { Bell, CalendarDays, ClipboardList, FileText, Percent, UserCircle2 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import AppShell from '../components/AppShell'
+import ErrorBoundary from '../components/ErrorBoundary'
 
 const GateLayout = ({ children }) => {
   const { user, logout } = useAuth()
@@ -39,7 +40,9 @@ const GateLayout = ({ children }) => {
       activePath={location.pathname}
       onLogout={handleLogout}
     >
-      {children}
+      <ErrorBoundary>
+        {children}
+      </ErrorBoundary>
     </AppShell>
   )
 }

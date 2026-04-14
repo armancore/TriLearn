@@ -13,6 +13,7 @@ import {
 import { useAuth } from '../context/AuthContext'
 import AppShell from '../components/AppShell'
 import CoordinatorLayout from './CoordinatorLayout'
+import ErrorBoundary from '../components/ErrorBoundary'
 
 const InstructorLayout = ({ children }) => {
   const { user, logout } = useAuth()
@@ -58,7 +59,9 @@ const InstructorLayout = ({ children }) => {
       activePath={location.pathname}
       onLogout={handleLogout}
     >
-      {children}
+      <ErrorBoundary>
+        {children}
+      </ErrorBoundary>
     </AppShell>
   )
 }
