@@ -2346,6 +2346,7 @@ test('markAttendanceQR creates a present attendance record for eligible students
       }),
       getOwnedSubject: async () => ({}),
       createSignedQrPayload: () => 'signed',
+      hashQrPayload: (value) => `hashed:${value}`,
       parseQrPayload: () => ({
         subjectId: 'subject-1',
         instructorId: 'instructor-1',
@@ -2378,6 +2379,7 @@ test('markAttendanceQR creates a present attendance record for eligible students
   assert.equal(createCalls.length, 1)
   assert.equal(createCalls[0].data.studentId, 'student-1')
   assert.equal(createCalls[0].data.subjectId, 'subject-1')
+  assert.equal(createCalls[0].data.qrCode, 'hashed:qr-payload')
 })
 
 test('markAttendanceQR rejects replay when attendance already exists for the same student and subject', async () => {
@@ -2409,6 +2411,7 @@ test('markAttendanceQR rejects replay when attendance already exists for the sam
       }),
       getOwnedSubject: async () => ({}),
       createSignedQrPayload: () => 'signed',
+      hashQrPayload: (value) => `hashed:${value}`,
       parseQrPayload: () => ({
         subjectId: 'subject-1',
         instructorId: 'instructor-1',

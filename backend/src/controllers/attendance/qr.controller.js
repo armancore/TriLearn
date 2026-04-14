@@ -6,6 +6,7 @@ const {
   getOwnedSubject,
   createSignedQrPayload,
   parseQrPayload,
+  hashQrPayload,
   getDailyGateWindows,
   normalizeSemesterList,
   getEligibleGateAttendanceForStudent,
@@ -85,7 +86,7 @@ const markAttendanceQR = async (req, res) => {
         subjectId,
         instructorId,
         status: 'PRESENT',
-        qrCode: qrData,
+        qrCode: hashQrPayload(qrData),
         date: todayRange.start
       },
       include: {
@@ -334,6 +335,7 @@ const scanStudentIdAttendance = async (req, res) => {
 
     const instructorId = access.instructor?.id || access.subject.instructorId
     if (!instructorId) return res.status(400).json({ message: 'Assign an instructor to this subject before managing attendance.' })
+    const qrCodeHash = hashQrPayload(qrData)
 
     const record = await prisma.attendance.upsert({
       where: {
@@ -343,8 +345,15 @@ const scanStudentIdAttendance = async (req, res) => {
           date: dayRange.start
         }
       },
-      update: { instructorId, status: 'PRESENT', qrCode: qrData },
-      create: { studentId: student.id, subjectId, instructorId, status: 'PRESENT', qrCode: qrData, date: dayRange.start }
+      update: { instructorId, status: 'PRESENT', qrCode: qrCodeHash },
+      create: {
+        studentId: student.id,
+        subjectId,
+        instructorId,
+        status: 'PRESENT',
+        qrCode: qrCodeHash,
+        date: dayRange.start
+      }
     })
 
     await recordAuditLog({

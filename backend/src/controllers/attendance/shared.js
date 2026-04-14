@@ -1,6 +1,7 @@
 const prisma = require('../../utils/prisma')
 const { recordAuditLog } = require('../../utils/audit')
 const { signQrPayload, verifyQrPayload } = require('../../utils/qrSigning')
+const { hashToken } = require('../../utils/token')
 
 const ATTENDANCE_STATUSES = ['PRESENT', 'ABSENT', 'LATE']
 const QR_VALIDITY_MINUTES = 15
@@ -450,6 +451,7 @@ const parseQrPayload = (qrData) => {
 }
 
 const createSignedQrPayload = (payload) => signQrPayload(payload)
+const hashQrPayload = (qrData) => (typeof qrData === 'string' && qrData.trim() ? hashToken(qrData) : null)
 
 const getStudentByIdCardQr = async (qrData) => {
   const parsedQr = parseQrPayload(qrData)
@@ -492,6 +494,7 @@ const getStudentByIdCardQr = async (qrData) => {
 }
 
 const upsertPresentAttendanceForRoutines = async ({ student, routines, attendanceDate, qrData, actorRole, actorId }) => {
+  const qrCodeHash = hashQrPayload(qrData)
   const existingAttendance = await prisma.attendance.findMany({
     where: {
       studentId: student.id,
@@ -520,14 +523,14 @@ const upsertPresentAttendanceForRoutines = async ({ student, routines, attendanc
         update: {
           instructorId: routine.instructorId,
           status: 'PRESENT',
-          qrCode: qrData
+          qrCode: qrCodeHash
         },
         create: {
           studentId: student.id,
           subjectId: routine.subjectId,
           instructorId: routine.instructorId,
           status: 'PRESENT',
-          qrCode: qrData,
+          qrCode: qrCodeHash,
           date: attendanceDate.start
         }
       })
@@ -909,6 +912,7 @@ module.exports = {
   filterRoutinesForSemesterWindows,
   parseQrPayload,
   createSignedQrPayload,
+  hashQrPayload,
   getStudentByIdCardQr,
   upsertPresentAttendanceForRoutines,
   getEligibleGateAttendanceForStudent,
