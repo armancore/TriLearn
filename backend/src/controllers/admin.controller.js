@@ -3,6 +3,7 @@ const crypto = require('crypto')
 const fs = require('fs')
 const path = require('path')
 const ExcelJS = require('exceljs')
+const { createClient } = require('redis')
 const { enrollStudentInMatchingSubjects, syncStudentEnrollmentForSemester } = require('../utils/enrollment')
 const { getPagination } = require('../utils/pagination')
 const logger = require('../utils/logger')
@@ -17,13 +18,107 @@ const {
 } = require('../utils/instructorDepartments')
 
 const STATS_CACHE_TTL = 30 * 1000 // 30 seconds
+const STATS_CACHE_KEY = 'admin:stats:v1'
 const MAX_STUDENT_SEMESTER = 8
 let statsCache = null
 let statsCacheExpiresAt = 0
+let redisStatsClient
+let redisStatsClientReady = false
+let redisStatsConnectPromise
+let redisStatsConnectionWarningShown = false
+
+const getRedisStatsClient = async () => {
+  if (process.env.NODE_ENV === 'test') {
+    return null
+  }
+
+  const redisUrl = String(process.env.REDIS_URL || '').trim()
+  if (!redisUrl) {
+    return null
+  }
+
+  if (!redisStatsClient) {
+    redisStatsClient = createClient({ url: redisUrl })
+    redisStatsClient.on('error', (error) => {
+      logger.warn('Admin stats cache Redis client error', { message: error.message })
+    })
+  }
+
+  if (!redisStatsClientReady) {
+    if (!redisStatsConnectPromise) {
+      redisStatsConnectPromise = redisStatsClient.connect()
+        .then(() => {
+          redisStatsClientReady = true
+        })
+        .catch((error) => {
+          if (!redisStatsConnectionWarningShown) {
+            redisStatsConnectionWarningShown = true
+            logger.warn('Admin stats cache is falling back to local memory because Redis is unavailable', {
+              message: error.message
+            })
+          }
+          return null
+        })
+        .finally(() => {
+          redisStatsConnectPromise = null
+        })
+    }
+
+    await redisStatsConnectPromise
+  }
+
+  return redisStatsClientReady ? redisStatsClient : null
+}
+
+const readSharedStatsCache = async () => {
+  try {
+    const client = await getRedisStatsClient()
+    if (!client) {
+      return null
+    }
+
+    const cachedValue = await client.get(STATS_CACHE_KEY)
+    if (!cachedValue) {
+      return null
+    }
+
+    return JSON.parse(cachedValue)
+  } catch (error) {
+    logger.warn('Failed to read admin stats cache from Redis', { message: error.message })
+    return null
+  }
+}
+
+const writeSharedStatsCache = async (stats) => {
+  try {
+    const client = await getRedisStatsClient()
+    if (!client) {
+      return
+    }
+
+    await client.set(STATS_CACHE_KEY, JSON.stringify(stats), { PX: STATS_CACHE_TTL })
+  } catch (error) {
+    logger.warn('Failed to write admin stats cache to Redis', { message: error.message })
+  }
+}
+
+const clearSharedStatsCache = async () => {
+  try {
+    const client = await getRedisStatsClient()
+    if (!client) {
+      return
+    }
+
+    await client.del(STATS_CACHE_KEY)
+  } catch (error) {
+    logger.warn('Failed to clear admin stats cache in Redis', { message: error.message })
+  }
+}
 
 const clearStatsCache = () => {
   statsCache = null
   statsCacheExpiresAt = 0
+  void clearSharedStatsCache()
 }
 const sanitizeOptionalPlainText = (value) => (value == null ? value : sanitizePlainText(value))
 
@@ -330,6 +425,13 @@ const getAdminStats = async (req, res) => {
       return res.json({ stats: statsCache })
     }
 
+    const sharedStats = await readSharedStatsCache()
+    if (sharedStats) {
+      statsCache = sharedStats
+      statsCacheExpiresAt = Date.now() + STATS_CACHE_TTL
+      return res.json({ stats: sharedStats })
+    }
+
     const [totalUsers, totalStudents, totalInstructors, totalCoordinators, totalGatekeepers, totalSubjects] = await Promise.all([
       prisma.user.count({ where: { deletedAt: null } }),
       prisma.user.count({ where: { role: 'STUDENT', deletedAt: null } }),
@@ -350,6 +452,7 @@ const getAdminStats = async (req, res) => {
 
     statsCache = stats
     statsCacheExpiresAt = Date.now() + STATS_CACHE_TTL
+    await writeSharedStatsCache(stats)
 
     res.json({ stats })
   } catch (error) {

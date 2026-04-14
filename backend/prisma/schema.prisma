@@ -317,6 +317,8 @@ model Mark {
   examType     ExamType
   totalMarks   Int
   obtainedMarks Int
+  grade        String
+  gradePoint   Float
   remarks      String?
   isPublished  Boolean  @default(false)
   publishedAt  DateTime?

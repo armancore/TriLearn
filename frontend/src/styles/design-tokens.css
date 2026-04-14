@@ -34,6 +34,21 @@
   --color-badge-bg: #EEF2F9;
   --color-badge-text: #1A3C6E;
   --color-badge-dot: #2A5298;
+  --color-badge-success-bg: #ecfdf5;
+  --color-badge-success-text: #047857;
+  --color-badge-success-dot: #10b981;
+  --color-badge-danger-bg: #fef2f2;
+  --color-badge-danger-text: #b91c1c;
+  --color-badge-danger-dot: #ef4444;
+  --color-badge-warning-bg: #FEF9EC;
+  --color-badge-warning-text: #A86A12;
+  --color-badge-warning-dot: #F4A623;
+  --color-badge-info-bg: #EEF2F9;
+  --color-badge-info-text: #1A3C6E;
+  --color-badge-info-dot: #2A5298;
+  --color-badge-neutral-bg: #f8fafc;
+  --color-badge-neutral-text: #475569;
+  --color-badge-neutral-dot: #94a3b8;
 
   --color-role-admin: #1A3C6E;
   --color-role-instructor: #2A5298;
@@ -75,6 +90,21 @@ html[data-theme="dark"] {
   --color-badge-bg: #16213D;
   --color-badge-text: #D4E0F0;
   --color-badge-dot: #5483C3;
+  --color-badge-success-bg: color-mix(in srgb, #10b981 18%, var(--color-card-surface));
+  --color-badge-success-text: color-mix(in srgb, #6ee7b7 72%, white);
+  --color-badge-success-dot: #34d399;
+  --color-badge-danger-bg: color-mix(in srgb, #ef4444 18%, var(--color-card-surface));
+  --color-badge-danger-text: color-mix(in srgb, #fca5a5 78%, white);
+  --color-badge-danger-dot: #f87171;
+  --color-badge-warning-bg: color-mix(in srgb, #F4A623 20%, var(--color-card-surface));
+  --color-badge-warning-text: color-mix(in srgb, #fcd34d 80%, white);
+  --color-badge-warning-dot: #fbbf24;
+  --color-badge-info-bg: color-mix(in srgb, #2A5298 20%, var(--color-card-surface));
+  --color-badge-info-text: color-mix(in srgb, #bfdbfe 76%, white);
+  --color-badge-info-dot: #60a5fa;
+  --color-badge-neutral-bg: color-mix(in srgb, #64748b 20%, var(--color-card-surface));
+  --color-badge-neutral-text: color-mix(in srgb, #cbd5e1 78%, white);
+  --color-badge-neutral-dot: #94a3b8;
 }
 
 [data-role-theme="admin"] {
@@ -201,33 +231,33 @@ html[data-theme="dark"] {
 }
 
 @utility ui-status-success {
-  --color-badge-bg: #ecfdf5;
-  --color-badge-text: #047857;
-  --color-badge-dot: #10b981;
+  --color-badge-bg: var(--color-badge-success-bg);
+  --color-badge-text: var(--color-badge-success-text);
+  --color-badge-dot: var(--color-badge-success-dot);
 }
 
 @utility ui-status-danger {
-  --color-badge-bg: #fef2f2;
-  --color-badge-text: #b91c1c;
-  --color-badge-dot: #ef4444;
+  --color-badge-bg: var(--color-badge-danger-bg);
+  --color-badge-text: var(--color-badge-danger-text);
+  --color-badge-dot: var(--color-badge-danger-dot);
 }
 
 @utility ui-status-warning {
-  --color-badge-bg: #FEF9EC;
-  --color-badge-text: #A86A12;
-  --color-badge-dot: #F4A623;
+  --color-badge-bg: var(--color-badge-warning-bg);
+  --color-badge-text: var(--color-badge-warning-text);
+  --color-badge-dot: var(--color-badge-warning-dot);
 }
 
 @utility ui-status-info {
-  --color-badge-bg: #EEF2F9;
-  --color-badge-text: #1A3C6E;
-  --color-badge-dot: #2A5298;
+  --color-badge-bg: var(--color-badge-info-bg);
+  --color-badge-text: var(--color-badge-info-text);
+  --color-badge-dot: var(--color-badge-info-dot);
 }
 
 @utility ui-status-neutral {
-  --color-badge-bg: #f8fafc;
-  --color-badge-text: #475569;
-  --color-badge-dot: #94a3b8;
+  --color-badge-bg: var(--color-badge-neutral-bg);
+  --color-badge-text: var(--color-badge-neutral-text);
+  --color-badge-dot: var(--color-badge-neutral-dot);
 }
 
 @utility status-present {

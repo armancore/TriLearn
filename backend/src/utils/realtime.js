@@ -3,6 +3,12 @@ const jwt = require('jsonwebtoken')
 const prisma = require('./prisma')
 
 let io = null
+const parsePositiveInteger = (value, fallback) => {
+  const parsed = Number.parseInt(String(value ?? ''), 10)
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback
+}
+const SOCKET_EVENT_RATE_LIMIT_MAX = parsePositiveInteger(process.env.SOCKET_EVENT_RATE_LIMIT_MAX, 60)
+const SOCKET_EVENT_RATE_LIMIT_WINDOW_MS = parsePositiveInteger(process.env.SOCKET_EVENT_RATE_LIMIT_WINDOW_MS, 10_000)
 
 const getRoomName = (userId) => `user:${userId}`
 
@@ -42,6 +48,35 @@ const resolveSocketToken = (socket) => {
   }
 
   return null
+}
+
+const createSocketEventRateLimiter = ({ maxEvents, windowMs, now = () => Date.now() }) => {
+  let tokens = maxEvents
+  let lastRefillAt = now()
+
+  const refillTokens = () => {
+    const currentTime = now()
+    const elapsed = currentTime - lastRefillAt
+    if (elapsed <= 0) {
+      return
+    }
+
+    const refillAmount = (elapsed / windowMs) * maxEvents
+    tokens = Math.min(maxEvents, tokens + refillAmount)
+    lastRefillAt = currentTime
+  }
+
+  return {
+    consume: (cost = 1) => {
+      refillTokens()
+      if (tokens < cost) {
+        return false
+      }
+
+      tokens -= cost
+      return true
+    }
+  }
 }
 
 const initRealtime = ({ server, allowedOrigins = [] }) => {
@@ -96,6 +131,24 @@ const initRealtime = ({ server, allowedOrigins = [] }) => {
       return
     }
 
+    const eventRateLimiter = createSocketEventRateLimiter({
+      maxEvents: SOCKET_EVENT_RATE_LIMIT_MAX,
+      windowMs: SOCKET_EVENT_RATE_LIMIT_WINDOW_MS
+    })
+
+    socket.use((packet, next) => {
+      const eventName = Array.isArray(packet) ? packet[0] : null
+      if (eventName === 'disconnect' || eventName === 'disconnecting') {
+        return next()
+      }
+
+      if (eventRateLimiter.consume()) {
+        return next()
+      }
+
+      return next(new Error('Too many socket events, please slow down.'))
+    })
+
     socket.join(getRoomName(userId))
   })
 
@@ -133,6 +186,7 @@ const closeRealtime = async () => {
 
 module.exports = {
   buildCorsOriginValidator,
+  createSocketEventRateLimiter,
   initRealtime,
   closeRealtime,
   emitNotificationCreated,

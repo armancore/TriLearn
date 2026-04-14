@@ -7,6 +7,12 @@ let redisClient
 let redisStore
 let memoryStoreWarningShown = false
 let rateLimitDisabledWarningShown = false
+const parsePositiveInteger = (value, fallback) => {
+  const parsed = Number.parseInt(String(value ?? ''), 10)
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback
+}
+const LOGIN_LIMIT_WINDOW_MS = parsePositiveInteger(process.env.LOGIN_RATE_LIMIT_WINDOW_MS, 15 * 60 * 1000)
+const LOGIN_LIMIT_MAX = parsePositiveInteger(process.env.LOGIN_RATE_LIMIT_MAX, 10)
 
 const areRateLimitsDisabled = () => process.env.DISABLE_RATE_LIMITS === 'true'
 
@@ -117,7 +123,8 @@ const forgotPasswordLimiter = createLimiter({
 })
 
 const loginLimiter = createLimiter({
-  max: 5,
+  windowMs: LOGIN_LIMIT_WINDOW_MS,
+  max: LOGIN_LIMIT_MAX,
   message: 'Too many login attempts, please try again later',
   keyGenerator: loginRateLimitKey
 })

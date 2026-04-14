@@ -557,6 +557,63 @@ test('auth dateOfBirth schemas reject invalid and out-of-range values', () => {
   }))
 })
 
+test('completeProfile enforces required fields server-side before updating profileCompleted', async () => {
+  const userUpdates = []
+  const studentUpdates = []
+
+  const { completeProfile } = loadWithMocks(resolveFromTest('src', 'controllers', 'auth.controller.js'), authControllerMocks({
+    '../utils/prisma': {
+      student: {
+        findUnique: async () => ({
+          id: 'student-1',
+          userId: 'user-1'
+        }),
+        update: async (payload) => {
+          studentUpdates.push(payload)
+          return payload
+        }
+      },
+      user: {
+        update: async (payload) => {
+          userUpdates.push(payload)
+          return payload
+        }
+      },
+      $transaction: async (operations) => Promise.all(operations)
+    }
+  }))
+
+  const req = {
+    user: {
+      id: 'user-1',
+      role: 'STUDENT'
+    },
+    body: {
+      phone: '9800000000',
+      fatherName: ' ',
+      motherName: 'Mother',
+      fatherPhone: '9800000001',
+      motherPhone: '9800000002',
+      bloodGroup: 'A+',
+      localGuardianName: 'Guardian',
+      localGuardianAddress: 'Kathmandu',
+      localGuardianPhone: '9800000003',
+      permanentAddress: 'Bhaktapur',
+      temporaryAddress: 'Lalitpur',
+      dateOfBirth: '2005-01-01',
+      section: 'A'
+    }
+  }
+  const res = createResponse()
+
+  await completeProfile(req, res)
+
+  assert.equal(res.statusCode, 400)
+  assert.equal(res.body.message, 'Validation failed')
+  assert.equal(userUpdates.length, 0)
+  assert.equal(studentUpdates.length, 0)
+})
+
 test('material fileUrl schema allows public https URLs and rejects unsafe URLs', () => {
   const { schemas } = require(resolveFromTest('src', 'validators', 'schemas.js'))
 
@@ -3694,5 +3751,7 @@ test('addMarks sanitizes remarks before storing them', async () => {
   assert.equal(res.statusCode, 201)
   assert.equal(createCalls.length, 1)
   assert.equal(createCalls[0].data.remarks, 'Great work')
+  assert.equal(createCalls[0].data.grade, 'A')
+  assert.equal(createCalls[0].data.gradePoint, 3.6)
   assert.equal(res.body.mark.remarks, 'Great work')
 })

@@ -11,6 +11,8 @@ const { passwordResetTemplate } = require('../utils/emailTemplates')
 const { hashPassword } = require('../utils/security')
 const { signQrPayload } = require('../utils/qrSigning')
 const { sanitizePlainText } = require('../utils/sanitize')
+const { schemas } = require('../validators/schemas')
+const { ZodError } = require('zod')
 const {
   signAccessToken,
   signRefreshToken,
@@ -735,6 +737,8 @@ const completeProfile = async (req, res) => {
       return res.status(403).json({ message: 'Only students can complete this profile form' })
     }
 
+    const parsedBody = schemas.auth.completeProfile.body.parse(req.body)
+
     const {
       phone,
       fatherName,
@@ -749,7 +753,7 @@ const completeProfile = async (req, res) => {
       temporaryAddress,
       dateOfBirth,
       section
-    } = req.body
+    } = parsedBody
     const sanitizedProfile = {
       fatherName: sanitizePlainText(fatherName),
       motherName: sanitizePlainText(motherName),
@@ -807,6 +811,13 @@ const completeProfile = async (req, res) => {
       user: buildAuthUser(updatedUser)
     })
   } catch (error) {
+    if (error instanceof ZodError) {
+      return res.status(400).json({
+        message: 'Validation failed',
+        errors: error.flatten()
+      })
+    }
+
     res.internalError(error)
   }
 }

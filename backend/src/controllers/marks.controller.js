@@ -41,20 +41,31 @@ const getGradePointFromPercentage = (percentage) => {
   return 0.0
 }
 
+const getGradeSnapshot = (obtainedMarks, totalMarks) => {
+  const percentage = getPercentage(obtainedMarks, totalMarks)
+
+  return {
+    grade: getGradeFromPercentage(percentage),
+    gradePoint: getGradePointFromPercentage(percentage)
+  }
+}
+
 const decorateMark = (mark) => {
   const percentage = getPercentage(mark.obtainedMarks, mark.totalMarks)
+  const fallbackSnapshot = getGradeSnapshot(mark.obtainedMarks, mark.totalMarks)
 
   return {
     ...mark,
     percentage,
-    grade: getGradeFromPercentage(percentage),
-    gradePoint: getGradePointFromPercentage(percentage)
+    grade: mark.grade || fallbackSnapshot.grade,
+    gradePoint: typeof mark.gradePoint === 'number' ? mark.gradePoint : fallbackSnapshot.gradePoint
   }
 }
 
 const buildStudentResultSheet = (marks) => {
   const subjects = marks.map((mark) => {
     const percentage = getPercentage(mark.obtainedMarks, mark.totalMarks)
+    const fallbackSnapshot = getGradeSnapshot(mark.obtainedMarks, mark.totalMarks)
 
     return {
       id: mark.id,
@@ -64,8 +75,8 @@ const buildStudentResultSheet = (marks) => {
       obtainedMarks: mark.obtainedMarks,
       totalMarks: mark.totalMarks,
       percentage: Number(percentage.toFixed(2)),
-      grade: getGradeFromPercentage(percentage),
-      gradePoint: getGradePointFromPercentage(percentage),
+      grade: mark.grade || fallbackSnapshot.grade,
+      gradePoint: typeof mark.gradePoint === 'number' ? mark.gradePoint : fallbackSnapshot.gradePoint,
       remarks: mark.remarks || ''
     }
   }).sort((left, right) => left.subjectCode.localeCompare(right.subjectCode))
@@ -169,17 +180,7 @@ const getRankingSummary = async ({ student, examType }) => {
         s.id AS "studentId",
         ROW_NUMBER() OVER (
           ORDER BY
-            COALESCE(AVG(
-              CASE
-                WHEN m."totalMarks" > 0 AND ((m."obtainedMarks"::decimal / m."totalMarks"::decimal) * 100) >= 90 THEN 4.0
-                WHEN m."totalMarks" > 0 AND ((m."obtainedMarks"::decimal / m."totalMarks"::decimal) * 100) >= 80 THEN 3.6
-                WHEN m."totalMarks" > 0 AND ((m."obtainedMarks"::decimal / m."totalMarks"::decimal) * 100) >= 70 THEN 3.2
-                WHEN m."totalMarks" > 0 AND ((m."obtainedMarks"::decimal / m."totalMarks"::decimal) * 100) >= 60 THEN 2.8
-                WHEN m."totalMarks" > 0 AND ((m."obtainedMarks"::decimal / m."totalMarks"::decimal) * 100) >= 50 THEN 2.4
-                WHEN m."totalMarks" > 0 AND ((m."obtainedMarks"::decimal / m."totalMarks"::decimal) * 100) >= 40 THEN 2.0
-                ELSE 0.0
-              END
-            ), 0) DESC,
+            COALESCE(AVG(m."gradePoint"), 0) DESC,
             COALESCE((SUM(m."obtainedMarks")::decimal / NULLIF(SUM(m."totalMarks"), 0)) * 100, 0) DESC,
             u.name ASC
         )::int AS rank,
@@ -519,6 +520,7 @@ const buildStaffReviewFilters = ({ req, subjectId, examType }) => {
 }
 
 const createMarkPayload = ({ studentId, subjectId, instructorId, examType, totalMarks, obtainedMarks, remarks }) => ({
+  ...getGradeSnapshot(obtainedMarks, totalMarks),
   studentId,
   subjectId,
   instructorId,
@@ -716,6 +718,7 @@ const updateMarks = async (req, res) => {
     const updated = await prisma.mark.update({
       where: { id },
       data: {
+        ...getGradeSnapshot(obtainedMarks, mark.totalMarks),
         obtainedMarks,
         remarks: sanitizePlainText(remarks),
         isPublished: false,

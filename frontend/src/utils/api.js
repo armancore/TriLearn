@@ -356,6 +356,21 @@ const shouldRetryRequest = (error) => {
   return [502, 503, 504].includes(error.response.status)
 }
 
+const isRetryableMethod = (requestConfig) => RETRYABLE_METHODS.has(requestConfig?.method?.toLowerCase())
+
+const shouldRetryUnauthorizedRequest = (error) => {
+  const originalRequest = error?.config
+
+  return Boolean(
+    error?.response?.status === 401 &&
+    originalRequest &&
+    !originalRequest._authRetryAttempted &&
+    isRetryableMethod(originalRequest) &&
+    requestUsedAccessToken(originalRequest) &&
+    !isAuthRouteRequest(originalRequest)
+  )
+}
+
 const requestUsedAccessToken = (requestConfig) => {
   const authorizationHeader =
     requestConfig?.headers?.Authorization ||
@@ -435,6 +450,12 @@ api.interceptors.response.use(
         await wait(300 * originalRequest._retryCount)
         return api(originalRequest)
       }
+    }
+
+    if (shouldRetryUnauthorizedRequest(error)) {
+      originalRequest._authRetryAttempted = true
+      await wait(200)
+      return api(originalRequest)
     }
 
     if (

@@ -8,9 +8,12 @@ const setAuthStateMock = vi.fn()
 const refreshSessionMock = vi.fn()
 const subscribeToAuthStateMock = vi.fn(() => () => {})
 const registerUnauthorizedHandlerMock = vi.fn(() => () => {})
+const apiPostMock = vi.fn()
 
 vi.mock('../src/utils/api', () => ({
-  API_BASE_URL: 'http://localhost:5000/api/v1',
+  default: {
+    post: (...args) => apiPostMock(...args)
+  },
   getAuthState: () => getAuthStateMock(),
   refreshSession: (...args) => refreshSessionMock(...args),
   registerUnauthorizedHandler: (...args) => registerUnauthorizedHandlerMock(...args),
@@ -19,13 +22,14 @@ vi.mock('../src/utils/api', () => ({
 }))
 
 const Consumer = () => {
-  const { user, loading, login, updateUser } = useAuth()
+  const { user, loading, login, logout, updateUser } = useAuth()
 
   return (
     <div>
       <span data-testid="loading">{String(loading)}</span>
       <span data-testid="name">{user?.name || 'anonymous'}</span>
       <button type="button" onClick={() => login({ name: 'Taylor', role: 'ADMIN' }, 'token-1')}>Login</button>
+      <button type="button" onClick={() => logout()}>Logout</button>
       <button type="button" onClick={() => updateUser({ name: 'Jordan', role: 'ADMIN' })}>Update</button>
     </div>
   )
@@ -37,6 +41,8 @@ describe('AuthContext', () => {
     refreshSessionMock.mockReset()
     refreshSessionMock.mockResolvedValue({ token: 'fresh-token', user: { name: 'Refreshed', role: 'ADMIN' } })
     setAuthStateMock.mockReset()
+    apiPostMock.mockReset()
+    apiPostMock.mockResolvedValue({ data: { message: 'Logged out successfully' } })
     subscribeToAuthStateMock.mockImplementation((listener) => {
       listener({ user: getAuthStateMock().user, token: getAuthStateMock().token })
       return () => {}
@@ -98,5 +104,22 @@ describe('AuthContext', () => {
 
     expect(setAuthStateMock).toHaveBeenCalledWith({ user: { name: 'Taylor', role: 'ADMIN' }, token: 'token-1' })
     expect(setAuthStateMock).toHaveBeenCalledWith({ user: { name: 'Jordan', role: 'ADMIN' }, token: null })
+  })
+
+  it('logs out through the shared API client', async () => {
+    render(
+      <MemoryRouter>
+        <AuthProvider>
+          <Consumer />
+        </AuthProvider>
+      </MemoryRouter>
+    )
+
+    await act(async () => {
+      screen.getByRole('button', { name: 'Logout' }).click()
+    })
+
+    expect(apiPostMock).toHaveBeenCalledWith('/auth/logout')
+    expect(setAuthStateMock).toHaveBeenCalledWith({ token: null, user: null })
   })
 })

@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import {
-  API_BASE_URL,
+  default as api,
   getAuthState,
   refreshSession,
   registerUnauthorizedHandler,
@@ -96,10 +96,7 @@ export const AuthProvider = ({ children }) => {
 
   const logout = async ({ skipRequest = false } = {}) => {
     if (!skipRequest) {
-      await fetch(`${API_BASE_URL}/auth/logout`, {
-        method: 'POST',
-        credentials: 'include'
-      }).catch(() => null)
+      await api.post('/auth/logout').catch(() => null)
     }
 
     clearClientSession()

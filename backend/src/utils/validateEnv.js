@@ -15,6 +15,7 @@ const requiredProductionMail = [
   'RESEND_SMTP_PASS'
 ]
 const validNodeEnvironments = new Set(['development', 'test', 'production'])
+const validBooleanFlagValues = new Set(['true', 'false'])
 
 const validateEnv = () => {
   const missing = required.filter((key) => !process.env[key])
@@ -54,6 +55,15 @@ const validateEnv = () => {
 
   if (process.env.NODE_ENV === 'production' && process.env.DEBUG_ERRORS === 'true') {
     console.error('Invalid configuration: DEBUG_ERRORS=true is not allowed in production.')
+    process.exit(1)
+  }
+
+  const enablePasswordResetFlag = process.env.ENABLE_PASSWORD_RESET
+  if (
+    enablePasswordResetFlag !== undefined &&
+    !validBooleanFlagValues.has(String(enablePasswordResetFlag).trim())
+  ) {
+    console.error('Invalid configuration: ENABLE_PASSWORD_RESET must be set to "true" or "false" when provided.')
     process.exit(1)
   }
 

@@ -1,7 +1,7 @@
 const test = require('node:test')
 const assert = require('node:assert/strict')
 
-const { buildCorsOriginValidator } = require('../src/utils/realtime')
+const { buildCorsOriginValidator, createSocketEventRateLimiter } = require('../src/utils/realtime')
 
 const runValidator = (validator, origin) => new Promise((resolve) => {
   validator(origin, (error, allowed) => {
@@ -53,4 +53,38 @@ test('buildCorsOriginValidator allows explicitly trusted origins', async () => {
 
   assert.equal(result.error, null)
   assert.equal(result.allowed, true)
+})
+
+test('createSocketEventRateLimiter blocks bursts above maxEvents within the same window', () => {
+  let now = 0
+  const limiter = createSocketEventRateLimiter({
+    maxEvents: 3,
+    windowMs: 1_000,
+    now: () => now
+  })
+
+  assert.equal(limiter.consume(), true)
+  assert.equal(limiter.consume(), true)
+  assert.equal(limiter.consume(), true)
+  assert.equal(limiter.consume(), false)
+})
+
+test('createSocketEventRateLimiter refills tokens over time', () => {
+  let now = 0
+  const limiter = createSocketEventRateLimiter({
+    maxEvents: 2,
+    windowMs: 1_000,
+    now: () => now
+  })
+
+  assert.equal(limiter.consume(), true)
+  assert.equal(limiter.consume(), true)
+  assert.equal(limiter.consume(), false)
+
+  now = 500
+  assert.equal(limiter.consume(), true)
+  assert.equal(limiter.consume(), false)
+
+  now = 1000
+  assert.equal(limiter.consume(), true)
 })

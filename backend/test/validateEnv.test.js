@@ -123,3 +123,35 @@ test('validateEnv rejects enabling debug errors in production', async () => {
     restoreEnv(originalEnv)
   }
 })
+
+test('validateEnv rejects invalid ENABLE_PASSWORD_RESET values', async () => {
+  const originalEnv = { ...process.env }
+  Object.assign(process.env, baseEnv, {
+    ENABLE_PASSWORD_RESET: 'True'
+  })
+
+  try {
+    await withPatchedConsoleError(async (errorCalls) => {
+      await withPatchedExit(async (exitCalls) => {
+        assert.throws(() => validateEnv(), /process\.exit:1/)
+        assert.deepEqual(exitCalls, [1])
+        assert.match(errorCalls[0], /ENABLE_PASSWORD_RESET must be set to "true" or "false"/)
+      })
+    })
+  } finally {
+    restoreEnv(originalEnv)
+  }
+})
+
+test('validateEnv accepts explicit ENABLE_PASSWORD_RESET boolean strings', () => {
+  const originalEnv = { ...process.env }
+  Object.assign(process.env, baseEnv, {
+    ENABLE_PASSWORD_RESET: 'false'
+  })
+
+  try {
+    assert.doesNotThrow(() => validateEnv())
+  } finally {
+    restoreEnv(originalEnv)
+  }
+})
