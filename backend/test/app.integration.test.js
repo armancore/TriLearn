@@ -66,6 +66,7 @@ test('GET /ping returns an ok response', async () => {
     response.headers['strict-transport-security'],
     'max-age=63072000; includeSubDomains; preload'
   )
+  assert.equal(response.headers['cross-origin-resource-policy'], 'same-site')
 })
 
 test('GET /health returns only a minimal public status payload', async () => {
@@ -73,6 +74,22 @@ test('GET /health returns only a minimal public status payload', async () => {
 
   assert.equal(response.status, 200)
   assert.deepEqual(response.body, { status: 'ok' })
+})
+
+test('GET /health returns 404 for external requests without a health check key', async () => {
+  const response = await request(app)
+    .get('/health')
+    .set('X-Forwarded-For', '203.0.113.10')
+
+  assert.equal(response.status, 404)
+  assert.deepEqual(response.body, { message: 'Route not found' })
+})
+
+test('GET / responds with the generic not found payload', async () => {
+  const response = await request(app).get('/')
+
+  assert.equal(response.status, 404)
+  assert.deepEqual(response.body, { message: 'Route not found' })
 })
 
 test('unknown routes return a JSON 404 response', async () => {
@@ -342,6 +359,54 @@ test('POST /api/v1/auth/refresh returns 401 when the refresh cookie is missing',
 
   assert.equal(response.status, 401)
   assert.deepEqual(response.body, { message: 'Refresh token is required' })
+})
+
+test('refreshLimiter keys refresh attempts by decoded user id before falling back to token hash', () => {
+  const capturedConfigs = []
+
+  loadWithMocks(resolveFromTest('src', 'middleware', 'rateLimit.middleware.js'), {
+    'express-rate-limit': {
+      ipKeyGenerator: (ip) => `ip:${ip}`,
+      rateLimit: (config) => {
+        capturedConfigs.push(config)
+        return (_req, _res, next) => next()
+      }
+    },
+    'rate-limit-redis': {
+      RedisStore: class RedisStore {}
+    },
+    redis: {
+      createClient: () => ({
+        on: () => {},
+        connect: async () => {},
+        sendCommand: async () => {}
+      })
+    },
+    '../utils/token': {
+      hashToken: (token) => `hash:${token}`,
+      verifyRefreshToken: (token) => {
+        if (token === 'valid-refresh-token') {
+          return { id: 'user-123' }
+        }
+
+        throw new Error('invalid token')
+      }
+    }
+  })
+
+  const refreshConfig = capturedConfigs.find((config) => config.message?.message === 'Too many session refresh attempts, please try again shortly')
+
+  assert.ok(refreshConfig)
+  assert.equal(refreshConfig.keyGenerator({
+    cookies: { refreshToken: 'valid-refresh-token' },
+    body: {},
+    ip: '198.51.100.10'
+  }), 'refresh-user:user-123')
+  assert.equal(refreshConfig.keyGenerator({
+    cookies: { refreshToken: 'garbled-token' },
+    body: {},
+    ip: '198.51.100.10'
+  }), 'refresh-token:hash:garbled-token')
 })
 
 test('POST /api/v1/auth/logout runs the logout limiter before the controller', async () => {

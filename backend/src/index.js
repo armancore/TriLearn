@@ -26,9 +26,50 @@ let maintenance = null
 let isShuttingDown = false
 
 const shouldExposeInternalErrors = () => String(process.env.DEBUG_ERRORS || '').trim().toLowerCase() === 'true'
+const INTERNAL_HEALTHCHECK_HEADER = 'x-health-check-key'
 const getErrorMessage = (error, fallbackMessage = 'Something went wrong') => {
   const errorMessage = error instanceof Error ? error.message : String(error)
   return shouldExposeInternalErrors() ? (errorMessage || fallbackMessage) : fallbackMessage
+}
+
+const normalizeIpAddress = (value) => String(value || '').trim().toLowerCase().replace(/^::ffff:/, '')
+const isPrivateIpv4 = (value) => {
+  const match = /^(\d{1,3})(?:\.(\d{1,3})){3}$/.exec(value)
+  if (!match) {
+    return false
+  }
+
+  const octets = value.split('.').map((segment) => Number.parseInt(segment, 10))
+  if (octets.some((segment) => segment < 0 || segment > 255)) {
+    return false
+  }
+
+  const [first, second] = octets
+  return first === 10 ||
+    first === 127 ||
+    first === 169 && second === 254 ||
+    first === 172 && second >= 16 && second <= 31 ||
+    first === 192 && second === 168
+}
+
+const isInternalRequest = (req) => {
+  const normalizedIp = normalizeIpAddress(req.ip || req.socket?.remoteAddress || '')
+  return normalizedIp === '::1' || normalizedIp === '::' || normalizedIp === 'localhost' || isPrivateIpv4(normalizedIp)
+}
+
+const requireInternalHealthcheck = (req, res, next) => {
+  const configuredHealthcheckKey = String(process.env.HEALTHCHECK_KEY || '').trim()
+  const providedHealthcheckKey = String(req.get(INTERNAL_HEALTHCHECK_HEADER) || '').trim()
+
+  if (isInternalRequest(req)) {
+    return next()
+  }
+
+  if (configuredHealthcheckKey && providedHealthcheckKey === configuredHealthcheckKey) {
+    return next()
+  }
+
+  return res.status(404).json({ message: 'Route not found' })
 }
 
 app.set('trust proxy', 1)
@@ -42,7 +83,7 @@ app.use(helmet({
       frameAncestors: ["'none'"]
     }
   },
-  crossOriginResourcePolicy: { policy: 'cross-origin' },
+  crossOriginResourcePolicy: { policy: 'same-site' },
   hsts: {
     maxAge: 63072000,
     includeSubDomains: true,
@@ -114,16 +155,12 @@ apiV1.use('/notifications', notificationRoutes)
 
 app.use('/api/v1', apiV1)
 
-app.get('/health', (_req, res) => {
+app.get('/health', requireInternalHealthcheck, (_req, res) => {
   res.json({ status: 'ok' })
 })
 
-app.get('/ping', (_req, res) => {
+app.get('/ping', requireInternalHealthcheck, (_req, res) => {
   res.json({ status: 'ok' })
-})
-
-app.get('/', (req, res) => {
-  res.json({ message: 'TriLearn backend is running! 🚀' })
 })
 
 app.use((req, res) => {

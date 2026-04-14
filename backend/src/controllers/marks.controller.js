@@ -501,12 +501,21 @@ const buildStaffReviewFilters = ({ req, subjectId, examType }) => {
   }
 
   if (req.user.role === 'COORDINATOR') {
+    if (!req.coordinator?.department) {
+      return {
+        error: {
+          status: 403,
+          message: 'Coordinator department is not configured'
+        }
+      }
+    }
+
     where.subject = {
-      department: req.coordinator?.department || '__NO_COORDINATOR_DEPARTMENT__'
+      department: req.coordinator.department
     }
   }
 
-  return where
+  return { where }
 }
 
 const createMarkPayload = ({ studentId, subjectId, instructorId, examType, totalMarks, obtainedMarks, remarks }) => ({
@@ -797,7 +806,12 @@ const getMarksReview = async (req, res) => {
     const { examType, subjectId } = req.query
     const { page, limit, skip } = getPagination(req.query)
 
-    const where = buildStaffReviewFilters({ req, subjectId, examType })
+    const filters = buildStaffReviewFilters({ req, subjectId, examType })
+    if (filters.error) {
+      return res.status(filters.error.status).json({ message: filters.error.message })
+    }
+
+    const { where } = filters
 
     const [marks, total] = await Promise.all([
       prisma.mark.findMany({

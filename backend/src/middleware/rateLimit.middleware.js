@@ -1,6 +1,7 @@
 const { ipKeyGenerator, rateLimit } = require('express-rate-limit')
 const { RedisStore } = require('rate-limit-redis')
 const { createClient } = require('redis')
+const { hashToken, verifyRefreshToken } = require('../utils/token')
 
 let redisClient
 let redisStore
@@ -80,6 +81,25 @@ const loginRateLimitKey = (req) => {
   return `${ipKey}:${email || 'unknown-email'}`
 }
 
+const refreshRateLimitKey = (req) => {
+  const refreshToken = req.body?.refreshToken || req.cookies?.refreshToken
+
+  if (!refreshToken) {
+    return ipKeyGenerator(req.ip || '')
+  }
+
+  try {
+    const decoded = verifyRefreshToken(refreshToken)
+    if (decoded?.id) {
+      return `refresh-user:${decoded.id}`
+    }
+  } catch {
+    // Fall back to the hashed token value for malformed or expired tokens.
+  }
+
+  return `refresh-token:${hashToken(refreshToken)}`
+}
+
 const apiLimiter = createLimiter({
   max: 300,
   message: 'Too many requests, please try again later'
@@ -105,7 +125,8 @@ const loginLimiter = createLimiter({
 const refreshLimiter = createLimiter({
   windowMs: 5 * 60 * 1000,
   max: 60,
-  message: 'Too many session refresh attempts, please try again shortly'
+  message: 'Too many session refresh attempts, please try again shortly',
+  keyGenerator: refreshRateLimitKey
 })
 
 const logoutLimiter = createLimiter({

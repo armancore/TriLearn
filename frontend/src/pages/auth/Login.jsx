@@ -22,6 +22,10 @@ const validateLogin = (values) => {
     errors.password = 'Password is required'
   }
 
+  if (values.captchaToken && !values.captchaAnswer.trim()) {
+    errors.captchaAnswer = 'Complete the security check'
+  }
+
   return errors
 }
 
@@ -30,11 +34,14 @@ const Login = () => {
   const [loading, setLoading] = useState(false)
   const [retryCountdown, setRetryCountdown] = useState(0)
   const [showPassword, setShowPassword] = useState(false)
+  const [captchaChallenge, setCaptchaChallenge] = useState(null)
   const { login } = useAuth()
   const navigate = useNavigate()
-  const { values, errors, handleChange, handleSubmit } = useForm({
+  const { values, errors, handleChange, handleSubmit, setValues } = useForm({
     email: '',
-    password: ''
+    password: '',
+    captchaToken: '',
+    captchaAnswer: ''
   }, validateLogin)
   const features = [
     {
@@ -77,14 +84,32 @@ const Login = () => {
     setError('')
 
     try {
-      const res = await api.post('/auth/login', formValues)
+      const loginPayload = {
+        email: formValues.email,
+        password: formValues.password,
+        ...(formValues.captchaToken ? { captchaToken: formValues.captchaToken } : {}),
+        ...(formValues.captchaAnswer.trim() ? { captchaAnswer: formValues.captchaAnswer.trim() } : {})
+      }
+      const res = await api.post('/auth/login', loginPayload)
       const { user, token } = res.data
+      setCaptchaChallenge(null)
+      setValues((current) => ({ ...current, captchaToken: '', captchaAnswer: '' }))
       login(user, token)
       navigate(getHomeRouteForUser(user))
     } catch (err) {
       if (err?.response?.status === 429) {
         setRetryCountdown(getRetryAfterSeconds(err, 60))
       }
+
+      if (err?.response?.data?.requiresCaptcha && err?.response?.data?.captchaChallenge) {
+        setCaptchaChallenge(err.response.data.captchaChallenge)
+        setValues((current) => ({
+          ...current,
+          captchaToken: err.response.data.captchaChallenge.token,
+          captchaAnswer: ''
+        }))
+      }
+
       setError(getFriendlyErrorMessage(err, 'Login failed. Please try again.'))
     } finally {
       setLoading(false)
@@ -169,6 +194,25 @@ const Login = () => {
           </div>
           {errors.password && <p className="ui-form-helper-error">{errors.password}</p>}
         </div>
+
+        {captchaChallenge ? (
+          <div>
+            <label className="ui-form-label">Security check</label>
+            <p className="mb-2 text-sm text-[var(--color-text-muted)]">
+              Too many failed sign-in attempts. {captchaChallenge.prompt}
+            </p>
+            <input
+              name="captchaAnswer"
+              type="text"
+              value={values.captchaAnswer}
+              onChange={handleChange}
+              placeholder="Enter the answer"
+              required
+              className={`ui-form-input ${errors.captchaAnswer ? 'ui-form-input-error' : ''}`}
+            />
+            {errors.captchaAnswer && <p className="ui-form-helper-error">{errors.captchaAnswer}</p>}
+          </div>
+        ) : null}
 
         <button
           type="submit"

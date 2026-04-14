@@ -153,8 +153,46 @@ test('login returns generic invalid credentials when user does not exist', async
   assert.equal(compareCalls[0][0], 'wrong-password')
 })
 
+test('login applies a minimum response duration for invalid credentials', async () => {
+  process.env.QR_SIGNING_SECRET = 'test-qr-secret'
+
+  const originalSetTimeout = global.setTimeout
+  const timeoutCalls = []
+  global.setTimeout = (callback, delay, ...args) => {
+    timeoutCalls.push(delay)
+    callback(...args)
+    return 0
+  }
+
+  try {
+    const { login } = loadWithMocks(resolveFromTest('src', 'controllers', 'auth.controller.js'), authControllerMocks({
+      '../utils/prisma': {
+        user: {
+          findUnique: async () => null
+        }
+      }
+    }))
+
+    const req = {
+      body: {
+        email: 'missing@example.com',
+        password: 'wrong-password'
+      }
+    }
+    const res = createResponse()
+
+    await login(req, res)
+
+    assert.equal(res.statusCode, 401)
+    assert.ok(timeoutCalls.some((delay) => delay > 0))
+  } finally {
+    global.setTimeout = originalSetTimeout
+  }
+})
+
 test('login locks the account after repeated failed password attempts', async () => {
   process.env.QR_SIGNING_SECRET = 'test-qr-secret'
+  process.env.JWT_SECRET = 'test-jwt-secret'
   const updates = []
 
   const { login } = loadWithMocks(resolveFromTest('src', 'controllers', 'auth.controller.js'), authControllerMocks({
@@ -191,6 +229,125 @@ test('login locks the account after repeated failed password attempts', async ()
   assert.equal(updates.length, 1)
   assert.equal(updates[0].data.failedLoginAttempts, 5)
   assert.ok(updates[0].data.lockedUntil instanceof Date)
+})
+
+test('login returns a captcha challenge after repeated failed attempts below lockout', async () => {
+  process.env.QR_SIGNING_SECRET = 'test-qr-secret'
+  process.env.JWT_SECRET = 'test-jwt-secret'
+  const updates = []
+
+  const { login } = loadWithMocks(resolveFromTest('src', 'controllers', 'auth.controller.js'), authControllerMocks({
+    '../utils/prisma': {
+      user: {
+        findUnique: async () => ({
+          id: 'user-1',
+          email: 'student@example.com',
+          password: 'hashed-password',
+          role: 'STUDENT',
+          isActive: true,
+          failedLoginAttempts: 2,
+          lockedUntil: null
+        }),
+        update: async (payload) => {
+          updates.push(payload)
+          return payload
+        }
+      }
+    }
+  }))
+
+  const req = {
+    body: {
+      email: 'student@example.com',
+      password: 'wrong-password'
+    }
+  }
+  const res = createResponse()
+
+  await login(req, res)
+
+  assert.equal(res.statusCode, 401)
+  assert.equal(updates.length, 1)
+  assert.equal(updates[0].data.failedLoginAttempts, 3)
+  assert.equal(res.body.requiresCaptcha, true)
+  assert.equal(typeof res.body.captchaChallenge?.prompt, 'string')
+  assert.equal(typeof res.body.captchaChallenge?.token, 'string')
+})
+
+test('login requires a captcha challenge once the failure threshold is reached', async () => {
+  process.env.QR_SIGNING_SECRET = 'test-qr-secret'
+  process.env.JWT_SECRET = 'test-jwt-secret'
+  const userUpdates = []
+  const studentUpdates = []
+
+  const { login } = loadWithMocks(resolveFromTest('src', 'controllers', 'auth.controller.js'), authControllerMocks({
+    '../utils/prisma': {
+      user: {
+        findUnique: async (...args) => {
+          if (args[0]?.where?.email === 'student@example.com') {
+            return {
+              id: 'user-1',
+              email: 'student@example.com',
+              password: 'hashed-password',
+              role: 'STUDENT',
+              isActive: true,
+              failedLoginAttempts: 3,
+              lockedUntil: null,
+              mustChangePassword: false,
+              profileCompleted: true
+            }
+          }
+
+          userUpdates.push(args[0])
+          return {
+            id: 'user-1',
+            name: 'Student User',
+            email: 'student@example.com',
+            role: 'STUDENT',
+            avatar: null,
+            mustChangePassword: false,
+            profileCompleted: true,
+            student: {
+              id: 'student-1',
+              rollNumber: '23-001',
+              semester: 3,
+              section: 'A',
+              department: 'BCA'
+            }
+          }
+        },
+        update: async (payload) => {
+          userUpdates.push(payload)
+          return payload
+        }
+      },
+      student: {
+        update: async (payload) => {
+          studentUpdates.push(payload)
+          return payload
+        }
+      }
+    },
+    'bcryptjs': {
+      compare: async () => true,
+      hash: async () => 'hashed'
+    }
+  }))
+
+  const req = {
+    body: {
+      email: 'student@example.com',
+      password: 'Password123'
+    }
+  }
+  const res = createResponse()
+
+  await login(req, res)
+
+  assert.equal(res.statusCode, 401)
+  assert.deepEqual(res.body.message, 'Please complete the security check to continue.')
+  assert.equal(res.body.requiresCaptcha, true)
+  assert.equal(studentUpdates.length, 0)
 })
 
 test('login blocks requests while the account is locked', async () => {
@@ -400,6 +557,40 @@ test('auth dateOfBirth schemas reject invalid and out-of-range values', () => {
   }))
 })
 
+test('material fileUrl schema allows public https URLs and rejects unsafe URLs', () => {
+  const { schemas } = require(resolveFromTest('src', 'validators', 'schemas.js'))
+
+  const parsed = schemas.materials.create.body.parse({
+    title: 'Week 1 Notes',
+    description: 'Introduction handout',
+    fileUrl: 'https://cdn.example.com/materials/week-1.pdf',
+    subjectId: '550e8400-e29b-41d4-a716-446655440000'
+  })
+
+  assert.equal(parsed.fileUrl, 'https://cdn.example.com/materials/week-1.pdf')
+
+  assert.throws(() => schemas.materials.create.body.parse({
+    title: 'Week 1 Notes',
+    description: 'Introduction handout',
+    fileUrl: 'javascript:alert(1)',
+    subjectId: '550e8400-e29b-41d4-a716-446655440000'
+  }))
+
+  assert.throws(() => schemas.materials.create.body.parse({
+    title: 'Week 1 Notes',
+    description: 'Introduction handout',
+    fileUrl: 'http://169.254.169.254/latest/meta-data/',
+    subjectId: '550e8400-e29b-41d4-a716-446655440000'
+  }))
+
+  assert.throws(() => schemas.materials.create.body.parse({
+    title: 'Week 1 Notes',
+    description: 'Introduction handout',
+    fileUrl: 'https://192.168.1.10/private.pdf',
+    subjectId: '550e8400-e29b-41d4-a716-446655440000'
+  }))
+})
+
 test('submitStudentIntake returns a generic response when a matching user already exists', async () => {
   const originalNow = Date.now
   const originalSetTimeout = global.setTimeout
@@ -506,6 +697,7 @@ test('logout still runs a token revocation query when no refresh token is provid
 
 test('login hides suspension reasons from the response', async () => {
   process.env.QR_SIGNING_SECRET = 'test-qr-secret'
+  const warnCalls = []
 
   const { login } = loadWithMocks(resolveFromTest('src', 'controllers', 'auth.controller.js'), authControllerMocks({
     '../utils/prisma': {
@@ -525,6 +717,13 @@ test('login hides suspension reasons from the response', async () => {
     'bcryptjs': {
       compare: async () => true,
       hash: async () => 'hashed'
+    },
+    '../utils/logger': {
+      info: () => {},
+      error: () => {},
+      warn: (...args) => {
+        warnCalls.push(args)
+      }
     },
     '../utils/security': {
       hashPassword: async () => 'hashed-password',
@@ -546,6 +745,152 @@ test('login hides suspension reasons from the response', async () => {
   assert.deepEqual(res.body, {
     message: 'Your account has been disabled. Please contact the administration.'
   })
+  assert.equal(warnCalls.length, 1)
+  assert.equal(warnCalls[0][0], 'Suspended user login blocked')
+  assert.deepEqual(warnCalls[0][1], {
+    userId: 'user-1',
+    email: 'student@example.com'
+  })
+})
+
+test('updateProfile blocks students from changing their own section', async () => {
+  const userUpdates = []
+  const studentUpdates = []
+
+  const { updateProfile } = loadWithMocks(resolveFromTest('src', 'controllers', 'auth.controller.js'), authControllerMocks({
+    '../utils/prisma': {
+      user: {
+        update: async (payload) => {
+          userUpdates.push(payload)
+          return { id: 'user-1' }
+        },
+        findUnique: async () => ({
+          id: 'user-1',
+          name: 'Student User',
+          email: 'student@example.com',
+          role: 'STUDENT',
+          phone: '9800000000',
+          address: 'Kathmandu',
+          avatar: null,
+          createdAt: new Date('2026-04-14T00:00:00.000Z'),
+          mustChangePassword: false,
+          profileCompleted: true,
+          student: {
+            id: 'student-1',
+            rollNumber: '23-001',
+            semester: 3,
+            section: 'A',
+            department: 'BCA'
+          },
+          instructor: null,
+          coordinator: null
+        })
+      },
+      student: {
+        update: async (payload) => {
+          studentUpdates.push(payload)
+          return { id: 'student-1' }
+        }
+      }
+    }
+  }))
+
+  const req = {
+    user: { id: 'user-1', role: 'STUDENT' },
+    body: {
+      phone: '9800000000',
+      section: 'B'
+    }
+  }
+  const res = createResponse()
+
+  await updateProfile(req, res)
+
+  assert.equal(res.statusCode, 403)
+  assert.deepEqual(res.body, {
+    message: 'Students cannot update their section through profile settings'
+  })
+  assert.equal(userUpdates.length, 0)
+  assert.equal(studentUpdates.length, 0)
+})
+
+test('refresh revokes all active sessions when a rotated refresh token is replayed', async () => {
+  const updateManyCalls = []
+  const warnCalls = []
+  const auditCalls = []
+
+  const { refresh } = loadWithMocks(resolveFromTest('src', 'controllers', 'auth.controller.js'), authControllerMocks({
+    '../utils/prisma': {
+      refreshToken: {
+        findUnique: async () => ({
+          id: 'session-1',
+          userId: 'user-1',
+          revokedAt: new Date('2026-04-14T09:00:00.000Z'),
+          expiresAt: new Date('2026-04-20T09:00:00.000Z'),
+          user: {
+            id: 'user-1',
+            role: 'STUDENT',
+            isActive: true
+          }
+        }),
+        updateMany: async (payload) => {
+          updateManyCalls.push(payload)
+          return { count: 2 }
+        }
+      }
+    },
+    '../utils/logger': {
+      info: () => {},
+      error: () => {},
+      warn: (...args) => {
+        warnCalls.push(args)
+      }
+    },
+    '../utils/audit': {
+      recordAuditLog: async (payload) => {
+        auditCalls.push(payload)
+      }
+    },
+    '../utils/token': {
+      signAccessToken: () => 'access-token',
+      signRefreshToken: () => 'new-refresh-token',
+      verifyRefreshToken: () => ({ id: 'user-1', role: 'STUDENT' }),
+      hashToken: () => 'replayed-hash',
+      getRefreshTokenExpiry: () => new Date(),
+      getRefreshCookieOptions: () => ({ path: '/api/v1/auth', httpOnly: true })
+    }
+  }))
+
+  const req = {
+    cookies: {
+      refreshToken: 'stolen-refresh-token'
+    },
+    ip: '203.0.113.10',
+    get: (name) => name === 'user-agent' ? 'Replay Bot' : undefined
+  }
+  const res = createResponse()
+
+  await refresh(req, res)
+
+  assert.equal(res.statusCode, 401)
+  assert.deepEqual(res.body, { message: 'Refresh token is invalid or expired' })
+  assert.equal(updateManyCalls.length, 1)
+  assert.deepEqual(updateManyCalls[0].where, {
+    userId: 'user-1',
+    revokedAt: null
+  })
+  assert.equal(warnCalls.length, 1)
+  assert.equal(warnCalls[0][0], 'Refresh token reuse detected; revoked all active sessions')
+  assert.deepEqual(warnCalls[0][1], {
+    userId: 'user-1',
+    sessionId: 'session-1',
+    ipAddress: '203.0.113.10',
+    userAgent: 'Replay Bot'
+  })
+  assert.equal(auditCalls.length, 1)
+  assert.equal(auditCalls[0].action, 'AUTH_REFRESH_TOKEN_REUSE_DETECTED')
+  assert.equal(res.cookies[0][0], 'clearCookie')
+  assert.equal(res.cookies[0][1], 'refreshToken')
 })
 
 test('allowRoles blocks unauthorized roles with 403', async () => {
@@ -2636,6 +2981,54 @@ test('getMarksReview scopes coordinator queries to their department', async () =
     }
   })
   assert.deepEqual(countCalls[0].where, findManyCalls[0].where)
+})
+
+test('getMarksReview blocks coordinators without a configured department', async () => {
+  const findManyCalls = []
+  const countCalls = []
+  const { getMarksReview } = loadWithMocks(resolveFromTest('src', 'controllers', 'marks.controller.js'), {
+    '../utils/prisma': {
+      mark: {
+        findMany: async (payload) => {
+          findManyCalls.push(payload)
+          return []
+        },
+        count: async (payload) => {
+          countCalls.push(payload)
+          return 0
+        }
+      }
+    },
+    '../utils/pagination': {
+      getPagination: () => ({ page: 1, limit: 20, skip: 0 })
+    },
+    '../utils/audit': {
+      recordAuditLog: async () => {}
+    },
+    '../utils/notifications': {
+      createNotifications: async () => {}
+    },
+    pdfkit: class MockPdfDocument {}
+  })
+
+  const req = {
+    query: {
+      examType: 'FINAL',
+      subjectId: 'subject-2'
+    },
+    user: { id: 'coordinator-user-2', role: 'COORDINATOR' },
+    coordinator: { department: null }
+  }
+  const res = createResponse()
+
+  await getMarksReview(req, res)
+
+  assert.equal(res.statusCode, 403)
+  assert.deepEqual(res.body, {
+    message: 'Coordinator department is not configured'
+  })
+  assert.equal(findManyCalls.length, 0)
+  assert.equal(countCalls.length, 0)
 })
 
 test('createRoutine blocks instructor double-booking with a specific error', async () => {

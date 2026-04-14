@@ -79,4 +79,59 @@ describe('Login', () => {
     expect(loginMock).toHaveBeenCalledWith({ role: 'ADMIN', name: 'Casey' }, 'token-123')
     expect(navigateMock).toHaveBeenCalledWith('/admin')
   })
+
+  test('renders and submits the login captcha challenge after repeated failures', async () => {
+    postMock
+      .mockRejectedValueOnce({
+        response: {
+          status: 401,
+          data: {
+            message: 'Please complete the security check to continue.',
+            requiresCaptcha: true,
+            captchaChallenge: {
+              prompt: 'What is 2 + 3?',
+              token: 'captcha-token-1'
+            }
+          }
+        }
+      })
+      .mockResolvedValueOnce({
+        data: {
+          user: { role: 'ADMIN', name: 'Casey' },
+          token: 'token-123'
+        }
+      })
+
+    render(
+      <MemoryRouter>
+        <Login />
+      </MemoryRouter>
+    )
+
+    fireEvent.change(screen.getByPlaceholderText(/enter your email/i), {
+      target: { value: 'admin@example.com' }
+    })
+    fireEvent.change(screen.getByPlaceholderText(/enter your password/i), {
+      target: { value: 'password123' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: /login to trilearn/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText(/what is 2 \+ 3\?/i)).toBeInTheDocument()
+    })
+
+    fireEvent.change(screen.getByPlaceholderText(/enter the answer/i), {
+      target: { value: '5' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: /login to trilearn/i }))
+
+    await waitFor(() => {
+      expect(postMock).toHaveBeenLastCalledWith('/auth/login', {
+        email: 'admin@example.com',
+        password: 'password123',
+        captchaToken: 'captcha-token-1',
+        captchaAnswer: '5'
+      })
+    })
+  })
 })

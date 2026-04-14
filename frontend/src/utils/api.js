@@ -23,6 +23,21 @@ export const API_BASE_URL = normalizeApiBaseUrl(import.meta.env.VITE_API_URL)
 export const API_ORIGIN = API_BASE_URL.replace(/\/api(?:\/v\d+)?\/?$/, '')
 const AUTH_USER_STORAGE_KEY = 'trilearn.auth.user'
 const REFRESH_COOLDOWN_STORAGE_KEY = 'trilearn.auth.refresh.cooldownUntil'
+const AUTH_USER_PERSISTED_FIELDS = ['name', 'role', 'mustChangePassword', 'profileCompleted']
+
+const buildStoredUserSnapshot = (user) => {
+  if (!user || typeof user !== 'object') {
+    return null
+  }
+
+  return AUTH_USER_PERSISTED_FIELDS.reduce((snapshot, field) => {
+    if (Object.prototype.hasOwnProperty.call(user, field) && user[field] != null) {
+      snapshot[field] = user[field]
+    }
+
+    return snapshot
+  }, {})
+}
 
 const readStoredUser = () => {
   if (typeof window === 'undefined') {
@@ -31,7 +46,7 @@ const readStoredUser = () => {
 
   try {
     const serializedUser = window.sessionStorage.getItem(AUTH_USER_STORAGE_KEY)
-    return serializedUser ? JSON.parse(serializedUser) : null
+    return serializedUser ? buildStoredUserSnapshot(JSON.parse(serializedUser)) : null
   } catch {
     return null
   }
@@ -44,7 +59,13 @@ const writeStoredUser = (user) => {
 
   try {
     if (user) {
-      window.sessionStorage.setItem(AUTH_USER_STORAGE_KEY, JSON.stringify(user))
+      const storedUserSnapshot = buildStoredUserSnapshot(user)
+
+      if (storedUserSnapshot && Object.keys(storedUserSnapshot).length > 0) {
+        window.sessionStorage.setItem(AUTH_USER_STORAGE_KEY, JSON.stringify(storedUserSnapshot))
+      } else {
+        window.sessionStorage.removeItem(AUTH_USER_STORAGE_KEY)
+      }
     } else {
       window.sessionStorage.removeItem(AUTH_USER_STORAGE_KEY)
     }
@@ -376,11 +397,20 @@ export const refreshSession = async () => {
 
   if (!refreshPromise) {
     refreshPromise = refreshClient.post('/auth/refresh')
-      .then((response) => {
-        const { token, user } = response.data
+      .then(async (response) => {
+        const { token } = response.data
+        const meResponse = await refreshClient.get('/auth/me', {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        })
+
         clearRefreshCooldown()
-        setAuthState({ token, user })
-        return response.data
+        setAuthState({ token, user: meResponse.data.user })
+        return {
+          ...response.data,
+          user: meResponse.data.user
+        }
       })
       .catch((error) => {
         if (error?.response?.status === 429) {

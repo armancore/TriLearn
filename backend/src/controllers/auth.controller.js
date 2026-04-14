@@ -39,6 +39,9 @@ const LOGIN_LOCKOUT_MINUTES = 15
 const STUDENT_ID_QR_VALIDITY_HOURS = 24
 const LOGOUT_MIN_RESPONSE_MS = 75
 const STUDENT_INTAKE_MIN_RESPONSE_MS = 75
+const LOGIN_MIN_RESPONSE_MS = 75
+const LOGIN_CAPTCHA_THRESHOLD = 3
+const LOGIN_CAPTCHA_TTL_MS = 5 * 60 * 1000
 const GENERIC_ELIGIBILITY_MESSAGE = 'If this email is eligible, you will receive further instructions.'
 const GENERIC_DISABLED_ACCOUNT_MESSAGE = 'Your account has been disabled. Please contact the administration.'
 const DUMMY_PASSWORD_HASH = '$2b$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy'
@@ -67,6 +70,127 @@ const respondGenericEligibility = async (res, startedAt) => {
 
 const isMobileClient = (req) => String(req.headers?.['x-client-type'] || '').toLowerCase() === 'mobile'
 const sanitizeOptionalPlainText = (value) => (value == null ? value : sanitizePlainText(value))
+const normalizeEmail = (value) => String(value || '').trim().toLowerCase()
+const refreshUserSelect = {
+  id: true,
+  name: true,
+  email: true,
+  role: true,
+  avatar: true,
+  isActive: true,
+  mustChangePassword: true,
+  profileCompleted: true,
+  student: {
+    select: {
+      id: true,
+      rollNumber: true,
+      semester: true,
+      section: true,
+      department: true
+    }
+  },
+  instructor: {
+    select: {
+      id: true,
+      department: true
+    }
+  },
+  coordinator: {
+    select: {
+      id: true,
+      department: true
+    }
+  }
+}
+
+const getLoginCaptchaSecret = () => {
+  if (process.env.LOGIN_CAPTCHA_SECRET) {
+    return process.env.LOGIN_CAPTCHA_SECRET
+  }
+
+  if (process.env.JWT_SECRET) {
+    return process.env.JWT_SECRET
+  }
+
+  throw new Error('LOGIN_CAPTCHA_SECRET or JWT_SECRET must be configured')
+}
+
+const signLoginCaptchaPayload = (payload) => {
+  const encodedPayload = Buffer
+    .from(JSON.stringify(payload), 'utf8')
+    .toString('base64url')
+
+  const signature = crypto
+    .createHmac('sha256', getLoginCaptchaSecret())
+    .update(encodedPayload)
+    .digest('base64url')
+
+  return `${encodedPayload}.${signature}`
+}
+
+const createLoginCaptchaChallenge = (email) => {
+  const left = crypto.randomInt(1, 10)
+  const right = crypto.randomInt(1, 10)
+  const nonce = crypto.randomUUID()
+  const answer = String(left + right)
+  const payload = {
+    email: normalizeEmail(email),
+    nonce,
+    answerHash: hashToken(`${nonce}:${answer}`),
+    exp: Date.now() + LOGIN_CAPTCHA_TTL_MS
+  }
+
+  return {
+    prompt: `What is ${left} + ${right}?`,
+    token: signLoginCaptchaPayload(payload)
+  }
+}
+
+const validateLoginCaptcha = ({ email, captchaToken, captchaAnswer }) => {
+  if (!captchaToken || !captchaAnswer) {
+    return false
+  }
+
+  const [encodedPayload, providedSignature] = String(captchaToken).split('.')
+  if (!encodedPayload || !providedSignature) {
+    return false
+  }
+
+  const expectedSignature = crypto
+    .createHmac('sha256', getLoginCaptchaSecret())
+    .update(encodedPayload)
+    .digest('base64url')
+
+  try {
+    if (!crypto.timingSafeEqual(Buffer.from(providedSignature), Buffer.from(expectedSignature))) {
+      return false
+    }
+  } catch {
+    return false
+  }
+
+  let payload
+  try {
+    payload = JSON.parse(Buffer.from(encodedPayload, 'base64url').toString('utf8'))
+  } catch {
+    return false
+  }
+
+  if (!payload || payload.exp <= Date.now() || payload.email !== normalizeEmail(email)) {
+    return false
+  }
+
+  const submittedAnswer = String(captchaAnswer).trim()
+  return hashToken(`${payload.nonce}:${submittedAnswer}`) === payload.answerHash
+}
+
+const shouldRequireLoginCaptcha = (user) => (user?.failedLoginAttempts || 0) >= LOGIN_CAPTCHA_THRESHOLD
+
+const buildLoginCaptchaResponse = (email) => ({
+  message: 'Please complete the security check to continue.',
+  requiresCaptcha: true,
+  captchaChallenge: createLoginCaptchaChallenge(email)
+})
 
 const issueAuthSession = async (user, res, req, previousRefreshToken) => {
   const accessToken = signAccessToken(user)
@@ -275,8 +399,10 @@ const submitStudentIntake = async (req, res) => {
 // LOGIN
 // ================================
 const login = async (req, res) => {
+  const startedAt = Date.now()
+
   try {
-    const { email, password } = req.body
+    const { email, password, captchaToken, captchaAnswer } = req.body
 
     const user = await prisma.user.findUnique({
       where: { email }
@@ -286,17 +412,28 @@ const login = async (req, res) => {
     const isPasswordValid = await bcrypt.compare(password, passwordHash)
 
     if (!user) {
+      await waitForMinimumDuration(startedAt, LOGIN_MIN_RESPONSE_MS)
       return res.status(401).json({ message: 'Invalid credentials' })
     }
 
     if (user.deletedAt) {
+      await waitForMinimumDuration(startedAt, LOGIN_MIN_RESPONSE_MS)
       return res.status(401).json({ message: 'Invalid credentials' })
     }
 
     if (user.lockedUntil && user.lockedUntil > new Date()) {
+      await waitForMinimumDuration(startedAt, LOGIN_MIN_RESPONSE_MS)
       return res.status(423).json({
         message: 'Too many failed login attempts. Please try again later.'
       })
+    }
+
+    const requiresLoginCaptcha = shouldRequireLoginCaptcha(user)
+    const hasValidLoginCaptcha = !requiresLoginCaptcha || validateLoginCaptcha({ email, captchaToken, captchaAnswer })
+
+    if (requiresLoginCaptcha && !hasValidLoginCaptcha && isPasswordValid) {
+      await waitForMinimumDuration(startedAt, LOGIN_MIN_RESPONSE_MS)
+      return res.status(401).json(buildLoginCaptchaResponse(email))
     }
 
     if (!isPasswordValid) {
@@ -311,16 +448,22 @@ const login = async (req, res) => {
         }
       })
 
+      await waitForMinimumDuration(startedAt, LOGIN_MIN_RESPONSE_MS)
+
+      if (failedLoginAttempts >= LOGIN_CAPTCHA_THRESHOLD && !shouldLockAccount) {
+        return res.status(401).json(buildLoginCaptchaResponse(email))
+      }
+
       return res.status(401).json({ message: 'Invalid credentials' })
     }
 
     if (!user.isActive) {
       logger.warn('Suspended user login blocked', {
         userId: user.id,
-        email: user.email,
-        suspensionReason: user.suspensionReason || null
+        email: user.email
       })
 
+      await waitForMinimumDuration(startedAt, LOGIN_MIN_RESPONSE_MS)
       return res.status(403).json({
         message: GENERIC_DISABLED_ACCOUNT_MESSAGE
       })
@@ -353,6 +496,7 @@ const login = async (req, res) => {
       }
     })
 
+    await waitForMinimumDuration(startedAt, LOGIN_MIN_RESPONSE_MS)
     res.json({
       message: user.mustChangePassword
         ? 'Login successful. Please change your password to continue.'
@@ -439,6 +583,13 @@ const updateProfile = async (req, res) => {
       dateOfBirth,
       section
     } = req.body
+
+    if (req.user.role === 'STUDENT' && section !== undefined) {
+      return res.status(403).json({
+        message: 'Students cannot update their section through profile settings'
+      })
+    }
+
     const sanitizedProfile = {
       address: sanitizeOptionalPlainText(address),
       fatherName: sanitizeOptionalPlainText(fatherName),
@@ -779,51 +930,58 @@ const refresh = async (req, res) => {
     }
 
     const decoded = verifyRefreshToken(refreshToken)
-    const storedRefreshToken = await prisma.refreshToken.findFirst({
-      where: {
-        tokenHash: hashToken(refreshToken),
-        userId: decoded.id,
-        revokedAt: null,
-        expiresAt: { gt: new Date() }
-      },
+    const tokenHash = hashToken(refreshToken)
+    const now = new Date()
+    const storedRefreshToken = await prisma.refreshToken.findUnique({
+      where: { tokenHash },
       include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            role: true,
-            avatar: true,
-            isActive: true,
-            mustChangePassword: true,
-            profileCompleted: true,
-            student: {
-              select: {
-                id: true,
-                rollNumber: true,
-                semester: true,
-                section: true,
-                department: true
-              }
-            },
-            instructor: {
-              select: {
-                id: true,
-                department: true
-              }
-            },
-            coordinator: {
-              select: {
-                id: true,
-                department: true
-              }
-            }
-          }
-        }
+        user: { select: refreshUserSelect }
       }
     })
 
-    if (!storedRefreshToken || !storedRefreshToken.user.isActive) {
+    if (storedRefreshToken?.userId === decoded.id && storedRefreshToken.revokedAt) {
+      await prisma.refreshToken.updateMany({
+        where: {
+          userId: decoded.id,
+          revokedAt: null
+        },
+        data: { revokedAt: now }
+      })
+
+      res.clearCookie('refreshToken', {
+        ...getRefreshCookieOptions(req),
+        expires: new Date(0)
+      })
+
+      logger.warn('Refresh token reuse detected; revoked all active sessions', {
+        userId: decoded.id,
+        sessionId: storedRefreshToken.id,
+        ipAddress: getRequestIpAddress(req),
+        userAgent: getRequestUserAgent(req)
+      })
+
+      await recordAuditLog({
+        actorId: decoded.id,
+        actorRole: storedRefreshToken.user?.role || decoded.role,
+        action: 'AUTH_REFRESH_TOKEN_REUSE_DETECTED',
+        entityType: 'AuthSession',
+        metadata: {
+          sessionId: storedRefreshToken.id,
+          ipAddress: getRequestIpAddress(req),
+          userAgent: getRequestUserAgent(req)
+        }
+      })
+
+      return res.status(401).json({ message: 'Refresh token is invalid or expired' })
+    }
+
+    if (
+      !storedRefreshToken ||
+      storedRefreshToken.userId !== decoded.id ||
+      storedRefreshToken.revokedAt ||
+      storedRefreshToken.expiresAt <= now ||
+      !storedRefreshToken.user.isActive
+    ) {
       return res.status(401).json({ message: 'Refresh token is invalid or expired' })
     }
 
