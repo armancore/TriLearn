@@ -317,11 +317,6 @@ const AppShell = ({
                       <p className="truncate text-sm font-semibold">{item.label}</p>
                       <p className={`truncate text-xs ${isActive ? 'text-slate-600' : 'text-slate-300 group-hover:text-slate-200'}`}>{item.meta}</p>
                     </div>
-                    {isDesktopCollapsed ? (
-                      <span className="pointer-events-none absolute left-[calc(100%+0.65rem)] top-1/2 z-50 -translate-y-1/2 whitespace-nowrap rounded-lg border border-[var(--color-card-border)] bg-[var(--color-card-surface)] px-2.5 py-1.5 text-xs font-semibold text-[var(--color-page-text)] opacity-0 shadow-[0_12px_28px_-16px_rgba(15,23,42,0.45)] transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100">
-                        {item.label}
-                      </span>
-                    ) : null}
                   </Link>
                 )
               })}
@@ -355,11 +350,6 @@ const AppShell = ({
                           <p className="truncate text-sm font-medium">{item.label}</p>
                           <p className="truncate text-xs text-slate-500">{item.meta}</p>
                         </div>
-                        {isDesktopCollapsed ? (
-                          <span className="pointer-events-none absolute left-[calc(100%+0.65rem)] top-1/2 z-50 -translate-y-1/2 whitespace-nowrap rounded-lg border border-[var(--color-card-border)] bg-[var(--color-card-surface)] px-2.5 py-1.5 text-xs font-semibold text-[var(--color-page-text)] opacity-0 shadow-[0_12px_28px_-16px_rgba(15,23,42,0.45)] transition-opacity duration-150 group-hover:opacity-100">
-                            {item.label}
-                          </span>
-                        ) : null}
                       </button>
                     )
                   })}
@@ -414,11 +404,6 @@ const AppShell = ({
               }`}>
                 Sign out
               </span>
-              {isDesktopCollapsed ? (
-                <span className="pointer-events-none absolute left-[calc(100%+0.65rem)] top-1/2 z-50 -translate-y-1/2 whitespace-nowrap rounded-lg border border-[var(--color-card-border)] bg-[var(--color-card-surface)] px-2.5 py-1.5 text-xs font-semibold text-[var(--color-page-text)] opacity-0 shadow-[0_12px_28px_-16px_rgba(15,23,42,0.45)] transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100">
-                  Sign out
-                </span>
-              ) : null}
             </button>
           </div>
         </aside>
