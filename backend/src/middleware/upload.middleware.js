@@ -1,6 +1,7 @@
 const fs = require('fs')
 const path = require('path')
 const crypto = require('crypto')
+const { TextDecoder } = require('util')
 const multer = require('multer')
 const sharp = require('sharp')
 const { fileTypeFromBuffer } = require('file-type')
@@ -269,6 +270,16 @@ const hasLegacyXlsSignature = (buffer) => (
   Buffer.from(buffer || []).subarray(0, 8).toString('hex').toLowerCase() === 'd0cf11e0a1b11ae1'
 )
 
+const csvUtf8Decoder = new TextDecoder('utf-8', { fatal: true })
+const isUtf8TextBuffer = (buffer) => {
+  try {
+    csvUtf8Decoder.decode(buffer)
+    return true
+  } catch (_error) {
+    return false
+  }
+}
+
 const isLikelyCsvUpload = (file, detectedType) => {
   if (detectedType) {
     return false
@@ -282,8 +293,12 @@ const isLikelyCsvUpload = (file, detectedType) => {
     return false
   }
 
-  const sample = Buffer.from(file?.buffer || []).subarray(0, 4096)
-  return !sample.includes(0)
+  const content = Buffer.from(file?.buffer || [])
+  if (content.includes(0)) {
+    return false
+  }
+
+  return isUtf8TextBuffer(content)
 }
 
 const validateUploadedSpreadsheet = async (req, res, next) => {

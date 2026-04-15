@@ -1,9 +1,8 @@
 const { ipKeyGenerator, rateLimit } = require('express-rate-limit')
 const { RedisStore } = require('rate-limit-redis')
-const { createClient } = require('redis')
 const { hashToken, verifyRefreshToken } = require('../utils/token')
+const { isRedisConfigured, getRedisClient } = require('../utils/redis')
 
-let redisClient
 let redisStore
 let memoryStoreWarningShown = false
 let rateLimitDisabledWarningShown = false
@@ -17,9 +16,7 @@ const LOGIN_LIMIT_MAX = parsePositiveInteger(process.env.LOGIN_RATE_LIMIT_MAX, 1
 const areRateLimitsDisabled = () => process.env.DISABLE_RATE_LIMITS === 'true'
 
 const getRedisStore = () => {
-  const redisUrl = process.env.REDIS_URL
-
-  if (!redisUrl) {
+  if (!isRedisConfigured()) {
     if (!memoryStoreWarningShown) {
       memoryStoreWarningShown = true
       console.warn('Warning: REDIS_URL not set - rate limiting is using the in-memory store and is not shared across instances')
@@ -28,14 +25,9 @@ const getRedisStore = () => {
     return undefined
   }
 
+  const redisClient = getRedisClient({ context: 'rate limit store' })
   if (!redisClient) {
-    redisClient = createClient({ url: redisUrl })
-    redisClient.on('error', (error) => {
-      console.error(`Redis rate limit store error: ${error.message}`)
-    })
-    redisClient.connect().catch((error) => {
-      console.error(`Unable to connect Redis rate limit store: ${error.message}`)
-    })
+    return undefined
   }
 
   if (!redisStore) {

@@ -11,6 +11,8 @@ const WEAK_DEFAULT_PASSWORDS = new Set([
   'student123'
 ])
 
+const isKnownWeakPassword = (value) => WEAK_DEFAULT_PASSWORDS.has(String(value || '').trim().toLowerCase())
+
 const parseBcryptSaltRounds = (value) => {
   const parsed = Number.parseInt(value, 10)
   if (!Number.isInteger(parsed) || parsed < 10 || parsed > 16) {
@@ -41,7 +43,7 @@ const isStrongTemporaryPassword = (value) => {
     return false
   }
 
-  return !WEAK_DEFAULT_PASSWORDS.has(password.toLowerCase())
+  return !isKnownWeakPassword(password)
 }
 
 const getStudentTemporaryPassword = () => {
@@ -60,6 +62,7 @@ module.exports = {
   hashPassword,
   getRequiredSecret,
   generateTemporaryPassword,
+  isKnownWeakPassword,
   isStrongTemporaryPassword,
   getStudentTemporaryPassword
 }

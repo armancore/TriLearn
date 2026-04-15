@@ -28,9 +28,38 @@ test('buildCorsOriginValidator rejects null origin outside development', async (
   }
 })
 
-test('buildCorsOriginValidator allows null origin in development', async () => {
+test('buildCorsOriginValidator rejects null origin in development unless explicitly enabled', async () => {
   const originalNodeEnv = process.env.NODE_ENV
+  const originalAllowSocketNoOrigin = process.env.ALLOW_SOCKET_NO_ORIGIN
   process.env.NODE_ENV = 'development'
+  delete process.env.ALLOW_SOCKET_NO_ORIGIN
+
+  try {
+    const validator = buildCorsOriginValidator(['http://localhost:5173'])
+    const result = await runValidator(validator, undefined)
+
+    assert.equal(result.allowed, undefined)
+    assert.match(result.error?.message || '', /Not allowed by CORS/)
+  } finally {
+    if (originalNodeEnv === undefined) {
+      delete process.env.NODE_ENV
+    } else {
+      process.env.NODE_ENV = originalNodeEnv
+    }
+
+    if (originalAllowSocketNoOrigin === undefined) {
+      delete process.env.ALLOW_SOCKET_NO_ORIGIN
+    } else {
+      process.env.ALLOW_SOCKET_NO_ORIGIN = originalAllowSocketNoOrigin
+    }
+  }
+})
+
+test('buildCorsOriginValidator allows null origin in development when explicitly enabled', async () => {
+  const originalNodeEnv = process.env.NODE_ENV
+  const originalAllowSocketNoOrigin = process.env.ALLOW_SOCKET_NO_ORIGIN
+  process.env.NODE_ENV = 'development'
+  process.env.ALLOW_SOCKET_NO_ORIGIN = 'true'
 
   try {
     const validator = buildCorsOriginValidator(['http://localhost:5173'])
@@ -43,6 +72,12 @@ test('buildCorsOriginValidator allows null origin in development', async () => {
       delete process.env.NODE_ENV
     } else {
       process.env.NODE_ENV = originalNodeEnv
+    }
+
+    if (originalAllowSocketNoOrigin === undefined) {
+      delete process.env.ALLOW_SOCKET_NO_ORIGIN
+    } else {
+      process.env.ALLOW_SOCKET_NO_ORIGIN = originalAllowSocketNoOrigin
     }
   }
 })

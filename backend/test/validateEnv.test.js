@@ -37,6 +37,7 @@ const withPatchedConsoleError = async (fn) => {
 const baseEnv = {
   DATABASE_URL: 'postgresql://user:pass@localhost:5432/trilearn',
   JWT_SECRET: 'jwt-secret',
+  LOGIN_CAPTCHA_SECRET: 'captcha-secret',
   JWT_REFRESH_SECRET: 'refresh-secret',
   QR_SIGNING_SECRET: 'qr-secret',
   FRONTEND_URL: 'http://localhost:5173',
@@ -151,6 +152,51 @@ test('validateEnv accepts explicit ENABLE_PASSWORD_RESET boolean strings', () =>
 
   try {
     assert.doesNotThrow(() => validateEnv())
+  } finally {
+    restoreEnv(originalEnv)
+  }
+})
+
+test('validateEnv rejects invalid ALLOW_SOCKET_NO_ORIGIN values', async () => {
+  const originalEnv = { ...process.env }
+  Object.assign(process.env, baseEnv, {
+    ALLOW_SOCKET_NO_ORIGIN: 'yes'
+  })
+
+  try {
+    await withPatchedConsoleError(async (errorCalls) => {
+      await withPatchedExit(async (exitCalls) => {
+        assert.throws(() => validateEnv(), /process\.exit:1/)
+        assert.deepEqual(exitCalls, [1])
+        assert.match(errorCalls[0], /ALLOW_SOCKET_NO_ORIGIN must be set to "true" or "false"/)
+      })
+    })
+  } finally {
+    restoreEnv(originalEnv)
+  }
+})
+
+test('validateEnv rejects ALLOW_SOCKET_NO_ORIGIN=true in production', async () => {
+  const originalEnv = { ...process.env }
+  Object.assign(process.env, baseEnv, {
+    NODE_ENV: 'production',
+    REDIS_URL: 'redis://localhost:6379',
+    MAIL_FROM: 'TriLearn <no-reply@example.com>',
+    RESEND_SMTP_HOST: 'smtp.resend.com',
+    RESEND_SMTP_PORT: '465',
+    RESEND_SMTP_USER: 'resend',
+    RESEND_SMTP_PASS: 'secret',
+    ALLOW_SOCKET_NO_ORIGIN: 'true'
+  })
+
+  try {
+    await withPatchedConsoleError(async (errorCalls) => {
+      await withPatchedExit(async (exitCalls) => {
+        assert.throws(() => validateEnv(), /process\.exit:1/)
+        assert.deepEqual(exitCalls, [1])
+        assert.match(errorCalls[0], /ALLOW_SOCKET_NO_ORIGIN=true is not allowed in production/)
+      })
+    })
   } finally {
     restoreEnv(originalEnv)
   }

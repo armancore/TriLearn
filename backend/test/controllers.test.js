@@ -193,6 +193,7 @@ test('login applies a minimum response duration for invalid credentials', async 
 test('login locks the account after repeated failed password attempts', async () => {
   process.env.QR_SIGNING_SECRET = 'test-qr-secret'
   process.env.JWT_SECRET = 'test-jwt-secret'
+  process.env.LOGIN_CAPTCHA_SECRET = 'test-login-captcha-secret'
   const updates = []
 
   const { login } = loadWithMocks(resolveFromTest('src', 'controllers', 'auth.controller.js'), authControllerMocks({
@@ -234,6 +235,7 @@ test('login locks the account after repeated failed password attempts', async ()
 test('login returns a captcha challenge after repeated failed attempts below lockout', async () => {
   process.env.QR_SIGNING_SECRET = 'test-qr-secret'
   process.env.JWT_SECRET = 'test-jwt-secret'
+  process.env.LOGIN_CAPTCHA_SECRET = 'test-login-captcha-secret'
   const updates = []
 
   const { login } = loadWithMocks(resolveFromTest('src', 'controllers', 'auth.controller.js'), authControllerMocks({
@@ -277,6 +279,7 @@ test('login returns a captcha challenge after repeated failed attempts below loc
 test('login requires a captcha challenge once the failure threshold is reached', async () => {
   process.env.QR_SIGNING_SECRET = 'test-qr-secret'
   process.env.JWT_SECRET = 'test-jwt-secret'
+  process.env.LOGIN_CAPTCHA_SECRET = 'test-login-captcha-secret'
   const userUpdates = []
   const studentUpdates = []
 
@@ -657,6 +660,15 @@ test('auth dateOfBirth schemas reject invalid and out-of-range values', () => {
   }))
 })
 
+test('auth changePassword schema rejects known weak passwords even when format rules pass', () => {
+  const { schemas } = require(resolveFromTest('src', 'validators', 'schemas.js'))
+
+  assert.throws(() => schemas.auth.changePassword.body.parse({
+    currentPassword: 'CurrentPass123',
+    newPassword: 'Student123'
+  }))
+})
+
 test('completeProfile enforces required fields server-side before updating profileCompleted', async () => {
   const userUpdates = []
   const studentUpdates = []
@@ -816,7 +828,7 @@ test('submitStudentIntake returns a generic response when a matching user alread
   }
 })
 
-test('logout still runs a token revocation query when no refresh token is provided', async () => {
+test('logout does not run token revocation when no refresh token is provided', async () => {
   const updateManyCalls = []
   const { logout } = loadWithMocks(resolveFromTest('src', 'controllers', 'auth.controller.js'), authControllerMocks({
     '../utils/prisma': {
@@ -848,8 +860,7 @@ test('logout still runs a token revocation query when no refresh token is provid
 
   assert.equal(res.statusCode, 200)
   assert.deepEqual(res.body, { message: 'Logged out successfully' })
-  assert.equal(updateManyCalls.length, 1)
-  assert.equal(updateManyCalls[0].where.tokenHash, 'hash:logout-placeholder:127.0.0.1')
+  assert.equal(updateManyCalls.length, 0)
 })
 
 test('login hides suspension reasons from the response', async () => {
@@ -968,6 +979,63 @@ test('updateProfile blocks students from changing their own section', async () =
     message: 'Students cannot update their section through profile settings'
   })
   assert.equal(userUpdates.length, 0)
+  assert.equal(studentUpdates.length, 0)
+})
+
+test('updateProfile ignores section updates for non-student roles', async () => {
+  const userUpdates = []
+  const studentUpdates = []
+
+  const { updateProfile } = loadWithMocks(resolveFromTest('src', 'controllers', 'auth.controller.js'), authControllerMocks({
+    '../utils/prisma': {
+      user: {
+        update: async (payload) => {
+          userUpdates.push(payload)
+          return { id: 'user-1' }
+        },
+        findUnique: async () => ({
+          id: 'user-1',
+          name: 'Instructor User',
+          email: 'instructor@example.com',
+          role: 'INSTRUCTOR',
+          phone: '9800000000',
+          address: 'Kathmandu',
+          avatar: null,
+          createdAt: new Date('2026-04-14T00:00:00.000Z'),
+          mustChangePassword: false,
+          profileCompleted: true,
+          student: null,
+          instructor: {
+            id: 'instructor-1',
+            department: 'BCA',
+            departments: ['BCA']
+          },
+          coordinator: null
+        })
+      },
+      student: {
+        update: async (payload) => {
+          studentUpdates.push(payload)
+          return { id: 'student-1' }
+        }
+      }
+    }
+  }))
+
+  const req = {
+    user: { id: 'user-1', role: 'INSTRUCTOR' },
+    body: {
+      phone: '9800000000',
+      section: 'B'
+    }
+  }
+  const res = createResponse()
+
+  await updateProfile(req, res)
+
+  assert.equal(res.statusCode, 200)
+  assert.deepEqual(res.body.message, 'Profile updated successfully!')
+  assert.equal(userUpdates.length, 1)
   assert.equal(studentUpdates.length, 0)
 })
 
@@ -1149,6 +1217,102 @@ test('getAdminStats returns fresh server-side aggregate counts', async () => {
   assert.equal(subjectCountCalls, 1)
   assert.deepEqual(countWheres[0], { deletedAt: null })
   assert.deepEqual(countWheres[1], { role: 'STUDENT', deletedAt: null })
+})
+
+test('getAdminStats ignores poisoned Redis cache payloads and recomputes stats', async () => {
+  const originalNodeEnv = process.env.NODE_ENV
+  const originalRedisUrl = process.env.REDIS_URL
+  process.env.NODE_ENV = 'development'
+  process.env.REDIS_URL = 'redis://localhost:6379'
+
+  let userCountCalls = 0
+  let subjectCountCalls = 0
+
+  try {
+    const { getAdminStats } = loadWithMocks(resolveFromTest('src', 'controllers', 'admin.controller.js'), {
+      '../utils/prisma': {
+        user: {
+          count: async ({ where } = {}) => {
+            userCountCalls += 1
+            if (!where || (where.deletedAt === null && !where.role)) return 50
+            if (where.role === 'STUDENT') return 35
+            if (where.role === 'INSTRUCTOR') return 8
+            if (where.role === 'COORDINATOR') return 4
+            if (where.role === 'GATEKEEPER') return 3
+            return 0
+          }
+        },
+        subject: {
+          count: async () => {
+            subjectCountCalls += 1
+            return 20
+          }
+        }
+      },
+      '../utils/redis': {
+        getReadyRedisClient: async () => ({
+          get: async () => JSON.stringify({
+            totalUsers: 'pwned',
+            totalStudents: 99999
+          }),
+          set: async () => {},
+          del: async () => {}
+        })
+      },
+      'bcryptjs': {
+        hash: async () => 'hashed'
+      },
+      '../utils/enrollment': {
+        enrollStudentInMatchingSubjects: async () => {},
+        syncStudentEnrollmentForSemester: async () => {}
+      },
+      '../utils/logger': {
+        error: () => {},
+        warn: () => {}
+      },
+      './department.controller': {
+        ensureDepartmentExists: async () => true
+      },
+      '../utils/audit': {
+        recordAuditLog: async () => {}
+      },
+      '../utils/mailer': {
+        sendMail: async () => {}
+      },
+      '../utils/emailTemplates': {
+        welcomeTemplate: () => ({ subject: 'Welcome', html: '<p>Welcome</p>', text: 'Welcome' })
+      }
+    })
+
+    const res = createResponse()
+    await getAdminStats({}, res)
+
+    assert.equal(res.statusCode, 200)
+    assert.deepEqual(res.body, {
+      stats: {
+        totalUsers: 50,
+        totalStudents: 35,
+        totalInstructors: 8,
+        totalCoordinators: 4,
+        totalGatekeepers: 3,
+        totalSubjects: 20
+      }
+    })
+    assert.equal(userCountCalls, 5)
+    assert.equal(subjectCountCalls, 1)
+  } finally {
+    if (originalNodeEnv === undefined) {
+      delete process.env.NODE_ENV
+    } else {
+      process.env.NODE_ENV = originalNodeEnv
+    }
+
+    if (originalRedisUrl === undefined) {
+      delete process.env.REDIS_URL
+    } else {
+      process.env.REDIS_URL = originalRedisUrl
+    }
+  }
 })
 
 test('updateUser does not wipe coordinator department when no department is provided', async () => {

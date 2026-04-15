@@ -8,6 +8,7 @@ const request = require('supertest')
 process.env.DATABASE_URL = process.env.DATABASE_URL || 'postgresql://test:test@localhost:5432/trilearn_test'
 process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-jwt-secret'
 process.env.JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || 'test-refresh-secret'
+process.env.LOGIN_CAPTCHA_SECRET = process.env.LOGIN_CAPTCHA_SECRET || 'test-login-captcha-secret'
 process.env.QR_SIGNING_SECRET = process.env.QR_SIGNING_SECRET || 'test-qr-secret'
 process.env.FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173'
 process.env.NODE_ENV = process.env.NODE_ENV || 'test'
@@ -375,10 +376,9 @@ test('refreshLimiter keys refresh attempts by decoded user id before falling bac
     'rate-limit-redis': {
       RedisStore: class RedisStore {}
     },
-    redis: {
-      createClient: () => ({
-        on: () => {},
-        connect: async () => {},
+    '../utils/redis': {
+      isRedisConfigured: () => true,
+      getRedisClient: () => ({
         sendCommand: async () => {}
       })
     },

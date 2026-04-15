@@ -1,6 +1,7 @@
 const required = [
   'DATABASE_URL',
   'JWT_SECRET',
+  'LOGIN_CAPTCHA_SECRET',
   'JWT_REFRESH_SECRET',
   'QR_SIGNING_SECRET',
   'FRONTEND_URL',
@@ -67,9 +68,22 @@ const validateEnv = () => {
     process.exit(1)
   }
 
-  // Real-time notifications run over Socket.IO on the same backend server.
-  // No separate env vars are required because it reuses JWT_SECRET and the
-  // existing trusted frontend origin configuration.
+  const allowSocketNoOriginFlag = process.env.ALLOW_SOCKET_NO_ORIGIN
+  if (
+    allowSocketNoOriginFlag !== undefined &&
+    !validBooleanFlagValues.has(String(allowSocketNoOriginFlag).trim())
+  ) {
+    console.error('Invalid configuration: ALLOW_SOCKET_NO_ORIGIN must be set to "true" or "false" when provided.')
+    process.exit(1)
+  }
+
+  if (process.env.NODE_ENV === 'production' && String(allowSocketNoOriginFlag || '').trim() === 'true') {
+    console.error('Invalid configuration: ALLOW_SOCKET_NO_ORIGIN=true is not allowed in production.')
+    process.exit(1)
+  }
+
+  // Real-time notifications run over Socket.IO on the same backend server
+  // and reuse the existing trusted frontend origin configuration.
 
   if (process.env.NODE_ENV === 'production' && process.env.OPEN_REGISTRATION === 'true') {
     console.warn('Warning: OPEN_REGISTRATION is deprecated and ignored. Use the student intake review flow instead.')

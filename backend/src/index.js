@@ -15,6 +15,7 @@ const { serveUploadedFile } = require('./controllers/upload.controller')
 const prisma = require('./utils/prisma')
 const { scheduleMaintenance } = require('./utils/maintenance')
 const { initRealtime, closeRealtime } = require('./utils/realtime')
+const { warmRedisConnection } = require('./utils/redis')
 
 dotenv.config()
 validateEnv()
@@ -146,6 +147,9 @@ const notificationRoutes = require('./routes/notification.routes')
 const apiV1 = express.Router()
 
 apiV1.use('/auth', authRoutes)
+// Keep auth routes before the shared apiLimiter:
+// auth endpoints enforce dedicated route-level throttles (login/reset/captcha)
+// and should not be coupled to the generic fallback cap used by other domains.
 apiV1.use(apiLimiter)
 apiV1.use('/admin', adminRoutes)
 apiV1.use('/subjects', subjectRoutes)
@@ -187,6 +191,7 @@ const startServer = () => {
     return server
   }
 
+  void warmRedisConnection({ context: 'startup warmup' })
   maintenance = scheduleMaintenance(prisma)
   server = http.createServer(app)
   initRealtime({

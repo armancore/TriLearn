@@ -111,11 +111,7 @@ const getLoginCaptchaSecret = () => {
     return process.env.LOGIN_CAPTCHA_SECRET
   }
 
-  if (process.env.JWT_SECRET) {
-    return process.env.JWT_SECRET
-  }
-
-  throw new Error('LOGIN_CAPTCHA_SECRET or JWT_SECRET must be configured')
+  throw new Error('LOGIN_CAPTCHA_SECRET must be configured')
 }
 
 const signLoginCaptchaPayload = (payload) => {
@@ -399,7 +395,8 @@ const login = async (req, res) => {
   const startedAt = Date.now()
 
   try {
-    const { email, password, captchaToken, captchaAnswer } = req.body
+    const { email: rawEmail, password, captchaToken, captchaAnswer } = req.body
+    const email = normalizeEmail(rawEmail)
 
     const user = await prisma.user.findUnique({
       where: { email }
@@ -581,8 +578,9 @@ const updateProfile = async (req, res) => {
       dateOfBirth,
       section
     } = req.body
+    const isStudentRole = req.user.role === 'STUDENT'
 
-    if (req.user.role === 'STUDENT' && section !== undefined) {
+    if (isStudentRole && section !== undefined) {
       return res.status(403).json({
         message: 'Students cannot update their section through profile settings'
       })
@@ -599,9 +597,9 @@ const updateProfile = async (req, res) => {
       localGuardianAddress: sanitizeOptionalPlainText(localGuardianAddress),
       localGuardianPhone: sanitizeOptionalPlainText(localGuardianPhone),
       permanentAddress: sanitizeOptionalPlainText(permanentAddress),
-      temporaryAddress: sanitizeOptionalPlainText(temporaryAddress),
-      section: sanitizeOptionalPlainText(section)
+      temporaryAddress: sanitizeOptionalPlainText(temporaryAddress)
     }
+    const sanitizedSection = isStudentRole ? sanitizeOptionalPlainText(section) : undefined
 
     await prisma.user.update({
       where: { id: req.user.id },
@@ -611,7 +609,7 @@ const updateProfile = async (req, res) => {
       }
     })
 
-    if (req.user.role === 'STUDENT') {
+    if (isStudentRole) {
       await prisma.student.update({
         where: { userId: req.user.id },
         data: {
@@ -627,7 +625,7 @@ const updateProfile = async (req, res) => {
           localGuardianPhone: sanitizedProfile.localGuardianPhone ?? undefined,
           permanentAddress: sanitizedProfile.permanentAddress ?? undefined,
           temporaryAddress: sanitizedProfile.temporaryAddress ?? sanitizedProfile.address ?? undefined,
-          section: sanitizedProfile.section ?? undefined,
+          section: sanitizedSection ?? undefined,
           dateOfBirth: dateOfBirth ?? undefined
         }
       })
@@ -1013,15 +1011,15 @@ const logout = async (req, res) => {
 
   try {
     const refreshToken = req.cookies?.refreshToken
-    const tokenToHash = refreshToken || `logout-placeholder:${req.ip || 'unknown'}`
-
-    await prisma.refreshToken.updateMany({
-      where: {
-        tokenHash: hashToken(tokenToHash),
-        revokedAt: null
-      },
-      data: { revokedAt: new Date() }
-    })
+    if (refreshToken) {
+      await prisma.refreshToken.updateMany({
+        where: {
+          tokenHash: hashToken(refreshToken),
+          revokedAt: null
+        },
+        data: { revokedAt: new Date() }
+      })
+    }
 
     res.clearCookie('refreshToken', {
       ...getRefreshCookieOptions(req),

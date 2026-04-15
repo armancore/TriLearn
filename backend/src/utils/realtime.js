@@ -21,10 +21,14 @@ const getSocketAccessSecret = () => {
 }
 
 const isDevelopmentEnvironment = () => process.env.NODE_ENV === 'development'
+const isSocketNoOriginAllowed = () => (
+  isDevelopmentEnvironment() &&
+  String(process.env.ALLOW_SOCKET_NO_ORIGIN || '').trim().toLowerCase() === 'true'
+)
 
 const buildCorsOriginValidator = (allowedOrigins = []) => (origin, callback) => {
   if (!origin) {
-    return isDevelopmentEnvironment()
+    return isSocketNoOriginAllowed()
       ? callback(null, true)
       : callback(new Error('Not allowed by CORS'))
   }

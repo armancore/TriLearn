@@ -590,6 +590,55 @@ test('validateUploadedSpreadsheet allows CSV files when content is plain text', 
   assert.match(writeCalls[0].filePath, /students\.csv$/i)
 })
 
+test('validateUploadedSpreadsheet rejects CSV files with invalid UTF-8 byte sequences', async () => {
+  const writeCalls = []
+  const { validateUploadedSpreadsheet } = loadWithMocks(resolveFromTest('src', 'middleware', 'upload.middleware.js'), {
+    fs: {
+      promises: {
+        writeFile: async (filePath, buffer) => {
+          writeCalls.push({ filePath, buffer: Buffer.from(buffer) })
+        },
+        unlink: async () => {}
+      }
+    },
+    'file-type': {
+      fileTypeFromBuffer: async () => undefined
+    },
+    sharp: () => ({
+      rotate: () => ({
+        toFile: async () => {}
+      })
+    }),
+    '../utils/logger': {
+      error: () => {}
+    },
+    '../utils/fileStorage': {
+      uploadPath: 'C:\\uploads'
+    }
+  })
+
+  const req = {
+    file: {
+      originalname: 'students.csv',
+      mimetype: 'text/csv',
+      buffer: Buffer.from([0x6e, 0x61, 0x6d, 0x65, 0x2c, 0x65, 0x6d, 0x61, 0x69, 0x6c, 0x0a, 0xc3, 0x28])
+    }
+  }
+  const res = createResponse()
+  let nextCalled = false
+
+  await validateUploadedSpreadsheet(req, res, () => {
+    nextCalled = true
+  })
+
+  assert.equal(nextCalled, false)
+  assert.equal(res.statusCode, 400)
+  assert.deepEqual(res.body, {
+    message: 'Invalid file: content does not match a valid spreadsheet format'
+  })
+  assert.equal(writeCalls.length, 0)
+})
+
 test('uploadPdf rejects files unless the MIME type is application/pdf', async () => {
   const { uploadPdf } = loadWithMocks(resolveFromTest('src', 'middleware', 'upload.middleware.js'), {
     sharp: () => ({

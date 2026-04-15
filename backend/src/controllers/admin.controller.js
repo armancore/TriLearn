@@ -3,7 +3,6 @@ const crypto = require('crypto')
 const fs = require('fs')
 const path = require('path')
 const ExcelJS = require('exceljs')
-const { createClient } = require('redis')
 const { enrollStudentInMatchingSubjects, syncStudentEnrollmentForSemester } = require('../utils/enrollment')
 const { getPagination } = require('../utils/pagination')
 const logger = require('../utils/logger')
@@ -13,61 +12,45 @@ const { sendMail } = require('../utils/mailer')
 const { welcomeTemplate } = require('../utils/emailTemplates')
 const { hashPassword, getStudentTemporaryPassword } = require('../utils/security')
 const { sanitizePlainText } = require('../utils/sanitize')
+const { getReadyRedisClient } = require('../utils/redis')
 const {
   normalizeDepartmentList
 } = require('../utils/instructorDepartments')
 
 const STATS_CACHE_TTL = 30 * 1000 // 30 seconds
 const STATS_CACHE_KEY = 'admin:stats:v1'
+const ADMIN_STATS_FIELDS = [
+  'totalUsers',
+  'totalStudents',
+  'totalInstructors',
+  'totalCoordinators',
+  'totalGatekeepers',
+  'totalSubjects'
+]
 const MAX_STUDENT_SEMESTER = 8
 let statsCache = null
 let statsCacheExpiresAt = 0
-let redisStatsClient
-let redisStatsClientReady = false
-let redisStatsConnectPromise
-let redisStatsConnectionWarningShown = false
+const normalizeEmail = (value) => String(value || '').trim().toLowerCase()
 
 const getRedisStatsClient = async () => {
-  if (process.env.NODE_ENV === 'test') {
+  return getReadyRedisClient({ context: 'admin stats cache' })
+}
+
+const normalizeCachedAdminStats = (value) => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
     return null
   }
 
-  const redisUrl = String(process.env.REDIS_URL || '').trim()
-  if (!redisUrl) {
-    return null
-  }
-
-  if (!redisStatsClient) {
-    redisStatsClient = createClient({ url: redisUrl })
-    redisStatsClient.on('error', (error) => {
-      logger.warn('Admin stats cache Redis client error', { message: error.message })
-    })
-  }
-
-  if (!redisStatsClientReady) {
-    if (!redisStatsConnectPromise) {
-      redisStatsConnectPromise = redisStatsClient.connect()
-        .then(() => {
-          redisStatsClientReady = true
-        })
-        .catch((error) => {
-          if (!redisStatsConnectionWarningShown) {
-            redisStatsConnectionWarningShown = true
-            logger.warn('Admin stats cache is falling back to local memory because Redis is unavailable', {
-              message: error.message
-            })
-          }
-          return null
-        })
-        .finally(() => {
-          redisStatsConnectPromise = null
-        })
+  const normalized = {}
+  for (const field of ADMIN_STATS_FIELDS) {
+    const fieldValue = value[field]
+    if (!Number.isSafeInteger(fieldValue) || fieldValue < 0) {
+      return null
     }
-
-    await redisStatsConnectPromise
+    normalized[field] = fieldValue
   }
 
-  return redisStatsClientReady ? redisStatsClient : null
+  return normalized
 }
 
 const readSharedStatsCache = async () => {
@@ -82,7 +65,14 @@ const readSharedStatsCache = async () => {
       return null
     }
 
-    return JSON.parse(cachedValue)
+    const parsedCache = JSON.parse(cachedValue)
+    const normalizedStats = normalizeCachedAdminStats(parsedCache)
+    if (!normalizedStats) {
+      logger.warn('Ignoring invalid admin stats cache payload from Redis')
+      return null
+    }
+
+    return normalizedStats
   } catch (error) {
     logger.warn('Failed to read admin stats cache from Redis', { message: error.message })
     return null
@@ -696,12 +686,13 @@ const getUserById = async (req, res) => {
 const createCoordinator = async (req, res) => {
   try {
     const { name, email, password, phone, address, department } = req.body
+    const normalizedEmail = normalizeEmail(email)
     const normalizedDepartment = department?.trim() || null
     const sanitizedName = sanitizePlainText(name)
     const sanitizedPhone = sanitizeOptionalPlainText(phone)
     const sanitizedAddress = sanitizeOptionalPlainText(address)
 
-    const existingUser = await prisma.user.findUnique({ where: { email } })
+    const existingUser = await prisma.user.findUnique({ where: { email: normalizedEmail } })
     if (existingUser) {
       return res.status(400).json({ message: 'Email already exists' })
     }
@@ -718,7 +709,7 @@ const createCoordinator = async (req, res) => {
     const user = await prisma.user.create({
       data: {
         name: sanitizedName,
-        email,
+        email: normalizedEmail,
         password: hashedPassword,
         role: 'COORDINATOR',
         phone: sanitizedPhone,
@@ -764,11 +755,12 @@ const createCoordinator = async (req, res) => {
 const createGatekeeper = async (req, res) => {
   try {
     const { name, email, password, phone, address } = req.body
+    const normalizedEmail = normalizeEmail(email)
     const sanitizedName = sanitizePlainText(name)
     const sanitizedPhone = sanitizeOptionalPlainText(phone)
     const sanitizedAddress = sanitizeOptionalPlainText(address)
 
-    const existingUser = await prisma.user.findUnique({ where: { email } })
+    const existingUser = await prisma.user.findUnique({ where: { email: normalizedEmail } })
     if (existingUser) {
       return res.status(400).json({ message: 'Email already exists' })
     }
@@ -778,7 +770,7 @@ const createGatekeeper = async (req, res) => {
     const user = await prisma.user.create({
       data: {
         name: sanitizedName,
-        email,
+        email: normalizedEmail,
         password: hashedPassword,
         role: 'GATEKEEPER',
         phone: sanitizedPhone,
@@ -816,11 +808,12 @@ const createGatekeeper = async (req, res) => {
 const createInstructor = async (req, res) => {
   try {
     const { name, email, password, phone, address, department, departments } = req.body
+    const normalizedEmail = normalizeEmail(email)
     const sanitizedName = sanitizePlainText(name)
     const sanitizedPhone = sanitizeOptionalPlainText(phone)
     const sanitizedAddress = sanitizeOptionalPlainText(address)
 
-    const existingUser = await prisma.user.findUnique({ where: { email } })
+    const existingUser = await prisma.user.findUnique({ where: { email: normalizedEmail } })
     if (existingUser) {
       return res.status(400).json({ message: 'Email already exists' })
     }
@@ -843,7 +836,7 @@ const createInstructor = async (req, res) => {
     const user = await prisma.user.create({
       data: {
         name: sanitizedName,
-        email,
+        email: normalizedEmail,
         password: hashedPassword,
         role: 'INSTRUCTOR',
         phone: sanitizedPhone,
@@ -1980,7 +1973,7 @@ const createStudentFromApplication = async (req, res) => {
     }
 
     const [existingUser, existingStudent] = await Promise.all([
-      prisma.user.findUnique({ where: { email: application.email.toLowerCase() } }),
+      prisma.user.findUnique({ where: { email: normalizeEmail(application.email) } }),
       prisma.student.findUnique({ where: { rollNumber: normalizedStudentId } })
     ])
 
