@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from 'react-router-dom'
-import { Bell, CalendarDays, ClipboardList, FileText, Percent, UserCircle2 } from 'lucide-react'
+import { QrCode, ShieldCheck, UserCircle2 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import AppShell from '../components/AppShell'
 import ErrorBoundary from '../components/ErrorBoundary'
@@ -10,19 +10,14 @@ const GateLayout = ({ children }) => {
   const navigate = useNavigate()
 
   const sidebarItems = [
-    { path: '/gate', label: 'Gate Dashboard', icon: Percent, meta: 'Live QR and scan controls' },
-    { path: '/gatekeeper', label: 'Student QR', icon: Percent, meta: 'Gatekeeper entry view' },
-    { label: 'Profile', icon: UserCircle2, meta: 'My account', disabled: true }
+    { path: '/gate', label: 'Operations', icon: ShieldCheck, meta: 'Live windows and desk controls' },
+    { path: '/gatekeeper', label: 'Student QR', icon: QrCode, meta: 'Direct QR operations route' },
+    { label: 'Profile', icon: UserCircle2, meta: 'Desk account', disabled: true }
   ]
 
   const topItems = [
-    { label: 'Routine', icon: CalendarDays },
-    { label: 'Notices', icon: Bell },
-    { label: 'Events', icon: CalendarDays },
-    { label: 'Requests', icon: ClipboardList },
-    { label: 'Key Dates', icon: CalendarDays },
-    { label: 'Survey', icon: FileText },
-    { label: 'Weekly', icon: Bell }
+    { path: '/gate', label: 'Gate Operations', icon: ShieldCheck },
+    { path: '/gatekeeper', label: 'Student QR', icon: QrCode }
   ]
 
   const handleLogout = () => {
@@ -32,7 +27,7 @@ const GateLayout = ({ children }) => {
 
   return (
     <AppShell
-      roleLabel="Gatekeeper Console"
+      roleLabel="Gate Operations"
       roleTheme="gate"
       user={user}
       sidebarItems={sidebarItems}

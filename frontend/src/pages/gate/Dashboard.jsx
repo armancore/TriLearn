@@ -1,10 +1,19 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { CalendarDays, Clock3, QrCode, RefreshCw, ShieldCheck, TimerReset, Users } from 'lucide-react'
+import { motion, useReducedMotion } from 'framer-motion'
+import {
+  Activity,
+  CalendarDays,
+  Clock3,
+  QrCode,
+  RefreshCw,
+  ShieldCheck,
+  TimerReset,
+  Users
+} from 'lucide-react'
 import GateLayout from '../../layouts/GateLayout'
 import PageHeader from '../../components/PageHeader'
 import LoadingSkeleton from '../../components/LoadingSkeleton'
 import QrScanPanel from '../../components/QrScanPanel'
-import StatCard from '../../components/StatCard'
 import api from '../../utils/api'
 import { isRequestCanceled } from '../../utils/http'
 import logger from '../../utils/logger'
@@ -24,6 +33,7 @@ const GateDashboard = () => {
   const [error, setError] = useState('')
   const [scanBusy, setScanBusy] = useState(false)
   const { showToast } = useToast()
+  const reduceMotion = useReducedMotion()
 
   const fetchLiveQr = useCallback(async ({ silent = false, signal } = {}) => {
     try {
@@ -71,66 +81,61 @@ const GateDashboard = () => {
     }
   }, [fetchLiveQr])
 
-  const statusText = useMemo(() => {
-    if (liveQrState?.holiday) {
-      return liveQrState.holidayInfo?.title || 'Holiday'
-    }
-
-    if (liveQrState?.active) {
-      return `Semester ${liveQrState.allowedSemesters?.join(', ')}`
-    }
-
-    if (liveQrState?.timePassed) {
-      return 'Time passed'
-    }
-
-    if (liveQrState?.nextWindow) {
-      return `Next at ${formatTime(liveQrState.nextWindow.startsAt)}`
-    }
-
-    return 'No slot today'
+  const statusLabel = useMemo(() => {
+    if (liveQrState?.holiday) return 'Holiday'
+    if (liveQrState?.active) return 'Live'
+    if (liveQrState?.timePassed) return 'Closed'
+    return 'Standby'
   }, [liveQrState])
 
-  const gateStats = useMemo(() => ([
-    {
-      title: 'Allowed Semesters',
-      value: liveQrState?.active ? liveQrState.allowedSemesters?.length || 0 : 0,
-      icon: Users,
-      iconClassName: 'from-amber-500 to-orange-600',
-      trend: liveQrState?.active ? `Semester ${liveQrState.allowedSemesters?.join(', ')}` : 'Inactive',
-      trendLabel: 'current access'
-    },
-    {
-      title: 'Live Windows',
-      value: liveQrState?.active ? liveQrState.periods?.length || 0 : 0,
-      icon: QrCode,
-      iconClassName: 'from-blue-500 to-cyan-600',
-      trend: liveQrState?.dayOfWeek || 'No schedule',
-      trendLabel: 'today'
-    },
-    {
-      title: 'Refresh Timer',
-      value: liveQrState?.active ? `${liveQrState.refreshInSeconds || 0}s` : '--',
-      icon: TimerReset,
-      iconClassName: 'from-violet-500 to-purple-600',
-      trend: liveQrState?.active ? `Until ${formatTime(liveQrState.expiresAt)}` : 'Waiting',
-      trendLabel: 'rotation'
-    },
-    {
-      title: 'Mode',
-      value: liveQrState?.holiday ? 'Holiday' : liveQrState?.active ? 'Live' : liveQrState?.timePassed ? 'Closed' : 'Standby',
-      icon: ShieldCheck,
-      iconClassName: 'from-emerald-500 to-green-600',
-      trend: statusText,
-      trendLabel: 'gate status'
+  const statusDetails = useMemo(() => {
+    if (liveQrState?.holiday) {
+      return liveQrState.holidayInfo?.title || 'Holiday mode is active'
     }
-  ]), [liveQrState, statusText])
+    if (liveQrState?.active) {
+      return `Semesters ${liveQrState.allowedSemesters?.join(', ')} can scan until ${formatTime(liveQrState.expiresAt)}`
+    }
+    if (liveQrState?.timePassed) {
+      return 'The final scan window for today has closed'
+    }
+    if (liveQrState?.nextWindow) {
+      return `Next window opens at ${formatTime(liveQrState.nextWindow.startsAt)}`
+    }
+    return 'No scan slot configured for the remainder of today'
+  }, [liveQrState])
+
+  const kpis = useMemo(() => ([
+    {
+      label: 'Mode',
+      value: statusLabel,
+      detail: statusDetails,
+      icon: Activity
+    },
+    {
+      label: 'Allowed Semesters',
+      value: liveQrState?.active ? String(liveQrState.allowedSemesters?.length || 0) : '0',
+      detail: liveQrState?.active ? `S${liveQrState.allowedSemesters?.join(', S')}` : 'No active slot',
+      icon: Users
+    },
+    {
+      label: 'Refresh Timer',
+      value: liveQrState?.active ? `${liveQrState.refreshInSeconds || 0}s` : '--',
+      detail: liveQrState?.active ? `Expires ${formatTime(liveQrState.expiresAt)}` : 'Waiting for live QR',
+      icon: TimerReset
+    },
+    {
+      label: 'Server Time',
+      value: formatTime(liveQrState?.serverTime),
+      detail: liveQrState?.dayOfWeek || '--',
+      icon: Clock3
+    }
+  ]), [liveQrState, statusDetails, statusLabel])
 
   const operationalChecklist = [
-    'Keep the rotating QR visible to students in the active slot only.',
-    'Scan student ID cards when students cannot use their own phones.',
-    'If the day is a holiday, attendance deduction is skipped automatically.',
-    'Refresh the QR if the timer looks stale or the next slot just opened.'
+    'Keep the rotating QR visible only during active windows.',
+    'Use student ID card scanning when students cannot use mobile scan.',
+    'Confirm semester eligibility before manually assisting scans.',
+    'Refresh immediately if timer appears stale or window just changed.'
   ]
 
   const submitStudentIdQr = async (qrData) => {
@@ -152,16 +157,24 @@ const GateDashboard = () => {
     }
   }
 
+  const containerMotion = reduceMotion
+    ? {}
+    : {
+        initial: { opacity: 0, y: 12 },
+        animate: { opacity: 1, y: 0 },
+        transition: { duration: 0.28, ease: 'easeOut' }
+      }
+
   return (
     <GateLayout>
       <div className="p-4 md:p-8">
         <PageHeader
-          title="Student QR"
-          subtitle="Show this QR to students. It rotates every minute and only works for the semesters allowed in the current time slot."
-          breadcrumbs={['Gatekeeper', 'Student QR']}
+          title="Gate Operations"
+          subtitle="Live student attendance QR operations with controlled scan windows and on-desk verification support."
+          breadcrumbs={['Gatekeeper', 'Operations']}
           actions={[
             {
-              label: refreshing ? 'Refreshing...' : 'Refresh',
+              label: refreshing ? 'Refreshing...' : 'Refresh State',
               icon: RefreshCw,
               variant: 'secondary',
               onClick: () => fetchLiveQr({ silent: true }),
@@ -171,157 +184,166 @@ const GateDashboard = () => {
         />
 
         {error ? (
-          <div className="mb-6 rounded-2xl border border-accent-100 bg-accent-50 px-4 py-3 text-sm text-accent-600">
+          <div className="mb-6 rounded-2xl border border-accent-200 bg-accent-50 px-4 py-3 text-sm text-accent-700">
             {error}
           </div>
         ) : null}
 
         {loading && !liveQrState ? (
-          <LoadingSkeleton rows={3} itemClassName="h-48" />
+          <LoadingSkeleton rows={4} itemClassName="h-40" />
         ) : (
-          <div className="space-y-6">
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-4">
-              {gateStats.map((stat) => (
-                <StatCard
-                  key={stat.title}
-                  title={stat.title}
-                  value={stat.value}
-                  icon={stat.icon}
-                  iconClassName={stat.iconClassName}
-                  trend={stat.trend}
-                  trendLabel={stat.trendLabel}
-                />
-              ))}
-            </div>
-
-            <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
-            <section className="ui-card rounded-3xl p-6 md:p-8">
-              <div className="flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
-                <div>
-                  <div className="inline-flex items-center gap-2 rounded-full bg-accent-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-accent-700">
-                    <Clock3 className="h-4 w-4" />
-                    <span>{statusText}</span>
-                  </div>
-                  <h2 className="mt-4 text-2xl font-bold text-slate-900">
-                    {liveQrState?.holiday
-                      ? 'Holiday mode is active'
-                      : liveQrState?.active
-                        ? 'Student QR is live now'
-                        : liveQrState?.timePassed
-                          ? 'Scan time has passed'
-                          : 'Waiting for the next Student QR slot'}
-                  </h2>
-                  <p className="mt-2 max-w-2xl text-sm text-slate-500">
-                    {liveQrState?.holiday
-                      ? 'Attendance deduction is skipped today because the college is marked as a holiday.'
-                      : liveQrState?.active
-                        ? `Only the selected semesters may scan this code until ${formatTime(liveQrState.expiresAt)}.`
-                        : liveQrState?.timePassed
-                          ? 'The last Student QR window for today has already closed.'
-                          : liveQrState?.nextWindow
-                            ? `The next Student QR window opens at ${formatTime(liveQrState.nextWindow.startsAt)}.`
-                            : 'No Student QR slot is configured for the rest of today.'}
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Day</p>
-                    <p className="mt-2 text-sm font-semibold text-slate-800">{liveQrState?.dayOfWeek || '--'}</p>
-                  </div>
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Refresh</p>
-                    <p className="mt-2 text-sm font-semibold text-slate-800">
-                      {liveQrState?.active ? `${liveQrState.refreshInSeconds || 0}s` : '--'}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {liveQrState?.active ? (
-                <div className="mt-8 grid gap-6 lg:grid-cols-[minmax(0,1fr)_300px] lg:items-center">
-                  <div className="space-y-4">
-                    {liveQrState.periods?.map((period) => (
-                      <div key={period.id} className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
-                        <p className="font-semibold text-slate-900">{period.title || 'Student QR Slot'}</p>
-                        <p className="mt-1 text-sm text-slate-500">{period.startTime} to {period.endTime}</p>
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          {period.allowedSemesters?.map((semester) => (
-                            <span key={semester} className="ui-status-badge ui-status-warning">Semester {semester}</span>
-                          ))}
-                        </div>
+          <motion.div className="space-y-6" {...containerMotion}>
+            <section className="rounded-[1.5rem] border border-[var(--color-card-border)] bg-[var(--color-card-surface)] px-4 py-4 shadow-sm dark:shadow-slate-900/50 md:px-6 md:py-5">
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                {kpis.map((kpi) => {
+                  const Icon = kpi.icon
+                  return (
+                    <div
+                      key={kpi.label}
+                      className="rounded-2xl border border-[var(--color-card-border)] bg-[var(--color-surface-muted)] px-4 py-3"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--color-text-soft)]">{kpi.label}</p>
+                        <Icon className="h-4 w-4 text-[var(--color-role-accent)]" />
                       </div>
-                    ))}
-                  </div>
-
-                  <div className="rounded-[28px] border border-slate-200 bg-[--color-bg-card] dark:bg-slate-800 p-5 shadow-sm dark:shadow-slate-900/50">
-                    <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
-                      <span>Live QR</span>
-                      <QrCode className="h-4 w-4" />
+                      <p className="mt-2 text-xl font-black text-[var(--color-heading)]">{kpi.value}</p>
+                      <p className="mt-1 text-xs text-[var(--color-text-muted)]">{kpi.detail}</p>
                     </div>
-                    <div className="mt-4 overflow-hidden rounded-3xl border border-slate-200 bg-slate-50 p-4">
-                      <img src={liveQrState.qrCode} alt="Student attendance QR" className="w-full rounded-2xl" />
-                    </div>
-                    <p className="mt-4 text-center text-sm text-slate-500">
-                      Expires at <span className="font-semibold text-slate-800">{formatTime(liveQrState.expiresAt)}</span>
-                    </p>
-                  </div>
-                </div>
-              ) : (
-                <div className="mt-8 rounded-3xl border border-dashed border-slate-200 bg-slate-50/80 p-8 text-center">
-                  <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-[--color-bg-card] dark:bg-slate-800 text-[var(--color-role-gate)] shadow-sm dark:shadow-slate-900/50">
-                    <CalendarDays className="h-8 w-8" />
-                  </div>
-                  <h3 className="mt-4 text-lg font-semibold text-slate-900">
-                    {liveQrState?.holiday ? 'Today is a holiday' : liveQrState?.timePassed ? 'Time passed' : 'No active Student QR'}
-                  </h3>
-                  <p className="mx-auto mt-2 max-w-xl text-sm text-slate-500">
-                    {liveQrState?.holiday
-                      ? liveQrState.holidayInfo?.description || 'Attendance is paused for today.'
-                      : liveQrState?.nextWindow
-                        ? `Next slot: ${liveQrState.nextWindow.startTime} to ${liveQrState.nextWindow.endTime} for semester ${liveQrState.nextWindow.allowedSemesters?.join(', ')}.`
-                        : 'Ask an admin or coordinator to create a Student QR time slot if one should be available.'}
-                  </p>
-                </div>
-              )}
+                  )
+                })}
+              </div>
             </section>
 
-            <aside className="space-y-6">
-              <QrScanPanel
-                title="Scan Student ID Card"
-                description="Gatekeeper can scan the student’s ID card QR to mark attendance for the active Student QR time slot."
-                submitLabel="Mark Attendance"
-                onSubmit={submitStudentIdQr}
-                busy={scanBusy}
-                accentClassName="focus:ring-amber-500"
-              />
-
-              <section className="ui-card rounded-3xl p-6">
-                <h2 className="text-lg font-semibold text-slate-900">Gatekeeper Checklist</h2>
-                <div className="mt-4 space-y-3 text-sm text-slate-600">
-                  {operationalChecklist.map((item) => (
-                    <p key={item} className="rounded-2xl bg-slate-50 px-4 py-3">{item}</p>
-                  ))}
+            <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+              <section className="rounded-[1.75rem] border border-[var(--color-card-border)] bg-[var(--color-card-surface)] p-6 shadow-sm dark:shadow-slate-900/50">
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--color-card-border)] pb-4">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--color-text-soft)]">Live Student QR</p>
+                    <h2 className="mt-1 text-2xl font-black text-[var(--color-heading)]">
+                      {statusLabel === 'Live' ? 'Scanning Window Active' : statusLabel === 'Holiday' ? 'Holiday Mode' : 'Waiting for Next Window'}
+                    </h2>
+                    <p className="mt-1 text-sm text-[var(--color-text-muted)]">{statusDetails}</p>
+                  </div>
+                  <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold ${
+                    statusLabel === 'Live'
+                      ? 'bg-emerald-100 text-emerald-700'
+                      : statusLabel === 'Holiday'
+                        ? 'bg-sky-100 text-sky-700'
+                        : statusLabel === 'Closed'
+                          ? 'bg-amber-100 text-amber-700'
+                          : 'bg-slate-100 text-slate-700'
+                  }`}>
+                    <span className="h-2 w-2 rounded-full bg-current" />
+                    {statusLabel}
+                  </span>
                 </div>
+
+                {liveQrState?.active ? (
+                  <div className="mt-6 grid gap-5 lg:grid-cols-[minmax(0,1fr)_310px] lg:items-start">
+                    <div className="space-y-3">
+                      {liveQrState.periods?.map((period, index) => (
+                        <motion.div
+                          key={period.id}
+                          className="rounded-2xl border border-[var(--color-card-border)] bg-[var(--color-surface-muted)] px-4 py-4"
+                          initial={reduceMotion ? false : { opacity: 0, y: 10 }}
+                          animate={reduceMotion ? {} : { opacity: 1, y: 0 }}
+                          transition={reduceMotion ? {} : { duration: 0.22, delay: index * 0.05 }}
+                        >
+                          <p className="text-sm font-semibold text-[var(--color-heading)]">{period.title || 'Student QR Slot'}</p>
+                          <p className="mt-1 text-xs text-[var(--color-text-muted)]">{period.startTime} to {period.endTime}</p>
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            {period.allowedSemesters?.map((semester) => (
+                              <span key={semester} className="ui-status-badge ui-status-warning">Semester {semester}</span>
+                            ))}
+                          </div>
+                        </motion.div>
+                      ))}
+                    </div>
+
+                    <div className="rounded-[1.4rem] border border-[var(--color-card-border)] bg-[var(--color-surface-muted)] p-4">
+                      <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-[0.18em] text-[var(--color-text-soft)]">
+                        <span>Rotating QR</span>
+                        <QrCode className="h-4 w-4" />
+                      </div>
+                      <div className="mt-3 overflow-hidden rounded-2xl border border-[var(--color-card-border)] bg-[var(--color-card-surface)] p-3">
+                        <img src={liveQrState.qrCode} alt="Student attendance QR" className="w-full rounded-xl" />
+                      </div>
+                      <div className="mt-4">
+                        <p className="text-center text-xs text-[var(--color-text-muted)]">Expires at {formatTime(liveQrState.expiresAt)}</p>
+                        <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-[var(--color-card-border)]">
+                          <motion.div
+                            className="h-full bg-[var(--color-role-accent)]"
+                            initial={false}
+                            animate={{ width: `${Math.max(2, Math.min(100, (liveQrState.refreshInSeconds || 0) * (100 / 60)))}%` }}
+                            transition={reduceMotion ? { duration: 0 } : { duration: 0.5, ease: 'easeOut' }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mt-6 rounded-3xl border border-dashed border-[var(--color-card-border)] bg-[var(--color-surface-muted)] px-5 py-8 text-center">
+                    <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--color-card-surface)] text-[var(--color-role-accent)]">
+                      <CalendarDays className="h-7 w-7" />
+                    </div>
+                    <h3 className="mt-4 text-lg font-semibold text-[var(--color-heading)]">
+                      {statusLabel === 'Holiday' ? 'Attendance paused for holiday' : 'No live scan slot right now'}
+                    </h3>
+                    <p className="mx-auto mt-2 max-w-2xl text-sm text-[var(--color-text-muted)]">
+                      {liveQrState?.holiday
+                        ? liveQrState.holidayInfo?.description || 'Attendance deduction is skipped today.'
+                        : liveQrState?.nextWindow
+                          ? `Next slot: ${liveQrState.nextWindow.startTime} to ${liveQrState.nextWindow.endTime}.`
+                          : 'Ask an admin or coordinator to configure a gate scan window if required.'}
+                    </p>
+                  </div>
+                )}
               </section>
 
-              <section className="ui-card rounded-3xl p-6">
-                <h2 className="text-lg font-semibold text-slate-900">Slot Awareness</h2>
-                <div className="mt-4 space-y-3 text-sm text-slate-600">
-                  <p className="rounded-2xl bg-slate-50 px-4 py-3">
-                    Server time: <span className="font-semibold text-slate-900">{formatTime(liveQrState?.serverTime)}</span>
-                  </p>
-                  <p className="rounded-2xl bg-slate-50 px-4 py-3">
-                    Next slot: <span className="font-semibold text-slate-900">{liveQrState?.nextWindow ? `${liveQrState.nextWindow.startTime} - ${liveQrState.nextWindow.endTime}` : 'No further slot today'}</span>
-                  </p>
-                  <p className="rounded-2xl bg-slate-50 px-4 py-3">
-                    Active semesters: <span className="font-semibold text-slate-900">{liveQrState?.active ? liveQrState.allowedSemesters?.join(', ') : 'None right now'}</span>
-                  </p>
-                </div>
-              </section>
-            </aside>
-          </div>
-          </div>
+              <aside className="space-y-6">
+                <QrScanPanel
+                  title="Scan Student ID Card"
+                  description="Use the gate desk scanner to mark attendance for eligible students during the active scan window."
+                  submitLabel="Mark Attendance"
+                  onSubmit={submitStudentIdQr}
+                  busy={scanBusy}
+                  accentClassName="focus:ring-amber-500"
+                />
+
+                <section className="rounded-[1.5rem] border border-[var(--color-card-border)] bg-[var(--color-card-surface)] p-5 shadow-sm dark:shadow-slate-900/50">
+                  <h2 className="text-lg font-semibold text-[var(--color-heading)]">Operational Checklist</h2>
+                  <div className="mt-4 space-y-2.5">
+                    {operationalChecklist.map((item, index) => (
+                      <motion.p
+                        key={item}
+                        className="rounded-xl bg-[var(--color-surface-muted)] px-3 py-3 text-sm text-[var(--color-text-muted)]"
+                        initial={reduceMotion ? false : { opacity: 0, x: 10 }}
+                        animate={reduceMotion ? {} : { opacity: 1, x: 0 }}
+                        transition={reduceMotion ? {} : { duration: 0.2, delay: 0.06 * index }}
+                      >
+                        {item}
+                      </motion.p>
+                    ))}
+                  </div>
+                </section>
+
+                <section className="rounded-[1.5rem] border border-[var(--color-card-border)] bg-[var(--color-card-surface)] p-5 shadow-sm dark:shadow-slate-900/50">
+                  <h2 className="text-lg font-semibold text-[var(--color-heading)]">Slot Awareness</h2>
+                  <div className="mt-4 space-y-2.5 text-sm text-[var(--color-text-muted)]">
+                    <p className="rounded-xl bg-[var(--color-surface-muted)] px-3 py-3">
+                      Server time: <span className="font-semibold text-[var(--color-heading)]">{formatTime(liveQrState?.serverTime)}</span>
+                    </p>
+                    <p className="rounded-xl bg-[var(--color-surface-muted)] px-3 py-3">
+                      Next slot: <span className="font-semibold text-[var(--color-heading)]">{liveQrState?.nextWindow ? `${liveQrState.nextWindow.startTime} - ${liveQrState.nextWindow.endTime}` : 'No further slot today'}</span>
+                    </p>
+                    <p className="rounded-xl bg-[var(--color-surface-muted)] px-3 py-3">
+                      Active semesters: <span className="font-semibold text-[var(--color-heading)]">{liveQrState?.active ? liveQrState.allowedSemesters?.join(', ') : 'None right now'}</span>
+                    </p>
+                  </div>
+                </section>
+              </aside>
+            </div>
+          </motion.div>
         )}
       </div>
     </GateLayout>
