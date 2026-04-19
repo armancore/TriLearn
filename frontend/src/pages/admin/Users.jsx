@@ -838,7 +838,7 @@ const Users = () => {
               <div className="overflow-x-auto max-h-[720px]">
               <table className="w-full min-w-[840px]">
                 <thead className="sticky top-0 z-10 bg-[var(--color-surface-muted)]">
-                  <tr className="text-left text-sm text-[--color-text-muted] dark:text-slate-400">
+                  <tr className="text-left text-sm text-[--color-text-muted] dark:text-slate-300">
                     <th scope="col" className="px-4 py-4">
                       <input
                         type="checkbox"
@@ -874,11 +874,11 @@ const Users = () => {
                         <p className="font-semibold text-[var(--color-heading)]">{user.name}</p>
                         <p className="mt-1 text-xs text-[var(--color-text-muted)]">{user.phone || user.email}</p>
                       </td>
-                      <td className="px-6 py-4 text-[--color-text-muted] dark:text-slate-400 text-sm">{user.email}</td>
+                      <td className="px-6 py-4 text-[--color-text-muted] dark:text-slate-300 text-sm">{user.email}</td>
                       <td className="px-6 py-4">
                         <StatusBadge status={user.role} />
                       </td>
-                      <td className="px-6 py-4 text-sm text-[--color-text-muted] dark:text-slate-400">
+                      <td className="px-6 py-4 text-sm text-[--color-text-muted] dark:text-slate-300">
                         {user.student && getStudentDetails(user.student)}
                         {user.instructor && `${getInstructorDepartments(user.instructor).join(', ') || 'No dept'}`}
                         {user.coordinator && `${user.coordinator.department || 'No dept'} coordinator`}
@@ -905,7 +905,7 @@ const Users = () => {
                             <button
                               type="button"
                               onClick={() => setStudentToPromote(user)}
-                              className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-primary-100 text-primary transition hover:bg-primary-200"
+                              className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-primary-100 text-primary transition hover:bg-primary-200 dark:bg-primary-900/35 dark:text-primary-200 dark:hover:bg-primary-900/50"
                               aria-label={Number(user.student.semester) >= 8
                                 ? `Mark ${user.name} as graduated`
                                 : `Promote ${user.name} to semester ${Number(user.student.semester) + 1}`}
@@ -919,8 +919,8 @@ const Users = () => {
                               onClick={() => handleToggleStatus(user.id, user.isActive)}
                               className={`inline-flex h-9 w-9 items-center justify-center rounded-lg transition
                                 ${user.isActive
-                                  ? 'bg-accent-100 text-accent-700 hover:bg-accent-200'
-                                  : 'bg-primary-100 text-primary hover:bg-primary-200'
+                                  ? 'bg-accent-100 text-accent-700 hover:bg-accent-200 dark:bg-accent-900/35 dark:text-accent-200 dark:hover:bg-accent-900/50'
+                                  : 'bg-primary-100 text-primary hover:bg-primary-200 dark:bg-primary-900/35 dark:text-primary-200 dark:hover:bg-primary-900/50'
                                 }`}
                               aria-label={user.isActive ? `Disable ${user.name}` : `Enable ${user.name}`}
                             >
@@ -931,7 +931,7 @@ const Users = () => {
                             <button
                               type="button"
                               onClick={() => setUserToDelete(user)}
-                              className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-accent-100 text-accent-700 transition hover:bg-accent-200"
+                              className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-accent-100 text-accent-700 transition hover:bg-accent-200 dark:bg-accent-900/35 dark:text-accent-200 dark:hover:bg-accent-900/50"
                               aria-label={`Delete ${user.name}`}
                             >
                               <Trash2 className="h-4 w-4" />
@@ -1030,7 +1030,7 @@ const Users = () => {
                     />
                     {errors.password && <p className="ui-form-helper-error">{errors.password}</p>}
                   </div>
-                  <p className="text-xs text-[--color-text-muted] dark:text-slate-400">
+                  <p className="text-xs text-[--color-text-muted] dark:text-slate-300">
                     Use at least 8 characters with uppercase, lowercase, and a number.
                   </p>
                 </>
@@ -1140,7 +1140,7 @@ const Users = () => {
                 <button
                   type="button"
                   onClick={() => setShowModal(false)}
-                  className="flex-1 border border-[--color-border] dark:border-slate-700 text-[--color-text-muted] dark:text-slate-400 py-2 rounded-lg text-sm hover:bg-[--color-bg] dark:bg-slate-900"
+                  className="flex-1 border border-[--color-border] dark:border-slate-700 text-[--color-text-muted] dark:text-slate-300 py-2 rounded-lg text-sm hover:bg-[--color-bg] dark:bg-slate-900"
                 >
                   Cancel
                 </button>
@@ -1241,7 +1241,7 @@ const Users = () => {
                 type="button"
                 onClick={() => setShowImportModal(false)}
                 disabled={importingStudents}
-                className="flex-1 border border-[--color-border] dark:border-slate-700 text-[--color-text-muted] dark:text-slate-400 py-2 rounded-lg text-sm hover:bg-[--color-bg] dark:bg-slate-900 disabled:opacity-60"
+                className="flex-1 border border-[--color-border] dark:border-slate-700 text-[--color-text-muted] dark:text-slate-300 py-2 rounded-lg text-sm hover:bg-[--color-bg] dark:bg-slate-900 disabled:opacity-60"
               >
                 Close
               </button>

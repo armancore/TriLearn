@@ -473,7 +473,7 @@ const Departments = () => {
                   <button
                     type="button"
                     onClick={() => openInstructorListModal(department)}
-                    className="inline-flex items-center justify-center gap-2 rounded-lg border border-[var(--color-card-border)] bg-[var(--color-surface-muted)] px-3 py-2 text-xs font-medium text-[var(--color-heading)] transition hover:bg-[var(--color-surface-subtle)]"
+                    className="inline-flex items-center justify-center gap-2 rounded-lg border border-[var(--color-card-border)] bg-[var(--color-surface-muted)] px-3 py-2 text-xs font-medium text-[var(--color-heading)] transition hover:bg-[var(--color-surface-subtle)] dark:bg-[color-mix(in_srgb,var(--color-surface-muted)_85%,black)] dark:text-[var(--color-page-text)]"
                   >
                     <Users className="h-4 w-4" />
                     <span>View Instructors</span>
@@ -489,7 +489,7 @@ const Departments = () => {
                   <button
                     type="button"
                     onClick={() => openSectionModal(department)}
-                    className="inline-flex items-center justify-center gap-2 rounded-lg border border-[var(--color-card-border)] bg-[var(--color-surface-muted)] px-3 py-2 text-xs font-medium text-[var(--color-heading)] transition hover:bg-[var(--color-surface-subtle)] sm:col-span-2"
+                    className="inline-flex items-center justify-center gap-2 rounded-lg border border-[var(--color-card-border)] bg-[var(--color-surface-muted)] px-3 py-2 text-xs font-medium text-[var(--color-heading)] transition hover:bg-[var(--color-surface-subtle)] sm:col-span-2 dark:bg-[color-mix(in_srgb,var(--color-surface-muted)_85%,black)] dark:text-[var(--color-page-text)]"
                   >
                     <Layers className="h-4 w-4" />
                     <span>Manage Semester Sections</span>
@@ -673,7 +673,7 @@ const Departments = () => {
                 setAddInstructorMode('create')
                 setInstructorError('')
               }}
-              className={`rounded-lg px-3 py-2 text-sm font-medium transition ${addInstructorMode === 'create' ? 'bg-primary text-white' : 'text-[var(--color-heading)]'}`}
+              className={`rounded-lg px-3 py-2 text-sm font-medium transition ${addInstructorMode === 'create' ? 'bg-primary text-white' : 'text-[var(--color-heading)] dark:text-[var(--color-page-text)]'}`}
             >
               Create New
             </button>
@@ -686,7 +686,7 @@ const Departments = () => {
                   void fetchAssignableInstructors(selectedDepartment, existingInstructorState.search)
                 }
               }}
-              className={`rounded-lg px-3 py-2 text-sm font-medium transition ${addInstructorMode === 'existing' ? 'bg-primary text-white' : 'text-[var(--color-heading)]'}`}
+              className={`rounded-lg px-3 py-2 text-sm font-medium transition ${addInstructorMode === 'existing' ? 'bg-primary text-white' : 'text-[var(--color-heading)] dark:text-[var(--color-page-text)]'}`}
             >
               Assign Existing
             </button>
@@ -782,7 +782,7 @@ const Departments = () => {
                       void fetchAssignableInstructors(selectedDepartment, existingInstructorState.search)
                     }}
                     disabled={loadingAssignableInstructors}
-                    className="rounded-lg border border-[var(--color-card-border)] px-4 py-2 text-sm font-medium text-[var(--color-heading)] hover:bg-[var(--color-surface-muted)] disabled:opacity-60"
+                    className="rounded-lg border border-[var(--color-card-border)] px-4 py-2 text-sm font-medium text-[var(--color-heading)] hover:bg-[var(--color-surface-muted)] dark:text-[var(--color-page-text)] dark:hover:bg-[color-mix(in_srgb,var(--color-surface-muted)_85%,black)] disabled:opacity-60"
                   >
                     Search
                   </button>
@@ -804,7 +804,7 @@ const Departments = () => {
                       const instructorDepartments = getInstructorDepartments(staff.instructor)
 
                       return (
-                        <label key={staff.id} className={`flex cursor-pointer items-start gap-3 rounded-lg border px-3 py-3 text-sm transition ${checked ? 'border-primary bg-primary-50' : 'border-transparent bg-[var(--color-card-surface)]'}`}>
+                        <label key={staff.id} className={`flex cursor-pointer items-start gap-3 rounded-lg border px-3 py-3 text-sm transition ${checked ? 'border-primary bg-primary-50 dark:bg-primary-900/25' : 'border-transparent bg-[var(--color-card-surface)]'}`}>
                           <input
                             type="radio"
                             name="existingInstructor"

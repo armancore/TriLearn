@@ -2,8 +2,8 @@ import { Link } from 'react-router-dom'
 
 const buttonVariants = {
   primary: 'cursor-pointer border border-transparent bg-[var(--color-role-accent)] text-white shadow-sm dark:shadow-slate-900/50 hover:brightness-95',
-  secondary: 'cursor-pointer border border-slate-200 bg-[--color-bg-card] dark:bg-slate-800 text-slate-600 hover:bg-slate-50',
-  danger: 'border border-accent-100 bg-accent-50 text-accent-600 hover:bg-accent-100'
+  secondary: 'cursor-pointer border border-slate-200 bg-[--color-bg-card] text-slate-600 hover:bg-slate-50 dark:border-[var(--color-card-border)] dark:bg-[var(--color-card-surface)] dark:text-[var(--color-text-muted)] dark:hover:bg-[var(--color-surface-subtle)]',
+  danger: 'cursor-pointer border border-accent-100 bg-accent-50 text-accent-600 hover:bg-accent-100 dark:border-accent-700/40 dark:bg-accent-950/25 dark:text-accent-300 dark:hover:bg-accent-900/30'
 }
 
 const renderAction = (action, index) => {
@@ -52,7 +52,7 @@ const renderAction = (action, index) => {
 }
 
 const PageHeader = ({ title, subtitle, actions = [], breadcrumbs = [] }) => (
-  <div className="mb-8 flex flex-col gap-5 rounded-[1.6rem] border border-[color:color-mix(in_srgb,var(--color-card-border)_76%,white)] bg-[linear-gradient(120deg,color-mix(in_srgb,var(--color-card-surface)_94%,white)_0%,color-mix(in_srgb,var(--color-surface-muted)_88%,white)_100%)] px-5 py-5 shadow-[0_20px_48px_-30px_rgba(15,36,71,0.45)] lg:flex-row lg:items-start lg:justify-between">
+  <div className="mb-8 flex flex-col gap-5 rounded-[1.6rem] border border-[var(--color-card-border)] bg-[var(--color-card-surface)] px-5 py-5 shadow-[0_20px_48px_-30px_rgba(15,36,71,0.45)] dark:bg-[color-mix(in_srgb,var(--color-card-surface)_88%,black)] dark:shadow-[0_22px_60px_-30px_rgba(2,6,23,0.9)] lg:flex-row lg:items-start lg:justify-between">
     <div className="min-w-0">
       {breadcrumbs.length > 0 ? (
         <div className="mb-3 flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-[var(--color-text-soft)]">

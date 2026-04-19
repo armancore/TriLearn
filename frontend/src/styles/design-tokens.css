@@ -124,6 +124,10 @@ html[data-theme="dark"] [data-role-theme="admin"] {
   --color-surface-subtle: #10304A;
   --color-card-surface: rgba(13, 34, 52, 0.84);
   --color-card-border: rgba(79, 130, 169, 0.34);
+  --color-heading: #F7FBFF;
+  --color-page-text: #EAF3FB;
+  --color-text-muted: #BED0E1;
+  --color-text-soft: #9CB4CA;
 }
 
 [data-role-theme="instructor"] {
@@ -178,6 +182,13 @@ html[data-theme="dark"] [data-role-theme="admin"] {
     radial-gradient(1200px 480px at 8% -12%, rgba(71, 150, 202, 0.22), transparent 56%),
     radial-gradient(1000px 420px at 92% -18%, rgba(241, 157, 71, 0.18), transparent 60%),
     linear-gradient(180deg, color-mix(in srgb, var(--color-page-bg) 94%, white 6%) 0%, var(--color-page-bg) 100%);
+}
+
+@utility ui-admin-atmosphere-dark {
+  background-image:
+    radial-gradient(1200px 520px at 12% -18%, rgba(49, 152, 214, 0.18), transparent 58%),
+    radial-gradient(980px 420px at 86% -16%, rgba(229, 145, 58, 0.14), transparent 64%),
+    linear-gradient(180deg, color-mix(in srgb, var(--color-page-bg) 92%, black 8%) 0%, var(--color-page-bg) 100%);
 }
 
 @utility ui-homepage-gradient {

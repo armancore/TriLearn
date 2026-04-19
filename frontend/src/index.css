@@ -54,8 +54,21 @@
     box-shadow: 0 24px 44px -30px rgba(13, 34, 58, 0.35), 0 10px 22px -18px rgba(13, 34, 58, 0.18);
   }
 
+  .dark .admin-page .ui-card,
+  html[data-theme="dark"] .admin-page .ui-card {
+    border-color: color-mix(in srgb, var(--color-card-border) 85%, black);
+    background:
+      linear-gradient(145deg, color-mix(in srgb, var(--color-card-surface) 92%, black), color-mix(in srgb, var(--color-surface-muted) 78%, black));
+    box-shadow: 0 24px 52px -30px rgba(2, 6, 23, 0.9), 0 10px 22px -14px rgba(2, 6, 23, 0.65);
+  }
+
   .admin-page table thead {
     background: color-mix(in srgb, var(--color-surface-muted) 92%, white);
+  }
+
+  .dark .admin-page table thead,
+  html[data-theme="dark"] .admin-page table thead {
+    background: color-mix(in srgb, var(--color-surface-muted) 84%, black);
   }
 
   .admin-page table tbody tr:hover {

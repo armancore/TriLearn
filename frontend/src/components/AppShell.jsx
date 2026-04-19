@@ -223,7 +223,13 @@ const AppShell = ({
 
   return (
     <div
-      className={`h-screen overflow-hidden bg-[var(--color-page-bg)] text-[var(--color-page-text)] ${roleThemeClass} ${roleTheme === 'admin' ? 'ui-admin-atmosphere' : ''}`}
+      className={`h-screen overflow-hidden bg-[var(--color-page-bg)] text-[var(--color-page-text)] ${roleThemeClass} ${
+        roleTheme === 'admin'
+          ? resolvedTheme === 'dark'
+            ? 'ui-admin-atmosphere-dark'
+            : 'ui-admin-atmosphere'
+          : ''
+      }`}
       data-role-theme={roleTheme}
     >
       {mobileOpen && (

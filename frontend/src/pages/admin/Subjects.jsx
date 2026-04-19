@@ -293,7 +293,7 @@ const Subjects = () => {
 
                 {/* Description */}
                 {subject.description && (
-                  <p className="text-sm text-[--color-text-muted] dark:text-slate-400 mb-4 line-clamp-2">{subject.description}</p>
+                  <p className="text-sm text-[--color-text-muted] dark:text-slate-300 mb-4 line-clamp-2">{subject.description}</p>
                 )}
 
                 {/* Instructor */}
@@ -305,7 +305,7 @@ const Subjects = () => {
                 </div>
 
                 {/* Stats */}
-                <div className="mb-4 grid gap-2 text-xs text-[--color-text-muted] dark:text-slate-400">
+                <div className="mb-4 grid gap-2 text-xs text-[--color-text-muted] dark:text-slate-300">
                   <span className="inline-flex items-center gap-2"><FileText className="h-3.5 w-3.5" />{subject._count?.assignments} assignments</span>
                   <span className="inline-flex items-center gap-2"><ClipboardList className="h-3.5 w-3.5" />{subject._count?.attendances} attendances</span>
                   <span className="inline-flex items-center gap-2"><Users className="h-3.5 w-3.5" />{subject._count?.enrollments || 0} students</span>
@@ -516,12 +516,12 @@ const Subjects = () => {
               </button>
             </div>
 
-            <p className="text-xs text-[--color-text-muted] dark:text-slate-400 mb-4">
+            <p className="text-xs text-[--color-text-muted] dark:text-slate-300 mb-4">
               Suggested students match the subject&apos;s semester and department. You can adjust the final class list manually.
             </p>
 
             {loadingEnrollments ? (
-              <div className="text-center text-[--color-text-muted] dark:text-slate-400 py-12">Loading students...</div>
+              <div className="text-center text-[--color-text-muted] dark:text-slate-300 py-12">Loading students...</div>
             ) : (
               <div className="flex-1 overflow-y-auto space-y-3 pr-1">
                 {filteredEnrollmentStudents.map((student) => (
@@ -536,7 +536,7 @@ const Subjects = () => {
                       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
                         <div>
                           <p className="font-semibold text-[--color-text] dark:text-slate-100">{student.name}</p>
-                          <p className="text-sm text-[--color-text-muted] dark:text-slate-400 mt-1">{student.rollNumber} • {student.email}</p>
+                          <p className="text-sm text-[--color-text-muted] dark:text-slate-300 mt-1">{student.rollNumber} • {student.email}</p>
                         </div>
                         {student.suggested && (
                           <span className="rounded-full bg-primary-50 px-2 py-1 text-xs font-medium text-primary dark:bg-primary-950/30 dark:text-primary-300">
