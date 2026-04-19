@@ -1,29 +1,29 @@
 :root {
-  --font-sans-base: Inter, system-ui, sans-serif;
+  --font-sans-base: "IBM Plex Sans", "Sora", system-ui, sans-serif;
   --tracking-heading-tight: -0.03em;
 
-  --color-page-bg: #F3F6FB;
-  --gradient-homepage-bg: linear-gradient(180deg, #f6f8fc 0%, #f2f5f9 52%, #edf3f0 100%);
+  --color-page-bg: #EEF3F8;
+  --gradient-homepage-bg: linear-gradient(180deg, #f4f7fb 0%, #edf3f8 48%, #e7f0f6 100%);
   --color-page-text: #1A1A2E;
-  --color-surface-muted: #EEF2F9;
-  --color-surface-subtle: #E5ECF6;
-  --color-border-muted: #D4E0F0;
-  --color-heading: #0F2447;
-  --color-text-muted: #4B5563;
-  --color-text-soft: #7A8798;
+  --color-surface-muted: #E4EDF6;
+  --color-surface-subtle: #DAE6F3;
+  --color-border-muted: #C7D7EA;
+  --color-heading: #0D223A;
+  --color-text-muted: #4E6074;
+  --color-text-soft: #77889B;
 
-  --color-sidebar-primary: #0F2447;
-  --color-sidebar-overlay-top: rgba(42, 82, 152, 0.18);
-  --color-sidebar-overlay-bottom: rgba(244, 166, 35, 0.18);
-  --color-sidebar-border: rgba(212, 224, 240, 0.2);
+  --color-sidebar-primary: #0B2238;
+  --color-sidebar-overlay-top: rgba(21, 92, 132, 0.24);
+  --color-sidebar-overlay-bottom: rgba(235, 150, 52, 0.2);
+  --color-sidebar-border: rgba(173, 198, 222, 0.3);
 
-  --color-nav-active: #2A5298;
-  --color-nav-active-strong: #1A3C6E;
-  --color-nav-active-glow: rgba(42, 82, 152, 0.32);
+  --color-nav-active: #1D6FA7;
+  --color-nav-active-strong: #14517A;
+  --color-nav-active-glow: rgba(29, 111, 167, 0.34);
   --color-nav-active-text: #ffffff;
 
   --color-card-surface: #FFFFFF;
-  --color-card-border: #E5E7EB;
+  --color-card-border: #D6E1EE;
   --shadow-card-sm: 0 1px 2px 0 rgba(15, 36, 71, 0.08), 0 10px 24px -18px rgba(15, 36, 71, 0.22);
   --shadow-card-md: 0 18px 36px -24px rgba(15, 36, 71, 0.28), 0 8px 18px -12px rgba(15, 36, 71, 0.16);
   --shadow-brand-logo-light: 0 14px 36px rgba(26, 60, 110, 0.12);
@@ -50,7 +50,7 @@
   --color-badge-neutral-text: #475569;
   --color-badge-neutral-dot: #94a3b8;
 
-  --color-role-admin: #1A3C6E;
+  --color-role-admin: #0F5C89;
   --color-role-instructor: #2A5298;
   --color-role-student: #5483C3;
   --color-role-gate: #F4A623;
@@ -61,26 +61,26 @@
 html[data-theme="dark"] {
   color-scheme: dark;
 
-  --color-page-bg: #0F172A;
-  --gradient-homepage-bg: linear-gradient(180deg, #081120 0%, #0c1830 48%, #122033 100%);
+  --color-page-bg: #081724;
+  --gradient-homepage-bg: linear-gradient(180deg, #07121f 0%, #0a1a2a 46%, #0d2235 100%);
   --color-page-text: #F1F5F9;
-  --color-surface-muted: #111C33;
-  --color-surface-subtle: #16213D;
-  --color-border-muted: rgba(84, 131, 195, 0.24);
+  --color-surface-muted: #0F2235;
+  --color-surface-subtle: #122A41;
+  --color-border-muted: rgba(112, 157, 197, 0.26);
   --color-heading: #F8FAFC;
   --color-text-muted: #94A3B8;
   --color-text-soft: #64748B;
 
-  --color-sidebar-primary: #091729;
-  --color-sidebar-overlay-top: rgba(84, 131, 195, 0.2);
-  --color-sidebar-overlay-bottom: rgba(244, 166, 35, 0.16);
-  --color-sidebar-border: rgba(84, 131, 195, 0.18);
+  --color-sidebar-primary: #07192B;
+  --color-sidebar-overlay-top: rgba(45, 149, 204, 0.22);
+  --color-sidebar-overlay-bottom: rgba(235, 150, 52, 0.16);
+  --color-sidebar-border: rgba(88, 144, 190, 0.2);
 
-  --color-nav-active: #5483C3;
-  --color-nav-active-strong: #2A5298;
-  --color-nav-active-glow: rgba(84, 131, 195, 0.34);
+  --color-nav-active: #2C88C5;
+  --color-nav-active-strong: #1D6FA7;
+  --color-nav-active-glow: rgba(44, 136, 197, 0.34);
 
-  --color-card-surface: #1E293B;
+  --color-card-surface: #12263A;
   --color-card-border: rgba(148, 163, 184, 0.24);
   --shadow-card-sm: 0 18px 42px -28px rgba(4, 11, 20, 0.92), 0 6px 16px -10px rgba(15, 23, 42, 0.55);
   --shadow-card-md: 0 28px 56px -34px rgba(4, 11, 20, 0.98), 0 10px 24px -12px rgba(15, 23, 42, 0.62);
@@ -109,6 +109,21 @@ html[data-theme="dark"] {
 
 [data-role-theme="admin"] {
   --color-role-accent: var(--color-role-admin);
+  --color-page-bg: #EEF4FA;
+  --color-surface-muted: #E2EDF7;
+  --color-surface-subtle: #D7E5F2;
+  --color-heading: #0D243B;
+  --color-card-surface: rgba(255, 255, 255, 0.88);
+  --color-card-border: rgba(170, 196, 222, 0.52);
+}
+
+.dark [data-role-theme="admin"],
+html[data-theme="dark"] [data-role-theme="admin"] {
+  --color-page-bg: #071726;
+  --color-surface-muted: #0C2438;
+  --color-surface-subtle: #10304A;
+  --color-card-surface: rgba(13, 34, 52, 0.84);
+  --color-card-border: rgba(79, 130, 169, 0.34);
 }
 
 [data-role-theme="instructor"] {
@@ -156,6 +171,13 @@ html[data-theme="dark"] {
     radial-gradient(circle at bottom left, var(--color-sidebar-overlay-bottom), transparent 48%);
   border-color: var(--color-sidebar-border);
   color: #e2e8f0;
+}
+
+@utility ui-admin-atmosphere {
+  background-image:
+    radial-gradient(1200px 480px at 8% -12%, rgba(71, 150, 202, 0.22), transparent 56%),
+    radial-gradient(1000px 420px at 92% -18%, rgba(241, 157, 71, 0.18), transparent 60%),
+    linear-gradient(180deg, color-mix(in srgb, var(--color-page-bg) 94%, white 6%) 0%, var(--color-page-bg) 100%);
 }
 
 @utility ui-homepage-gradient {

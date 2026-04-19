@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { Plus } from 'lucide-react'
+import { BellRing, Plus } from 'lucide-react'
 import AdminLayout from '../../layouts/AdminLayout'
 import CoordinatorLayout from '../../layouts/CoordinatorLayout'
 import api from '../../utils/api'
@@ -229,7 +229,7 @@ const Notices = () => {
 
   return (
     <Layout>
-      <div className="p-4 md:p-8">
+      <div className="admin-page p-4 md:p-8">
 
         <PageHeader
           title="Notices"
@@ -310,7 +310,7 @@ const Notices = () => {
               {notices.length === 0 && (
                 <div className="p-2">
                   <EmptyState
-                    icon="📣"
+                    icon={BellRing}
                     title="No notices yet"
                     description="Create the first notice to share campus updates with your users."
                     action={(

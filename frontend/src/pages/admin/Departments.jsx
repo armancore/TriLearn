@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Layers, Plus, Trash2, UserPlus, Users } from 'lucide-react'
+import { BookOpenText, GraduationCap, Layers, Plus, Trash2, UserPlus, Users } from 'lucide-react'
 import AdminLayout from '../../layouts/AdminLayout'
 import CoordinatorLayout from '../../layouts/CoordinatorLayout'
 import Alert from '../../components/Alert'
@@ -434,7 +434,7 @@ const Departments = () => {
 
   return (
     <Layout>
-      <div className="p-4 md:p-8">
+      <div className="admin-page p-4 md:p-8">
         <PageHeader
           title="Departments"
           subtitle="Create and manage the departments used across users and subjects."
@@ -463,10 +463,10 @@ const Departments = () => {
                   <p className="mb-4 line-clamp-3 text-sm text-[var(--color-text-muted)]">{department.description}</p>
                 )}
 
-                <div className="mb-4 flex gap-4 text-xs text-[var(--color-text-muted)]">
-                  <span>👨‍🎓 {department._count?.students || 0} students</span>
-                  <span>👩‍🏫 {department._count?.instructors || 0} instructors</span>
-                  <span>📚 {department._count?.subjects || 0} subjects</span>
+                <div className="mb-4 grid gap-2 text-xs text-[var(--color-text-muted)]">
+                  <span className="inline-flex items-center gap-2"><GraduationCap className="h-3.5 w-3.5" />{department._count?.students || 0} students</span>
+                  <span className="inline-flex items-center gap-2"><Users className="h-3.5 w-3.5" />{department._count?.instructors || 0} instructors</span>
+                  <span className="inline-flex items-center gap-2"><BookOpenText className="h-3.5 w-3.5" />{department._count?.subjects || 0} subjects</span>
                 </div>
 
                 <div className="mb-4 grid gap-2 sm:grid-cols-2">
@@ -535,7 +535,7 @@ const Departments = () => {
             {departments.length === 0 && (
               <div className="col-span-3">
                 <EmptyState
-                  icon="🏛️"
+                  icon={Layers}
                   title="No departments yet"
                   description="Create your first department so students, instructors, and subjects can be organized properly."
                   action={(
@@ -613,7 +613,7 @@ const Departments = () => {
             <LoadingSkeleton rows={4} itemClassName="h-20" />
           ) : selectedDepartmentInstructors.length === 0 ? (
             <EmptyState
-              icon="👩‍🏫"
+              icon={Users}
               title="No instructors assigned"
               description={`No instructors are assigned to ${selectedDepartment?.name || 'this department'} yet.`}
               action={(

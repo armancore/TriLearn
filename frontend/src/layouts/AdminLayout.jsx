@@ -4,9 +4,7 @@ import {
   Bell,
   BookOpenText,
   CalendarDays,
-  ClipboardList,
   FileText,
-  FolderOpen,
   LayoutDashboard,
   Percent,
   ShieldUser,
@@ -41,11 +39,8 @@ const AdminLayout = ({ children }) => {
   const topItems = [
     { path: `${basePath}/routine`, label: 'Routine', icon: CalendarDays },
     { path: `${basePath}/notices`, label: 'Notices', icon: Bell },
-    { label: 'Events', icon: CalendarDays },
-    { label: 'Requests', icon: ClipboardList },
-    { label: 'Key Dates', icon: CalendarDays },
-    { label: 'Survey', icon: FileText },
-    { label: 'Weekly', icon: Bell }
+    { path: `${basePath}/applications`, label: 'Admissions', icon: FileText },
+    { path: `${basePath}/student-qr`, label: 'QR Slots', icon: Percent }
   ]
 
   const handleLogout = () => {

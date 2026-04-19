@@ -222,7 +222,10 @@ const AppShell = ({
   })
 
   return (
-    <div className={`h-screen overflow-hidden bg-[var(--color-page-bg)] text-[var(--color-page-text)] ${roleThemeClass}`} data-role-theme={roleTheme}>
+    <div
+      className={`h-screen overflow-hidden bg-[var(--color-page-bg)] text-[var(--color-page-text)] ${roleThemeClass} ${roleTheme === 'admin' ? 'ui-admin-atmosphere' : ''}`}
+      data-role-theme={roleTheme}
+    >
       {mobileOpen && (
         <button
           type="button"

@@ -1,34 +1,35 @@
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Sora:wght@500;600;700;800&display=swap");
 @config "../tailwind.config.js";
 @import "tailwindcss";
 @import "./styles/design-tokens.css";
 
 @layer base {
   :root {
-    --color-primary: #1A3C6E;
-    --color-primary-light: #2A5298;
-    --color-primary-dark: #0F2447;
-    --color-accent: #F4A623;
-    --color-accent-light: #F7BC57;
-    --color-accent-dark: #D4891A;
-    --color-bg: #F3F6FB;
+    --color-primary: #14517A;
+    --color-primary-light: #1D6FA7;
+    --color-primary-dark: #0D223A;
+    --color-accent: #EB9634;
+    --color-accent-light: #F1A84F;
+    --color-accent-dark: #C8791A;
+    --color-bg: #EEF4FA;
     --color-bg-card: #FFFFFF;
-    --color-text: #1A1A2E;
-    --color-text-muted: #4B5563;
-    --color-border: #E5E7EB;
+    --color-text: #10263D;
+    --color-text-muted: #4E6074;
+    --color-border: #D6E1EE;
   }
 
   .dark {
-    --color-primary: #2A5298;
-    --color-primary-light: #5483C3;
-    --color-primary-dark: #1A3C6E;
-    --color-accent: #F4A623;
-    --color-accent-light: #F7BC57;
-    --color-accent-dark: #D4891A;
-    --color-bg: #0F172A;
-    --color-bg-card: #1E293B;
+    --color-primary: #2C88C5;
+    --color-primary-light: #48A3DD;
+    --color-primary-dark: #14517A;
+    --color-accent: #EB9634;
+    --color-accent-light: #F2AA56;
+    --color-accent-dark: #C8791A;
+    --color-bg: #071726;
+    --color-bg-card: #12263A;
     --color-text: #F1F5F9;
-    --color-text-muted: #94A3B8;
-    --color-border: #334155;
+    --color-text-muted: #9CB3C7;
+    --color-border: #2C4258;
   }
 
   body {
@@ -42,6 +43,30 @@
 }
 
 @layer components {
+  .admin-page {
+    @apply relative space-y-6 md:space-y-7;
+  }
+
+  .admin-page .ui-card {
+    border-color: color-mix(in srgb, var(--color-card-border) 70%, white);
+    background:
+      linear-gradient(145deg, color-mix(in srgb, var(--color-card-surface) 94%, white), color-mix(in srgb, var(--color-surface-muted) 88%, white));
+    box-shadow: 0 24px 44px -30px rgba(13, 34, 58, 0.35), 0 10px 22px -18px rgba(13, 34, 58, 0.18);
+  }
+
+  .admin-page table thead {
+    background: color-mix(in srgb, var(--color-surface-muted) 92%, white);
+  }
+
+  .admin-page table tbody tr:hover {
+    background: color-mix(in srgb, var(--color-role-accent) 7%, var(--color-card-surface));
+  }
+
+  .admin-page button,
+  .admin-page a {
+    @apply cursor-pointer;
+  }
+
   .btn-primary {
     @apply bg-primary text-white px-4 py-2 rounded-lg font-medium
            hover:bg-primary-500 active:bg-primary-700

@@ -72,7 +72,7 @@ const Dashboard = () => {
 
   if (loading) return (
     <AdminLayout>
-      <div className="p-4 md:p-8">
+      <div className="admin-page p-4 md:p-8">
         <LoadingSkeleton rows={5} itemClassName="h-24" />
       </div>
     </AdminLayout>
@@ -80,11 +80,11 @@ const Dashboard = () => {
 
   return (
     <AdminLayout>
-      <div className="p-4 md:p-8">
+      <div className="admin-page p-4 md:p-8">
 
         <PageHeader
           title="Dashboard"
-          subtitle="Welcome to TriLearn Admin Panel"
+          subtitle="Institution analytics, account activity, and academic operations at a glance."
           breadcrumbs={['Admin', 'Dashboard']}
         />
 
@@ -92,9 +92,9 @@ const Dashboard = () => {
 
         {/* Stats */}
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4 mb-8">
-          <StatCard title="Total Users" value={stats.totalUsers} icon={Users} iconClassName="from-blue-500 to-indigo-600" trend={`${recentUsers.length} recent`} trendLabel="latest accounts shown" />
+          <StatCard title="Total Users" value={stats.totalUsers} icon={Users} iconClassName="from-sky-600 to-cyan-500" trend={`${recentUsers.length} recent`} trendLabel="latest accounts shown" />
           <StatCard title="Students" value={stats.totalStudents} icon={GraduationCap} iconClassName="from-emerald-500 to-green-600" trend={`${stats.totalStudents} total`} trendLabel="active enrollments" />
-          <StatCard title="Instructors" value={stats.totalInstructors} icon={ShieldUser} iconClassName="from-violet-500 to-purple-600" trend={`${stats.totalInstructors} total`} trendLabel="teaching staff" />
+          <StatCard title="Instructors" value={stats.totalInstructors} icon={ShieldUser} iconClassName="from-teal-600 to-sky-600" trend={`${stats.totalInstructors} total`} trendLabel="teaching staff" />
           <StatCard title="Subjects" value={stats.totalSubjects} icon={BookOpenText} iconClassName="from-amber-500 to-orange-500" trend={`${stats.totalSubjects} total`} trendLabel="curriculum entries" />
         </div>
 
@@ -128,7 +128,7 @@ const Dashboard = () => {
             ))}
             {recentUsers.length === 0 && (
               <EmptyState
-                icon="👥"
+                icon={Users}
                 title="No recent users yet"
                 description="Newly created users will appear here for a quick admin overview."
               />

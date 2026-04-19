@@ -6,13 +6,13 @@ const StatCard = ({
   trend = '+4.6%',
   trendLabel = 'from last week'
 }) => (
-  <article className="ui-card ui-card-hover group overflow-hidden rounded-2xl hover:-translate-y-0.5 hover:shadow-lg dark:shadow-slate-900/50">
+  <article className="ui-card ui-card-hover group overflow-hidden rounded-[1.4rem] border-[color:color-mix(in_srgb,var(--color-card-border)_74%,white)] bg-[linear-gradient(130deg,color-mix(in_srgb,var(--color-card-surface)_94%,white)_0%,color-mix(in_srgb,var(--color-surface-muted)_90%,white)_100%)] hover:-translate-y-0.5 hover:shadow-lg dark:shadow-slate-900/50">
     <div className={`h-1.5 w-full bg-gradient-to-r ${iconClassName}`} />
     <div className="p-6">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="text-sm font-medium text-[var(--color-text-muted)]">{title}</p>
-          <p className="mt-3 text-3xl font-black tracking-tight text-[var(--color-text)]">{value}</p>
+          <p className="text-sm font-semibold uppercase tracking-[0.14em] text-[var(--color-text-soft)]">{title}</p>
+          <p className="mt-3 text-3xl font-black tracking-tight text-[var(--color-heading)]">{value}</p>
         </div>
         <div className={`flex h-14 w-14 items-center justify-center rounded-xl bg-gradient-to-br text-white shadow-lg dark:shadow-slate-900/50 transition duration-200 group-hover:-translate-y-0.5 ${iconClassName}`}>
           <Icon className="h-6 w-6" />

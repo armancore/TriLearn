@@ -607,7 +607,7 @@ const Users = () => {
 
   return (
     <Layout>
-      <div className="p-4 md:p-8">
+      <div className="admin-page p-4 md:p-8">
 
         <PageHeader
           title="Users"
@@ -805,7 +805,7 @@ const Users = () => {
               {users.length === 0 ? (
                 <div className="p-6">
                   <EmptyState
-                    icon="👥"
+                    icon={UserPlus}
                     title="No users found"
                     description={filterRole === 'INSTRUCTOR'
                       ? 'No instructors matched this filter yet. Create one to get started.'

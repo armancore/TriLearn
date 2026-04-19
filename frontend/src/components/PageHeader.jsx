@@ -1,8 +1,8 @@
 import { Link } from 'react-router-dom'
 
 const buttonVariants = {
-  primary: 'border border-transparent bg-[var(--color-role-accent)] text-white shadow-sm dark:shadow-slate-900/50 hover:brightness-95',
-  secondary: 'border border-slate-200 bg-[--color-bg-card] dark:bg-slate-800 text-slate-600 hover:bg-slate-50',
+  primary: 'cursor-pointer border border-transparent bg-[var(--color-role-accent)] text-white shadow-sm dark:shadow-slate-900/50 hover:brightness-95',
+  secondary: 'cursor-pointer border border-slate-200 bg-[--color-bg-card] dark:bg-slate-800 text-slate-600 hover:bg-slate-50',
   danger: 'border border-accent-100 bg-accent-50 text-accent-600 hover:bg-accent-100'
 }
 
@@ -52,10 +52,10 @@ const renderAction = (action, index) => {
 }
 
 const PageHeader = ({ title, subtitle, actions = [], breadcrumbs = [] }) => (
-  <div className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+  <div className="mb-8 flex flex-col gap-5 rounded-[1.6rem] border border-[color:color-mix(in_srgb,var(--color-card-border)_76%,white)] bg-[linear-gradient(120deg,color-mix(in_srgb,var(--color-card-surface)_94%,white)_0%,color-mix(in_srgb,var(--color-surface-muted)_88%,white)_100%)] px-5 py-5 shadow-[0_20px_48px_-30px_rgba(15,36,71,0.45)] lg:flex-row lg:items-start lg:justify-between">
     <div className="min-w-0">
       {breadcrumbs.length > 0 ? (
-        <div className="mb-3 flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+        <div className="mb-3 flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-[var(--color-text-soft)]">
           {breadcrumbs.map((crumb, index) => {
             const label = typeof crumb === 'string' ? crumb : crumb.label
             return (
@@ -67,8 +67,8 @@ const PageHeader = ({ title, subtitle, actions = [], breadcrumbs = [] }) => (
           })}
         </div>
       ) : null}
-      <h1 className="ui-heading-tight text-2xl font-bold text-slate-900">{title}</h1>
-      {subtitle ? <p className="mt-1 text-sm text-slate-500">{subtitle}</p> : null}
+      <h1 className="ui-heading-tight text-2xl font-bold text-[var(--color-heading)] md:text-[1.95rem]">{title}</h1>
+      {subtitle ? <p className="mt-1 text-sm text-[var(--color-text-muted)]">{subtitle}</p> : null}
     </div>
 
     {actions.length > 0 ? (

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { LoaderCircle, Pencil, Plus, Trash2, Users } from 'lucide-react'
+import { BookOpenText, ClipboardList, FileText, GraduationCap, LoaderCircle, Pencil, Plus, Trash2, Users } from 'lucide-react'
 import AdminLayout from '../../layouts/AdminLayout'
 import CoordinatorLayout from '../../layouts/CoordinatorLayout'
 import api from '../../utils/api'
@@ -227,7 +227,7 @@ const Subjects = () => {
 
   return (
     <Layout>
-      <div className="p-8">
+      <div className="admin-page p-8">
 
         <PageHeader
           title="Subjects"
@@ -305,10 +305,10 @@ const Subjects = () => {
                 </div>
 
                 {/* Stats */}
-                <div className="flex gap-4 mb-4 text-xs text-[--color-text-muted] dark:text-slate-400">
-                  <span>📝 {subject._count?.assignments} assignments</span>
-                  <span>📋 {subject._count?.attendances} attendances</span>
-                  <span>👥 {subject._count?.enrollments || 0} students</span>
+                <div className="mb-4 grid gap-2 text-xs text-[--color-text-muted] dark:text-slate-400">
+                  <span className="inline-flex items-center gap-2"><FileText className="h-3.5 w-3.5" />{subject._count?.assignments} assignments</span>
+                  <span className="inline-flex items-center gap-2"><ClipboardList className="h-3.5 w-3.5" />{subject._count?.attendances} attendances</span>
+                  <span className="inline-flex items-center gap-2"><Users className="h-3.5 w-3.5" />{subject._count?.enrollments || 0} students</span>
                 </div>
 
                 {/* Department */}
@@ -351,7 +351,7 @@ const Subjects = () => {
             {subjects.length === 0 && (
               <div className="col-span-3">
                 <EmptyState
-                  icon="📚"
+                  icon={BookOpenText}
                   title="No subjects yet"
                   description="Create your first subject and assign an instructor to start building the academic structure."
                   action={(
@@ -552,7 +552,7 @@ const Subjects = () => {
                 ))}
                 {filteredEnrollmentStudents.length === 0 && (
                   <EmptyState
-                    icon="🧑‍🎓"
+                    icon={GraduationCap}
                     title="No students matched"
                     description="Try a different search term or apply the suggested enrollment list for this subject."
                   />

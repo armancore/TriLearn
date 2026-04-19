@@ -230,7 +230,7 @@ const StudentQrSettings = () => {
 
   return (
     <Layout>
-      <div className="p-4 md:p-8">
+      <div className="admin-page p-4 md:p-8">
         <PageHeader
           title="Student QR Settings"
           subtitle="Set which semesters may scan the gate Student QR at each time slot, and define holidays that skip attendance deduction."
@@ -319,7 +319,7 @@ const StudentQrSettings = () => {
 
                 {holidays.length === 0 ? (
                   <EmptyState
-                    icon="🏖️"
+                    icon={CalendarDays}
                     title="No holidays added yet"
                     description="Add holiday dates here so attendance is skipped and percentages are not deducted."
                   />

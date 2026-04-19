@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { ExternalLink } from 'lucide-react'
+import { ExternalLink, FileText } from 'lucide-react'
 import AdminLayout from '../../layouts/AdminLayout'
 import CoordinatorLayout from '../../layouts/CoordinatorLayout'
 import Alert from '../../components/Alert'
@@ -149,7 +149,7 @@ const StudentApplications = () => {
 
   return (
     <Layout>
-      <div className="p-8">
+      <div className="admin-page p-8">
         <PageHeader
           title="Student Intake Forms"
           subtitle="Review student-submitted admission details and create portal accounts from approved forms."
@@ -183,7 +183,7 @@ const StudentApplications = () => {
             </div>
           ) : applications.length === 0 ? (
             <div className="p-6">
-              <EmptyState icon="🧾" title="No student forms yet" description="Open the public form link and submit a sample application to test the admissions workflow." />
+              <EmptyState icon={FileText} title="No student forms yet" description="Open the public form link and submit a sample application to test the admissions workflow." />
             </div>
           ) : (
             <>
