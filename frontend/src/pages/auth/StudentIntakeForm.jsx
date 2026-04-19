@@ -199,9 +199,9 @@ const StudentIntakeForm = () => {
             <Icon className="h-4 w-4" />
           </div>
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">Section {section.step}</p>
-            <h5 className="ui-heading-tight mt-1 text-lg font-semibold text-slate-950 sm:text-xl">{section.title}</h5>
-            <p className="mt-1 text-sm leading-6 text-slate-600">{section.description}</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--color-text-soft)]">Section {section.step}</p>
+            <h5 className="ui-heading-tight mt-1 text-lg font-semibold text-[var(--color-heading)] sm:text-xl">{section.title}</h5>
+            <p className="mt-1 text-sm leading-6 text-[var(--color-text-muted)]">{section.description}</p>
           </div>
         </div>
       </div>
@@ -210,9 +210,9 @@ const StudentIntakeForm = () => {
 
   const renderInputField = ({ name, label, placeholder, type = 'text', icon: Icon }) => (
     <div key={name}>
-      <label className="ui-form-label text-slate-700">{label}</label>
+      <label className="ui-form-label">{label}</label>
       <div className="relative">
-        {Icon ? <Icon className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /> : null}
+        {Icon ? <Icon className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--color-text-soft)]" /> : null}
         <input
           name={name}
           type={type}
@@ -228,7 +228,7 @@ const StudentIntakeForm = () => {
 
   const renderTextareaField = ({ name, label, placeholder }) => (
     <div key={name}>
-      <label className="ui-form-label text-slate-700">{label}</label>
+      <label className="ui-form-label">{label}</label>
       <textarea
         name={name}
         value={values[name]}
@@ -258,32 +258,32 @@ const StudentIntakeForm = () => {
         <div className="rounded-[1.35rem] border border-slate-200 bg-[--color-bg-card] dark:bg-slate-800 px-5 py-6 shadow-[0_18px_45px_-38px_rgba(15,23,42,0.28)] sm:rounded-[1.5rem] sm:px-8 sm:py-7">
           <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start">
             <div>
-              <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-slate-600">
-                <Sparkles className="h-3.5 w-3.5 text-slate-500" />
+              <div className="inline-flex items-center gap-2 rounded-full border border-[var(--color-card-border)] bg-[var(--color-surface-muted)] px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-[var(--color-text-muted)]">
+                <Sparkles className="h-3.5 w-3.5 text-[var(--color-text-soft)]" />
                 Admissions Intake
               </div>
               <h3 className="ui-heading-tight mt-4 max-w-2xl text-2xl font-semibold leading-tight text-slate-950 sm:text-[2.15rem]">
                 Student intake information
               </h3>
-              <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-600 sm:text-base">
+              <p className="mt-3 max-w-2xl text-sm leading-7 text-[var(--color-text-muted)] sm:text-base">
                 Complete the required details below so the institution can review your admission record and prepare your student account accurately.
               </p>
               <div className="mt-5 flex flex-wrap gap-3">
-                <span className="inline-flex items-center rounded-full bg-slate-50 px-3 py-1 text-sm font-medium text-slate-700 ring-1 ring-slate-200">First-semester applicants</span>
-                <span className="inline-flex items-center rounded-full bg-slate-50 px-3 py-1 text-sm font-medium text-slate-700 ring-1 ring-slate-200">Verified department selection</span>
-                <span className="inline-flex items-center rounded-full bg-slate-50 px-3 py-1 text-sm font-medium text-slate-700 ring-1 ring-slate-200">Guardian contact required</span>
+                <span className="inline-flex items-center rounded-full bg-[var(--color-surface-muted)] px-3 py-1 text-sm font-medium text-[var(--color-page-text)] ring-1 ring-[var(--color-card-border)]">First-semester applicants</span>
+                <span className="inline-flex items-center rounded-full bg-[var(--color-surface-muted)] px-3 py-1 text-sm font-medium text-[var(--color-page-text)] ring-1 ring-[var(--color-card-border)]">Verified department selection</span>
+                <span className="inline-flex items-center rounded-full bg-[var(--color-surface-muted)] px-3 py-1 text-sm font-medium text-[var(--color-page-text)] ring-1 ring-[var(--color-card-border)]">Guardian contact required</span>
               </div>
             </div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-2">
               <div className="rounded-2xl border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-900/50 p-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">Sections</p>
-                <p className="mt-2 text-3xl font-semibold text-slate-950 dark:text-slate-100">4</p>
-                <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Clear grouped details</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[var(--color-text-soft)]">Sections</p>
+                <p className="mt-2 text-3xl font-semibold text-[var(--color-heading)]">4</p>
+                <p className="mt-1 text-sm text-[var(--color-text-muted)]">Clear grouped details</p>
               </div>
               <div className="rounded-2xl border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-900/50 p-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">Estimated time</p>
-                <p className="mt-2 text-3xl font-semibold text-slate-950 dark:text-slate-100">3 min</p>
-                <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">For a complete submission</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[var(--color-text-soft)]">Estimated time</p>
+                <p className="mt-2 text-3xl font-semibold text-[var(--color-heading)]">3 min</p>
+                <p className="mt-1 text-sm text-[var(--color-text-muted)]">For a complete submission</p>
               </div>
             </div>
           </div>
@@ -308,15 +308,15 @@ const StudentIntakeForm = () => {
                         <Icon className="h-4 w-4" />
                       </div>
                       <div>
-                        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">{section.step}</p>
-                        <p className="mt-1 text-sm font-semibold text-slate-900">{section.title}</p>
-                        <p className="mt-1 text-xs leading-5 text-slate-500 xl:block">{section.description}</p>
+                        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--color-text-soft)]">{section.step}</p>
+                        <p className="mt-1 text-sm font-semibold text-[var(--color-heading)]">{section.title}</p>
+                        <p className="mt-1 text-xs leading-5 text-[var(--color-text-muted)] xl:block">{section.description}</p>
                       </div>
                     </div>
                   )
                 })}
               </div>
-              <div className="border-t border-slate-100 bg-slate-50 px-5 py-4 text-sm leading-6 text-slate-600">
+              <div className="border-t border-[var(--color-card-border)] bg-[var(--color-surface-muted)] px-5 py-4 text-sm leading-6 text-[var(--color-text-muted)]">
                 Use your personal email address and review all required fields before submitting.
               </div>
             </div>
