@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { BellRing } from 'lucide-react'
 import StudentLayout from '../../layouts/StudentLayout'
 import api from '../../utils/api'
 import LoadingSkeleton from '../../components/LoadingSkeleton'
@@ -80,7 +81,7 @@ const StudentNotices = () => {
 
   return (
     <StudentLayout>
-      <div className="p-8">
+      <div className="student-page p-8">
         <PageHeader
           title="Notices"
           subtitle="Stay updated with school announcements"
@@ -99,18 +100,18 @@ const StudentNotices = () => {
                       {initialsFromName(notice.user?.name)}
                     </div>
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold text-slate-900">{notice.user?.name || 'Unknown author'}</p>
-                      <p className="text-xs text-slate-400">{relativeDate(notice.createdAt)}</p>
+                      <p className="truncate text-sm font-semibold text-[var(--color-heading)]">{notice.user?.name || 'Unknown author'}</p>
+                      <p className="text-xs text-[var(--color-text-soft)]">{relativeDate(notice.createdAt)}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-3 mb-3">
                     <StatusBadge status={notice.type} />
-                    <span className="text-xs text-gray-400">
-                      {new Date(notice.createdAt).toLocaleDateString()}
-                    </span>
-                  </div>
-                  <h3 className="font-semibold text-[--color-text] dark:text-slate-100 mb-2">{notice.title}</h3>
-                  <p className={`text-sm text-[--color-text-muted] dark:text-slate-400 ${expandedNoticeIds.includes(notice.id) ? '' : 'line-clamp-2'}`}>{notice.content}</p>
+                  <span className="text-xs text-[var(--color-text-soft)]">
+                    {new Date(notice.createdAt).toLocaleDateString()}
+                  </span>
+                </div>
+                  <h3 className="mb-2 font-semibold text-[--color-text] dark:text-slate-100">{notice.title}</h3>
+                  <p className={`text-sm text-[--color-text-muted] dark:text-slate-300 ${expandedNoticeIds.includes(notice.id) ? '' : 'line-clamp-2'}`}>{notice.content}</p>
                   {notice.content.length > 140 ? (
                     <button
                       type="button"
@@ -124,7 +125,7 @@ const StudentNotices = () => {
               ))}
               {notices.length === 0 && (
                 <EmptyState
-                  icon="📣"
+                  icon={BellRing}
                   title="No notices yet"
                   description="New campus and classroom updates will appear here once they are published."
                 />

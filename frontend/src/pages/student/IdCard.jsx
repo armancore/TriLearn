@@ -44,7 +44,7 @@ const StudentIdCard = () => {
 
   return (
     <StudentLayout>
-      <div className="mx-auto max-w-5xl p-8">
+      <div className="student-page mx-auto max-w-5xl p-8">
         <PageHeader
           title="Student ID Card"
           subtitle="Keep your student identity card ready for campus verification and QR-based scans."

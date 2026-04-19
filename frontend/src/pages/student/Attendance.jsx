@@ -247,7 +247,7 @@ const StudentAttendance = () => {
 
   return (
     <StudentLayout>
-      <div className="p-4 md:p-8">
+      <div className="student-page p-4 md:p-8">
         <PageHeader
           title={location.pathname === '/student/scan' ? 'Scan Gate QR' : 'My Attendance'}
           subtitle={location.pathname === '/student/scan'
@@ -385,7 +385,7 @@ const StudentAttendance = () => {
               {summary.length === 0 && (
                 <div className="col-span-3">
                   <EmptyState
-                    icon="📊"
+                    icon={FileText}
                     title="No attendance records yet"
                     description="Your attendance summary will appear here once a class has been recorded."
                   />

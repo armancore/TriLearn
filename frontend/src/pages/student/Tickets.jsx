@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Send } from 'lucide-react'
+import { ClipboardList, Inbox, Send } from 'lucide-react'
 import StudentLayout from '../../layouts/StudentLayout'
 import PageHeader from '../../components/PageHeader'
 import EmptyState from '../../components/EmptyState'
@@ -65,7 +65,7 @@ const StudentTickets = () => {
 
   return (
     <StudentLayout>
-      <div className="p-4 md:p-8">
+      <div className="student-page p-4 md:p-8">
         <PageHeader
           title="Requests"
           subtitle="Submit absence requests and track instructor or coordinator responses from one place."
@@ -81,26 +81,26 @@ const StudentTickets = () => {
             <section className="ui-card rounded-2xl p-6">
               <div className="mb-4 flex items-center justify-between gap-4">
                 <div>
-                  <h2 className="text-lg font-semibold text-slate-900">Need Your Response</h2>
-                  <p className="text-sm text-slate-500">These absences were auto-recorded after the scan window closed.</p>
+                  <h2 className="text-lg font-semibold text-[var(--color-heading)]">Need Your Response</h2>
+                  <p className="text-sm text-[var(--color-text-muted)]">These absences were auto-recorded after the scan window closed.</p>
                 </div>
                 <span className="ui-status-badge ui-status-warning">{absencesWithoutTicket.length} pending</span>
               </div>
 
               {absencesWithoutTicket.length === 0 ? (
                 <EmptyState
-                  icon="📝"
+                  icon={ClipboardList}
                   title="No pending absence tickets"
                   description="You do not have any absent records waiting for an explanation right now."
                 />
               ) : (
                 <div className="space-y-4">
                   {absencesWithoutTicket.map((absence) => (
-                    <div key={absence.id} className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
+                    <div key={absence.id} className="rounded-2xl border border-[var(--color-card-border)] bg-[var(--color-surface-muted)] p-4">
                       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                         <div>
-                          <p className="font-semibold text-slate-900">{absence.subject?.name}</p>
-                          <p className="mt-1 text-xs text-slate-500">{absence.subject?.code} • {new Date(absence.date).toLocaleDateString()}</p>
+                          <p className="font-semibold text-[var(--color-heading)]">{absence.subject?.name}</p>
+                          <p className="mt-1 text-xs text-[var(--color-text-muted)]">{absence.subject?.code} • {new Date(absence.date).toLocaleDateString()}</p>
                         </div>
                         <span className="ui-status-badge ui-status-danger">Absent</span>
                       </div>
@@ -129,26 +129,26 @@ const StudentTickets = () => {
             <section className="ui-card rounded-2xl p-6">
               <div className="mb-4 flex items-center justify-between gap-4">
                 <div>
-                  <h2 className="text-lg font-semibold text-slate-900">Submitted Requests</h2>
-                  <p className="text-sm text-slate-500">Track the review status and response for each submitted request.</p>
+                  <h2 className="text-lg font-semibold text-[var(--color-heading)]">Submitted Requests</h2>
+                  <p className="text-sm text-[var(--color-text-muted)]">Track the review status and response for each submitted request.</p>
                 </div>
                 <span className="ui-status-badge ui-status-neutral">{tickets.length} records</span>
               </div>
 
               {tickets.length === 0 ? (
                 <EmptyState
-                  icon="📭"
+                  icon={Inbox}
                   title="No submitted tickets yet"
                   description="Submitted absence explanations will appear here once you send one."
                 />
               ) : (
                 <div className="space-y-4">
                   {tickets.map((ticket) => (
-                    <div key={ticket.id} className="rounded-2xl border border-slate-200 bg-[--color-bg-card] dark:bg-slate-800 p-4">
+                    <div key={ticket.id} className="rounded-2xl border border-[var(--color-card-border)] bg-[--color-bg-card] p-4">
                       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                         <div>
-                          <p className="font-semibold text-slate-900">{ticket.attendance?.subject?.name}</p>
-                          <p className="mt-1 text-xs text-slate-500">
+                          <p className="font-semibold text-[var(--color-heading)]">{ticket.attendance?.subject?.name}</p>
+                          <p className="mt-1 text-xs text-[var(--color-text-muted)]">
                             {ticket.attendance?.subject?.code} • {new Date(ticket.attendance?.date).toLocaleDateString()}
                           </p>
                         </div>
@@ -163,10 +163,10 @@ const StudentTickets = () => {
                           {ticket.status}
                         </span>
                       </div>
-                      <p className="mt-4 text-sm text-slate-600">{ticket.reason}</p>
+                      <p className="mt-4 text-sm text-[var(--color-text-muted)]">{ticket.reason}</p>
                       {ticket.response ? (
-                        <div className="mt-3 rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
-                          <span className="font-medium text-slate-800">Review note:</span> {ticket.response}
+                        <div className="mt-3 rounded-xl bg-[var(--color-surface-muted)] px-4 py-3 text-sm text-[var(--color-text-muted)]">
+                          <span className="font-medium text-[var(--color-heading)]">Review note:</span> {ticket.response}
                         </div>
                       ) : null}
                     </div>

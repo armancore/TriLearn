@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { BookOpenText, FileArchive, FileImage, FileSpreadsheet, FileText, FileVideo } from 'lucide-react'
 import LoadingSkeleton from '../../components/LoadingSkeleton'
 import EmptyState from '../../components/EmptyState'
 import PageHeader from '../../components/PageHeader'
@@ -127,16 +128,15 @@ const StudentMaterials = () => {
     : materials
 
   const getFileIcon = (url) => {
-    if (!url) return '📄'
+    if (!url) return FileText
     const ext = url.split('.').pop().toLowerCase()
-    if (['pdf'].includes(ext)) return '📕'
-    if (['doc', 'docx'].includes(ext)) return '📘'
-    if (['ppt', 'pptx'].includes(ext)) return '📙'
-    if (['xls', 'xlsx'].includes(ext)) return '📗'
-    if (['jpg', 'jpeg', 'png', 'gif'].includes(ext)) return '🖼️'
-    if (['mp4', 'mov', 'avi'].includes(ext)) return '🎬'
-    if (['zip', 'rar'].includes(ext)) return '🗜️'
-    return '📄'
+    if (ext === 'pdf') return FileText
+    if (['doc', 'docx', 'ppt', 'pptx'].includes(ext)) return FileText
+    if (['xls', 'xlsx'].includes(ext)) return FileSpreadsheet
+    if (['jpg', 'jpeg', 'png', 'gif'].includes(ext)) return FileImage
+    if (['mp4', 'mov', 'avi'].includes(ext)) return FileVideo
+    if (['zip', 'rar'].includes(ext)) return FileArchive
+    return FileText
   }
 
   const isPdfFile = (url) => {
@@ -196,7 +196,7 @@ const StudentMaterials = () => {
 
   return (
     <StudentLayout>
-      <div className="p-8">
+      <div className="student-page p-8">
 
         <PageHeader
           title="Study Materials"
@@ -233,7 +233,9 @@ const StudentMaterials = () => {
           <>
             {/* Stats */}
             <div className="ui-card mb-6 flex items-center gap-4 rounded-2xl p-4">
-              <span className="text-3xl">📚</span>
+              <div className="ui-role-fill flex h-12 w-12 items-center justify-center rounded-2xl">
+                <BookOpenText className="h-6 w-6 text-white" />
+              </div>
               <div>
                 <p className="font-semibold text-[var(--color-heading)]">{filtered.length} materials available</p>
                 <p className="text-sm text-[var(--color-text-muted)]">
@@ -250,7 +252,14 @@ const StudentMaterials = () => {
                     <div className={`mb-3 inline-flex rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] ${fileTypeTone(mat.fileUrl)}`}>
                       {(mat.fileUrl.split('.').pop() || 'file').toUpperCase()}
                     </div>
-                    <div className="mb-3 text-5xl">{getFileIcon(mat.fileUrl)}</div>
+                    {(() => {
+                      const Icon = getFileIcon(mat.fileUrl)
+                      return (
+                        <div className="mb-3 flex h-16 w-16 items-center justify-center rounded-2xl bg-[var(--color-surface-muted)] text-[var(--color-role-accent)]">
+                          <Icon className="h-8 w-8" />
+                        </div>
+                      )
+                    })()}
                     <div className="min-w-0">
                       <h3 className="truncate font-semibold text-[var(--color-heading)]">{mat.title}</h3>
                       <p className="mt-1 text-xs text-[var(--color-text-soft)]">by {mat.instructor?.user?.name}</p>
@@ -289,7 +298,7 @@ const StudentMaterials = () => {
               {filtered.length === 0 && (
                 <div className="col-span-3">
                   <EmptyState
-                    icon="📚"
+                    icon={BookOpenText}
                     title="No materials available yet"
                     description="Materials shared by your instructors will appear here once they are uploaded."
                   />

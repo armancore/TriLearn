@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { FileText } from 'lucide-react'
 import StudentLayout from '../../layouts/StudentLayout'
 import api from '../../utils/api'
 import PageHeader from '../../components/PageHeader'
@@ -149,7 +150,7 @@ const StudentMarks = () => {
 
   return (
     <StudentLayout>
-      <div className="p-8">
+      <div className="student-page p-8">
         <PageHeader
           title="Exam Results"
           subtitle="Select a published exam result to view your overall GPA and subject-wise marks. Practical marks are not shown to students."
@@ -201,7 +202,7 @@ const StudentMarks = () => {
 
             {resultSheet.subjects.length === 0 ? (
               <EmptyState
-                icon="📄"
+                icon={FileText}
                 title="No published result found"
                 description="Once the coordinator publishes your selected exam result, it will appear here with subject-wise marks and overall GPA."
               />

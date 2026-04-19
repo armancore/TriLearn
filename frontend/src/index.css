@@ -80,6 +80,38 @@
     @apply cursor-pointer;
   }
 
+  .student-page {
+    @apply relative space-y-6 md:space-y-7;
+  }
+
+  .student-page .ui-card {
+    border-color: color-mix(in srgb, var(--color-card-border) 72%, white);
+    background:
+      linear-gradient(140deg, color-mix(in srgb, var(--color-card-surface) 95%, white), color-mix(in srgb, var(--color-surface-muted) 88%, white));
+    box-shadow: 0 24px 44px -30px rgba(16, 50, 85, 0.3), 0 10px 22px -18px rgba(16, 50, 85, 0.16);
+  }
+
+  .dark .student-page .ui-card,
+  html[data-theme="dark"] .student-page .ui-card {
+    border-color: color-mix(in srgb, var(--color-card-border) 85%, black);
+    background:
+      linear-gradient(145deg, color-mix(in srgb, var(--color-card-surface) 92%, black), color-mix(in srgb, var(--color-surface-muted) 78%, black));
+    box-shadow: 0 24px 52px -30px rgba(2, 6, 23, 0.9), 0 10px 22px -14px rgba(2, 6, 23, 0.65);
+  }
+
+  .student-page table thead {
+    background: color-mix(in srgb, var(--color-surface-muted) 92%, white);
+  }
+
+  .dark .student-page table thead,
+  html[data-theme="dark"] .student-page table thead {
+    background: color-mix(in srgb, var(--color-surface-muted) 84%, black);
+  }
+
+  .student-page table tbody tr:hover {
+    background: color-mix(in srgb, var(--color-role-accent) 8%, var(--color-card-surface));
+  }
+
   .btn-primary {
     @apply bg-primary text-white px-4 py-2 rounded-lg font-medium
            hover:bg-primary-500 active:bg-primary-700

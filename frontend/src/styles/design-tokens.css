@@ -136,6 +136,28 @@ html[data-theme="dark"] [data-role-theme="admin"] {
 
 [data-role-theme="student"] {
   --color-role-accent: var(--color-role-student);
+  --color-page-bg: #F2F7FF;
+  --color-surface-muted: #E8F0FB;
+  --color-surface-subtle: #DCE8F8;
+  --color-card-surface: rgba(255, 255, 255, 0.9);
+  --color-card-border: rgba(166, 192, 232, 0.52);
+  --color-heading: #0E2748;
+  --color-page-text: #123255;
+  --color-text-muted: #4F6786;
+  --color-text-soft: #7C93AE;
+}
+
+.dark [data-role-theme="student"],
+html[data-theme="dark"] [data-role-theme="student"] {
+  --color-page-bg: #08162A;
+  --color-surface-muted: #10253F;
+  --color-surface-subtle: #153150;
+  --color-card-surface: rgba(16, 37, 62, 0.84);
+  --color-card-border: rgba(87, 128, 179, 0.35);
+  --color-heading: #F5FAFF;
+  --color-page-text: #E6F1FF;
+  --color-text-muted: #BBD1EC;
+  --color-text-soft: #97B3D4;
 }
 
 [data-role-theme="gate"] {
@@ -189,6 +211,20 @@ html[data-theme="dark"] [data-role-theme="admin"] {
     radial-gradient(1200px 520px at 12% -18%, rgba(49, 152, 214, 0.18), transparent 58%),
     radial-gradient(980px 420px at 86% -16%, rgba(229, 145, 58, 0.14), transparent 64%),
     linear-gradient(180deg, color-mix(in srgb, var(--color-page-bg) 92%, black 8%) 0%, var(--color-page-bg) 100%);
+}
+
+@utility ui-student-atmosphere {
+  background-image:
+    radial-gradient(1100px 460px at 10% -16%, rgba(99, 145, 214, 0.2), transparent 58%),
+    radial-gradient(900px 420px at 92% -18%, rgba(74, 181, 215, 0.16), transparent 62%),
+    linear-gradient(180deg, color-mix(in srgb, var(--color-page-bg) 95%, white 5%) 0%, var(--color-page-bg) 100%);
+}
+
+@utility ui-student-atmosphere-dark {
+  background-image:
+    radial-gradient(1100px 500px at 12% -18%, rgba(86, 142, 211, 0.16), transparent 62%),
+    radial-gradient(860px 360px at 88% -20%, rgba(67, 185, 211, 0.14), transparent 66%),
+    linear-gradient(180deg, color-mix(in srgb, var(--color-page-bg) 93%, black 7%) 0%, var(--color-page-bg) 100%);
 }
 
 @utility ui-homepage-gradient {

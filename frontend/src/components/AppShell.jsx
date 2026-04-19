@@ -228,6 +228,10 @@ const AppShell = ({
           ? resolvedTheme === 'dark'
             ? 'ui-admin-atmosphere-dark'
             : 'ui-admin-atmosphere'
+          : roleTheme === 'student'
+            ? resolvedTheme === 'dark'
+              ? 'ui-student-atmosphere-dark'
+              : 'ui-student-atmosphere'
           : ''
       }`}
       data-role-theme={roleTheme}

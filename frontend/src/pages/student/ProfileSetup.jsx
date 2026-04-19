@@ -48,7 +48,7 @@ const ProfileSetup = () => {
 
   return (
     <StudentLayout>
-      <div className="p-8 max-w-3xl mx-auto">
+      <div className="student-page mx-auto max-w-3xl p-8">
         <PageHeader
           title="Complete Your Profile"
           subtitle="Fill in your basic student details before using the portal."
@@ -56,7 +56,7 @@ const ProfileSetup = () => {
         />
         <Alert type="success" message={success} />
         <Alert type="error" message={error} />
-        <form onSubmit={handleSubmit(onSubmit)} className="bg-[--color-bg-card] dark:bg-slate-800 rounded-2xl shadow-sm dark:shadow-slate-900/50 p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+        <form onSubmit={handleSubmit(onSubmit)} className="ui-card rounded-2xl p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
           {[
             ['name', 'Full Name'],
             ['phone', 'Phone Number'],
@@ -72,7 +72,7 @@ const ProfileSetup = () => {
                 value={values[name]}
                 onChange={handleChange}
                 placeholder={placeholder}
-                className="w-full rounded-lg border border-[--color-border] dark:border-slate-700 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
+                className="ui-form-input"
               />
               {errors[name] ? <p className="mt-1 text-xs text-accent-600">{errors[name]}</p> : null}
             </div>
@@ -84,7 +84,7 @@ const ProfileSetup = () => {
               onChange={handleChange}
               rows={4}
               placeholder="Address"
-              className="w-full rounded-lg border border-[--color-border] dark:border-slate-700 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
+              className="ui-form-input"
             />
             {errors.address ? <p className="mt-1 text-xs text-accent-600">{errors.address}</p> : null}
           </div>
@@ -92,7 +92,7 @@ const ProfileSetup = () => {
             <button
               type="submit"
               disabled={loading}
-              className="w-full rounded-lg bg-primary py-2 font-medium text-white hover:bg-primary-700 disabled:opacity-50"
+              className="ui-role-fill w-full rounded-lg py-2 font-medium text-white disabled:opacity-50"
             >
               {loading ? 'Submitting...' : 'Submit Profile'}
             </button>

@@ -125,13 +125,13 @@ const StudentDashboard = () => {
     { title: 'Attendance', value: `${overallAttendance}%`, icon: Percent, iconClassName: 'from-emerald-500 to-green-600', trend: `${attendanceSummary.length} subjects`, trendLabel: 'tracked so far' },
     { title: 'Today\'s Classes', value: todayRoutine.length, icon: CalendarDays, iconClassName: 'from-blue-500 to-cyan-600', trend: todayRoutine[0] ? `${todayRoutine[0].startTime} starts first` : 'No classes today', trendLabel: 'routine snapshot' },
     { title: 'Upcoming Tasks', value: upcomingAssignments.length, icon: ClipboardList, iconClassName: 'from-amber-500 to-orange-600', trend: `${assignments.length} total`, trendLabel: 'assignments visible' },
-    { title: 'Recent Notices', value: recentNotices.length, icon: BellRing, iconClassName: 'from-violet-500 to-purple-600', trend: `${notices.length} available`, trendLabel: 'campus updates' }
+    { title: 'Recent Notices', value: recentNotices.length, icon: BellRing, iconClassName: 'from-sky-600 to-indigo-600', trend: `${notices.length} available`, trendLabel: 'campus updates' }
   ]
 
   if (loading) {
     return (
       <StudentLayout>
-        <div className="p-4 md:p-8">
+        <div className="student-page p-4 md:p-8">
           <LoadingSkeleton rows={6} itemClassName="h-28" />
         </div>
       </StudentLayout>
@@ -140,7 +140,7 @@ const StudentDashboard = () => {
 
   return (
     <StudentLayout noticesCount={notices.length}>
-      <div className="p-4 md:p-8">
+      <div className="student-page p-4 md:p-8">
         <PageHeader
           title={`Welcome back, ${user?.name || 'Student'}`}
           subtitle="Track your attendance, check what is due next, catch up on notices, and see today’s class plan in one place."
@@ -180,7 +180,7 @@ const StudentDashboard = () => {
 
               {todayRoutine.length === 0 ? (
                 <EmptyState
-                  icon="📅"
+                  icon={CalendarDays}
                   title="No classes today"
                   description="Your weekly timetable is clear for today."
                 />
@@ -221,7 +221,7 @@ const StudentDashboard = () => {
 
               {upcomingAssignments.length === 0 ? (
                 <EmptyState
-                  icon="🗂️"
+                  icon={ClipboardList}
                   title="Nothing due soon"
                   description="New assignments will show up here when instructors publish them."
                 />
@@ -260,7 +260,7 @@ const StudentDashboard = () => {
 
               {subjects.length === 0 ? (
                 <EmptyState
-                  icon="📘"
+                  icon={BookOpenText}
                   title="No enrolled subjects yet"
                   description="Your subjects will appear here once your enrollment is active."
                 />
@@ -310,7 +310,7 @@ const StudentDashboard = () => {
 
               {attendanceHighlights.length === 0 ? (
                 <EmptyState
-                  icon="📊"
+                  icon={Percent}
                   title="No attendance yet"
                   description="Your subject-wise attendance summary will appear after your first recorded classes."
                 />
@@ -350,7 +350,7 @@ const StudentDashboard = () => {
 
               {recentNotices.length === 0 ? (
                 <EmptyState
-                  icon="📣"
+                  icon={BellRing}
                   title="No notices yet"
                   description="Recent announcements will appear here when they are published."
                 />

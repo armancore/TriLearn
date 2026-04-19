@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { BookOpenText, CalendarDays, Target } from 'lucide-react'
 import StudentLayout from '../../layouts/StudentLayout'
 import Alert from '../../components/Alert'
 import EmptyState from '../../components/EmptyState'
@@ -110,7 +111,7 @@ const StudentAssignments = () => {
 
   return (
     <StudentLayout>
-      <div className="p-4 md:p-8">
+      <div className="student-page p-4 md:p-8">
         <PageHeader
           title="Assignments"
           subtitle="View module assignments, submit your work, and read instructor feedback after review."
@@ -146,10 +147,10 @@ const StudentAssignments = () => {
                         )}
                       </div>
                       <p className="text-sm text-[--color-text-muted] dark:text-slate-400 mb-3">{assignment.description}</p>
-                      <div className="flex gap-4 text-xs text-[--color-text-muted] dark:text-slate-400">
-                        <span>📚 {assignment.subject?.name}</span>
-                        <span>📅 Due: {new Date(assignment.dueDate).toLocaleDateString()}</span>
-                        <span>🎯 Total: {assignment.totalMarks} marks</span>
+                      <div className="flex flex-wrap gap-4 text-xs text-[--color-text-muted] dark:text-slate-300">
+                        <span className="inline-flex items-center gap-1.5"><BookOpenText className="h-3.5 w-3.5" />{assignment.subject?.name}</span>
+                        <span className="inline-flex items-center gap-1.5"><CalendarDays className="h-3.5 w-3.5" />Due: {new Date(assignment.dueDate).toLocaleDateString()}</span>
+                        <span className="inline-flex items-center gap-1.5"><Target className="h-3.5 w-3.5" />Total: {assignment.totalMarks} marks</span>
                         {assignment.questionPdfUrl && (
                           <button
                             type="button"
@@ -246,7 +247,7 @@ const StudentAssignments = () => {
             })}
             {assignments.length === 0 && (
               <EmptyState
-                icon="🗂️"
+                icon={BookOpenText}
                 title="No assignments yet"
                 description="Assignments from your instructors will appear here when they are published."
               />

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { BookOpenText, ClipboardList, Files, GraduationCap } from 'lucide-react'
 import StudentLayout from '../../layouts/StudentLayout'
 import PageHeader from '../../components/PageHeader'
+import EmptyState from '../../components/EmptyState'
 import api from '../../utils/api'
 import { isRequestCanceled } from '../../utils/http'
 import logger from '../../utils/logger'
@@ -48,7 +49,7 @@ const StudentSubjects = () => {
 
   return (
     <StudentLayout>
-      <div className="p-8">
+      <div className="student-page p-8">
         <PageHeader
           title="My Subjects"
           subtitle="All your enrolled subjects"
@@ -56,7 +57,7 @@ const StudentSubjects = () => {
         />
 
         {loading ? (
-          <div className="text-center text-[--color-text-muted] dark:text-slate-400 py-8">Loading...</div>
+          <div className="text-center text-[--color-text-muted] dark:text-slate-300 py-8">Loading...</div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {subjects.map((subject) => (
@@ -116,8 +117,12 @@ const StudentSubjects = () => {
               </div>
             ))}
             {subjects.length === 0 && (
-              <div className="col-span-3 py-12 text-center text-[var(--color-text-soft)]">
-                No subjects found
+              <div className="col-span-3">
+                <EmptyState
+                  icon={BookOpenText}
+                  title="No subjects found"
+                  description="Your enrolled modules will appear here once they are available."
+                />
               </div>
             )}
           </div>

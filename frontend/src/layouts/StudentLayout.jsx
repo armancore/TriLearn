@@ -5,14 +5,12 @@ import {
   BookOpenText,
   CalendarDays,
   ClipboardList,
-  CreditCard,
-  LayoutDashboard,
   FileText,
   FolderOpen,
   IdCard,
+  LayoutDashboard,
   Percent,
-  UserCircle2,
-  Users
+  UserCircle2
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import AppShell from '../components/AppShell'
@@ -35,19 +33,14 @@ const StudentLayout = ({ children, noticesCount = 0 }) => {
     { path: '/student/marks', label: 'Results', icon: FileText, meta: 'Exam results' },
     { path: '/student/materials', label: 'Books', icon: FolderOpen, meta: 'Books and materials' },
     { path: '/student/id-card', label: 'ID Card', icon: IdCard, meta: 'Student identity card' },
-    { label: 'Staff Info', icon: Users, meta: 'Faculty contacts', disabled: true },
     { path: '/student/profile', label: 'Profile', icon: UserCircle2, meta: 'My details' },
-    { label: 'Fees', icon: CreditCard, meta: 'Billing and payments', disabled: true }
   ]), [])
 
   const topItems = [
     { path: '/student/routine', label: 'Routine', icon: CalendarDays },
     { path: '/student/notices', label: 'Notices', icon: Bell, badge: noticesCount },
-    { label: 'Events', icon: CalendarDays },
     { path: '/student/requests', label: 'Requests', icon: ClipboardList },
-    { label: 'Key Dates', icon: CalendarDays },
-    { label: 'Survey', icon: FileText },
-    { label: 'Weekly', icon: Bell }
+    { path: '/student/assignments', label: 'Tasks', icon: FileText }
   ]
 
   const handleLogout = () => {
