@@ -17,6 +17,8 @@ const prisma = require('./utils/prisma')
 const { scheduleMaintenance } = require('./utils/maintenance')
 const { initRealtime, closeRealtime } = require('./utils/realtime')
 const { warmRedisConnection } = require('./utils/redis')
+const { startNotificationWorker, closeNotificationWorker } = require('./jobs/notificationWorker')
+const { notificationQueue } = require('./jobs/notificationQueue')
 
 dotenv.config()
 validateEnv()
@@ -179,6 +181,7 @@ const startServer = async () => {
     server,
     allowedOrigins
   })
+  startNotificationWorker()
   server.listen(PORT, () => {
     logger.info('TriLearn server running', { port: PORT })
   })
@@ -197,6 +200,8 @@ const shutdown = async (signal) => {
 
   server.close(async () => {
     try {
+      await closeNotificationWorker()
+      await notificationQueue.close()
       await closeRealtime()
       await prisma.$disconnect()
       process.exit(0)

@@ -6,7 +6,10 @@ const {
 const { getPagination } = require('../utils/pagination')
 const { recordAuditLog } = require('../utils/audit')
 const { sanitizePlainText } = require('../utils/sanitize')
-const { createNotifications } = require('../utils/notifications')
+const {
+  NOTICE_POSTED_JOB,
+  notificationQueue
+} = require('../jobs/notificationQueue')
 
 const validateSanitizedNotice = ({ title, content }, res) => {
   if (title.length < 3) {
@@ -133,89 +136,21 @@ const resolveNoticeTargeting = (req, { audience, targetDepartment, targetSemeste
   return { data: normalizedTarget }
 }
 
-const getNoticeRecipientWhere = (notice) => {
-  if (notice.audience === 'INSTRUCTORS_ONLY') {
-    return {
-      isActive: true,
-      role: 'INSTRUCTOR',
-      ...(notice.targetDepartment ? {
-        instructor: {
-          is: {
-            OR: [
-              { department: notice.targetDepartment },
-              {
-                departmentMemberships: {
-                  some: {
-                    department: {
-                      is: {
-                        name: notice.targetDepartment
-                      }
-                    }
-                  }
-                }
-              }
-            ]
-          }
-        }
-      } : {})
-    }
-  }
-
-  if (notice.audience === 'STUDENTS') {
-    return {
-      isActive: true,
-      role: 'STUDENT',
-      student: {
-        is: {
-          ...(notice.targetDepartment ? { department: notice.targetDepartment } : {}),
-          ...(notice.targetSemester ? { semester: notice.targetSemester } : {})
-        }
-      }
-    }
-  }
-
-  return {
-    isActive: true
-  }
-}
-
 const notifyUsersAboutNotice = async (notice) => {
-  const users = await prisma.user.findMany({
-    where: {
-      ...getNoticeRecipientWhere(notice),
-      id: {
-        not: notice.postedBy
-      }
-    },
-    select: {
-      id: true,
-      role: true
-    }
-  })
-
-  const inferLink = (role) => (
-    role === 'STUDENT'
-      ? '/student/notices'
-      : role === 'INSTRUCTOR'
-        ? '/instructor/notices'
-        : role === 'COORDINATOR'
-          ? '/coordinator/notices'
-          : '/admin/notices'
-  )
-
-  await Promise.all(users.map((user) => createNotifications({
-      userIds: [user.id],
-      type: 'NOTICE_POSTED',
+  await notificationQueue.add(NOTICE_POSTED_JOB, {
+    notice: {
+      id: notice.id,
       title: notice.title,
-      message: notice.content,
-      link: inferLink(user.role),
-      metadata: {
-        noticeId: notice.id,
-        audience: notice.audience,
-        type: notice.type
-      },
-      dedupeKeyFactory: (userId) => `notice:${notice.id}:${userId}`
-    })))
+      content: notice.content,
+      audience: notice.audience,
+      type: notice.type,
+      targetDepartment: notice.targetDepartment,
+      targetSemester: notice.targetSemester,
+      postedBy: notice.postedBy
+    }
+  }, {
+    jobId: `notice:${notice.id}`
+  })
 }
 
 // ================================

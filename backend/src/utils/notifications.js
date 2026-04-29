@@ -1,5 +1,9 @@
 const prisma = require('./prisma')
 const { emitNotificationCreated } = require('./realtime')
+const {
+  CREATE_NOTIFICATIONS_JOB,
+  notificationQueue
+} = require('../jobs/notificationQueue')
 
 const uniqueUserIds = (userIds = []) => [...new Set(userIds.filter(Boolean))]
 
@@ -104,7 +108,7 @@ const createNotifications = async ({
     return { count: 0 }
   }
 
-  const createdNotifications = await Promise.all(recipients.map((userId) => insertNotificationRecord({
+  const notifications = recipients.map((userId) => ({
     userId,
     type,
     title,
@@ -112,20 +116,16 @@ const createNotifications = async ({
     link,
     metadata,
     dedupeKey: typeof dedupeKeyFactory === 'function' ? dedupeKeyFactory(userId) : null
-  })))
-  const deliveredNotifications = createdNotifications.filter(Boolean)
+  }))
 
-  if (!deliveredNotifications.length) {
-    return { count: 0 }
-  }
-
-  await dispatchPushNotifications({ userIds: deliveredNotifications.map((notification) => notification.userId) })
-  deliveredNotifications.forEach((notification) => {
-    emitNotificationCreated(notification.userId, notification)
+  const job = await notificationQueue.add(CREATE_NOTIFICATIONS_JOB, {
+    notifications
   })
 
   return {
-    count: deliveredNotifications.length
+    count: recipients.length,
+    queued: Boolean(job),
+    jobId: job?.id || null
   }
 }
 
