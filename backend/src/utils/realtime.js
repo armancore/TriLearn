@@ -1,8 +1,12 @@
 const { Server } = require('socket.io')
+const { createAdapter } = require('@socket.io/redis-adapter')
 const jwt = require('jsonwebtoken')
 const prisma = require('./prisma')
+const { isRedisConfigured, getReadyRedisClient } = require('./redis')
 
 let io = null
+let redisAdapterSubClient = null
+let memoryAdapterWarningShown = false
 const parsePositiveInteger = (value, fallback) => {
   const parsed = Number.parseInt(String(value ?? ''), 10)
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback
@@ -83,7 +87,41 @@ const createSocketEventRateLimiter = ({ maxEvents, windowMs, now = () => Date.no
   }
 }
 
-const initRealtime = ({ server, allowedOrigins = [] }) => {
+const attachRedisAdapter = async (socketServer) => {
+  if (!isRedisConfigured()) {
+    if (!memoryAdapterWarningShown) {
+      memoryAdapterWarningShown = true
+      console.warn('Warning: REDIS_URL not set - Socket.io uses the per-process in-memory adapter that is not shared across cluster workers or instances')
+    }
+
+    return
+  }
+
+  const pubClient = await getReadyRedisClient({ context: 'Socket.io Redis adapter publisher' })
+  if (!pubClient) {
+    return
+  }
+
+  const subClient = pubClient.duplicate()
+  subClient.on('error', (error) => {
+    console.warn(`Warning: Socket.io Redis adapter subscriber error (${error.message})`)
+  })
+
+  try {
+    await subClient.connect()
+    socketServer.adapter(createAdapter(pubClient, subClient))
+    redisAdapterSubClient = subClient
+  } catch (error) {
+    console.warn(`Warning: Socket.io Redis adapter unavailable, falling back to in-memory adapter (${error.message})`)
+    try {
+      await subClient.quit()
+    } catch {
+      subClient.destroy()
+    }
+  }
+}
+
+const initRealtime = async ({ server, allowedOrigins = [] }) => {
   if (io) {
     return io
   }
@@ -94,6 +132,8 @@ const initRealtime = ({ server, allowedOrigins = [] }) => {
       credentials: true
     }
   })
+
+  await attachRedisAdapter(io)
 
   io.use(async (socket, next) => {
     try {
@@ -186,6 +226,15 @@ const closeRealtime = async () => {
 
   await io.close()
   io = null
+  if (redisAdapterSubClient) {
+    try {
+      await redisAdapterSubClient.quit()
+    } catch {
+      redisAdapterSubClient.destroy()
+    } finally {
+      redisAdapterSubClient = null
+    }
+  }
 }
 
 module.exports = {

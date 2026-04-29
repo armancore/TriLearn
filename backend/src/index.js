@@ -167,7 +167,7 @@ app.use((error, req, res, _next) => {
 
 const PORT = process.env.PORT || 5000
 
-const startServer = () => {
+const startServer = async () => {
   if (server) {
     return server
   }
@@ -175,7 +175,7 @@ const startServer = () => {
   void warmRedisConnection({ context: 'startup warmup' })
   maintenance = scheduleMaintenance(prisma)
   server = http.createServer(app)
-  initRealtime({
+  await initRealtime({
     server,
     allowedOrigins
   })
@@ -216,7 +216,10 @@ process.on('SIGINT', () => {
 })
 
 if (require.main === module) {
-  startServer()
+  startServer().catch((error) => {
+    logger.error(error.message, { stack: error.stack })
+    process.exit(1)
+  })
 }
 
 module.exports = {
