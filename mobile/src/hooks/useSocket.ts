@@ -8,6 +8,8 @@ import { useAuth } from '@/src/hooks/useAuth';
 export const useSocket = (): void => {
   const { isAuthenticated, accessToken, user } = useAuth();
   const addNotification = useNotificationsStore((state) => state.addNotification);
+  const markAsRead = useNotificationsStore((state) => state.markAsRead);
+  const markAllAsRead = useNotificationsStore((state) => state.markAllAsRead);
 
   useEffect(() => {
     if (!isAuthenticated || !accessToken || !user) {
@@ -25,10 +27,28 @@ export const useSocket = (): void => {
       }
     };
 
+    const handleNotificationRead = (
+      payload: { id?: string; notificationId?: string; notification?: NotificationItem }
+    ): void => {
+      const notificationId = payload?.id ?? payload?.notificationId ?? payload?.notification?.id;
+
+      if (notificationId) {
+        markAsRead(notificationId);
+      }
+    };
+
+    const handleNotificationsReadAll = (): void => {
+      markAllAsRead();
+    };
+
     socket.on('notification:new', handleIncomingNotification);
+    socket.on('notification:read', handleNotificationRead);
+    socket.on('notification:read-all', handleNotificationsReadAll);
 
     return () => {
       socket.off('notification:new', handleIncomingNotification);
+      socket.off('notification:read', handleNotificationRead);
+      socket.off('notification:read-all', handleNotificationsReadAll);
     };
-  }, [accessToken, addNotification, isAuthenticated, user]);
+  }, [accessToken, addNotification, isAuthenticated, markAllAsRead, markAsRead, user]);
 };

@@ -9,8 +9,10 @@ import type { NotificationsResponse } from '@/src/types/notification';
 
 export const useNotifications = () => {
   const { isAuthenticated } = useAuth();
-  const { items, unreadCount, setNotifications } = useNotificationsStore((state) => ({
+  const { items, markAsRead: markAsReadInStore, reset, setNotifications, unreadCount } = useNotificationsStore((state) => ({
     items: state.items,
+    markAsRead: state.markAsRead,
+    reset: state.reset,
     unreadCount: state.unreadCount,
     setNotifications: state.setNotifications,
   }));
@@ -30,10 +32,25 @@ export const useNotifications = () => {
     }
   }, [query.data, setNotifications]);
 
+  const markAsRead = async (id: string) => {
+    await api.patch(`/notifications/${id}/read`);
+    markAsReadInStore(id);
+  };
+
+  const markAllAsRead = async () => {
+    await api.post('/notifications/read-all');
+    reset();
+    await query.refetch();
+  };
+
   return {
     notifications: items,
     unreadCount,
     isLoading: query.isLoading,
+    isError: query.isError,
+    error: query.error,
     refetch: query.refetch,
+    markAsRead,
+    markAllAsRead,
   };
 };
