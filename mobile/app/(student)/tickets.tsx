@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react';
 import { FlatList, Modal, Pressable, RefreshControl, Text, TextInput, View } from 'react-native';
 
 import { COLORS } from '@/src/constants/colors';
+import { useToast } from '@/src/hooks/useToast';
 import { api } from '@/src/services/api';
 import type { MyAbsenceTicketsResponse, TicketAttendance, AbsenceTicketStatus } from '@/src/types/ticket';
 
@@ -20,6 +21,7 @@ export default function StudentTicketsScreen() {
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedAttendance, setSelectedAttendance] = useState<TicketAttendance | null>(null);
   const [reason, setReason] = useState('');
+  const toast = useToast();
 
   const query = useQuery({
     queryKey: ['attendance', 'tickets', 'my'],
@@ -38,7 +40,9 @@ export default function StudentTicketsScreen() {
       setSelectedAttendance(null);
       setReason('');
       await query.refetch();
+      toast.success('Absence ticket submitted.');
     },
+    onError: (error) => toast.error(error, 'Could not submit absence ticket.'),
   });
 
   const onRefresh = async () => {

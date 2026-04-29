@@ -8,10 +8,13 @@ import type { ProfileResponse } from '@/src/types/profile';
 
 const QR_TTL_MS = 24 * 60 * 60 * 1000;
 
-let cachedQr: { qrCode: string; expiresAt: number } | null = null;
+let cachedQr: { qrCode: string; rollNumber?: string; expiresAt: number } | null = null;
 
 interface StudentQrResponse {
   qrCode: string;
+  qrData?: string;
+  rollNumber?: string;
+  expiresAt?: string;
 }
 
 const getInitials = (name?: string) =>
@@ -38,9 +41,11 @@ export default function StudentIdCardScreen() {
       }
 
       const response = await api.get<StudentQrResponse>('/auth/student-id-qr');
+      const expiresAt = response.data.expiresAt ? new Date(response.data.expiresAt).getTime() : Date.now() + QR_TTL_MS;
       cachedQr = {
         qrCode: response.data.qrCode,
-        expiresAt: Date.now() + QR_TTL_MS,
+        rollNumber: response.data.rollNumber,
+        expiresAt,
       };
       return cachedQr;
     },

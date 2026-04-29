@@ -6,11 +6,13 @@ import { AppButton } from '@/src/components/AppButton';
 import { AppInput } from '@/src/components/AppInput';
 import { COLORS } from '@/src/constants/colors';
 import { useAuth } from '@/src/hooks/useAuth';
+import { useToast } from '@/src/hooks/useToast';
 import { api } from '@/src/services/api';
 import type { AuthActivityResponse, ProfileResponse } from '@/src/types/profile';
 
 export default function ProfileScreen() {
   const { logout } = useAuth();
+  const toast = useToast();
   const [refreshing, setRefreshing] = useState(false);
   const [profileForm, setProfileForm] = useState({ name: '', phone: '', address: '' });
   const [passwordForm, setPasswordForm] = useState({ currentPassword: '', newPassword: '', confirm: '' });
@@ -37,7 +39,11 @@ export default function ProfileScreen() {
 
   const updateProfile = useMutation({
     mutationFn: async () => api.patch('/auth/profile', profileForm),
-    onSuccess: async () => profileQuery.refetch(),
+    onError: (error) => toast.error(error, 'Could not update your profile.'),
+    onSuccess: async () => {
+      await profileQuery.refetch();
+      toast.success('Profile updated.');
+    },
   });
 
   const changePassword = useMutation({
@@ -51,12 +57,20 @@ export default function ProfileScreen() {
       });
     },
     onMutate: () => setPasswordError(''),
-    onError: (error) => setPasswordError(error instanceof Error ? error.message : 'Could not change password.'),
-    onSuccess: () => setPasswordForm({ currentPassword: '', newPassword: '', confirm: '' }),
+    onError: (error) => {
+      const message = error instanceof Error ? error.message : 'Could not change password.';
+      setPasswordError(message);
+      toast.error(error, message);
+    },
+    onSuccess: () => {
+      setPasswordForm({ currentPassword: '', newPassword: '', confirm: '' });
+      toast.success('Password changed.');
+    },
   });
 
   const logoutAll = useMutation({
     mutationFn: async () => api.post('/auth/logout-all'),
+    onError: (error) => toast.error(error, 'Could not sign out all sessions.'),
     onSuccess: logout,
   });
 

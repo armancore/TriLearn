@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { FlatList, Modal, Pressable, RefreshControl, Text, TextInput, View } from 'react-native';
 
 import { COLORS } from '@/src/constants/colors';
+import { useToast } from '@/src/hooks/useToast';
 import { api } from '@/src/services/api';
 import type {
   AttendanceBySubjectResponse,
@@ -49,6 +50,7 @@ export default function InstructorAttendanceScreen() {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [changes, setChanges] = useState<Record<string, AttendanceStatus>>({});
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const toast = useToast();
 
   const subjectsQuery = useQuery({
     queryKey: ['subjects', 'instructor'],
@@ -116,7 +118,9 @@ export default function InstructorAttendanceScreen() {
     onSuccess: async () => {
       setChanges({});
       await attendanceQuery.refetch();
+      toast.success('Attendance saved.');
     },
+    onError: (error) => toast.error(error, 'Could not save attendance.'),
   });
 
   const handleRefresh = useCallback(async () => {

@@ -9,7 +9,19 @@ import { useSocket } from '@/src/hooks/useSocket';
 import type { UserRole } from '@/src/types/auth';
 import '../global.css';
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      networkMode: 'offlineFirst',
+      staleTime: 60 * 1000,
+      gcTime: 10 * 60 * 1000,
+      retry: 1,
+    },
+    mutations: {
+      networkMode: 'offlineFirst',
+    },
+  },
+});
 
 const roleHomeMap: Record<UserRole, '/(student)/dashboard' | '/(instructor)/dashboard' | '/(coordinator)/dashboard' | '/(admin)/dashboard' | '/(gatekeeper)/scanner'> = {
   STUDENT: '/(student)/dashboard',
@@ -77,7 +89,7 @@ export default function RootLayout() {
           <Stack.Screen name="(coordinator)" options={{ headerShown: false }} />
           <Stack.Screen name="(admin)" options={{ headerShown: false }} />
           <Stack.Screen name="(gatekeeper)" options={{ headerShown: false }} />
-          <Stack.Screen name="(profile)" options={{ headerShown: false }} />
+          <Stack.Screen name="(profile)" options={{ title: 'Profile', headerBackTitle: 'Back' }} />
           <Stack.Screen name="+not-found" options={{ title: 'Not Found' }} />
         </Stack>
       </QueryClientProvider>

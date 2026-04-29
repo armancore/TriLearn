@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { FlatList, Modal, Pressable, RefreshControl, Text, TextInput, View } from 'react-native';
 
 import { COLORS } from '@/src/constants/colors';
+import { useToast } from '@/src/hooks/useToast';
 import { api } from '@/src/services/api';
 import type { BulkMarksPayload, EnrolledStudent, InstructorMark, SubjectMarksResponse, SubjectStudentsResponse } from '@/src/types/instructorOps';
 import type { ExamType } from '@/src/types/marks';
@@ -31,6 +32,7 @@ export default function InstructorMarksScreen() {
   const [examPickerOpen, setExamPickerOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [validationError, setValidationError] = useState('');
+  const toast = useToast();
 
   const subjectsQuery = useQuery({
     queryKey: ['subjects', 'instructor'],
@@ -139,10 +141,13 @@ export default function InstructorMarksScreen() {
       setValidationError('');
     },
     onError: (error) => {
-      setValidationError(error instanceof Error ? error.message : 'Could not save marks.');
+      const message = error instanceof Error ? error.message : 'Could not save marks.';
+      setValidationError(message);
+      toast.error(error, message);
     },
     onSuccess: async () => {
       await marksQuery.refetch();
+      toast.success('Marks saved.');
     },
   });
 

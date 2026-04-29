@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { FlatList, Modal, Pressable, RefreshControl, Text, TextInput, View } from 'react-native';
 
 import { COLORS } from '@/src/constants/colors';
+import { useToast } from '@/src/hooks/useToast';
 import { api } from '@/src/services/api';
 import type { Notice, NoticesResponse, NoticeAudience, NoticeType } from '@/src/types/notice';
 
@@ -13,13 +14,16 @@ export default function CoordinatorNoticesScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [form, setForm] = useState({ title: '', content: '', type: 'GENERAL' as NoticeType, audience: 'ALL' as NoticeAudience });
+  const toast = useToast();
   const query = useQuery({ queryKey: ['notices', 'coordinator'], queryFn: async () => (await api.get<NoticesResponse>('/notices?page=1&limit=50')).data });
   const createMutation = useMutation({
     mutationFn: async () => api.post('/notices', form),
+    onError: (error) => toast.error(error, 'Could not create notice.'),
     onSuccess: async () => {
       setModalOpen(false);
       setForm({ title: '', content: '', type: 'GENERAL', audience: 'ALL' });
       await query.refetch();
+      toast.success('Notice published.');
     },
   });
 

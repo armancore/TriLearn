@@ -604,6 +604,7 @@ const getStudentIdQr = async (req, res) => {
       return res.status(404).json({ message: 'Student profile not found' })
     }
 
+    const expiresAt = getStudentIdQrExpiry()
     const qrPayload = signQrPayload({
       type: 'STUDENT_ID_CARD',
       studentId: user.student.id,
@@ -614,7 +615,7 @@ const getStudentIdQr = async (req, res) => {
       department: user.student.department || '',
       semester: user.student.semester,
       section: user.student.section || '',
-      expiresAt: getStudentIdQrExpiry().toISOString()
+      expiresAt: expiresAt.toISOString()
     })
 
     const qrCode = await QRCode.toDataURL(qrPayload, {
@@ -622,7 +623,12 @@ const getStudentIdQr = async (req, res) => {
       width: 220
     })
 
-    res.json({ qrCode })
+    res.json({
+      qrCode,
+      qrData: qrPayload,
+      rollNumber: user.student.rollNumber,
+      expiresAt
+    })
   } catch (error) {
     res.internalError(error)
   }

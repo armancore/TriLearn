@@ -1,8 +1,9 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { FlatList, Pressable, RefreshControl, Text, TextInput, View } from 'react-native';
 
 import { COLORS } from '@/src/constants/colors';
+import { useToast } from '@/src/hooks/useToast';
 import { api } from '@/src/services/api';
 import type { AdminUser, AdminUsersResponse } from '@/src/types/admin';
 import type { UserRole } from '@/src/types/auth';
@@ -12,27 +13,47 @@ const roles: Array<'ALL' | UserRole> = ['ALL', 'STUDENT', 'INSTRUCTOR', 'COORDIN
 export default function AdminUsersScreen() {
   const [role, setRole] = useState<'ALL' | UserRole>('ALL');
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [refreshing, setRefreshing] = useState(false);
+  const toast = useToast();
+
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setDebouncedSearch(search.trim());
+    }, 350);
+
+    return () => clearTimeout(timeout);
+  }, [search]);
 
   const query = useQuery({
-    queryKey: ['admin', 'users', role],
+    queryKey: ['admin', 'users', role, debouncedSearch],
     queryFn: async () => {
-      const url = role === 'ALL' ? '/admin/users?page=1&limit=100' : `/admin/users?page=1&limit=100&role=${role}`;
+      const params = new URLSearchParams({
+        page: '1',
+        limit: '25',
+      });
+
+      if (role !== 'ALL') {
+        params.set('role', role);
+      }
+
+      if (debouncedSearch) {
+        params.set('search', debouncedSearch);
+      }
+
+      const url = `/admin/users?${params.toString()}`;
       return (await api.get<AdminUsersResponse>(url)).data;
     },
   });
 
   const toggleMutation = useMutation({
     mutationFn: async (id: string) => api.patch(`/admin/users/${id}/toggle-status`),
-    onSuccess: async () => query.refetch(),
+    onError: (error) => toast.error(error, 'Could not update user status.'),
+    onSuccess: async () => {
+      await query.refetch();
+      toast.success('User status updated.');
+    },
   });
-
-  const users = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return (query.data?.users ?? []).filter((user) => (
-      !q || user.name.toLowerCase().includes(q) || user.email.toLowerCase().includes(q)
-    ));
-  }, [query.data?.users, search]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -69,7 +90,7 @@ export default function AdminUsersScreen() {
     <View className="flex-1 bg-slate-50">
       <FlatList
         contentContainerStyle={{ gap: 12, padding: 24, paddingBottom: 32 }}
-        data={users}
+        data={query.data?.users ?? []}
         keyExtractor={(item) => item.id}
         ListHeaderComponent={
           <View>
