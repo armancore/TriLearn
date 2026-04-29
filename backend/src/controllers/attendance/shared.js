@@ -493,6 +493,33 @@ const getStudentByIdCardQr = async (qrData) => {
   return { student, parsedQr }
 }
 
+const getStudentByRollNumber = async (rollNumber) => {
+  const normalizedRollNumber = String(rollNumber || '').trim()
+  if (!normalizedRollNumber) {
+    return { error: { status: 400, message: 'Roll number is required' } }
+  }
+
+  const student = await prisma.student.findUnique({
+    where: { rollNumber: normalizedRollNumber },
+    include: {
+      user: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          isActive: true
+        }
+      }
+    }
+  })
+
+  if (!student || !student.user?.isActive) {
+    return { error: { status: 404, message: 'Student was not found or is inactive' } }
+  }
+
+  return { student }
+}
+
 const upsertPresentAttendanceForRoutines = async ({ student, routines, attendanceDate, qrData, actorRole, actorId }) => {
   const qrCodeHash = hashQrPayload(qrData)
   const existingAttendance = await prisma.attendance.findMany({
@@ -914,6 +941,7 @@ module.exports = {
   createSignedQrPayload,
   hashQrPayload,
   getStudentByIdCardQr,
+  getStudentByRollNumber,
   upsertPresentAttendanceForRoutines,
   getEligibleGateAttendanceForStudent,
   syncClosedRoutineAbsences,

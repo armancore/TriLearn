@@ -284,9 +284,13 @@ const qrBody = z.object({
 })
 
 const staffStudentQrBody = z.object({
-  qrData: z.string().trim().min(10),
+  qrData: z.preprocess(emptyToUndefined, z.string().trim().min(10).optional()),
+  rollNumber: z.preprocess(emptyToUndefined, z.string().trim().min(1).max(50).optional()),
   subjectId: z.preprocess(emptyToUndefined, z.string().uuid().optional()),
   attendanceDate: optionalString(50)
+}).refine((data) => Boolean(data.qrData || data.rollNumber), {
+  path: ['qrData'],
+  message: 'Provide either qrData or rollNumber'
 })
 
 const absenceTicketBody = z.object({

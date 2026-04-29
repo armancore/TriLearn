@@ -14,17 +14,28 @@ const findConflictingGateWindow = async ({ id, dayOfWeek, startTime, endTime, al
 const getGateAttendanceSettings = async (req, res) => {
   try {
     const { dayOfWeek } = req.query
-    const [windows, holidays] = await Promise.all([
+    const todayRange = getDayRange(new Date())
+    const [windows, holidays, scannedTodayRecords] = await Promise.all([
       prisma.gateScanWindow.findMany({
         where: dayOfWeek ? { dayOfWeek } : undefined,
         orderBy: [{ dayOfWeek: 'asc' }, { startTime: 'asc' }]
       }),
-      prisma.attendanceHoliday.findMany({ orderBy: { date: 'asc' } })
+      prisma.attendanceHoliday.findMany({ orderBy: { date: 'asc' } }),
+      todayRange
+        ? prisma.attendance.groupBy({
+          by: ['studentId'],
+          where: {
+            date: { gte: todayRange.start, lt: todayRange.end },
+            status: 'PRESENT'
+          }
+        })
+        : []
     ])
 
     res.json({
       windows: windows.map((window) => ({ ...window, allowedSemesters: normalizeSemesterList(window.allowedSemesters) })),
-      holidays
+      holidays,
+      scannedToday: scannedTodayRecords.length
     })
   } catch (error) {
     res.internalError(error)

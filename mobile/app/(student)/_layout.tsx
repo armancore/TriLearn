@@ -5,7 +5,15 @@ import { COLORS } from '@/src/constants/colors';
 import { useNotifications } from '@/src/hooks/useNotifications';
 import { useNotificationsStore } from '@/src/store/notifications.store';
 
-type StudentTabIconName = 'home-outline' | 'home' | 'calendar-outline' | 'calendar' | 'notifications-outline' | 'notifications';
+type StudentTabIconName =
+  | 'home-outline'
+  | 'home'
+  | 'calendar-outline'
+  | 'calendar'
+  | 'document-text-outline'
+  | 'document-text'
+  | 'notifications-outline'
+  | 'notifications';
 
 const getStudentTabIcon = (
   routeName: string,
@@ -13,6 +21,10 @@ const getStudentTabIcon = (
 ): StudentTabIconName => {
   if (routeName === 'attendance') {
     return focused ? 'calendar' : 'calendar-outline';
+  }
+
+  if (routeName === 'assignments') {
+    return focused ? 'document-text' : 'document-text-outline';
   }
 
   if (routeName === 'notifications') {
@@ -41,6 +53,7 @@ export default function StudentTabsLayout() {
     >
       <Tabs.Screen name="dashboard" options={{ title: 'Dashboard' }} />
       <Tabs.Screen name="attendance" options={{ title: 'Attendance' }} />
+      <Tabs.Screen name="assignments" options={{ title: 'Assignments' }} />
       <Tabs.Screen
         name="notifications"
         options={{

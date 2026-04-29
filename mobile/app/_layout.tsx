@@ -11,20 +11,20 @@ import '../global.css';
 
 const queryClient = new QueryClient();
 
-const roleHomeMap: Record<UserRole, '/(student)/dashboard' | '/(instructor)/dashboard'> = {
+const roleHomeMap: Record<UserRole, '/(student)/dashboard' | '/(instructor)/dashboard' | '/(gatekeeper)/scanner'> = {
   STUDENT: '/(student)/dashboard',
   INSTRUCTOR: '/(instructor)/dashboard',
   COORDINATOR: '/(instructor)/dashboard',
   ADMIN: '/(instructor)/dashboard',
-  GATEKEEPER: '/(instructor)/dashboard',
+  GATEKEEPER: '/(gatekeeper)/scanner',
 };
 
-const roleGroupMap: Record<UserRole, '(student)' | '(instructor)'> = {
+const roleGroupMap: Record<UserRole, '(student)' | '(instructor)' | '(gatekeeper)'> = {
   STUDENT: '(student)',
   INSTRUCTOR: '(instructor)',
   COORDINATOR: '(instructor)',
   ADMIN: '(instructor)',
-  GATEKEEPER: '(instructor)',
+  GATEKEEPER: '(gatekeeper)',
 };
 
 export default function RootLayout() {
@@ -74,6 +74,7 @@ export default function RootLayout() {
           <Stack.Screen name="(auth)/login" options={{ headerTitle: 'TriLearn Login' }} />
           <Stack.Screen name="(student)" options={{ headerShown: false }} />
           <Stack.Screen name="(instructor)" options={{ headerShown: false }} />
+          <Stack.Screen name="(gatekeeper)" options={{ headerShown: false }} />
           <Stack.Screen name="+not-found" options={{ title: 'Not Found' }} />
         </Stack>
       </QueryClientProvider>

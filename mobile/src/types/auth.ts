@@ -5,6 +5,13 @@ export interface AuthUser {
   name: string;
   email: string;
   role: UserRole;
+  student?: {
+    id: string;
+    rollNumber: string;
+    semester: number;
+    section?: string | null;
+    department?: string | null;
+  };
 }
 
 export interface AuthTokens {

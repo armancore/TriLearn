@@ -12,6 +12,7 @@ const {
   getEligibleGateAttendanceForStudent,
   upsertPresentAttendanceForRoutines,
   getStudentByIdCardQr,
+  getStudentByRollNumber,
   recordAuditLog
 } = require('./shared')
 
@@ -288,9 +289,11 @@ const generateDailyAttendanceQR = async (req, res) => {
 
 const scanStudentIdAttendance = async (req, res) => {
   try {
-    const { qrData, subjectId, attendanceDate } = req.body
+    const { qrData, rollNumber, subjectId, attendanceDate } = req.body
     const { role } = req.user
-    const scanned = await getStudentByIdCardQr(qrData)
+    const scanned = rollNumber
+      ? await getStudentByRollNumber(rollNumber)
+      : await getStudentByIdCardQr(qrData)
     if (scanned.error) return res.status(scanned.error.status).json({ message: scanned.error.message })
     const { student } = scanned
 
@@ -315,6 +318,7 @@ const scanStudentIdAttendance = async (req, res) => {
           id: student.id,
           name: student.user.name,
           rollNumber: student.rollNumber,
+          department: student.department,
           semester: student.semester,
           section: student.section
         },

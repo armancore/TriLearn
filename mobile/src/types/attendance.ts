@@ -1,14 +1,18 @@
 export interface AttendanceSummary {
-  subjectId: string;
-  subjectName: string;
-  subjectCode: string;
+  subjectId?: string;
+  subject: string;
+  code: string;
   present: number;
   absent: number;
   late: number;
   total: number;
-  percentage: number;
+  percentage: string;
 }
 
 export interface AttendanceSummaryResponse {
-  subjects: AttendanceSummary[];
+  total: number;
+  page: number;
+  limit: number;
+  attendance: unknown[];
+  summary: AttendanceSummary[];
 }

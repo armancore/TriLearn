@@ -14,12 +14,12 @@ interface ApiErrorResponse {
   message?: string;
 }
 
-const roleHomeMap: Record<UserRole, '/(student)/dashboard' | '/(instructor)/dashboard'> = {
+const roleHomeMap: Record<UserRole, '/(student)/dashboard' | '/(instructor)/dashboard' | '/(gatekeeper)/scanner'> = {
   STUDENT: '/(student)/dashboard',
   INSTRUCTOR: '/(instructor)/dashboard',
   COORDINATOR: '/(instructor)/dashboard',
   ADMIN: '/(instructor)/dashboard',
-  GATEKEEPER: '/(instructor)/dashboard',
+  GATEKEEPER: '/(gatekeeper)/scanner',
 };
 
 export default function LoginScreen() {

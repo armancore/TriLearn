@@ -5,8 +5,10 @@ import { COLORS } from '@/src/constants/colors';
 import { useAttendance } from '@/src/hooks/useAttendance';
 import type { AttendanceSummary } from '@/src/types/attendance';
 
-const getAttendanceTone = (percentage: number) => {
-  if (percentage >= 75) {
+const getAttendanceTone = (percentage: string) => {
+  const numericPercentage = parseFloat(percentage);
+
+  if (numericPercentage >= 75) {
     return {
       bar: '#16A34A',
       bg: '#DCFCE7',
@@ -15,7 +17,7 @@ const getAttendanceTone = (percentage: number) => {
     };
   }
 
-  if (percentage >= 60) {
+  if (numericPercentage >= 60) {
     return {
       bar: COLORS.accent,
       bg: '#FEF3C7',
@@ -41,14 +43,15 @@ const CountBadge = ({ label, value }: { label: string; value: number }) => (
 
 const AttendanceCard = ({ item }: { item: AttendanceSummary }) => {
   const tone = useMemo(() => getAttendanceTone(item.percentage), [item.percentage]);
-  const clampedPercentage = Math.max(0, Math.min(100, item.percentage));
+  const numericPercentage = parseFloat(item.percentage);
+  const clampedPercentage = Math.max(0, Math.min(100, Number.isNaN(numericPercentage) ? 0 : numericPercentage));
 
   return (
     <View className="rounded-2xl bg-white p-5">
       <View className="flex-row items-start justify-between gap-4">
         <View className="flex-1">
-          <Text className="text-lg font-bold text-slate-900">{item.subjectName}</Text>
-          <Text className="mt-1 text-sm font-medium text-slate-500">{item.subjectCode}</Text>
+          <Text className="text-lg font-bold text-slate-900">{item.subject}</Text>
+          <Text className="mt-1 text-sm font-medium text-slate-500">{item.code}</Text>
         </View>
         <View className="rounded-full px-3 py-1" style={{ backgroundColor: tone.bg }}>
           <Text className="text-xs font-bold" style={{ color: tone.text }}>
@@ -61,7 +64,7 @@ const AttendanceCard = ({ item }: { item: AttendanceSummary }) => {
         <View className="flex-row items-end justify-between">
           <Text className="text-sm font-medium text-slate-500">Attendance</Text>
           <Text className="text-2xl font-bold" style={{ color: tone.text }}>
-            {Math.round(item.percentage)}%
+            {item.percentage}
           </Text>
         </View>
         <View className="mt-3 h-3 overflow-hidden rounded-full bg-slate-100">
@@ -144,7 +147,7 @@ export default function StudentAttendanceScreen() {
             </Text>
           </View>
         ) : (
-          summary.map((item) => <AttendanceCard item={item} key={item.subjectId} />)
+          summary.map((item) => <AttendanceCard item={item} key={item.subjectId ?? item.code} />)
         )}
       </View>
     </ScrollView>

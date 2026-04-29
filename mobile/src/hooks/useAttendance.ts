@@ -8,16 +8,16 @@ export const useAttendance = () => {
   const { isAuthenticated } = useAuth();
 
   const query = useQuery({
-    queryKey: ['attendance', 'student', 'summary'],
+    queryKey: ['attendance', 'my'],
     queryFn: async () => {
-      const response = await api.get<AttendanceSummaryResponse>('/attendance/student/summary');
+      const response = await api.get<AttendanceSummaryResponse>('/attendance/my');
       return response.data;
     },
     enabled: isAuthenticated,
   });
 
   return {
-    summary: query.data?.subjects ?? [],
+    summary: query.data?.summary ?? [],
     isLoading: query.isLoading,
     refetch: query.refetch,
   };
