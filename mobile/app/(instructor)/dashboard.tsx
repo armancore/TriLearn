@@ -9,7 +9,7 @@ export default function InstructorDashboardScreen() {
   return (
     <View className="flex-1 p-6">
       <View className="rounded-2xl bg-white p-5">
-        <Text className="text-xl font-bold text-primary">Welcome, {user?.fullName}</Text>
+        <Text className="text-xl font-bold text-primary">Welcome, {user?.name}</Text>
         <Text className="mt-2 text-sm text-slate-600">Role: {user?.role}</Text>
         <Text className="mt-3 text-slate-700">Manage courses, assessments, and classroom updates from this dashboard.</Text>
       </View>

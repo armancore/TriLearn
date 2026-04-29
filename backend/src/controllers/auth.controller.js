@@ -35,6 +35,7 @@ const buildAuthUser = (user) => ({
   ...(user.coordinator ? { coordinator: user.coordinator } : {})
 })
 
+const isMobileClient = (req) => String(req.get('x-client-type') || '').toLowerCase() === 'mobile'
 const isPasswordResetEnabled = () => process.env.ENABLE_PASSWORD_RESET === 'true'
 const MAX_FAILED_LOGIN_ATTEMPTS = 5
 const LOGIN_LOCKOUT_MINUTES = 15
@@ -309,7 +310,8 @@ const issueAuthSession = async (user, res, req, previousRefreshToken) => {
   res.cookie('refreshToken', refreshToken, getRefreshCookieOptions(req))
 
   return {
-    accessToken
+    accessToken,
+    refreshToken
   }
 }
 
@@ -535,13 +537,20 @@ const login = async (req, res) => {
     })
 
     await waitForMinimumDuration(startedAt, LOGIN_MIN_RESPONSE_MS)
-    res.json({
+    const responseBody = {
       message: user.mustChangePassword
         ? 'Login successful. Please change your password to continue.'
         : 'Login successful!',
       token: session.accessToken,
+      accessToken: session.accessToken,
       user: buildAuthUser(authUser || user)
-    })
+    }
+
+    if (isMobileClient(req)) {
+      responseBody.refreshToken = session.refreshToken
+    }
+
+    res.json(responseBody)
   } catch (error) {
     res.internalError(error)
   }
@@ -1011,10 +1020,8 @@ const resetPassword = async (req, res) => {
   }
 }
 
-const refresh = async (req, res) => {
+const refreshSession = async (req, res, refreshToken, { includeRefreshToken = false } = {}) => {
   try {
-    const refreshToken = req.cookies?.refreshToken
-
     if (!refreshToken) {
       return res.status(401).json({ message: 'Refresh token is required' })
     }
@@ -1077,16 +1084,32 @@ const refresh = async (req, res) => {
 
     const session = await issueAuthSession(storedRefreshToken.user, res, req, refreshToken)
 
-    res.json({
+    const responseBody = {
       message: 'Token refreshed successfully',
       token: session.accessToken,
+      accessToken: session.accessToken,
       user: buildAuthUser(storedRefreshToken.user)
-    })
+    }
+
+    if (includeRefreshToken) {
+      responseBody.refreshToken = session.refreshToken
+    }
+
+    res.json(responseBody)
   } catch (error) {
     logger.error(error.message, { stack: error.stack })
     res.status(401).json({ message: 'Refresh token is invalid or expired' })
   }
 }
+
+const refresh = async (req, res) => refreshSession(req, res, req.cookies?.refreshToken)
+
+const refreshMobile = async (req, res) => refreshSession(
+  req,
+  res,
+  req.body?.refreshToken,
+  { includeRefreshToken: true }
+)
 
 const logout = async (req, res) => {
   const startedAt = Date.now()
@@ -1260,6 +1283,7 @@ module.exports = {
   forgotPassword,
   resetPassword,
   refresh,
+  refreshMobile,
   logout,
   getActivity,
   logoutAll

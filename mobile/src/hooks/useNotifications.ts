@@ -5,7 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from '@/src/services/api';
 import { useAuth } from '@/src/hooks/useAuth';
 import { useNotificationsStore } from '@/src/store/notifications.store';
-import type { NotificationItem } from '@/src/types/notification';
+import type { NotificationsResponse } from '@/src/types/notification';
 
 export const useNotifications = () => {
   const { isAuthenticated } = useAuth();
@@ -18,8 +18,8 @@ export const useNotifications = () => {
   const query = useQuery({
     queryKey: ['notifications'],
     queryFn: async () => {
-      const response = await api.get<NotificationItem[]>('/notifications');
-      return response.data;
+      const response = await api.get<NotificationsResponse>('/notifications');
+      return response.data.notifications;
     },
     enabled: isAuthenticated,
   });
@@ -31,8 +31,9 @@ export const useNotifications = () => {
   }, [query.data, setNotifications]);
 
   return {
-    ...query,
     notifications: items,
     unreadCount,
+    isLoading: query.isLoading,
+    refetch: query.refetch,
   };
 };

@@ -2,7 +2,7 @@ export type UserRole = 'STUDENT' | 'INSTRUCTOR' | 'COORDINATOR' | 'ADMIN' | 'GAT
 
 export interface AuthUser {
   id: string;
-  fullName: string;
+  name: string;
   email: string;
   role: UserRole;
 }

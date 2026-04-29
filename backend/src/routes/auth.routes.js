@@ -1,5 +1,6 @@
 const express = require('express')
 const router = express.Router()
+const authController = require('../controllers/auth.controller')
 const {
   register,
   submitStudentIntake,
@@ -16,7 +17,8 @@ const {
   resetPassword,
   getActivity,
   logoutAll
-} = require('../controllers/auth.controller')
+} = authController
+const refreshMobile = authController.refreshMobile || refresh
 const { protect, allowRoles } = require('../middleware/auth.middleware')
 const { authLimiter, forgotPasswordLimiter, loginLimiter, refreshLimiter, logoutLimiter, uploadLimiter } = require('../middleware/rateLimit.middleware')
 const { uploadImage, validateUploadedImage } = require('../middleware/upload.middleware')
@@ -29,6 +31,7 @@ router.post('/login', loginLimiter, validate(schemas.auth.login), login)
 router.post('/forgot-password', forgotPasswordLimiter, validate(schemas.auth.forgotPassword), forgotPassword)
 router.post('/reset-password', authLimiter, validate(schemas.auth.resetPassword), resetPassword)
 router.post('/refresh', refreshLimiter, refresh)
+router.post('/refresh/mobile', refreshLimiter, refreshMobile)
 router.post('/logout', logoutLimiter, logout)
 router.post('/logout-all', protect, logoutAll)
 router.get('/me', protect, getMe)

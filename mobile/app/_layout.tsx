@@ -72,10 +72,8 @@ export default function RootLayout() {
           }}
         >
           <Stack.Screen name="(auth)/login" options={{ headerTitle: 'TriLearn Login' }} />
-          <Stack.Screen name="(student)/dashboard" options={{ headerTitle: 'Student Dashboard' }} />
-          <Stack.Screen name="(student)/attendance" options={{ headerTitle: 'Attendance' }} />
-          <Stack.Screen name="(student)/notifications" options={{ headerTitle: 'Notifications' }} />
-          <Stack.Screen name="(instructor)/dashboard" options={{ headerTitle: 'Instructor Dashboard' }} />
+          <Stack.Screen name="(student)" options={{ headerShown: false }} />
+          <Stack.Screen name="(instructor)" options={{ headerShown: false }} />
           <Stack.Screen name="+not-found" options={{ title: 'Not Found' }} />
         </Stack>
       </QueryClientProvider>

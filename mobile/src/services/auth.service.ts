@@ -6,6 +6,9 @@ import axios from 'axios';
 const authClient = axios.create({
   baseURL: API_BASE_URL,
   timeout: 15000,
+  headers: {
+    'X-Client-Type': 'mobile',
+  },
 });
 
 export const login = async (payload: LoginRequest): Promise<LoginResponse> => {
@@ -14,6 +17,6 @@ export const login = async (payload: LoginRequest): Promise<LoginResponse> => {
 };
 
 export const refreshAccessToken = async (refreshToken: string): Promise<RefreshTokenResponse> => {
-  const response = await authClient.post<RefreshTokenResponse>('/auth/refresh', { refreshToken });
+  const response = await authClient.post<RefreshTokenResponse>('/auth/refresh/mobile', { refreshToken });
   return response.data;
 };

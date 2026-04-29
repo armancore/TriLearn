@@ -79,7 +79,7 @@ const loginRateLimitKey = (req) => {
 }
 
 const refreshRateLimitKey = (req) => {
-  const refreshToken = req.cookies?.refreshToken
+  const refreshToken = req.cookies?.refreshToken || req.body?.refreshToken
 
   if (!refreshToken) {
     return ipKeyGenerator(req.ip || '')

@@ -11,7 +11,7 @@ interface NotificationsState {
   reset: () => void;
 }
 
-const countUnread = (items: NotificationItem[]): number => items.filter((item) => !item.read).length;
+const countUnread = (items: NotificationItem[]): number => items.filter((item) => !item.isRead).length;
 
 export const useNotificationsStore = create<NotificationsState>((set) => ({
   items: [],
@@ -24,7 +24,7 @@ export const useNotificationsStore = create<NotificationsState>((set) => ({
     }),
   markAsRead: (id) =>
     set((state) => {
-      const items = state.items.map((item) => (item.id === id ? { ...item, read: true } : item));
+      const items = state.items.map((item) => (item.id === id ? { ...item, isRead: true } : item));
       return { items, unreadCount: countUnread(items) };
     }),
   reset: () => set({ items: [], unreadCount: 0 }),
