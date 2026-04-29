@@ -105,7 +105,7 @@ export default function StudentTabsLayout() {
       <Tabs.Screen name="marks" options={{ title: 'Marks' }} />
       <Tabs.Screen name="assignments" options={{ title: 'Assignments' }} />
       <Tabs.Screen name="notices" options={{ href: null }} />
-      <Tabs.Screen name="routine" options={{ href: null }} />
+      <Tabs.Screen name="routine" options={{ title: 'Routine' }} />
       <Tabs.Screen name="id-card" options={{ href: null }} />
       <Tabs.Screen name="tickets" options={{ href: null }} />
       <Tabs.Screen name="materials" options={{ href: null }} />

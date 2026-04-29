@@ -3,13 +3,9 @@ import { Tabs } from 'expo-router';
 
 import { COLORS } from '@/src/constants/colors';
 
-type GatekeeperTabIconName = 'scan-outline' | 'qr-code' | 'home-outline' | 'home' | 'person-outline' | 'person';
+type GatekeeperTabIconName = 'home-outline' | 'home' | 'person-outline' | 'person';
 
 const getGatekeeperTabIcon = (routeName: string, focused: boolean): GatekeeperTabIconName => {
-  if (routeName === 'scanner') {
-    return focused ? 'qr-code' : 'scan-outline';
-  }
-
   if (routeName === 'profile') {
     return focused ? 'person' : 'person-outline';
   }
@@ -31,8 +27,8 @@ export default function GatekeeperTabsLayout() {
         ),
       })}
     >
-      <Tabs.Screen name="scanner" options={{ title: 'Scanner' }} />
-      <Tabs.Screen name="dashboard" options={{ title: 'Dashboard' }} />
+      <Tabs.Screen name="dashboard" options={{ title: 'Gate QR' }} />
+      <Tabs.Screen name="scanner" options={{ href: null }} />
       <Tabs.Screen name="profile" options={{ title: 'Profile' }} />
     </Tabs>
   );

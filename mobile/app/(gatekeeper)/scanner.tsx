@@ -152,56 +152,55 @@ export default function GatekeeperScannerScreen() {
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} className="flex-1 bg-slate-950">
       <CameraView
         barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
-        className="flex-1"
         facing="back"
         onBarcodeScanned={isScannerLocked || mutation.isPending ? undefined : handleBarcodeScanned}
-      >
-        <View className="flex-1 justify-between p-6">
-          <View className="rounded-2xl bg-black/50 p-4">
-            <Text className="text-2xl font-bold text-white">Scan student QR</Text>
-            <Text className="mt-2 text-sm text-slate-200">Point the camera at a TriLearn student ID code.</Text>
-          </View>
-
-          <View className="items-center">
-            <View className="h-64 w-64 rounded-3xl border-4 border-white/90 bg-white/5" />
-          </View>
-
-          <View className="rounded-2xl bg-black/50 p-4">
-            {manualOpen ? (
-              <View>
-                <Text className="mb-2 text-sm font-semibold text-white">Manual roll number</Text>
-                <TextInput
-                  autoCapitalize="characters"
-                  className="h-12 rounded-xl bg-white px-4 text-base text-slate-900"
-                  editable={!mutation.isPending && !isScannerLocked}
-                  onChangeText={setRollNumber}
-                  placeholder="Enter roll number"
-                  placeholderTextColor="#9CA3AF"
-                  value={rollNumber}
-                />
-                <View className="mt-3 flex-row gap-3">
-                  <Pressable className="flex-1 rounded-xl bg-white/15 py-3" onPress={() => setManualOpen(false)}>
-                    <Text className="text-center text-sm font-bold text-white">Cancel</Text>
-                  </Pressable>
-                  <Pressable
-                    className="flex-1 rounded-xl bg-white py-3"
-                    disabled={!rollNumber.trim() || mutation.isPending || isScannerLocked}
-                    onPress={handleManualSubmit}
-                  >
-                    <Text className="text-center text-sm font-bold text-primary">
-                      {mutation.isPending ? 'Checking...' : 'Submit'}
-                    </Text>
-                  </Pressable>
-                </View>
-              </View>
-            ) : (
-              <Pressable className="rounded-xl bg-white py-3" onPress={() => setManualOpen(true)}>
-                <Text className="text-center text-sm font-bold text-primary">Enter roll number manually</Text>
-              </Pressable>
-            )}
-          </View>
+        style={{ flex: 1 }}
+      />
+      <View className="absolute inset-0 justify-between p-6">
+        <View className="rounded-2xl bg-black/50 p-4">
+          <Text className="text-2xl font-bold text-white">Scan student QR</Text>
+          <Text className="mt-2 text-sm text-slate-200">Point the camera at a TriLearn student ID code.</Text>
         </View>
-      </CameraView>
+
+        <View className="items-center">
+          <View className="h-64 w-64 rounded-3xl border-4 border-white/90 bg-white/5" />
+        </View>
+
+        <View className="rounded-2xl bg-black/50 p-4">
+          {manualOpen ? (
+            <View>
+              <Text className="mb-2 text-sm font-semibold text-white">Manual roll number</Text>
+              <TextInput
+                autoCapitalize="characters"
+                className="h-12 rounded-xl bg-white px-4 text-base text-slate-900"
+                editable={!mutation.isPending && !isScannerLocked}
+                onChangeText={setRollNumber}
+                placeholder="Enter roll number"
+                placeholderTextColor="#9CA3AF"
+                value={rollNumber}
+              />
+              <View className="mt-3 flex-row gap-3">
+                <Pressable className="flex-1 rounded-xl bg-white/15 py-3" onPress={() => setManualOpen(false)}>
+                  <Text className="text-center text-sm font-bold text-white">Cancel</Text>
+                </Pressable>
+                <Pressable
+                  className="flex-1 rounded-xl bg-white py-3"
+                  disabled={!rollNumber.trim() || mutation.isPending || isScannerLocked}
+                  onPress={handleManualSubmit}
+                >
+                  <Text className="text-center text-sm font-bold text-primary">
+                    {mutation.isPending ? 'Checking...' : 'Submit'}
+                  </Text>
+                </Pressable>
+              </View>
+            </View>
+          ) : (
+            <Pressable className="rounded-xl bg-white py-3" onPress={() => setManualOpen(true)}>
+              <Text className="text-center text-sm font-bold text-primary">Enter roll number manually</Text>
+            </Pressable>
+          )}
+        </View>
+      </View>
 
       {overlay ? (
         <View className="absolute inset-x-6 top-24">
