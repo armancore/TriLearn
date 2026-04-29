@@ -75,6 +75,12 @@ const csrfProtection = (req, res, next) => {
 
   const hasCookieHeader = Boolean(req.headers.cookie)
   const hasBrowserContext = Boolean(req.headers.origin || req.headers.referer)
+  const isMobileClient = String(req.get('x-client-type') || '').toLowerCase() === 'mobile'
+
+  // Native mobile clients use explicit token headers/body refresh tokens, not browser forms.
+  if (isMobileClient) {
+    return next()
+  }
 
   // Bearer-token API clients without ambient browser credentials are not exposed to CSRF.
   if (!hasCookieHeader && !hasBrowserContext) {

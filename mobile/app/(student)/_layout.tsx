@@ -27,7 +27,9 @@ type StudentTabIconName =
   | 'ticket-outline'
   | 'ticket'
   | 'folder-outline'
-  | 'folder';
+  | 'folder'
+  | 'qr-code-outline'
+  | 'qr-code';
 
 const getStudentTabIcon = (
   routeName: string,
@@ -73,6 +75,10 @@ const getStudentTabIcon = (
     return focused ? 'folder' : 'folder-outline';
   }
 
+  if (routeName === 'scanner') {
+    return focused ? 'qr-code' : 'qr-code-outline';
+  }
+
   return focused ? 'home' : 'home-outline';
 };
 
@@ -95,13 +101,14 @@ export default function StudentTabsLayout() {
     >
       <Tabs.Screen name="dashboard" options={{ title: 'Dashboard' }} />
       <Tabs.Screen name="attendance" options={{ title: 'Attendance' }} />
+      <Tabs.Screen name="scanner" options={{ href: null }} />
       <Tabs.Screen name="marks" options={{ title: 'Marks' }} />
       <Tabs.Screen name="assignments" options={{ title: 'Assignments' }} />
-      <Tabs.Screen name="notices" options={{ title: 'Notices' }} />
-      <Tabs.Screen name="routine" options={{ title: 'Routine' }} />
-      <Tabs.Screen name="id-card" options={{ title: 'ID Card' }} />
-      <Tabs.Screen name="tickets" options={{ title: 'Tickets' }} />
-      <Tabs.Screen name="materials" options={{ title: 'Materials' }} />
+      <Tabs.Screen name="notices" options={{ href: null }} />
+      <Tabs.Screen name="routine" options={{ href: null }} />
+      <Tabs.Screen name="id-card" options={{ href: null }} />
+      <Tabs.Screen name="tickets" options={{ href: null }} />
+      <Tabs.Screen name="materials" options={{ href: null }} />
       <Tabs.Screen
         name="notifications"
         options={{

@@ -9,13 +9,11 @@ import type { NotificationsResponse } from '@/src/types/notification';
 
 export const useNotifications = () => {
   const { isAuthenticated } = useAuth();
-  const { items, markAsRead: markAsReadInStore, reset, setNotifications, unreadCount } = useNotificationsStore((state) => ({
-    items: state.items,
-    markAsRead: state.markAsRead,
-    reset: state.reset,
-    unreadCount: state.unreadCount,
-    setNotifications: state.setNotifications,
-  }));
+  const items = useNotificationsStore((state) => state.items);
+  const markAsReadInStore = useNotificationsStore((state) => state.markAsRead);
+  const reset = useNotificationsStore((state) => state.reset);
+  const unreadCount = useNotificationsStore((state) => state.unreadCount);
+  const setNotifications = useNotificationsStore((state) => state.setNotifications);
 
   const query = useQuery({
     queryKey: ['notifications'],

@@ -7,14 +7,12 @@ import { useNotificationsStore } from '@/src/store/notifications.store';
 import type { LoginRequest } from '@/src/types/auth';
 
 export const useAuth = () => {
-  const { user, accessToken, refreshToken, isHydrated, setSession, clearSession } = useAuthStore((state) => ({
-    user: state.user,
-    accessToken: state.accessToken,
-    refreshToken: state.refreshToken,
-    isHydrated: state.isHydrated,
-    setSession: state.setSession,
-    clearSession: state.clearSession,
-  }));
+  const user = useAuthStore((state) => state.user);
+  const accessToken = useAuthStore((state) => state.accessToken);
+  const refreshToken = useAuthStore((state) => state.refreshToken);
+  const isHydrated = useAuthStore((state) => state.isHydrated);
+  const setSession = useAuthStore((state) => state.setSession);
+  const clearSession = useAuthStore((state) => state.clearSession);
   const resetNotifications = useNotificationsStore((state) => state.reset);
 
   const login = useCallback(

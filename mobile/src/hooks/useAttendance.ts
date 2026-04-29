@@ -19,6 +19,8 @@ export const useAttendance = () => {
   return {
     summary: query.data?.summary ?? [],
     isLoading: query.isLoading,
+    isError: query.isError,
+    error: query.error,
     refetch: query.refetch,
   };
 };

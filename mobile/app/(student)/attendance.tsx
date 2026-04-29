@@ -100,7 +100,7 @@ const SkeletonCard = () => (
 );
 
 export default function StudentAttendanceScreen() {
-  const { summary, isLoading, refetch } = useAttendance();
+  const { summary, isLoading, isError, error, refetch } = useAttendance();
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   const handleRefresh = useCallback(async () => {
@@ -139,6 +139,13 @@ export default function StudentAttendanceScreen() {
             <SkeletonCard />
             <SkeletonCard />
           </>
+        ) : isError ? (
+          <View className="items-center rounded-2xl bg-white px-5 py-10">
+            <Text className="text-lg font-bold text-red-600">Could not load attendance</Text>
+            <Text className="mt-2 text-center text-sm text-slate-500">
+              {error instanceof Error ? error.message : 'Pull down to retry.'}
+            </Text>
+          </View>
         ) : summary.length === 0 ? (
           <View className="items-center rounded-2xl bg-white px-5 py-10">
             <Text className="text-lg font-bold text-slate-900">No enrolled subjects</Text>

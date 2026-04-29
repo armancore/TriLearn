@@ -30,14 +30,17 @@
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
-      "expo-router"
+      "expo-router",
+      "expo-secure-store",
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true
     },
     "extra": {
-      "apiBaseUrl": "http://localhost:5000/api/v1",
-      "socketUrl": "http://localhost:5000"
+      "apiBaseUrl": "http://192.168.1.81:5000/api/v1",
+      "socketUrl": "http://192.168.1.81:5000",
+      "webAppUrl": "http://192.168.1.81:5173"
     }
   }
 }

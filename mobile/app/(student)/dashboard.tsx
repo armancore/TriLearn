@@ -171,6 +171,17 @@ export default function StudentDashboardScreen() {
         />
       }
     >
+      <View className="mb-4 flex-row items-center justify-between">
+        <Text className="text-2xl font-bold text-primary">Dashboard</Text>
+        <Pressable
+          accessibilityLabel="Scan attendance QR"
+          className="h-11 w-11 items-center justify-center rounded-full bg-primary active:opacity-80"
+          onPress={() => router.push('/(student)/scanner')}
+        >
+          <Ionicons color="#FFFFFF" name="qr-code-outline" size={22} />
+        </Pressable>
+      </View>
+
       <View className="rounded-2xl bg-white p-5">
         <View className="flex-row items-start justify-between gap-4">
           <View className="flex-1">
@@ -196,6 +207,11 @@ export default function StudentDashboardScreen() {
       <View className="mt-4 flex-row gap-3">
         <QuickNavButton icon="calendar-outline" label="Attendance" onPress={() => router.push('/(student)/attendance')} />
         <QuickNavButton icon="document-text-outline" label="Assignments" onPress={() => router.push('/(student)/assignments')} />
+      </View>
+
+      <View className="mt-3 flex-row gap-3">
+        <QuickNavButton icon="ribbon-outline" label="Marks" onPress={() => router.push('/(student)/marks')} />
+        <QuickNavButton icon="folder-outline" label="Materials" onPress={() => router.push('/(student)/materials')} />
       </View>
 
       <View className="mt-6">

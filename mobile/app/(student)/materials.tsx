@@ -1,11 +1,13 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
-import { FlatList, Linking, Pressable, RefreshControl, Text, View } from 'react-native';
+import { FlatList, Pressable, RefreshControl, Text, View } from 'react-native';
 
 import { COLORS } from '@/src/constants/colors';
+import { useToast } from '@/src/hooks/useToast';
 import { api } from '@/src/services/api';
 import type { StudyMaterial, StudyMaterialsResponse } from '@/src/types/material';
+import { openAuthenticatedUpload } from '@/src/utils/uploadFiles';
 
 const formatDate = (value: string) =>
   new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(value));
@@ -13,6 +15,7 @@ const formatDate = (value: string) =>
 export default function StudentMaterialsScreen() {
   const [selectedSubjectId, setSelectedSubjectId] = useState<string>('ALL');
   const [refreshing, setRefreshing] = useState(false);
+  const toast = useToast();
 
   const query = useQuery({
     queryKey: ['materials', 'student'],
@@ -47,6 +50,14 @@ export default function StudentMaterialsScreen() {
     }
   };
 
+  const openMaterial = async (material: StudyMaterial) => {
+    try {
+      await openAuthenticatedUpload(material.fileUrl);
+    } catch (error) {
+      toast.error(error, 'Could not open this material.');
+    }
+  };
+
   const renderMaterial = ({ item }: { item: StudyMaterial }) => (
     <View className="rounded-2xl bg-white p-5">
       <View className="flex-row items-start gap-4">
@@ -67,7 +78,7 @@ export default function StudentMaterialsScreen() {
       ) : null}
       <View className="mt-5 flex-row items-center justify-between">
         <Text className="text-xs text-slate-500">Uploaded {formatDate(item.createdAt)}</Text>
-        <Pressable className="rounded-xl bg-primary px-4 py-2" onPress={() => void Linking.openURL(item.fileUrl)}>
+        <Pressable className="rounded-xl bg-primary px-4 py-2" onPress={() => void openMaterial(item)}>
           <Text className="text-sm font-bold text-white">Open</Text>
         </Pressable>
       </View>
@@ -107,6 +118,8 @@ export default function StudentMaterialsScreen() {
         ListEmptyComponent={
           query.isLoading ? (
             <View className="h-24 rounded-2xl bg-white" />
+          ) : query.isError ? (
+            <Text className="rounded-2xl bg-white p-5 text-center text-red-600">Could not load study materials. Pull down to retry.</Text>
           ) : (
             <Text className="rounded-2xl bg-white p-5 text-center text-slate-500">No study materials found</Text>
           )

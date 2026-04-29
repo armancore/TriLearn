@@ -14,6 +14,9 @@ let refreshPromise: Promise<RefreshTokenResponse> | null = null;
 export const api = axios.create({
   baseURL: API_BASE_URL,
   timeout: 15000,
+  headers: {
+    'X-Client-Type': 'mobile',
+  },
 });
 
 api.interceptors.request.use((config) => {
@@ -23,6 +26,9 @@ api.interceptors.request.use((config) => {
     config.headers = config.headers ?? {};
     (config.headers as Record<string, string>).Authorization = `Bearer ${token}`;
   }
+
+  config.headers = config.headers ?? {};
+  (config.headers as Record<string, string>)['X-Client-Type'] = 'mobile';
 
   return config;
 });

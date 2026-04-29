@@ -89,7 +89,7 @@ export default function RootLayout() {
           <Stack.Screen name="(coordinator)" options={{ headerShown: false }} />
           <Stack.Screen name="(admin)" options={{ headerShown: false }} />
           <Stack.Screen name="(gatekeeper)" options={{ headerShown: false }} />
-          <Stack.Screen name="(profile)" options={{ title: 'Profile', headerBackTitle: 'Back' }} />
+          <Stack.Screen name="(profile)/index" options={{ title: 'Profile', headerBackTitle: 'Back' }} />
           <Stack.Screen name="+not-found" options={{ title: 'Not Found' }} />
         </Stack>
       </QueryClientProvider>

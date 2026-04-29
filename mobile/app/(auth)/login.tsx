@@ -2,7 +2,8 @@ import { useMemo, useState } from 'react';
 import { AxiosError } from 'axios';
 import { useMutation } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
-import { KeyboardAvoidingView, Platform, SafeAreaView, Text, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AppButton } from '@/src/components/AppButton';
 import { AppInput } from '@/src/components/AppInput';
@@ -51,7 +52,7 @@ export default function LoginScreen() {
   const isDisabled = !form.email.trim() || !form.password.trim() || mutation.isPending;
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.background }}>
+    <SafeAreaView className="flex-1" style={{ backgroundColor: COLORS.background }}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} className="flex-1 px-6">
         <View className="mt-16 rounded-2xl bg-white p-6 shadow-sm">
           <Text className="text-3xl font-bold text-primary">TriLearn</Text>
