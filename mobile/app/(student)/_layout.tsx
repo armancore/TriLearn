@@ -19,7 +19,9 @@ type StudentTabIconName =
   | 'time-outline'
   | 'time'
   | 'notifications-outline'
-  | 'notifications';
+  | 'notifications'
+  | 'person-outline'
+  | 'person';
 
 const getStudentTabIcon = (
   routeName: string,
@@ -47,6 +49,10 @@ const getStudentTabIcon = (
 
   if (routeName === 'notifications') {
     return focused ? 'notifications' : 'notifications-outline';
+  }
+
+  if (routeName === 'profile') {
+    return focused ? 'person' : 'person-outline';
   }
 
   return focused ? 'home' : 'home-outline';
@@ -82,6 +88,7 @@ export default function StudentTabsLayout() {
           tabBarBadge: unreadCount > 0 ? unreadCount : undefined,
         }}
       />
+      <Tabs.Screen name="profile" options={{ title: 'Profile' }} />
     </Tabs>
   );
 }

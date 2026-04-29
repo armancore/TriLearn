@@ -13,13 +13,16 @@ type InstructorTabIconName =
   | 'qr-code-outline'
   | 'qr-code'
   | 'ribbon-outline'
-  | 'ribbon';
+  | 'ribbon'
+  | 'person-outline'
+  | 'person';
 
 const getInstructorTabIcon = (routeName: string, focused: boolean): InstructorTabIconName => {
   if (routeName === 'courses') return focused ? 'book' : 'book-outline';
   if (routeName === 'updates') return focused ? 'notifications' : 'notifications-outline';
   if (routeName === 'qr') return focused ? 'qr-code' : 'qr-code-outline';
   if (routeName === 'marks') return focused ? 'ribbon' : 'ribbon-outline';
+  if (routeName === 'profile') return focused ? 'person' : 'person-outline';
 
   return focused ? 'home' : 'home-outline';
 };
@@ -44,6 +47,7 @@ export default function InstructorTabsLayout() {
       <Tabs.Screen name="qr" options={{ title: 'QR' }} />
       <Tabs.Screen name="marks" options={{ title: 'Marks' }} />
       <Tabs.Screen name="attendance" options={{ href: null }} />
+      <Tabs.Screen name="profile" options={{ title: 'Profile' }} />
     </Tabs>
   );
 }

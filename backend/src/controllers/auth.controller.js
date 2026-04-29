@@ -632,6 +632,7 @@ const updateProfile = async (req, res) => {
   try {
     const parsedBody = schemas.auth.updateProfile.body.parse(req.body)
     const {
+      name,
       phone,
       address,
       fatherName,
@@ -676,6 +677,7 @@ const updateProfile = async (req, res) => {
     await prisma.user.update({
       where: { id: req.user.id },
       data: {
+        name: name ? sanitizePlainText(name) : undefined,
         phone: phone ?? undefined,
         address: canonicalAddress ?? undefined
       }

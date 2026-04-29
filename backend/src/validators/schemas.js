@@ -204,6 +204,7 @@ const studentApplicationBody = z.object({
 })
 
 const profileUpdateBody = z.object({
+  name: z.string().trim().min(2).max(100).optional(),
   phone: optionalString(30),
   address: optionalString(255),
   fatherName: optionalString(100),

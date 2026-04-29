@@ -14,11 +14,11 @@ interface ApiErrorResponse {
   message?: string;
 }
 
-const roleHomeMap: Record<UserRole, '/(student)/dashboard' | '/(instructor)/dashboard' | '/(gatekeeper)/scanner'> = {
+const roleHomeMap: Record<UserRole, '/(student)/dashboard' | '/(instructor)/dashboard' | '/(coordinator)/dashboard' | '/(admin)/dashboard' | '/(gatekeeper)/scanner'> = {
   STUDENT: '/(student)/dashboard',
   INSTRUCTOR: '/(instructor)/dashboard',
-  COORDINATOR: '/(instructor)/dashboard',
-  ADMIN: '/(instructor)/dashboard',
+  COORDINATOR: '/(coordinator)/dashboard',
+  ADMIN: '/(admin)/dashboard',
   GATEKEEPER: '/(gatekeeper)/scanner',
 };
 
