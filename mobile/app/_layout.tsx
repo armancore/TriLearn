@@ -2,13 +2,14 @@ import { Redirect, Stack, useSegments } from 'expo-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { ActivityIndicator, Text, View } from 'react-native';
-import { useMemo } from 'react';
 
 import { COLORS } from '@/src/constants/colors';
 import { useAuth } from '@/src/hooks/useAuth';
 import { useSocket } from '@/src/hooks/useSocket';
 import type { UserRole } from '@/src/types/auth';
 import '../global.css';
+
+const queryClient = new QueryClient();
 
 const roleHomeMap: Record<UserRole, '/(student)/dashboard' | '/(instructor)/dashboard'> = {
   STUDENT: '/(student)/dashboard',
@@ -27,7 +28,6 @@ const roleGroupMap: Record<UserRole, '(student)' | '(instructor)'> = {
 };
 
 export default function RootLayout() {
-  const queryClient = useMemo(() => new QueryClient(), []);
   const segments = useSegments();
   const { isHydrated, isAuthenticated, user } = useAuth();
   const activeGroup = segments[0];
