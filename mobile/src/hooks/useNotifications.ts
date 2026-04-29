@@ -19,14 +19,14 @@ export const useNotifications = () => {
     queryKey: ['notifications'],
     queryFn: async () => {
       const response = await api.get<NotificationsResponse>('/notifications');
-      return response.data.notifications;
+      return response.data;
     },
     enabled: isAuthenticated,
   });
 
   useEffect(() => {
-    if (query.data) {
-      setNotifications(query.data);
+    if (query.data?.notifications) {
+      setNotifications(query.data.notifications);
     }
   }, [query.data, setNotifications]);
 
