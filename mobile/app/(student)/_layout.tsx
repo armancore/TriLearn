@@ -10,8 +10,14 @@ type StudentTabIconName =
   | 'home'
   | 'calendar-outline'
   | 'calendar'
+  | 'ribbon-outline'
+  | 'ribbon'
   | 'document-text-outline'
   | 'document-text'
+  | 'megaphone-outline'
+  | 'megaphone'
+  | 'time-outline'
+  | 'time'
   | 'notifications-outline'
   | 'notifications';
 
@@ -25,6 +31,18 @@ const getStudentTabIcon = (
 
   if (routeName === 'assignments') {
     return focused ? 'document-text' : 'document-text-outline';
+  }
+
+  if (routeName === 'marks') {
+    return focused ? 'ribbon' : 'ribbon-outline';
+  }
+
+  if (routeName === 'notices') {
+    return focused ? 'megaphone' : 'megaphone-outline';
+  }
+
+  if (routeName === 'routine') {
+    return focused ? 'time' : 'time-outline';
   }
 
   if (routeName === 'notifications') {
@@ -53,7 +71,10 @@ export default function StudentTabsLayout() {
     >
       <Tabs.Screen name="dashboard" options={{ title: 'Dashboard' }} />
       <Tabs.Screen name="attendance" options={{ title: 'Attendance' }} />
+      <Tabs.Screen name="marks" options={{ title: 'Marks' }} />
       <Tabs.Screen name="assignments" options={{ title: 'Assignments' }} />
+      <Tabs.Screen name="notices" options={{ title: 'Notices' }} />
+      <Tabs.Screen name="routine" options={{ title: 'Routine' }} />
       <Tabs.Screen
         name="notifications"
         options={{
