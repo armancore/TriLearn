@@ -21,7 +21,13 @@ type StudentTabIconName =
   | 'notifications-outline'
   | 'notifications'
   | 'person-outline'
-  | 'person';
+  | 'person'
+  | 'card-outline'
+  | 'card'
+  | 'ticket-outline'
+  | 'ticket'
+  | 'folder-outline'
+  | 'folder';
 
 const getStudentTabIcon = (
   routeName: string,
@@ -55,6 +61,18 @@ const getStudentTabIcon = (
     return focused ? 'person' : 'person-outline';
   }
 
+  if (routeName === 'id-card') {
+    return focused ? 'card' : 'card-outline';
+  }
+
+  if (routeName === 'tickets') {
+    return focused ? 'ticket' : 'ticket-outline';
+  }
+
+  if (routeName === 'materials') {
+    return focused ? 'folder' : 'folder-outline';
+  }
+
   return focused ? 'home' : 'home-outline';
 };
 
@@ -81,6 +99,9 @@ export default function StudentTabsLayout() {
       <Tabs.Screen name="assignments" options={{ title: 'Assignments' }} />
       <Tabs.Screen name="notices" options={{ title: 'Notices' }} />
       <Tabs.Screen name="routine" options={{ title: 'Routine' }} />
+      <Tabs.Screen name="id-card" options={{ title: 'ID Card' }} />
+      <Tabs.Screen name="tickets" options={{ title: 'Tickets' }} />
+      <Tabs.Screen name="materials" options={{ title: 'Materials' }} />
       <Tabs.Screen
         name="notifications"
         options={{
