@@ -1815,8 +1815,16 @@ test('getAllUsers scopes coordinator queries to their department', async () => {
                 }
               },
               {
-                departments: {
-                  hasSome: ['BCA']
+                departmentMemberships: {
+                  some: {
+                    department: {
+                      is: {
+                        name: {
+                          in: ['BCA']
+                        }
+                      }
+                    }
+                  }
                 }
               }
             ]

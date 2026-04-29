@@ -12,6 +12,7 @@ const { hashPassword } = require('../utils/security')
 const { signQrPayload } = require('../utils/qrSigning')
 const { sanitizePlainText } = require('../utils/sanitize')
 const { schemas } = require('../validators/schemas')
+const { getInstructorDepartments } = require('../utils/instructorDepartments')
 const { ZodError } = require('zod')
 const {
   signAccessToken,
@@ -31,7 +32,17 @@ const buildAuthUser = (user) => ({
   mustChangePassword: !!user.mustChangePassword,
   profileCompleted: !!user.profileCompleted,
   ...(user.student ? { student: user.student } : {}),
-  ...(user.instructor ? { instructor: user.instructor } : {}),
+  ...(user.instructor ? (() => {
+    const instructor = { ...user.instructor }
+    delete instructor.departmentMemberships
+
+    return {
+      instructor: {
+        ...instructor,
+        departments: getInstructorDepartments(user.instructor)
+      }
+    }
+  })() : {}),
   ...(user.coordinator ? { coordinator: user.coordinator } : {})
 })
 
@@ -89,7 +100,15 @@ const userRoleSelect = {
   instructor: {
     select: {
       id: true,
-      department: true
+      department: true,
+      departmentMemberships: {
+        include: {
+          department: {
+            select: { name: true }
+          }
+        },
+        orderBy: { createdAt: 'asc' }
+      }
     }
   },
   coordinator: {

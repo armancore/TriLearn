@@ -1,6 +1,7 @@
 const jwt = require('jsonwebtoken')
 const prisma = require('../utils/prisma')
 const logger = require('../utils/logger')
+const { getInstructorDepartments } = require('../utils/instructorDepartments')
 
 const isUnknownPrismaFieldError = (error, fieldName) => {
   if (!error?.message || !fieldName) {
@@ -49,7 +50,15 @@ const getUserSelectShape = ({ includePasswordChangedAt = true } = {}) => ({
   instructor: {
     select: {
       id: true,
-      department: true
+      department: true,
+      departmentMemberships: {
+        include: {
+          department: {
+            select: { name: true }
+          }
+        },
+        orderBy: { createdAt: 'asc' }
+      }
     }
   },
   coordinator: {
@@ -110,7 +119,20 @@ const protect = async (req, res, next) => {
       }
     }
 
-    req.user = user
+    if (user.instructor) {
+      const instructor = { ...user.instructor }
+      delete instructor.departmentMemberships
+
+      req.user = {
+        ...user,
+        instructor: {
+          ...instructor,
+          departments: getInstructorDepartments(user.instructor)
+        }
+      }
+    } else {
+      req.user = user
+    }
     next()
 
   } catch (error) {

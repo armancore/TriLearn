@@ -220,7 +220,14 @@ const validateRoutineAcademicScope = async ({ subjectId, instructorId, departmen
     select: {
       id: true,
       department: true,
-      departments: true
+      departmentMemberships: {
+        include: {
+          department: {
+            select: { name: true }
+          }
+        },
+        orderBy: { createdAt: 'asc' }
+      }
     }
   })
   if (!instructor) return { error: { status: 404, message: 'Instructor not found' } }

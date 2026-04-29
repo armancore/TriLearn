@@ -14,6 +14,7 @@ const { hashPassword, getStudentTemporaryPassword } = require('../utils/security
 const { sanitizePlainText } = require('../utils/sanitize')
 const { getReadyRedisClient } = require('../utils/redis')
 const {
+  getInstructorDepartments,
   normalizeDepartmentList
 } = require('../utils/instructorDepartments')
 
@@ -371,6 +372,61 @@ const resolveInstructorDepartmentsInput = async ({ department, departments }) =>
   }
 }
 
+const instructorDepartmentMembershipInclude = {
+  departmentMemberships: {
+    include: {
+      department: {
+        select: { name: true }
+      }
+    },
+    orderBy: { createdAt: 'asc' }
+  }
+}
+
+const addInstructorDepartments = (instructor) => {
+  if (!instructor) {
+    return instructor
+  }
+
+  const rest = { ...instructor }
+  delete rest.departmentMemberships
+
+  return {
+    ...rest,
+    departments: getInstructorDepartments(instructor)
+  }
+}
+
+const addUserInstructorDepartments = (user) => (
+  user?.instructor
+    ? {
+        ...user,
+        instructor: addInstructorDepartments(user.instructor)
+      }
+    : user
+)
+
+const syncInstructorDepartmentMemberships = async (tx, instructorId, departments) => {
+  await tx.instructorDepartmentMembership.deleteMany({
+    where: { instructorId }
+  })
+
+  if (departments.length === 0) {
+    return
+  }
+
+  await Promise.all(departments.map((departmentName) => (
+    tx.instructorDepartmentMembership.create({
+      data: {
+        instructorId,
+        department: {
+          connect: { name: departmentName }
+        }
+      }
+    })
+  )))
+}
+
 const getCoordinatorDepartments = (req) => {
   if (req?.user?.role !== 'COORDINATOR') {
     return []
@@ -392,10 +448,7 @@ const getManagedUserDepartments = (user) => {
   }
 
   if (user.role === 'INSTRUCTOR') {
-    return normalizeDepartmentList([
-      ...(Array.isArray(user.instructor?.departments) ? user.instructor.departments : []),
-      user.instructor?.department
-    ])
+    return getInstructorDepartments(user.instructor)
   }
 
   if (user.role === 'COORDINATOR') {
@@ -542,8 +595,16 @@ const getAllUsers = async (req, res) => {
                     }
                   },
                   {
-                    departments: {
-                      hasSome: coordinatorDepartments
+                    departmentMemberships: {
+                      some: {
+                        department: {
+                          is: {
+                            name: {
+                              in: coordinatorDepartments
+                            }
+                          }
+                        }
+                      }
                     }
                   }
                 ]
@@ -593,7 +654,7 @@ const getAllUsers = async (req, res) => {
         { student: { is: { rollNumber: buildContainsSearch(search) } } },
         { student: { is: { department: buildContainsSearch(search) } } },
         { instructor: { is: { department: buildContainsSearch(search) } } },
-        { instructor: { is: { departments: { has: search.trim() } } } },
+        { instructor: { is: { departmentMemberships: { some: { department: { is: { name: buildContainsSearch(search) } } } } } } },
         { coordinator: { is: { department: buildContainsSearch(search) } } }
         ]
       })
@@ -619,7 +680,7 @@ const getAllUsers = async (req, res) => {
         profileCompleted: true,
         createdAt: true,
         student: true,
-        instructor: true,
+        instructor: { include: instructorDepartmentMembershipInclude },
         admin: true,
         coordinator: true
         },
@@ -628,7 +689,7 @@ const getAllUsers = async (req, res) => {
       prisma.user.count({ where: filters })
     ])
 
-    res.json({ total, page, limit, users })
+    res.json({ total, page, limit, users: users.map(addUserInstructorDepartments) })
 
   } catch (error) {
     res.internalError(error)
@@ -655,7 +716,7 @@ const getUserById = async (req, res) => {
         isActive: true,
         createdAt: true,
         student: true,
-        instructor: true,
+        instructor: { include: instructorDepartmentMembershipInclude },
         admin: true,
         coordinator: true,
       }
@@ -669,7 +730,7 @@ const getUserById = async (req, res) => {
       return res.status(403).json({ message: 'You can only access users in your own department' })
     }
 
-    res.json({ user })
+    res.json({ user: addUserInstructorDepartments(user) })
 
   } catch (error) {
     res.internalError(error)
@@ -840,12 +901,19 @@ const createInstructor = async (req, res) => {
         instructor: {
           create: {
             department: instructorDepartments.primaryDepartment,
-            departments: instructorDepartments.departments
+            departmentMemberships: {
+              create: instructorDepartments.departments.map((departmentName) => ({
+                department: {
+                  connect: { name: departmentName }
+                }
+              }))
+            }
           }
         }
       },
-      include: { instructor: true }
+      include: { instructor: { include: instructorDepartmentMembershipInclude } }
     })
+    const createdInstructor = addInstructorDepartments(user.instructor)
     clearStatsCache()
 
     res.status(201).json({
@@ -855,8 +923,8 @@ const createInstructor = async (req, res) => {
         name: user.name,
         email: user.email,
         role: user.role,
-        department: user.instructor.department,
-        departments: user.instructor.departments
+        department: createdInstructor.department,
+        departments: createdInstructor.departments
       }
     })
 
@@ -868,8 +936,8 @@ const createInstructor = async (req, res) => {
       entityId: user.id,
       metadata: {
         role: user.role,
-        department: user.instructor.department,
-        departments: user.instructor.departments
+        department: createdInstructor.department,
+        departments: createdInstructor.departments
       }
     })
 
@@ -1009,7 +1077,14 @@ const updateUser = async (req, res) => {
         instructor: {
           select: {
             department: true,
-            departments: true
+            departmentMemberships: {
+              include: {
+                department: {
+                  select: { name: true }
+                }
+              },
+              orderBy: { createdAt: 'asc' }
+            }
           }
         },
         coordinator: {
@@ -1051,7 +1126,7 @@ const updateUser = async (req, res) => {
         req.user?.role === 'COORDINATOR'
       ) {
         const currentInstructorDepartments = normalizeDepartmentList([
-          ...(Array.isArray(user.instructor?.departments) ? user.instructor.departments : []),
+          ...getInstructorDepartments(user.instructor),
           user.instructor?.department
         ])
         const addedDepartments = instructorDepartments.departments.filter((value) => !currentInstructorDepartments.includes(value))
@@ -1065,12 +1140,20 @@ const updateUser = async (req, res) => {
         }
       }
 
-      await prisma.instructor.update({
-        where: { userId: id },
-        data: {
-          department: instructorDepartments.primaryDepartment,
-          departments: instructorDepartments.departments
-        }
+      await prisma.$transaction(async (tx) => {
+        const updatedInstructor = await tx.instructor.update({
+          where: { userId: id },
+          data: {
+            department: instructorDepartments.primaryDepartment
+          },
+          select: { id: true }
+        })
+
+        await syncInstructorDepartmentMemberships(
+          tx,
+          updatedInstructor.id,
+          instructorDepartments.departments
+        )
       })
     }
 
@@ -1175,7 +1258,17 @@ const toggleUserStatus = async (req, res) => {
           select: { department: true }
         },
         instructor: {
-          select: { department: true }
+          select: {
+            department: true,
+            departmentMemberships: {
+              include: {
+                department: {
+                  select: { name: true }
+                }
+              },
+              orderBy: { createdAt: 'asc' }
+            }
+          }
         },
         coordinator: {
           select: { department: true }

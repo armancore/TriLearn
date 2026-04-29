@@ -12,6 +12,16 @@ const getInstructorDepartments = (instructorOrValue) => {
   }
 
   if (instructorOrValue && typeof instructorOrValue === 'object') {
+    const membershipDepartments = Array.isArray(instructorOrValue.departmentMemberships)
+      ? instructorOrValue.departmentMemberships.map((membership) => (
+        membership?.department?.name || membership?.departmentName || membership?.department
+      ))
+      : []
+
+    if (membershipDepartments.length > 0) {
+      return normalizeDepartmentList(membershipDepartments)
+    }
+
     const multiDepartments = Array.isArray(instructorOrValue.departments)
       ? instructorOrValue.departments
       : []

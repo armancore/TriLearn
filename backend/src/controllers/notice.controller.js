@@ -143,7 +143,17 @@ const getNoticeRecipientWhere = (notice) => {
           is: {
             OR: [
               { department: notice.targetDepartment },
-              { departments: { has: notice.targetDepartment } }
+              {
+                departmentMemberships: {
+                  some: {
+                    department: {
+                      is: {
+                        name: notice.targetDepartment
+                      }
+                    }
+                  }
+                }
+              }
             ]
           }
         }

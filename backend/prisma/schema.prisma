@@ -79,8 +79,8 @@ model Instructor {
   userId     String   @unique
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   department String?
-  departments String[] @default([])
   departmentDetails Department? @relation("InstructorDepartment", fields: [department], references: [name], onDelete: SetNull, onUpdate: Cascade)
+  departmentMemberships InstructorDepartmentMembership[]
   subjects   Subject[]
   attendances Attendance[]
   assignments Assignment[]
@@ -89,6 +89,19 @@ model Instructor {
   routines     Routine[]
 
   @@index([department])
+}
+
+model InstructorDepartmentMembership {
+  id           String     @id @default(uuid())
+  instructorId String
+  instructor   Instructor @relation(fields: [instructorId], references: [id], onDelete: Cascade)
+  departmentId String
+  department   Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  createdAt    DateTime   @default(now())
+
+  @@unique([instructorId, departmentId])
+  @@index([instructorId])
+  @@index([departmentId])
 }
 
 model Coordinator {
@@ -466,6 +479,7 @@ model Department {
   updatedAt   DateTime @updatedAt
   students    Student[] @relation("StudentDepartment")
   instructors Instructor[] @relation("InstructorDepartment")
+  instructorMemberships InstructorDepartmentMembership[]
   coordinators Coordinator[] @relation("CoordinatorDepartment")
   subjects    Subject[] @relation("SubjectDepartment")
   sections    DepartmentSection[]

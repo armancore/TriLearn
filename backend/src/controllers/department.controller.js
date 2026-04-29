@@ -103,7 +103,14 @@ const getAllDepartments = async (req, res) => {
       prisma.instructor.findMany({
         select: {
           department: true,
-          departments: true
+          departmentMemberships: {
+            include: {
+              department: {
+                select: { name: true }
+              }
+            },
+            orderBy: { createdAt: 'asc' }
+          }
         }
       }),
       prisma.subject.groupBy({
@@ -192,7 +199,13 @@ const deleteDepartment = async (req, res) => {
         where: {
           OR: [
             { department: existing.name },
-            { departments: { has: existing.name } }
+            {
+              departmentMemberships: {
+                some: {
+                  departmentId: existing.id
+                }
+              }
+            }
           ]
         }
       }),
