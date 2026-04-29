@@ -2118,11 +2118,8 @@ const createStudentFromApplication = async (req, res) => {
             rollNumber: normalizedStudentId,
             semester,
             section: sectionToAssign,
-          department: normalizedDepartment,
-          // Legacy model compatibility: guardian* is intentionally mirrored from father*.
-          guardianName: sanitizeOptionalPlainText(application.fatherName),
-          guardianPhone: sanitizeOptionalPlainText(application.fatherPhone),
-          fatherName: sanitizeOptionalPlainText(application.fatherName),
+            department: normalizedDepartment,
+            fatherName: sanitizeOptionalPlainText(application.fatherName),
             motherName: sanitizeOptionalPlainText(application.motherName),
             fatherPhone: sanitizeOptionalPlainText(application.fatherPhone),
             motherPhone: sanitizeOptionalPlainText(application.motherPhone),

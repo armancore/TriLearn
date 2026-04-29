@@ -3,41 +3,11 @@ const prisma = require('../utils/prisma')
 const logger = require('../utils/logger')
 const { getInstructorDepartments } = require('../utils/instructorDepartments')
 
-const isUnknownPrismaFieldError = (error, fieldName) => {
-  if (!error?.message || !fieldName) {
-    return false
-  }
-
-  return error.message.includes(`Unknown field \`${fieldName}\``)
-}
-
-const isMissingDatabaseColumnError = (error, fieldName) => {
-  if (!error?.message || !fieldName) {
-    return false
-  }
-
-  const normalizedMessage = error.message.toLowerCase()
-  const normalizedFieldName = fieldName.toLowerCase()
-
-  return (
-    normalizedMessage.includes('column') &&
-    normalizedMessage.includes(normalizedFieldName) &&
-    normalizedMessage.includes('does not exist')
-  )
-}
-
-const shouldRetryUserLookupWithLegacyShape = (error) => (
-  isUnknownPrismaFieldError(error, 'passwordChangedAt') ||
-  isUnknownPrismaFieldError(error, 'deletedAt') ||
-  isMissingDatabaseColumnError(error, 'passwordChangedAt') ||
-  isMissingDatabaseColumnError(error, 'deletedAt')
-)
-
-const getUserSelectShape = ({ includePasswordChangedAt = true } = {}) => ({
+const getUserSelectShape = () => ({
   id: true,
   role: true,
   isActive: true,
-  ...(includePasswordChangedAt ? { passwordChangedAt: true } : {}),
+  passwordChangedAt: true,
   student: {
     select: {
       id: true,
@@ -69,28 +39,13 @@ const getUserSelectShape = ({ includePasswordChangedAt = true } = {}) => ({
   }
 })
 
-const findAuthorizedUser = async (userId) => {
-  try {
-    return await prisma.user.findUnique({
-      where: {
-        id: userId,
-        deletedAt: null
-      },
-      select: getUserSelectShape({ includePasswordChangedAt: true })
-    })
-  } catch (error) {
-    if (!shouldRetryUserLookupWithLegacyShape(error)) {
-      throw error
-    }
-
-    logger.warn('Falling back to legacy auth user lookup shape', { userId })
-
-    return prisma.user.findUnique({
-      where: { id: userId },
-      select: getUserSelectShape({ includePasswordChangedAt: false })
-    })
-  }
-}
+const findAuthorizedUser = async (userId) => prisma.user.findUnique({
+  where: {
+    id: userId,
+    deletedAt: null
+  },
+  select: getUserSelectShape()
+})
 
 const protect = async (req, res, next) => {
   try {

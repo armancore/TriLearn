@@ -124,8 +124,6 @@ model Student {
   section      String?
   department   String?
   departmentDetails Department? @relation("StudentDepartment", fields: [department], references: [name], onDelete: SetNull, onUpdate: Cascade)
-  guardianName String?
-  guardianPhone String?
   fatherName   String?
   motherName   String?
   fatherPhone  String?
