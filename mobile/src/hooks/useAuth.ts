@@ -1,6 +1,7 @@
 import { useCallback } from 'react';
 
 import { disconnectSocket } from '@/src/services/socket.service';
+import { api } from '@/src/services/api';
 import { login as loginRequest } from '@/src/services/auth.service';
 import { useAuthStore } from '@/src/store/auth.store';
 import { useNotificationsStore } from '@/src/store/notifications.store';
@@ -29,6 +30,7 @@ export const useAuth = () => {
   );
 
   const logout = useCallback(() => {
+    void api.post('/auth/logout').catch(() => {});
     clearSession();
     resetNotifications();
     disconnectSocket();

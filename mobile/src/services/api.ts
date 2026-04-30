@@ -2,6 +2,7 @@ import axios, { AxiosError, type InternalAxiosRequestConfig } from 'axios';
 
 import { API_BASE_URL } from '@/src/constants/config';
 import { refreshAccessToken } from '@/src/services/auth.service';
+import { updateSocketToken } from '@/src/services/socket.service';
 import { useAuthStore } from '@/src/store/auth.store';
 import type { RefreshTokenResponse } from '@/src/types/auth';
 
@@ -62,6 +63,7 @@ api.interceptors.response.use(
         accessToken: refreshed.accessToken,
         refreshToken: nextRefreshToken,
       });
+      updateSocketToken(refreshed.accessToken);
 
       originalRequest.headers = originalRequest.headers ?? {};
       (originalRequest.headers as Record<string, string>).Authorization = `Bearer ${refreshed.accessToken}`;

@@ -18,7 +18,23 @@ const {
 
 const generateQR = async (req, res) => {
   try {
-    const { subjectId } = req.body
+    const { subjectId, date, validMinutes } = req.body
+    const parsedValidMinutes = Number(validMinutes)
+    const qrValidityMinutes = Number.isInteger(parsedValidMinutes) && parsedValidMinutes >= 1 && parsedValidMinutes <= 60
+      ? parsedValidMinutes
+      : QR_VALIDITY_MINUTES
+
+    if (date !== undefined && date !== null && date !== '') {
+      const isIsoDateString = typeof date === 'string' && /^\d{4}-\d{2}-\d{2}(?:T.*)?$/.test(date)
+      const parsedDate = new Date(date)
+      const now = new Date()
+      const oneDayAgo = new Date(now.getTime() - (24 * 60 * 60 * 1000))
+
+      if (!isIsoDateString || Number.isNaN(parsedDate.getTime()) || parsedDate < oneDayAgo || parsedDate > now) {
+        return res.status(400).json({ message: 'Please provide a valid attendance date.' })
+      }
+    }
+
     const access = await getOwnedSubject(subjectId, req)
     if (access.error) return res.status(access.error.status).json({ message: access.error.message })
 
@@ -29,14 +45,14 @@ const generateQR = async (req, res) => {
       subjectId,
       instructorId,
       date: new Date().toISOString(),
-      expiresAt: new Date(Date.now() + (QR_VALIDITY_MINUTES * 60 * 1000)).toISOString()
+      expiresAt: new Date(Date.now() + (qrValidityMinutes * 60 * 1000)).toISOString()
     })
 
     const qrCode = await QRCode.toDataURL(qrData)
     res.json({
       message: 'QR Code generated successfully!',
       qrCode,
-      expiresIn: `${QR_VALIDITY_MINUTES} minutes`,
+      expiresIn: `${qrValidityMinutes} minutes`,
       subjectId,
       instructorId
     })

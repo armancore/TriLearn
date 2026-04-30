@@ -8,20 +8,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { AppButton } from '@/src/components/AppButton';
 import { AppInput } from '@/src/components/AppInput';
 import { COLORS } from '@/src/constants/colors';
+import { ROLE_HOME_MAP } from '@/src/constants/routes';
 import { useAuth } from '@/src/hooks/useAuth';
-import type { LoginRequest, UserRole } from '@/src/types/auth';
+import type { LoginRequest } from '@/src/types/auth';
 
 interface ApiErrorResponse {
   message?: string;
 }
-
-const roleHomeMap: Record<UserRole, '/(student)/dashboard' | '/(instructor)/dashboard' | '/(coordinator)/dashboard' | '/(admin)/dashboard' | '/(gatekeeper)/scanner'> = {
-  STUDENT: '/(student)/dashboard',
-  INSTRUCTOR: '/(instructor)/dashboard',
-  COORDINATOR: '/(coordinator)/dashboard',
-  ADMIN: '/(admin)/dashboard',
-  GATEKEEPER: '/(gatekeeper)/scanner',
-};
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -31,7 +24,7 @@ export default function LoginScreen() {
   const mutation = useMutation({
     mutationFn: login,
     onSuccess: (result) => {
-      const destination = roleHomeMap[result.user.role];
+      const destination = ROLE_HOME_MAP[result.user.role];
       router.replace(destination);
     },
   });

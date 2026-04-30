@@ -76,9 +76,10 @@ const csrfProtection = (req, res, next) => {
   const hasCookieHeader = Boolean(req.headers.cookie)
   const hasBrowserContext = Boolean(req.headers.origin || req.headers.referer)
   const isMobileClient = String(req.get('x-client-type') || '').toLowerCase() === 'mobile'
+  const hasBearerToken = req.headers.authorization?.startsWith('Bearer ') === true
 
   // Native mobile clients use explicit token headers/body refresh tokens, not browser forms.
-  if (isMobileClient) {
+  if (isMobileClient && hasBearerToken) {
     return next()
   }
 

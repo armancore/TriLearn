@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Image, Modal, Pressable, RefreshControl, ScrollView, Text, TextInput, View } from 'react-native';
 
 import { COLORS } from '@/src/constants/colors';
@@ -10,6 +10,8 @@ import type { Subject, SubjectsResponse } from '@/src/types/subject';
 const DEFAULT_VALID_MINUTES = 5;
 
 const getTodayInputValue = () => new Date().toISOString().slice(0, 10);
+
+const isValidDate = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value) && !isNaN(Date.parse(value));
 
 const getSubjects = async (): Promise<Subject[]> => {
   const response = await api.get<Subject[] | SubjectsResponse>('/subjects');
@@ -53,8 +55,11 @@ export default function InstructorQrScreen() {
 
   const parsedValidMinutes = useMemo(() => {
     const parsed = Number.parseInt(validMinutes, 10);
-    return Number.isNaN(parsed) || parsed <= 0 ? DEFAULT_VALID_MINUTES : parsed;
+    if (Number.isNaN(parsed) || parsed < 1) return DEFAULT_VALID_MINUTES;
+    return Math.min(parsed, 60);
   }, [validMinutes]);
+
+  const isDateValid = isValidDate(date);
 
   const generateMutation = useMutation({
     mutationFn: async () => {
@@ -75,6 +80,11 @@ export default function InstructorQrScreen() {
       setSecondsRemaining(parsedValidMinutes * 60);
     },
   });
+  const generateRef = useRef(generateMutation.mutate);
+
+  useEffect(() => {
+    generateRef.current = generateMutation.mutate;
+  }, [generateMutation.mutate]);
 
   useEffect(() => {
     if (!expiresAt) return undefined;
@@ -91,11 +101,11 @@ export default function InstructorQrScreen() {
     if (!generatedQr || !selectedSubject) return undefined;
 
     const interval = setInterval(() => {
-      generateMutation.mutate();
+      generateRef.current();
     }, parsedValidMinutes * 60 * 1000);
 
     return () => clearInterval(interval);
-  }, [generatedQr, generateMutation, parsedValidMinutes, selectedSubject]);
+  }, [generatedQr, parsedValidMinutes, selectedSubject]);
 
   const handleRefresh = useCallback(async () => {
     setIsRefreshing(true);
@@ -162,6 +172,7 @@ export default function InstructorQrScreen() {
             <View className="flex-1 rounded-2xl bg-white p-4">
               <Text className="text-xs font-medium text-slate-500">Date</Text>
               <TextInput className="mt-1 text-base font-bold text-slate-900" value={date} onChangeText={setDate} />
+              {date && !isDateValid ? <Text className="mt-2 text-xs font-semibold text-red-600">Please enter a valid date.</Text> : null}
             </View>
             <View className="w-28 rounded-2xl bg-white p-4">
               <Text className="text-xs font-medium text-slate-500">Minutes</Text>
@@ -175,8 +186,8 @@ export default function InstructorQrScreen() {
           </View>
 
           <Pressable
-            className={`rounded-xl px-5 py-4 ${selectedSubject ? 'bg-primary' : 'bg-slate-300'}`}
-            disabled={!selectedSubject || generateMutation.isPending}
+            className={`rounded-xl px-5 py-4 ${selectedSubject && isDateValid ? 'bg-primary' : 'bg-slate-300'}`}
+            disabled={!selectedSubject || !isDateValid || generateMutation.isPending}
             onPress={() => generateMutation.mutate()}
           >
             <Text className="text-center font-bold text-white">{generateMutation.isPending ? 'Generating...' : 'Generate QR'}</Text>
@@ -196,7 +207,7 @@ export default function InstructorQrScreen() {
               <Text className="text-sm font-semibold text-slate-500">Expires in</Text>
               <Text className="mt-1 text-3xl font-bold text-slate-900">{generatedQr ? formatCountdown(secondsRemaining) : '--:--'}</Text>
             </View>
-            <Pressable className="rounded-xl bg-slate-100 px-4 py-3" disabled={!selectedSubject} onPress={() => generateMutation.mutate()}>
+            <Pressable className="rounded-xl bg-slate-100 px-4 py-3" disabled={!selectedSubject || !isDateValid} onPress={() => generateMutation.mutate()}>
               <Text className="text-sm font-bold text-primary">Regenerate</Text>
             </Pressable>
           </View>

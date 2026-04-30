@@ -4,9 +4,9 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { ActivityIndicator, Text, View } from 'react-native';
 
 import { COLORS } from '@/src/constants/colors';
+import { ROLE_GROUP_MAP, ROLE_HOME_MAP } from '@/src/constants/routes';
 import { useAuth } from '@/src/hooks/useAuth';
 import { useSocket } from '@/src/hooks/useSocket';
-import type { UserRole } from '@/src/types/auth';
 import '../global.css';
 
 const queryClient = new QueryClient({
@@ -22,22 +22,6 @@ const queryClient = new QueryClient({
     },
   },
 });
-
-const roleHomeMap: Record<UserRole, '/(student)/dashboard' | '/(instructor)/dashboard' | '/(coordinator)/dashboard' | '/(admin)/dashboard' | '/(gatekeeper)/scanner'> = {
-  STUDENT: '/(student)/dashboard',
-  INSTRUCTOR: '/(instructor)/dashboard',
-  COORDINATOR: '/(coordinator)/dashboard',
-  ADMIN: '/(admin)/dashboard',
-  GATEKEEPER: '/(gatekeeper)/scanner',
-};
-
-const roleGroupMap: Record<UserRole, '(student)' | '(instructor)' | '(coordinator)' | '(admin)' | '(gatekeeper)'> = {
-  STUDENT: '(student)',
-  INSTRUCTOR: '(instructor)',
-  COORDINATOR: '(coordinator)',
-  ADMIN: '(admin)',
-  GATEKEEPER: '(gatekeeper)',
-};
 
 export default function RootLayout() {
   const segments = useSegments();
@@ -60,8 +44,8 @@ export default function RootLayout() {
       return <Redirect href="/(auth)/login" />;
     }
   } else {
-    const roleGroup = roleGroupMap[user.role];
-    const roleHome = roleHomeMap[user.role];
+    const roleGroup = ROLE_GROUP_MAP[user.role];
+    const roleHome = ROLE_HOME_MAP[user.role];
 
     if (activeGroup === '(auth)') {
       return <Redirect href={roleHome} />;

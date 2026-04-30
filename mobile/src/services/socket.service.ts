@@ -27,4 +27,14 @@ export const disconnectSocket = (): void => {
   socket = null;
 };
 
+export const updateSocketToken = (newToken: string): void => {
+  if (!socket) {
+    return;
+  }
+
+  socket.auth = { token: newToken };
+  socket.disconnect();
+  socket.connect();
+};
+
 export const getSocket = (): Socket | null => socket;
