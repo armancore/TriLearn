@@ -2452,7 +2452,7 @@ test('deleteUser blocks deleting the last admin account', async () => {
   assert.equal(deleteCalls.length, 0)
 })
 
-test('deleteUser soft deletes the user and revokes refresh tokens', async () => {
+test('deleteUser permanently deletes the user and revokes refresh tokens', async () => {
   const transactionCalls = []
   const { deleteUser } = loadWithMocks(resolveFromTest('src', 'controllers', 'admin.controller.js'), {
     '../utils/prisma': {
@@ -2463,8 +2463,8 @@ test('deleteUser soft deletes the user and revokes refresh tokens', async () => 
           email: 'student2@example.com'
         }),
         count: async () => 2,
-        update: async (payload) => {
-          transactionCalls.push({ type: 'user.update', payload })
+        delete: async (payload) => {
+          transactionCalls.push({ type: 'user.delete', payload })
           return payload
         }
       },
@@ -2512,10 +2512,8 @@ test('deleteUser soft deletes the user and revokes refresh tokens', async () => 
   assert.equal(transactionCalls.length, 2)
   assert.equal(transactionCalls[0].type, 'refreshToken.updateMany')
   assert.equal(transactionCalls[0].payload.where.userId, 'student-2')
-  assert.equal(transactionCalls[1].type, 'user.update')
+  assert.equal(transactionCalls[1].type, 'user.delete')
   assert.equal(transactionCalls[1].payload.where.id, 'student-2')
-  assert.equal(transactionCalls[1].payload.data.isActive, false)
-  assert.ok(transactionCalls[1].payload.data.deletedAt instanceof Date)
 })
 
 test('getMyAttendance builds subject summary with groupBy instead of loading all records', async () => {

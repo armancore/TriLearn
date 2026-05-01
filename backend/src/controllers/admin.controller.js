@@ -37,6 +37,61 @@ let statsCache = null
 let statsCacheExpiresAt = 0
 const normalizeEmail = (value) => String(value || '').trim().toLowerCase()
 
+const deleteStaleDeletedStudentAccounts = async (client, { emails = [], studentIds = [] } = {}) => {
+  if (
+    !client?.user ||
+    typeof client.user.findMany !== 'function' ||
+    typeof client.user.deleteMany !== 'function'
+  ) {
+    return 0
+  }
+
+  const normalizedEmails = [...new Set(emails.map(normalizeEmail).filter(Boolean))]
+  const normalizedStudentIds = [...new Set(
+    studentIds
+      .map((studentId) => String(studentId || '').trim().toUpperCase())
+      .filter(Boolean)
+  )]
+
+  if (normalizedEmails.length === 0 && normalizedStudentIds.length === 0) {
+    return 0
+  }
+
+  const orFilters = []
+  if (normalizedEmails.length > 0) {
+    orFilters.push({ email: { in: normalizedEmails } })
+  }
+  if (normalizedStudentIds.length > 0) {
+    orFilters.push({
+      student: {
+        is: {
+          rollNumber: { in: normalizedStudentIds }
+        }
+      }
+    })
+  }
+
+  const staleUsers = await client.user.findMany({
+    where: {
+      deletedAt: { not: null },
+      OR: orFilters
+    },
+    select: { id: true }
+  })
+
+  if (staleUsers.length === 0) {
+    return 0
+  }
+
+  const result = await client.user.deleteMany({
+    where: {
+      id: { in: staleUsers.map((user) => user.id) }
+    }
+  })
+
+  return result.count || staleUsers.length
+}
+
 const normalizeCachedAdminStats = (value) => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     return null
@@ -155,7 +210,11 @@ const loadStudentImportRows = async (filePath, originalName) => {
   if (extension === '.csv') {
     await workbook.csv.readFile(filePath)
   } else if (extension === '.xlsx') {
-    await workbook.xlsx.readFile(filePath)
+    try {
+      await workbook.xlsx.readFile(filePath)
+    } catch (error) {
+      throw new Error('Unable to read the XLSX file. Please save it again as a valid .xlsx workbook or upload a CSV file.')
+    }
   } else {
     throw new Error('Please upload a CSV or XLSX file')
   }
@@ -969,6 +1028,11 @@ const createStudent = async (req, res) => {
     const normalizedEmail = email.trim().toLowerCase()
     const normalizedSection = normalizeSectionValue(section)
 
+    await deleteStaleDeletedStudentAccounts(prisma, {
+      emails: [normalizedEmail],
+      studentIds: [normalizedStudentId]
+    })
+
     const [existingUser, existingStudent] = await Promise.all([
       prisma.user.findUnique({ where: { email: normalizedEmail } }),
       prisma.student.findUnique({ where: { rollNumber: normalizedStudentId } })
@@ -1351,7 +1415,16 @@ const deleteUser = async (req, res) => {
   try {
     const { id } = req.params
 
-    const user = await prisma.user.findFirst({ where: { id, deletedAt: null } })
+    const user = await prisma.user.findFirst({
+      where: { id, deletedAt: null },
+      include: {
+        student: true,
+        instructor: {
+          include: instructorDepartmentMembershipInclude
+        },
+        coordinator: true
+      }
+    })
     if (!user) {
       return res.status(404).json({ message: 'User not found' })
     }
@@ -1382,12 +1455,8 @@ const deleteUser = async (req, res) => {
         },
         data: { revokedAt: new Date() }
       }),
-      prisma.user.update({
-        where: { id },
-        data: {
-          isActive: false,
-          deletedAt: new Date()
-        }
+      prisma.user.delete({
+        where: { id }
       })
     ])
     clearStatsCache()
@@ -1659,7 +1728,14 @@ const importStudents = async (req, res) => {
       return res.status(400).json({ message: 'Please upload a CSV or XLSX file to import students' })
     }
 
-    const importedRows = await loadStudentImportRows(req.file.path, req.file.originalname)
+    let importedRows
+    try {
+      importedRows = await loadStudentImportRows(req.file.path, req.file.originalname)
+    } catch (error) {
+      return res.status(400).json({
+        message: error?.message || 'Unable to read the uploaded student import file'
+      })
+    }
     if (importedRows.length === 0) {
       return res.status(400).json({ message: 'The uploaded file does not contain any student rows' })
     }
@@ -1800,6 +1876,11 @@ const importStudents = async (req, res) => {
         }))
 
         const { createdRows, conflictFailures } = await prisma.$transaction(async (tx) => {
+          await deleteStaleDeletedStudentAccounts(tx, {
+            emails: preparedRows.map((row) => row.email),
+            studentIds: preparedRows.map((row) => row.studentId)
+          })
+
           const [existingUsers, existingStudents] = await Promise.all([
             tx.user.findMany({
               where: {
@@ -2078,7 +2159,19 @@ const createStudentFromApplication = async (req, res) => {
     }
 
     if (application.linkedUserId || application.status === 'CONVERTED') {
-      return res.status(400).json({ message: 'A student account has already been created from this application' })
+      const linkedActiveUser = application.linkedUserId
+        ? await prisma.user.findFirst({
+            where: {
+              id: application.linkedUserId,
+              deletedAt: null
+            },
+            select: { id: true }
+          })
+        : null
+
+      if (linkedActiveUser) {
+        return res.status(400).json({ message: 'A student account has already been created from this application' })
+      }
     }
 
     const coordinatorDepartments = getCoordinatorDepartments(req)
@@ -2094,8 +2187,15 @@ const createStudentFromApplication = async (req, res) => {
       return res.status(400).json({ message: 'Please select a valid department' })
     }
 
+    const normalizedApplicationEmail = normalizeEmail(application.email)
+
+    await deleteStaleDeletedStudentAccounts(prisma, {
+      emails: [normalizedApplicationEmail],
+      studentIds: [normalizedStudentId]
+    })
+
     const [existingUser, existingStudent] = await Promise.all([
-      prisma.user.findUnique({ where: { email: normalizeEmail(application.email) } }),
+      prisma.user.findUnique({ where: { email: normalizedApplicationEmail } }),
       prisma.student.findUnique({ where: { rollNumber: normalizedStudentId } })
     ])
 
@@ -2129,7 +2229,7 @@ const createStudentFromApplication = async (req, res) => {
     const user = await prisma.user.create({
       data: {
         name: sanitizePlainText(application.fullName),
-        email: application.email.toLowerCase(),
+        email: normalizedApplicationEmail,
         password: hashedPassword,
         role: 'STUDENT',
         phone: sanitizeOptionalPlainText(application.phone),
