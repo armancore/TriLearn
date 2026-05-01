@@ -212,7 +212,7 @@ const loadStudentImportRows = async (filePath, originalName) => {
   } else if (extension === '.xlsx') {
     try {
       await workbook.xlsx.readFile(filePath)
-    } catch (error) {
+    } catch {
       throw new Error('Unable to read the XLSX file. Please save it again as a valid .xlsx workbook or upload a CSV file.')
     }
   } else {

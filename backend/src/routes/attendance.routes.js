@@ -59,6 +59,30 @@ router.delete('/gate-settings/windows/:id', allowRoles('ADMIN', 'COORDINATOR'), 
 router.post('/gate-settings/holidays', allowRoles('ADMIN', 'COORDINATOR'), validate(schemas.attendance.createHoliday), createAttendanceHoliday)
 router.delete('/gate-settings/holidays/:id', allowRoles('ADMIN', 'COORDINATOR'), validate(schemas.attendance.deleteHoliday), deleteAttendanceHoliday)
 router.post('/generate-qr', allowRoles('INSTRUCTOR', 'COORDINATOR'), validate(schemas.attendance.generateQr), generateQR)
+/**
+ * @openapi
+ * /api/v1/attendance/manual:
+ *   post:
+ *     tags: [Attendance]
+ *     summary: Mark attendance manually for a subject session.
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           example:
+ *             subjectId: 3df9f708-8c1a-4e29-ae8e-bf3d47e1870f
+ *             attendanceDate: '2026-05-01'
+ *             semester: 3
+ *             section: A
+ *             attendanceList:
+ *               - studentId: 63f09f1f-9f96-42f8-a25a-4da23eaad52d
+ *                 status: PRESENT
+ *     responses:
+ *       200:
+ *         description: Attendance records saved.
+ */
 router.post('/manual', allowRoles('INSTRUCTOR', 'COORDINATOR'), validate(schemas.attendance.manual), markAttendanceManual)
 router.get('/coordinator/department-report', allowRoles('COORDINATOR'), validate(schemas.attendance.coordinatorReport), getCoordinatorDepartmentAttendanceReport)
 router.get('/coordinator/department-report/export', allowRoles('COORDINATOR'), validate(schemas.attendance.coordinatorExport), exportCoordinatorDepartmentAttendanceReport)

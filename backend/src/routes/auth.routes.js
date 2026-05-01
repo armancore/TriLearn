@@ -29,12 +29,45 @@ const { schemas } = require('../validators/schemas')
 
 router.post('/register', authLimiter, validate(schemas.auth.register), register)
 router.post('/student-intake', authLimiter, validate(schemas.auth.studentIntake), submitStudentIntake)
+/**
+ * @openapi
+ * /api/v1/auth/login:
+ *   post:
+ *     tags: [Auth]
+ *     summary: Sign in and receive JWT tokens.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           example:
+ *             email: student@example.com
+ *             password: Password123
+ *     responses:
+ *       200:
+ *         description: Authenticated.
+ */
 router.post('/login', loginLimiter, validate(schemas.auth.login), login)
 router.post('/forgot-password', forgotPasswordLimiter, validate(schemas.auth.forgotPassword), forgotPassword)
 router.get('/verify-email/:token', verifyEmail)
 router.post('/resend-verification', resendVerificationLimiter, validate(schemas.auth.resendVerification), resendVerification)
 router.post('/reset-password', authLimiter, validate(schemas.auth.resetPassword), resetPassword)
 router.post('/refresh', refreshLimiter, refresh)
+/**
+ * @openapi
+ * /api/v1/auth/refresh/mobile:
+ *   post:
+ *     tags: [Auth]
+ *     summary: Rotate a mobile refresh token.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           example:
+ *             refreshToken: mobile-refresh-token
+ *     responses:
+ *       200:
+ *         description: New access token and rotated refresh token.
+ */
 router.post('/refresh/mobile', refreshLimiter, refreshMobile)
 router.post('/logout', logoutLimiter, logout)
 router.post('/logout-all', protect, logoutAll)

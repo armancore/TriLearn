@@ -29,6 +29,19 @@ let server = null
 let maintenance = null
 let isShuttingDown = false
 
+if (process.env.NODE_ENV !== 'production') {
+  const swaggerUi = require('swagger-ui-express')
+  const { openApiDocument } = require('./docs/openapi')
+
+  app.get('/api/docs/openapi.json', (_req, res) => {
+    res.json(openApiDocument)
+  })
+  app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(openApiDocument, {
+    explorer: true,
+    customSiteTitle: 'TriLearn API Docs'
+  }))
+}
+
 const shouldExposeInternalErrors = () => String(process.env.DEBUG_ERRORS || '').trim().toLowerCase() === 'true'
 const INTERNAL_HEALTHCHECK_HEADER = 'x-health-check-key'
 const getTrustProxySetting = () => {

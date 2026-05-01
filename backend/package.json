@@ -19,6 +19,7 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "@asteasolutions/zod-to-openapi": "^8.5.0",
     "@prisma/adapter-pg": "^7.8.0",
     "@prisma/client": "^7.8.0",
     "@socket.io/redis-adapter": "^8.3.0",
@@ -45,6 +46,7 @@
     "redis": "^5.12.1",
     "sharp": "^0.34.5",
     "socket.io": "^4.8.3",
+    "swagger-ui-express": "^5.0.1",
     "winston": "^3.19.0",
     "zod": "^4.3.6"
   },

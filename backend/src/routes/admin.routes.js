@@ -31,6 +31,25 @@ router.use(attachActorProfiles)
 
 router.get('/stats', allowRoles('ADMIN', 'COORDINATOR'), getAdminStats)
 router.get('/users', allowRoles('ADMIN', 'COORDINATOR'), validate(schemas.admin.getAllUsers), getAllUsers)
+/**
+ * @openapi
+ * /api/v1/admin/users/{id}:
+ *   get:
+ *     tags: [Students]
+ *     summary: Get a user or student account by id.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *     responses:
+ *       200:
+ *         description: User profile, including student details when present.
+ */
 router.get('/users/:id', allowRoles('ADMIN', 'COORDINATOR'), validate(schemas.admin.userId), getUserById)
 router.get('/student-applications', allowRoles('ADMIN', 'COORDINATOR'), validate(schemas.admin.getStudentApplications), getStudentApplications)
 router.patch('/student-applications/:id/status', allowRoles('ADMIN', 'COORDINATOR'), validate(schemas.admin.updateStudentApplicationStatus), updateStudentApplicationStatus)
