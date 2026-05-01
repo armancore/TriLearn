@@ -19,19 +19,8 @@ const {
   normalizeDepartmentList
 } = require('../utils/instructorDepartments')
 
-const STATS_CACHE_TTL = 30 * 1000 // 30 seconds
 const STATS_CACHE_KEY = 'admin:stats:v1'
-const ADMIN_STATS_FIELDS = [
-  'totalUsers',
-  'totalStudents',
-  'totalInstructors',
-  'totalCoordinators',
-  'totalGatekeepers',
-  'totalSubjects'
-]
 const MAX_STUDENT_SEMESTER = 8
-let statsCache = null
-let statsCacheExpiresAt = 0
 const normalizeEmail = (value) => String(value || '').trim().toLowerCase()
 
 const deleteStaleDeletedStudentAccounts = async (client, { emails = [], studentIds = [] } = {}) => {
@@ -89,62 +78,6 @@ const deleteStaleDeletedStudentAccounts = async (client, { emails = [], studentI
   return result.count || staleUsers.length
 }
 
-const normalizeCachedAdminStats = (value) => {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
-    return null
-  }
-
-  const normalized = {}
-  for (const field of ADMIN_STATS_FIELDS) {
-    const fieldValue = value[field]
-    if (!Number.isSafeInteger(fieldValue) || fieldValue < 0) {
-      return null
-    }
-    normalized[field] = fieldValue
-  }
-
-  return normalized
-}
-
-const readSharedStatsCache = async () => {
-  try {
-    const client = await getReadyRedisClient({ context: 'admin stats cache' })
-    if (!client) {
-      return null
-    }
-
-    const cachedValue = await client.get(STATS_CACHE_KEY)
-    if (!cachedValue) {
-      return null
-    }
-
-    const parsedCache = JSON.parse(cachedValue)
-    const normalizedStats = normalizeCachedAdminStats(parsedCache)
-    if (!normalizedStats) {
-      logger.warn('Ignoring invalid admin stats cache payload from Redis')
-      return null
-    }
-
-    return normalizedStats
-  } catch (error) {
-    logger.warn('Failed to read admin stats cache from Redis', { message: error.message })
-    return null
-  }
-}
-
-const writeSharedStatsCache = async (stats) => {
-  try {
-    const client = await getReadyRedisClient({ context: 'admin stats cache' })
-    if (!client) {
-      return
-    }
-
-    await client.set(STATS_CACHE_KEY, JSON.stringify(stats), { PX: STATS_CACHE_TTL })
-  } catch (error) {
-    logger.warn('Failed to write admin stats cache to Redis', { message: error.message })
-  }
-}
-
 const clearSharedStatsCache = async () => {
   try {
     const client = await getReadyRedisClient({ context: 'admin stats cache' })
@@ -159,8 +92,6 @@ const clearSharedStatsCache = async () => {
 }
 
 const clearStatsCache = () => {
-  statsCache = null
-  statsCacheExpiresAt = 0
   void clearSharedStatsCache()
 }
 const sanitizeOptionalPlainText = (value) => (value == null ? value : sanitizePlainText(value))
@@ -169,6 +100,7 @@ const buildContainsSearch = (search) => ({
   contains: search,
   mode: 'insensitive'
 })
+const getGraduationYear = (date = new Date()) => date.getFullYear()
 
 
 const createStudentAccountRecord = async ({
@@ -259,10 +191,6 @@ const getDepartmentSectionDelegate = () => (
   typeof prisma.departmentSection.findMany === 'function'
     ? prisma.departmentSection
     : null
-)
-
-const sectionScopeKey = ({ department, semester, section }) => (
-  `${normalizeDepartmentValue(department).toLowerCase()}::${Number(semester)}::${normalizeSectionValue(section) || ''}`
 )
 
 const hasDepartmentSection = async ({ department, semester, section }) => {
@@ -1580,4 +1508,5 @@ module.exports = {
   bulkAssignStudentSection,
   promoteStudentSemester
 }
+
 

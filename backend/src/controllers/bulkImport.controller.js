@@ -16,6 +16,7 @@ const { sanitizePlainText, sanitizeXlsxCell } = require('../utils/sanitize')
 const { getReadyRedisClient } = require('../utils/redis')
 const { normalizeDepartmentList } = require('../utils/instructorDepartments')
 
+const STATS_CACHE_KEY = 'admin:stats:v1'
 const MAX_STUDENT_SEMESTER = 8
 const normalizeEmail = (value) => String(value || '').trim().toLowerCase()
 
@@ -227,32 +228,6 @@ const getDepartmentSectionDelegate = () => (
 const sectionScopeKey = ({ department, semester, section }) => (
   `${normalizeDepartmentValue(department).toLowerCase()}::${Number(semester)}::${normalizeSectionValue(section) || ''}`
 )
-
-const hasDepartmentSection = async ({ department, semester, section }) => {
-  if (!department || !semester || !section) {
-    return false
-  }
-
-  const departmentSectionDelegate = getDepartmentSectionDelegate()
-  if (!departmentSectionDelegate) {
-    return true
-  }
-
-  const record = await departmentSectionDelegate.findFirst({
-    where: {
-      semester: Number(semester),
-      section: normalizeSectionValue(section),
-      department: {
-        is: {
-          name: normalizeDepartmentValue(department)
-        }
-      }
-    },
-    select: { id: true }
-  })
-
-  return Boolean(record)
-}
 
 const getCoordinatorDepartments = (req) => {
   if (req?.user?.role !== 'COORDINATOR') {
@@ -614,5 +589,6 @@ const importStudents = async (req, res) => {
 module.exports = {
   importStudents
 }
+
 
 
