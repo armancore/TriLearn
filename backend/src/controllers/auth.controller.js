@@ -294,7 +294,7 @@ const buildLoginCaptchaResponse = (email) => {
   }
 }
 
-const issueAuthSession = async (user, res, req, previousRefreshToken) => {
+const issueAuthSession = async (user, res, req, previousRefreshToken, { setRefreshCookie = true } = {}) => {
   const accessToken = signAccessToken(user)
   const refreshToken = signRefreshToken(user)
   const requestMeta = {
@@ -324,7 +324,9 @@ const issueAuthSession = async (user, res, req, previousRefreshToken) => {
     })
   })
 
-  res.cookie('refreshToken', refreshToken, getRefreshCookieOptions(req))
+  if (setRefreshCookie) {
+    res.cookie('refreshToken', refreshToken, getRefreshCookieOptions(req))
+  }
 
   return {
     accessToken,
@@ -1039,7 +1041,7 @@ const resetPassword = async (req, res) => {
   }
 }
 
-const refreshSession = async (req, res, refreshToken, { includeRefreshToken = false } = {}) => {
+const refreshSession = async (req, res, refreshToken, { includeRefreshToken = false, setRefreshCookie = true } = {}) => {
   try {
     if (!refreshToken) {
       return res.status(401).json({ message: 'Refresh token is required' })
@@ -1101,7 +1103,7 @@ const refreshSession = async (req, res, refreshToken, { includeRefreshToken = fa
       return res.status(401).json({ message: 'Refresh token is invalid or expired' })
     }
 
-    const session = await issueAuthSession(storedRefreshToken.user, res, req, refreshToken)
+    const session = await issueAuthSession(storedRefreshToken.user, res, req, refreshToken, { setRefreshCookie })
 
     const responseBody = {
       message: 'Token refreshed successfully',
@@ -1121,13 +1123,19 @@ const refreshSession = async (req, res, refreshToken, { includeRefreshToken = fa
   }
 }
 
-const refresh = async (req, res) => refreshSession(req, res, req.cookies?.refreshToken)
+const refresh = async (req, res) => {
+  if (isMobileClient(req)) {
+    return res.status(400).json({ message: 'Use /auth/refresh/mobile for mobile clients.' })
+  }
+
+  return refreshSession(req, res, req.cookies?.refreshToken)
+}
 
 const refreshMobile = async (req, res) => refreshSession(
   req,
   res,
   req.body?.refreshToken,
-  { includeRefreshToken: true }
+  { includeRefreshToken: true, setRefreshCookie: false }
 )
 
 const logout = async (req, res) => {

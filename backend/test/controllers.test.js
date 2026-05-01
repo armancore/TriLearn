@@ -1329,6 +1329,113 @@ test('refresh revokes all active sessions when a rotated refresh token is replay
   assert.equal(res.cookies[0][1], 'refreshToken')
 })
 
+test('refresh rejects mobile-marked requests on the web cookie endpoint', async () => {
+  let verifyCalled = false
+  const { refresh } = loadWithMocks(resolveFromTest('src', 'controllers', 'auth.controller.js'), authControllerMocks({
+    '../utils/token': {
+      signAccessToken: () => 'access-token',
+      signRefreshToken: () => 'new-refresh-token',
+      verifyRefreshToken: () => {
+        verifyCalled = true
+        return { id: 'user-1', role: 'STUDENT' }
+      },
+      hashToken: () => 'hash',
+      getRefreshTokenExpiry: () => new Date(),
+      getRefreshCookieOptions: () => ({ path: '/api/v1/auth', httpOnly: true })
+    }
+  }))
+
+  const req = {
+    cookies: {
+      refreshToken: 'web-refresh-token'
+    },
+    get: (name) => name.toLowerCase() === 'x-client-type' ? 'mobile' : undefined
+  }
+  const res = createResponse()
+
+  await refresh(req, res)
+
+  assert.equal(res.statusCode, 400)
+  assert.deepEqual(res.body, { message: 'Use /auth/refresh/mobile for mobile clients.' })
+  assert.equal(verifyCalled, false)
+})
+
+test('refreshMobile rotates only the body refresh token and does not set a cookie', async () => {
+  const findUniqueCalls = []
+  const updateManyCalls = []
+  const createCalls = []
+
+  const { refreshMobile } = loadWithMocks(resolveFromTest('src', 'controllers', 'auth.controller.js'), authControllerMocks({
+    '../utils/prisma': {
+      refreshToken: {
+        findUnique: async (payload) => {
+          findUniqueCalls.push(payload)
+          return {
+            id: 'session-1',
+            userId: 'user-1',
+            revokedAt: null,
+            expiresAt: new Date('2026-05-02T09:00:00.000Z'),
+            user: {
+              id: 'user-1',
+              name: 'Student One',
+              email: 'student@example.com',
+              role: 'STUDENT',
+              isActive: true,
+              mustChangePassword: false,
+              profileCompleted: true
+            }
+          }
+        }
+      },
+      $transaction: async (callback) => callback({
+        refreshToken: {
+          updateMany: async (payload) => {
+            updateManyCalls.push(payload)
+            return { count: 1 }
+          },
+          create: async (payload) => {
+            createCalls.push(payload)
+            return { id: 'session-2' }
+          }
+        }
+      })
+    },
+    '../utils/token': {
+      signAccessToken: () => 'new-access-token',
+      signRefreshToken: () => 'new-refresh-token',
+      verifyRefreshToken: (token) => {
+        assert.equal(token, 'body-refresh-token')
+        return { id: 'user-1', role: 'STUDENT' }
+      },
+      hashToken: (token) => `hash:${token}`,
+      getRefreshTokenExpiry: () => new Date('2026-05-31T09:00:00.000Z'),
+      getRefreshCookieOptions: () => ({ path: '/api/v1/auth', httpOnly: true })
+    }
+  }))
+
+  const req = {
+    body: {
+      refreshToken: 'body-refresh-token'
+    },
+    cookies: {
+      refreshToken: 'cookie-refresh-token'
+    },
+    ip: '203.0.113.10',
+    get: (name) => name === 'user-agent' ? 'Mobile App' : undefined
+  }
+  const res = createResponse()
+
+  await refreshMobile(req, res)
+
+  assert.equal(res.statusCode, 200)
+  assert.equal(res.body.accessToken, 'new-access-token')
+  assert.equal(res.body.refreshToken, 'new-refresh-token')
+  assert.equal(findUniqueCalls[0].where.tokenHash, 'hash:body-refresh-token')
+  assert.equal(updateManyCalls[0].where.tokenHash, 'hash:body-refresh-token')
+  assert.equal(createCalls[0].data.tokenHash, 'hash:new-refresh-token')
+  assert.deepEqual(res.cookies, [])
+})
+
 test('allowRoles blocks unauthorized roles with 403', async () => {
   const { allowRoles } = loadWithMocks(resolveFromTest('src', 'middleware', 'auth.middleware.js'), {
     '../utils/prisma': {

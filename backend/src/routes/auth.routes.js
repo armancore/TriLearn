@@ -6,6 +6,7 @@ const {
   submitStudentIntake,
   login,
   refresh,
+  refreshMobile,
   logout,
   getMe,
   getStudentIdQr,
@@ -18,7 +19,6 @@ const {
   getActivity,
   logoutAll
 } = authController
-const refreshMobile = authController.refreshMobile || refresh
 const { protect, allowRoles } = require('../middleware/auth.middleware')
 const { authLimiter, forgotPasswordLimiter, loginLimiter, refreshLimiter, logoutLimiter, uploadLimiter } = require('../middleware/rateLimit.middleware')
 const { uploadImage, validateUploadedImage } = require('../middleware/upload.middleware')
