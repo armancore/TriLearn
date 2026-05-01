@@ -3,10 +3,7 @@ const crypto = require('crypto')
 const fs = require('fs')
 const path = require('path')
 const ExcelJS = require('exceljs')
-const { enrollStudentInMatchingSubjects, syncStudentEnrollmentForSemester } = require('../utils/enrollment')
-const { getPagination } = require('../utils/pagination')
 const logger = require('../utils/logger')
-const { ensureDepartmentExists } = require('./department.controller')
 const { recordAuditLog } = require('../utils/audit')
 const { sendMail } = require('../utils/mailer')
 const { welcomeTemplate } = require('../utils/emailTemplates')
@@ -17,25 +14,9 @@ const {
 const { hashPassword, getStudentTemporaryPassword } = require('../utils/security')
 const { sanitizePlainText, sanitizeXlsxCell } = require('../utils/sanitize')
 const { getReadyRedisClient } = require('../utils/redis')
-const { revokeAllAccessTokensForUser } = require('../utils/accessTokenRevocation')
-const {
-  getInstructorDepartments,
-  normalizeDepartmentList
-} = require('../utils/instructorDepartments')
+const { normalizeDepartmentList } = require('../utils/instructorDepartments')
 
-const STATS_CACHE_TTL = 30 * 1000 // 30 seconds
-const STATS_CACHE_KEY = 'admin:stats:v1'
-const ADMIN_STATS_FIELDS = [
-  'totalUsers',
-  'totalStudents',
-  'totalInstructors',
-  'totalCoordinators',
-  'totalGatekeepers',
-  'totalSubjects'
-]
 const MAX_STUDENT_SEMESTER = 8
-let statsCache = null
-let statsCacheExpiresAt = 0
 const normalizeEmail = (value) => String(value || '').trim().toLowerCase()
 
 const deleteStaleDeletedStudentAccounts = async (client, { emails = [], studentIds = [] } = {}) => {
@@ -93,62 +74,6 @@ const deleteStaleDeletedStudentAccounts = async (client, { emails = [], studentI
   return result.count || staleUsers.length
 }
 
-const normalizeCachedAdminStats = (value) => {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
-    return null
-  }
-
-  const normalized = {}
-  for (const field of ADMIN_STATS_FIELDS) {
-    const fieldValue = value[field]
-    if (!Number.isSafeInteger(fieldValue) || fieldValue < 0) {
-      return null
-    }
-    normalized[field] = fieldValue
-  }
-
-  return normalized
-}
-
-const readSharedStatsCache = async () => {
-  try {
-    const client = await getReadyRedisClient({ context: 'admin stats cache' })
-    if (!client) {
-      return null
-    }
-
-    const cachedValue = await client.get(STATS_CACHE_KEY)
-    if (!cachedValue) {
-      return null
-    }
-
-    const parsedCache = JSON.parse(cachedValue)
-    const normalizedStats = normalizeCachedAdminStats(parsedCache)
-    if (!normalizedStats) {
-      logger.warn('Ignoring invalid admin stats cache payload from Redis')
-      return null
-    }
-
-    return normalizedStats
-  } catch (error) {
-    logger.warn('Failed to read admin stats cache from Redis', { message: error.message })
-    return null
-  }
-}
-
-const writeSharedStatsCache = async (stats) => {
-  try {
-    const client = await getReadyRedisClient({ context: 'admin stats cache' })
-    if (!client) {
-      return
-    }
-
-    await client.set(STATS_CACHE_KEY, JSON.stringify(stats), { PX: STATS_CACHE_TTL })
-  } catch (error) {
-    logger.warn('Failed to write admin stats cache to Redis', { message: error.message })
-  }
-}
-
 const clearSharedStatsCache = async () => {
   try {
     const client = await getReadyRedisClient({ context: 'admin stats cache' })
@@ -163,24 +88,16 @@ const clearSharedStatsCache = async () => {
 }
 
 const clearStatsCache = () => {
-  statsCache = null
-  statsCacheExpiresAt = 0
   void clearSharedStatsCache()
 }
 const sanitizeOptionalPlainText = (value) => (value == null ? value : sanitizePlainText(value))
 const sanitizeImportedSpreadsheetText = (value) => sanitizeXlsxCell(sanitizePlainText(value))
 
-const buildContainsSearch = (search) => ({
-  contains: search,
-  mode: 'insensitive'
-})
 
 const normalizeImportHeader = (value) => String(value || '')
   .trim()
   .toLowerCase()
   .replace(/[^a-z0-9]/g, '')
-
-const getGraduationYear = (date = new Date()) => date.getFullYear()
 
 const STUDENT_IMPORT_HEADER_ALIASES = {
   name: ['name', 'fullname', 'studentname'],
@@ -294,83 +211,6 @@ const getStudentImportSubjectFilter = (semester, department) => ({
   ]
 })
 
-const createStudentAccountRecord = async ({
-  name,
-  email,
-  studentId,
-  phone,
-  address,
-  semester,
-  section,
-  department
-}) => {
-  const temporaryPassword = getStudentTemporaryPassword()
-  const hashedPassword = await hashPassword(temporaryPassword)
-  const sanitizedName = sanitizePlainText(name)
-  const sanitizedPhone = sanitizeOptionalPlainText(phone)
-  const sanitizedAddress = sanitizeOptionalPlainText(address)
-  const sanitizedSection = sanitizeOptionalPlainText(section)
-  const emailVerification = createEmailVerificationToken()
-
-  const user = await prisma.user.create({
-    data: {
-      name: sanitizedName,
-      email,
-      password: hashedPassword,
-      role: 'STUDENT',
-      phone: sanitizedPhone,
-      address: sanitizedAddress,
-      mustChangePassword: true,
-      profileCompleted: false,
-      emailVerified: false,
-      emailVerificationToken: emailVerification.tokenHash,
-      emailVerificationExpiry: emailVerification.expiresAt,
-      student: {
-        create: {
-          rollNumber: studentId,
-          semester,
-          section: sanitizedSection,
-          department
-        }
-      }
-    },
-    include: { student: true }
-  })
-
-  await enrollStudentInMatchingSubjects({
-    studentId: user.student.id,
-    semester: user.student.semester,
-    department: user.student.department
-  })
-
-  return {
-    user,
-    temporaryPassword,
-    emailVerificationToken: emailVerification.token
-  }
-}
-
-const sendStudentWelcomeEmail = async ({ name, email, temporaryPassword, userId, emailVerificationToken }) => {
-  const { subject, html, text } = welcomeTemplate({
-    name,
-    email,
-    tempPassword: temporaryPassword,
-    verificationUrl: emailVerificationToken ? buildEmailVerificationUrl(emailVerificationToken) : undefined
-  })
-
-  try {
-    await sendMail({ to: email, subject, html, text })
-    return true
-  } catch (error) {
-    logger.error('Welcome email failed', {
-      message: error.message,
-      stack: error.stack,
-      userId
-    })
-    return false
-  }
-}
-
 const normalizeDepartmentValue = (value) => String(value || '').trim()
 const normalizeSectionValue = (value) => {
   const sanitizedSection = sanitizeOptionalPlainText(value)
@@ -414,90 +254,6 @@ const hasDepartmentSection = async ({ department, semester, section }) => {
   return Boolean(record)
 }
 
-const resolveInstructorDepartmentsInput = async ({ department, departments }) => {
-  const requestedDepartments = normalizeDepartmentList(
-    Array.isArray(departments) && departments.length > 0
-      ? departments
-      : [department]
-  )
-
-  const resolvedDepartments = []
-  for (const departmentValue of requestedDepartments) {
-    const validDepartment = await ensureDepartmentExists(departmentValue)
-    if (!validDepartment) {
-      return null
-    }
-
-    resolvedDepartments.push(
-      typeof validDepartment === 'object' && validDepartment?.name
-        ? validDepartment.name
-        : departmentValue
-    )
-  }
-
-  const normalizedDepartments = normalizeDepartmentList(resolvedDepartments)
-
-  return {
-    departments: normalizedDepartments,
-    primaryDepartment: normalizedDepartments[0] || null
-  }
-}
-
-const instructorDepartmentMembershipInclude = {
-  departmentMemberships: {
-    include: {
-      department: {
-        select: { name: true }
-      }
-    },
-    orderBy: { createdAt: 'asc' }
-  }
-}
-
-const addInstructorDepartments = (instructor) => {
-  if (!instructor) {
-    return instructor
-  }
-
-  const rest = { ...instructor }
-  delete rest.departmentMemberships
-
-  return {
-    ...rest,
-    departments: getInstructorDepartments(instructor)
-  }
-}
-
-const addUserInstructorDepartments = (user) => (
-  user?.instructor
-    ? {
-        ...user,
-        instructor: addInstructorDepartments(user.instructor)
-      }
-    : user
-)
-
-const syncInstructorDepartmentMemberships = async (tx, instructorId, departments) => {
-  await tx.instructorDepartmentMembership.deleteMany({
-    where: { instructorId }
-  })
-
-  if (departments.length === 0) {
-    return
-  }
-
-  await Promise.all(departments.map((departmentName) => (
-    tx.instructorDepartmentMembership.create({
-      data: {
-        instructorId,
-        department: {
-          connect: { name: departmentName }
-        }
-      }
-    })
-  )))
-}
-
 const getCoordinatorDepartments = (req) => {
   if (req?.user?.role !== 'COORDINATOR') {
     return []
@@ -507,67 +263,6 @@ const getCoordinatorDepartments = (req) => {
     ...(Array.isArray(req.coordinator?.departments) ? req.coordinator.departments : []),
     req.coordinator?.department
   ])
-}
-
-const getManagedUserDepartments = (user) => {
-  if (!user || typeof user !== 'object') {
-    return []
-  }
-
-  if (user.role === 'STUDENT') {
-    return normalizeDepartmentList([user.student?.department])
-  }
-
-  if (user.role === 'INSTRUCTOR') {
-    return getInstructorDepartments(user.instructor)
-  }
-
-  if (user.role === 'COORDINATOR') {
-    return normalizeDepartmentList([
-      ...(Array.isArray(user.coordinator?.departments) ? user.coordinator.departments : []),
-      user.coordinator?.department
-    ])
-  }
-
-  return []
-}
-
-const isCoordinatorInstructorDepartmentUpdate = (req, user, hasInstructorDepartmentUpdate) => (
-  req?.user?.role === 'COORDINATOR' &&
-  user?.role === 'INSTRUCTOR' &&
-  hasInstructorDepartmentUpdate
-)
-
-const coordinatorCanManageUser = (req, user) => {
-  if (req?.user?.role !== 'COORDINATOR') {
-    return true
-  }
-
-  if (!user || ['ADMIN', 'COORDINATOR'].includes(user.role)) {
-    return false
-  }
-
-  if (user.role === 'GATEKEEPER') {
-    return true
-  }
-
-  const coordinatorDepartments = getCoordinatorDepartments(req)
-  if (coordinatorDepartments.length === 0) {
-    return ['STUDENT', 'INSTRUCTOR', 'GATEKEEPER'].includes(user.role)
-  }
-
-  const targetDepartments = getManagedUserDepartments(user)
-  if (targetDepartments.length === 0) {
-    return false
-  }
-
-  const normalizedCoordinatorDepartments = new Set(
-    coordinatorDepartments.map((department) => department.toLowerCase())
-  )
-
-  return targetDepartments.some((department) => (
-    normalizedCoordinatorDepartments.has(department.toLowerCase())
-  ))
 }
 
 const importStudents = async (req, res) => {
@@ -919,3 +614,5 @@ const importStudents = async (req, res) => {
 module.exports = {
   importStudents
 }
+
+
