@@ -6,10 +6,6 @@ import { COLORS } from '@/src/constants/colors';
 import { api } from '@/src/services/api';
 import type { ProfileResponse } from '@/src/types/profile';
 
-const QR_TTL_MS = 24 * 60 * 60 * 1000;
-
-let cachedQr: { qrCode: string; rollNumber?: string; expiresAt: number } | null = null;
-
 interface StudentQrResponse {
   qrCode: string;
   qrData?: string;
@@ -34,21 +30,12 @@ export default function StudentIdCardScreen() {
   });
 
   const qrQuery = useQuery({
-    queryKey: ['auth', 'student-id-qr'],
+    queryKey: ['student-id-qr'],
     queryFn: async () => {
-      if (cachedQr && cachedQr.expiresAt > Date.now()) {
-        return cachedQr;
-      }
-
       const response = await api.get<StudentQrResponse>('/auth/student-id-qr');
-      const expiresAt = response.data.expiresAt ? new Date(response.data.expiresAt).getTime() : Date.now() + QR_TTL_MS;
-      cachedQr = {
-        qrCode: response.data.qrCode,
-        rollNumber: response.data.rollNumber,
-        expiresAt,
-      };
-      return cachedQr;
+      return response.data;
     },
+    staleTime: 60 * 60 * 1000,
   });
 
   const user = profileQuery.data?.user;
@@ -56,7 +43,6 @@ export default function StudentIdCardScreen() {
   const initials = useMemo(() => getInitials(user?.name), [user?.name]);
 
   const refreshQr = useCallback(async () => {
-    cachedQr = null;
     await qrQuery.refetch();
   }, [qrQuery]);
 

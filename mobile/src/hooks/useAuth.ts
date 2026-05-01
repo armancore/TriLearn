@@ -13,7 +13,7 @@ export const useAuth = () => {
   const refreshToken = useAuthStore((state) => state.refreshToken);
   const isHydrated = useAuthStore((state) => state.isHydrated);
   const setSession = useAuthStore((state) => state.setSession);
-  const clearSession = useAuthStore((state) => state.clearSession);
+  const clearSession = useAuthStore((state) => state.logout);
   const resetNotifications = useNotificationsStore((state) => state.reset);
 
   const login = useCallback(

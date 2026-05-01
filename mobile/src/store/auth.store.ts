@@ -2,6 +2,7 @@ import * as SecureStore from 'expo-secure-store';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
+import { queryClient } from '@/src/services/queryClient';
 import type { AuthUser } from '@/src/types/auth';
 
 interface AuthState {
@@ -11,6 +12,7 @@ interface AuthState {
   isHydrated: boolean;
   setSession: (payload: { user: AuthUser; accessToken: string; refreshToken: string }) => void;
   setTokens: (payload: { accessToken: string; refreshToken: string }) => void;
+  logout: () => void;
   clearSession: () => void;
   setHydrated: (value: boolean) => void;
 }
@@ -38,7 +40,12 @@ export const useAuthStore = create<AuthState>()(
       setTokens: ({ accessToken, refreshToken }) => {
         set({ accessToken, refreshToken });
       },
+      logout: () => {
+        queryClient.removeQueries({ queryKey: ['student-id-qr'] });
+        set({ user: null, accessToken: null, refreshToken: null });
+      },
       clearSession: () => {
+        queryClient.removeQueries({ queryKey: ['student-id-qr'] });
         set({ user: null, accessToken: null, refreshToken: null });
       },
       setHydrated: (value) => {

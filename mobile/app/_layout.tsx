@@ -1,27 +1,14 @@
 import { Redirect, Stack, useSegments } from 'expo-router';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClientProvider } from '@tanstack/react-query';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { ActivityIndicator, Text, View } from 'react-native';
 
 import { COLORS } from '@/src/constants/colors';
 import { ROLE_GROUP_MAP, ROLE_HOME_MAP } from '@/src/constants/routes';
 import { useAuth } from '@/src/hooks/useAuth';
+import { queryClient } from '@/src/services/queryClient';
 import { useSocket } from '@/src/hooks/useSocket';
 import '../global.css';
-
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      networkMode: 'offlineFirst',
-      staleTime: 60 * 1000,
-      gcTime: 10 * 60 * 1000,
-      retry: 1,
-    },
-    mutations: {
-      networkMode: 'offlineFirst',
-    },
-  },
-});
 
 export default function RootLayout() {
   const segments = useSegments();
