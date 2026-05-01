@@ -13,6 +13,7 @@ export const useAuth = () => {
   const refreshToken = useAuthStore((state) => state.refreshToken);
   const isHydrated = useAuthStore((state) => state.isHydrated);
   const setSession = useAuthStore((state) => state.setSession);
+  const updateUser = useAuthStore((state) => state.updateUser);
   const clearSession = useAuthStore((state) => state.logout);
   const resetNotifications = useNotificationsStore((state) => state.reset);
 
@@ -53,5 +54,6 @@ export const useAuth = () => {
     isAuthenticated: Boolean(accessToken && user),
     login,
     logout,
+    updateUser,
   };
 };

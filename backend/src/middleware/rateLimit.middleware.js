@@ -112,6 +112,11 @@ const authLimiter = createLimiter({
   message: 'Too many attempts, please try again later'
 })
 
+const authRouterLimiter = createLimiter({
+  max: 120,
+  message: 'Too many authentication requests, please try again later'
+})
+
 const forgotPasswordLimiter = createLimiter({
   max: 5,
   message: 'Too many password reset attempts, please try again later',
@@ -184,6 +189,7 @@ const staffStudentIdScanLimiter = createLimiter({
 
 module.exports = {
   apiLimiter,
+  authRouterLimiter,
   authLimiter,
   forgotPasswordLimiter,
   forgotPasswordRateLimitKey,

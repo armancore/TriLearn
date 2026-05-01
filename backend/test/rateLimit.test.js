@@ -6,6 +6,7 @@ const request = require('supertest')
 process.env.NODE_ENV = process.env.NODE_ENV || 'test'
 
 const {
+  authRouterLimiter,
   loginRateLimitKey,
   studentQrScanLimiter,
   staffStudentIdScanLimiter,
@@ -54,6 +55,22 @@ test('staffStudentIdScanLimiter throttles repeated scans per staff user', async 
   assert.equal(blocked.status, 429)
   assert.deepEqual(blocked.body, {
     message: 'Too many student ID scan attempts, please wait a moment and try again'
+  })
+})
+
+test('authRouterLimiter throttles aggregate auth traffic per IP', async () => {
+  const app = buildApp(authRouterLimiter, null)
+
+  for (let attempt = 0; attempt < 120; attempt += 1) {
+    const response = await request(app).post('/limited').send({ email: `user-${attempt}@example.com` })
+    assert.equal(response.status, 201)
+  }
+
+  const blocked = await request(app).post('/limited').send({ email: 'next@example.com' })
+
+  assert.equal(blocked.status, 429)
+  assert.deepEqual(blocked.body, {
+    message: 'Too many authentication requests, please try again later'
   })
 })
 

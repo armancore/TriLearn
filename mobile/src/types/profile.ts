@@ -5,6 +5,9 @@ export interface ProfileUser {
   name: string;
   email: string;
   role: UserRole;
+  mustChangePassword: boolean;
+  profileCompleted?: boolean;
+  emailVerified?: boolean;
   phone?: string | null;
   address?: string | null;
   avatar?: string | null;

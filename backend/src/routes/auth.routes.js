@@ -22,11 +22,22 @@ const {
   logoutAll
 } = authController
 const { protect, allowRoles } = require('../middleware/auth.middleware')
-const { authLimiter, forgotPasswordLimiter, loginLimiter, refreshLimiter, logoutLimiter, uploadLimiter, resendVerificationLimiter } = require('../middleware/rateLimit.middleware')
+const {
+  authRouterLimiter = (_req, _res, next) => next(),
+  authLimiter,
+  forgotPasswordLimiter,
+  loginLimiter,
+  refreshLimiter,
+  logoutLimiter,
+  uploadLimiter,
+  resendVerificationLimiter
+} = require('../middleware/rateLimit.middleware')
 const { uploadImage, validateUploadedImage } = require('../middleware/upload.middleware')
 const { validate } = require('../middleware/validate.middleware')
 const { validateMobileClient } = require('../middleware/mobileClient.middleware')
 const { schemas } = require('../validators/schemas')
+
+router.use(authRouterLimiter)
 
 router.post('/register', authLimiter, validate(schemas.auth.register), register)
 router.post('/student-intake', authLimiter, validate(schemas.auth.studentIntake), submitStudentIntake)

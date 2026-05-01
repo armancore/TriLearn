@@ -12,6 +12,7 @@ interface AuthState {
   isHydrated: boolean;
   setSession: (payload: { user: AuthUser; accessToken: string; refreshToken: string }) => void;
   setTokens: (payload: { accessToken: string; refreshToken: string }) => void;
+  updateUser: (user: AuthUser) => void;
   logout: () => void;
   clearSession: () => void;
   setHydrated: (value: boolean) => void;
@@ -39,6 +40,9 @@ export const useAuthStore = create<AuthState>()(
       },
       setTokens: ({ accessToken, refreshToken }) => {
         set({ accessToken, refreshToken });
+      },
+      updateUser: (user) => {
+        set({ user });
       },
       logout: () => {
         queryClient.removeQueries({ queryKey: ['student-id-qr'] });

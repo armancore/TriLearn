@@ -365,6 +365,76 @@ test('POST /api/v1/auth/login returns the controller response through the real r
   assert.equal(response.body.user.email, 'admin@example.com')
 })
 
+test('POST /api/v1/auth/login runs the auth router limiter before the login limiter', async () => {
+  const calls = []
+
+  const authRoutes = loadWithMocks(resolveFromTest('src', 'routes', 'auth.routes.js'), {
+    '../controllers/auth.controller': {
+      register: async (_req, res) => res.status(501).json({ message: 'unused' }),
+      submitStudentIntake: async (_req, res) => res.status(501).json({ message: 'unused' }),
+      login: async (_req, res) => {
+        calls.push('controller')
+        res.status(200).json({ message: 'ok' })
+      },
+      refresh: async (_req, res) => res.status(501).json({ message: 'unused' }),
+      refreshMobile: async (_req, res) => res.status(501).json({ message: 'unused' }),
+      verifyEmail: async (_req, res) => res.status(501).json({ message: 'unused' }),
+      resendVerification: async (_req, res) => res.status(501).json({ message: 'unused' }),
+      logout: async (_req, res) => res.status(501).json({ message: 'unused' }),
+      getMe: async (_req, res) => res.status(501).json({ message: 'unused' }),
+      getStudentIdQr: async (_req, res) => res.status(501).json({ message: 'unused' }),
+      updateProfile: async (_req, res) => res.status(501).json({ message: 'unused' }),
+      uploadAvatar: async (_req, res) => res.status(501).json({ message: 'unused' }),
+      changePassword: async (_req, res) => res.status(501).json({ message: 'unused' }),
+      completeProfile: async (_req, res) => res.status(501).json({ message: 'unused' }),
+      forgotPassword: async (_req, res) => res.status(501).json({ message: 'unused' }),
+      resetPassword: async (_req, res) => res.status(501).json({ message: 'unused' }),
+      getActivity: async (_req, res) => res.status(501).json({ message: 'unused' }),
+      logoutAll: async (_req, res) => res.status(501).json({ message: 'unused' })
+    },
+    '../middleware/auth.middleware': {
+      protect: (_req, _res, next) => next(),
+      allowRoles: () => (_req, _res, next) => next()
+    },
+    '../middleware/rateLimit.middleware': {
+      authRouterLimiter: (_req, _res, next) => {
+        calls.push('authRouterLimiter')
+        next()
+      },
+      authLimiter: (_req, _res, next) => next(),
+      forgotPasswordLimiter: (_req, _res, next) => next(),
+      resendVerificationLimiter: (_req, _res, next) => next(),
+      loginLimiter: (_req, _res, next) => {
+        calls.push('loginLimiter')
+        next()
+      },
+      refreshLimiter: (_req, _res, next) => next(),
+      logoutLimiter: (_req, _res, next) => next(),
+      uploadLimiter: (_req, _res, next) => next()
+    },
+    '../middleware/upload.middleware': {
+      uploadImage: {
+        single: () => (_req, _res, next) => next()
+      },
+      validateUploadedImage: (_req, _res, next) => next()
+    }
+  })
+
+  const testApp = express()
+  testApp.use(express.json())
+  testApp.use('/api/v1/auth', authRoutes)
+
+  const response = await request(testApp)
+    .post('/api/v1/auth/login')
+    .send({
+      email: 'admin@example.com',
+      password: 'Password123'
+    })
+
+  assert.equal(response.status, 200)
+  assert.deepEqual(calls, ['authRouterLimiter', 'loginLimiter', 'controller'])
+})
+
 test('POST /api/v1/auth/login returns 401 for a wrong password through the real route', async () => {
   const authRoutes = loadWithMocks(resolveFromTest('src', 'routes', 'auth.routes.js'), {
     '../controllers/auth.controller': {

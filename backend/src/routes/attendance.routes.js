@@ -49,7 +49,7 @@ const {
 router.use(protect)
 router.use(attachActorProfiles)
 
-// Instructor routes
+// Gate attendance routes
 router.post('/generate-daily-qr', allowRoles('GATEKEEPER'), generateDailyAttendanceQR)
 router.get('/gatekeeper/live-qr', allowRoles('GATEKEEPER'), getLiveGateAttendanceQr)
 router.post('/scan-student-id', staffStudentIdScanLimiter, allowRoles('GATEKEEPER', 'INSTRUCTOR', 'COORDINATOR'), validate(schemas.attendance.scanStudentId), scanStudentIdAttendance)
@@ -59,6 +59,8 @@ router.put('/gate-settings/windows/:id', allowRoles('ADMIN', 'COORDINATOR'), val
 router.delete('/gate-settings/windows/:id', allowRoles('ADMIN', 'COORDINATOR'), validate(schemas.attendance.deleteGateWindow), deleteGateScanWindow)
 router.post('/gate-settings/holidays', allowRoles('ADMIN', 'COORDINATOR'), validate(schemas.attendance.createHoliday), createAttendanceHoliday)
 router.delete('/gate-settings/holidays/:id', allowRoles('ADMIN', 'COORDINATOR'), validate(schemas.attendance.deleteHoliday), deleteAttendanceHoliday)
+
+// Instructor and coordinator attendance-management routes
 router.post('/generate-qr', allowRoles('INSTRUCTOR', 'COORDINATOR'), validate(schemas.attendance.generateQr), generateQR)
 /**
  * @openapi

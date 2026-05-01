@@ -5,6 +5,9 @@ export interface AuthUser {
   name: string;
   email: string;
   role: UserRole;
+  mustChangePassword: boolean;
+  profileCompleted?: boolean;
+  emailVerified?: boolean;
   student?: {
     id: string;
     rollNumber: string;

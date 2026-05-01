@@ -863,11 +863,11 @@ test('importStudents sanitizes spreadsheet row values before reporting validatio
               return {
                 getCell: (index) => ({
                   text: [
-                    '<img src=x onerror=1>A',
+                    '<img src=x onerror=1>=A',
                     'student@example.com',
                     'stu-001',
                     'BCA',
-                    '1',
+                    '99',
                     '<b>A</b>'
                   ][index - 1]
                 })
@@ -898,8 +898,8 @@ test('importStudents sanitizes spreadsheet row values before reporting validatio
 
   assert.equal(res.statusCode, 400)
   assert.equal(res.body.summary.failed, 1)
-  assert.equal(res.body.failures[0].name, 'A')
-  assert.equal(res.body.failures[0].message, 'Name must be at least 2 characters long')
+  assert.equal(res.body.failures[0].name, "'=A")
+  assert.equal(res.body.failures[0].message, 'Semester must be a number between 1 and 8')
 })
 
 test('uploadImage rejects files with image-looking filenames when the MIME type is not an image', async () => {

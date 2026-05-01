@@ -15,7 +15,7 @@ const {
   createEmailVerificationToken
 } = require('../utils/emailVerification')
 const { hashPassword, getStudentTemporaryPassword } = require('../utils/security')
-const { sanitizePlainText } = require('../utils/sanitize')
+const { sanitizePlainText, sanitizeXlsxCell } = require('../utils/sanitize')
 const { getReadyRedisClient } = require('../utils/redis')
 const { revokeAllAccessTokensForUser } = require('../utils/accessTokenRevocation')
 const {
@@ -168,6 +168,7 @@ const clearStatsCache = () => {
   void clearSharedStatsCache()
 }
 const sanitizeOptionalPlainText = (value) => (value == null ? value : sanitizePlainText(value))
+const sanitizeImportedSpreadsheetText = (value) => sanitizeXlsxCell(sanitizePlainText(value))
 
 const buildContainsSearch = (search) => ({
   contains: search,
@@ -241,14 +242,14 @@ const loadStudentImportRows = async (filePath, originalName) => {
     const row = worksheet.getRow(rowNumber)
     const entry = {
       rowNumber,
-      name: columns.name ? sanitizePlainText(row.getCell(columns.name).text) : '',
-      email: columns.email ? sanitizePlainText(row.getCell(columns.email).text) : '',
-      studentId: columns.studentId ? sanitizePlainText(row.getCell(columns.studentId).text) : '',
-      phone: columns.phone ? sanitizePlainText(row.getCell(columns.phone).text) : '',
-      address: columns.address ? sanitizePlainText(row.getCell(columns.address).text) : '',
-      department: columns.department ? sanitizePlainText(row.getCell(columns.department).text) : '',
-      semester: columns.semester ? sanitizePlainText(row.getCell(columns.semester).text) : '',
-      section: columns.section ? sanitizePlainText(row.getCell(columns.section).text) : ''
+      name: columns.name ? sanitizeImportedSpreadsheetText(row.getCell(columns.name).text) : '',
+      email: columns.email ? sanitizeImportedSpreadsheetText(row.getCell(columns.email).text) : '',
+      studentId: columns.studentId ? sanitizeImportedSpreadsheetText(row.getCell(columns.studentId).text) : '',
+      phone: columns.phone ? sanitizeImportedSpreadsheetText(row.getCell(columns.phone).text) : '',
+      address: columns.address ? sanitizeImportedSpreadsheetText(row.getCell(columns.address).text) : '',
+      department: columns.department ? sanitizeImportedSpreadsheetText(row.getCell(columns.department).text) : '',
+      semester: columns.semester ? sanitizeImportedSpreadsheetText(row.getCell(columns.semester).text) : '',
+      section: columns.section ? sanitizeImportedSpreadsheetText(row.getCell(columns.section).text) : ''
     }
 
     const hasData = Object.values(entry).some((value) => value && String(value).trim() !== '')

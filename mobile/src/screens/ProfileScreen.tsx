@@ -24,7 +24,7 @@ const DetailRow = ({ label, value }: { label: string; value?: string | number | 
 );
 
 export default function ProfileScreen() {
-  const { logout } = useAuth();
+  const { logout, updateUser } = useAuth();
   const toast = useToast();
   const [refreshing, setRefreshing] = useState(false);
   const [profileForm, setProfileForm] = useState({ name: '', phone: '', address: '' });
@@ -64,10 +64,11 @@ export default function ProfileScreen() {
       if (passwordForm.newPassword !== passwordForm.confirm) {
         throw new Error('Password confirmation does not match.');
       }
-      await api.post('/auth/change-password', {
+      const response = await api.post<{ user?: ProfileResponse['user'] }>('/auth/change-password', {
         currentPassword: passwordForm.currentPassword,
         newPassword: passwordForm.newPassword,
       });
+      return response.data.user;
     },
     onMutate: () => setPasswordError(''),
     onError: (error) => {
@@ -75,7 +76,19 @@ export default function ProfileScreen() {
       setPasswordError(message);
       toast.error(error, message);
     },
-    onSuccess: () => {
+    onSuccess: (updatedUser) => {
+      if (updatedUser) {
+        updateUser({
+          id: updatedUser.id,
+          name: updatedUser.name,
+          email: updatedUser.email,
+          role: updatedUser.role,
+          mustChangePassword: Boolean(updatedUser.mustChangePassword),
+          profileCompleted: updatedUser.profileCompleted,
+          emailVerified: updatedUser.emailVerified,
+          ...(updatedUser.student ? { student: updatedUser.student } : {}),
+        });
+      }
       setPasswordForm({ currentPassword: '', newPassword: '', confirm: '' });
       toast.success('Password changed.');
     },
@@ -138,6 +151,15 @@ export default function ProfileScreen() {
 
       {profileQuery.isError ? (
         <Text className="mt-4 rounded-2xl bg-white p-4 text-center text-red-600">Could not load profile. Pull down to retry.</Text>
+      ) : null}
+
+      {user?.mustChangePassword ? (
+        <View className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+          <Text className="text-base font-bold text-amber-900">Change your temporary password</Text>
+          <Text className="mt-1 text-sm leading-5 text-amber-800">
+            You need to set a new password before using the rest of TriLearn.
+          </Text>
+        </View>
       ) : null}
 
       <View className="mt-6 rounded-2xl bg-white px-5">

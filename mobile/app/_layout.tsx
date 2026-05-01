@@ -116,6 +116,10 @@ export default function RootLayout() {
       return <Redirect href={roleHome} />;
     }
 
+    if (user.mustChangePassword && activeGroup !== '(profile)') {
+      return <Redirect href="/(profile)" />;
+    }
+
     if (activeGroup !== roleGroup && activeGroup !== '(profile)') {
       return <Redirect href={roleHome} />;
     }
