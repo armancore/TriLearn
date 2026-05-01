@@ -24,6 +24,9 @@ model User {
   lockedUntil DateTime?
   mustChangePassword Boolean @default(false)
   profileCompleted Boolean @default(false)
+  emailVerified Boolean @default(false)
+  emailVerificationToken String?
+  emailVerificationExpiry DateTime?
   passwordResetTokenHash String?
   passwordResetExpiresAt DateTime?
   passwordChangedAt DateTime?
@@ -47,6 +50,7 @@ model User {
   @@index([role])
   @@index([isActive])
   @@index([deletedAt])
+  @@index([emailVerificationToken])
   @@index([passwordResetTokenHash])
 }
 

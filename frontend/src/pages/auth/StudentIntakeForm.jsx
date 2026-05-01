@@ -17,7 +17,6 @@ import {
 import Alert from '../../components/Alert'
 import AuthSplitLayout from '../../components/AuthSplitLayout'
 import ConfirmDialog from '../../components/ConfirmDialog'
-import { useReferenceData } from '../../context/ReferenceDataContext'
 import useForm from '../../hooks/useForm'
 import useUnsavedChangesGuard from '../../hooks/useUnsavedChangesGuard'
 import api from '../../utils/api'
@@ -40,6 +39,47 @@ const initialValues = {
   temporaryAddress: '',
   dateOfBirth: '',
   preferredDepartment: ''
+}
+
+const minDateOfBirth = new Date(Date.UTC(1920, 0, 1))
+
+const parseDateOnlyToUtc = (value) => {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value || '').trim())
+  if (!match) return null
+
+  const year = Number.parseInt(match[1], 10)
+  const month = Number.parseInt(match[2], 10)
+  const day = Number.parseInt(match[3], 10)
+  const parsed = new Date(Date.UTC(year, month - 1, day))
+
+  if (
+    Number.isNaN(parsed.getTime()) ||
+    parsed.getUTCFullYear() !== year ||
+    parsed.getUTCMonth() !== month - 1 ||
+    parsed.getUTCDate() !== day
+  ) {
+    return null
+  }
+
+  return parsed
+}
+
+const isValidEmail = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || '').trim())
+
+const todayUtc = () => {
+  const today = new Date()
+  return new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()))
+}
+
+const getServerFieldErrors = (error) => {
+  const fieldErrors = error?.response?.data?.errors?.fieldErrors
+  if (!fieldErrors || typeof fieldErrors !== 'object') return {}
+
+  return Object.entries(fieldErrors).reduce((acc, [field, messages]) => {
+    const message = Array.isArray(messages) ? messages.find(Boolean) : messages
+    if (message) acc[field] = message
+    return acc
+  }, {})
 }
 
 const sectionMeta = [
@@ -82,7 +122,7 @@ const sectionMeta = [
 ]
 
 const StudentIntakeForm = () => {
-  const { departments, loadDepartments } = useReferenceData()
+  const [departments, setDepartments] = useState([])
   const [success, setSuccess] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -104,26 +144,45 @@ const StudentIntakeForm = () => {
       description: 'Share department preference and profile details early so setup is smoother for everyone.'
     }
   ]
-  const { values, errors, handleChange, handleSubmit, setValues } = useForm(initialValues, (formValues) => {
+  const { values, errors, handleChange, handleSubmit, setValues, setErrors } = useForm(initialValues, (formValues) => {
     const validationErrors = {}
-    ;[
-      'fullName',
-      'email',
-      'phone',
-      'fatherName',
-      'motherName',
-      'fatherPhone',
-      'motherPhone',
-      'localGuardianName',
-      'localGuardianAddress',
-      'localGuardianPhone',
-      'permanentAddress',
-      'temporaryAddress',
-      'dateOfBirth',
-      'preferredDepartment'
-    ].forEach((field) => {
-      if (!String(formValues[field] || '').trim()) validationErrors[field] = 'This field is required'
+    const requiredFields = {
+      fullName: { min: 2, message: 'Full name must be at least 2 characters' },
+      email: { min: 1, message: 'Email is required' },
+      phone: { min: 7, message: 'Phone number must be at least 7 characters' },
+      fatherName: { min: 2, message: 'Father name must be at least 2 characters' },
+      motherName: { min: 2, message: 'Mother name must be at least 2 characters' },
+      fatherPhone: { min: 7, message: 'Father contact number must be at least 7 characters' },
+      motherPhone: { min: 7, message: 'Mother contact number must be at least 7 characters' },
+      localGuardianName: { min: 2, message: 'Local guardian name must be at least 2 characters' },
+      localGuardianAddress: { min: 5, message: 'Local guardian address must be at least 5 characters' },
+      localGuardianPhone: { min: 7, message: 'Local guardian contact number must be at least 7 characters' },
+      permanentAddress: { min: 5, message: 'Permanent address must be at least 5 characters' },
+      temporaryAddress: { min: 5, message: 'Temporary address must be at least 5 characters' },
+      preferredDepartment: { min: 2, message: 'Please select a department' }
+    }
+
+    Object.entries(requiredFields).forEach(([field, rule]) => {
+      const value = String(formValues[field] || '').trim()
+      if (!value) {
+        validationErrors[field] = 'This field is required'
+      } else if (value.length < rule.min) {
+        validationErrors[field] = rule.message
+      }
     })
+
+    if (formValues.email && !isValidEmail(formValues.email)) {
+      validationErrors.email = 'Please enter a valid email address'
+    }
+
+    const parsedDateOfBirth = parseDateOnlyToUtc(formValues.dateOfBirth)
+    if (!String(formValues.dateOfBirth || '').trim()) {
+      validationErrors.dateOfBirth = 'This field is required'
+    } else if (!parsedDateOfBirth) {
+      validationErrors.dateOfBirth = 'Date of birth must be a real calendar date'
+    } else if (parsedDateOfBirth < minDateOfBirth || parsedDateOfBirth > todayUtc()) {
+      validationErrors.dateOfBirth = 'Date of birth must be between 1920-01-01 and today'
+    }
 
     const hasMatchingDepartment = departments.some((department) => department.name === formValues.preferredDepartment)
     if (formValues.preferredDepartment && !hasMatchingDepartment) {
@@ -136,7 +195,10 @@ const StudentIntakeForm = () => {
   useEffect(() => {
     const controller = new AbortController()
 
-    loadDepartments({ signal: controller.signal })
+    api.get('/departments/public', { signal: controller.signal })
+      .then((response) => {
+        setDepartments(response.data.departments || [])
+      })
       .catch((requestError) => {
         if (isRequestCanceled(requestError) || controller.signal.aborted) return
         setError(getFriendlyErrorMessage(requestError, 'Unable to load departments right now.'))
@@ -148,7 +210,7 @@ const StudentIntakeForm = () => {
       })
 
     return () => controller.abort()
-  }, [loadDepartments])
+  }, [])
 
   const hasUnsavedChanges = useMemo(() => (
     Object.entries(initialValues).some(([key, initialValue]) => String(values[key] || '') !== String(initialValue || ''))
@@ -167,6 +229,10 @@ const StudentIntakeForm = () => {
       setSuccess('Your student details have been submitted successfully. The institution can now review them and create your account.')
       setValues(initialValues)
     } catch (requestError) {
+      const fieldErrors = getServerFieldErrors(requestError)
+      if (Object.keys(fieldErrors).length > 0) {
+        setErrors(fieldErrors)
+      }
       setError(getFriendlyErrorMessage(requestError, 'Unable to submit your form right now.'))
     } finally {
       setLoading(false)

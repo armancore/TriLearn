@@ -10,6 +10,10 @@ const { ensureDepartmentExists } = require('./department.controller')
 const { recordAuditLog } = require('../utils/audit')
 const { sendMail } = require('../utils/mailer')
 const { welcomeTemplate } = require('../utils/emailTemplates')
+const {
+  buildEmailVerificationUrl,
+  createEmailVerificationToken
+} = require('../utils/emailVerification')
 const { hashPassword, getStudentTemporaryPassword } = require('../utils/security')
 const { sanitizePlainText } = require('../utils/sanitize')
 const { getReadyRedisClient } = require('../utils/redis')
@@ -245,6 +249,7 @@ const createStudentAccountRecord = async ({
   const sanitizedPhone = sanitizeOptionalPlainText(phone)
   const sanitizedAddress = sanitizeOptionalPlainText(address)
   const sanitizedSection = sanitizeOptionalPlainText(section)
+  const emailVerification = createEmailVerificationToken()
 
   const user = await prisma.user.create({
     data: {
@@ -256,6 +261,9 @@ const createStudentAccountRecord = async ({
       address: sanitizedAddress,
       mustChangePassword: true,
       profileCompleted: false,
+      emailVerified: false,
+      emailVerificationToken: emailVerification.tokenHash,
+      emailVerificationExpiry: emailVerification.expiresAt,
       student: {
         create: {
           rollNumber: studentId,
@@ -276,15 +284,17 @@ const createStudentAccountRecord = async ({
 
   return {
     user,
-    temporaryPassword
+    temporaryPassword,
+    emailVerificationToken: emailVerification.token
   }
 }
 
-const sendStudentWelcomeEmail = async ({ name, email, temporaryPassword, userId }) => {
+const sendStudentWelcomeEmail = async ({ name, email, temporaryPassword, userId, emailVerificationToken }) => {
   const { subject, html, text } = welcomeTemplate({
     name,
     email,
-    tempPassword: temporaryPassword
+    tempPassword: temporaryPassword,
+    verificationUrl: emailVerificationToken ? buildEmailVerificationUrl(emailVerificationToken) : undefined
   })
 
   try {
@@ -678,6 +688,7 @@ const getAllUsers = async (req, res) => {
         isActive: true,
         mustChangePassword: true,
         profileCompleted: true,
+        emailVerified: true,
         createdAt: true,
         student: true,
         instructor: { include: instructorDepartmentMembershipInclude },
@@ -714,6 +725,7 @@ const getUserById = async (req, res) => {
         address: true,
         avatar: true,
         isActive: true,
+        emailVerified: true,
         createdAt: true,
         student: true,
         instructor: { include: instructorDepartmentMembershipInclude },
@@ -991,7 +1003,7 @@ const createStudent = async (req, res) => {
       return res.status(400).json({ message: 'Please create this section under the selected department and semester first' })
     }
 
-    const { user, temporaryPassword } = await createStudentAccountRecord({
+    const { user, temporaryPassword, emailVerificationToken } = await createStudentAccountRecord({
       name,
       email: normalizedEmail,
       studentId: normalizedStudentId,
@@ -1005,7 +1017,8 @@ const createStudent = async (req, res) => {
       name: user.name,
       email: user.email,
       temporaryPassword,
-      userId: user.id
+      userId: user.id,
+      emailVerificationToken
     })
     clearStatsCache()
 
@@ -1772,13 +1785,17 @@ const importStudents = async (req, res) => {
         const preparedRows = await Promise.all(rowsToCreate.map(async (row) => {
           const temporaryPassword = getStudentTemporaryPassword()
           const hashedPassword = await hashPassword(temporaryPassword)
+          const emailVerification = createEmailVerificationToken()
 
           return {
             ...row,
             userId: crypto.randomUUID(),
             studentProfileId: crypto.randomUUID(),
             temporaryPassword,
-            hashedPassword
+            hashedPassword,
+            emailVerificationToken: emailVerification.token,
+            emailVerificationTokenHash: emailVerification.tokenHash,
+            emailVerificationExpiry: emailVerification.expiresAt
           }
         }))
 
@@ -1849,7 +1866,10 @@ const importStudents = async (req, res) => {
               phone: row.phone,
               address: row.address,
               mustChangePassword: true,
-              profileCompleted: false
+              profileCompleted: false,
+              emailVerified: false,
+              emailVerificationToken: row.emailVerificationTokenHash,
+              emailVerificationExpiry: row.emailVerificationExpiry
             }))
           })
 
@@ -1890,6 +1910,7 @@ const importStudents = async (req, res) => {
               semester: row.semester,
               section: row.section,
               temporaryPassword: row.temporaryPassword,
+              emailVerificationToken: row.emailVerificationToken,
               welcomeEmailSent: false
             })),
             conflictFailures
@@ -1903,7 +1924,8 @@ const importStudents = async (req, res) => {
           const { subject, html, text } = welcomeTemplate({
             name: row.name,
             email: row.email,
-            tempPassword: row.temporaryPassword
+            tempPassword: row.temporaryPassword,
+            verificationUrl: buildEmailVerificationUrl(row.emailVerificationToken)
           })
 
           await sendMail({ to: row.email, subject, html, text })
@@ -1951,7 +1973,7 @@ const importStudents = async (req, res) => {
         created: created.length,
         failed: failures.length
       },
-      created: created.map(({ temporaryPassword: _temporaryPassword, ...row }) => row),
+      created: created.map(({ temporaryPassword: _temporaryPassword, emailVerificationToken: _emailVerificationToken, ...row }) => row),
       failures
     })
   } catch (error) {
@@ -2102,6 +2124,7 @@ const createStudentFromApplication = async (req, res) => {
 
     const temporaryPassword = getStudentTemporaryPassword()
     const hashedPassword = await hashPassword(temporaryPassword)
+    const emailVerification = createEmailVerificationToken()
 
     const user = await prisma.user.create({
       data: {
@@ -2113,6 +2136,9 @@ const createStudentFromApplication = async (req, res) => {
         address: sanitizeOptionalPlainText(application.temporaryAddress),
         mustChangePassword: true,
         profileCompleted: true,
+        emailVerified: false,
+        emailVerificationToken: emailVerification.tokenHash,
+        emailVerificationExpiry: emailVerification.expiresAt,
         student: {
           create: {
             rollNumber: normalizedStudentId,
@@ -2159,7 +2185,8 @@ const createStudentFromApplication = async (req, res) => {
       name: user.name,
       email: user.email,
       temporaryPassword,
-      userId: user.id
+      userId: user.id,
+      emailVerificationToken: emailVerification.token
     })
 
     res.status(201).json({

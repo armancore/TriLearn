@@ -434,6 +434,11 @@ const schemas = {
         email: z.string().trim().email()
       })
     },
+    resendVerification: {
+      body: z.object({
+        email: z.string().trim().email()
+      })
+    },
     studentIntake: {
       body: studentApplicationBody
     },

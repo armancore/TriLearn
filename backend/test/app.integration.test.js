@@ -153,6 +153,8 @@ test('POST /api/v1/auth/login returns the controller response through the real r
       login,
       refresh: async (_req, res) => res.status(501).json({ message: 'unused' }),
       refreshMobile: async (_req, res) => res.status(501).json({ message: 'unused' }),
+      verifyEmail: async (_req, res) => res.status(501).json({ message: 'unused' }),
+      resendVerification: async (_req, res) => res.status(501).json({ message: 'unused' }),
       logout: async (_req, res) => res.status(501).json({ message: 'unused' }),
       getMe: async (_req, res) => res.status(501).json({ message: 'unused' }),
       getStudentIdQr: async (_req, res) => res.status(501).json({ message: 'unused' }),
@@ -172,6 +174,7 @@ test('POST /api/v1/auth/login returns the controller response through the real r
     '../middleware/rateLimit.middleware': {
       authLimiter: (_req, _res, next) => next(),
       forgotPasswordLimiter: (_req, _res, next) => next(),
+      resendVerificationLimiter: (_req, _res, next) => next(),
       loginLimiter: (_req, _res, next) => next(),
       refreshLimiter: (_req, _res, next) => next(),
       logoutLimiter: (_req, _res, next) => next(),
@@ -209,6 +212,8 @@ test('POST /api/v1/auth/login returns 401 for a wrong password through the real 
       login: async (_req, res) => res.status(401).json({ message: 'Invalid credentials' }),
       refresh: async (_req, res) => res.status(501).json({ message: 'unused' }),
       refreshMobile: async (_req, res) => res.status(501).json({ message: 'unused' }),
+      verifyEmail: async (_req, res) => res.status(501).json({ message: 'unused' }),
+      resendVerification: async (_req, res) => res.status(501).json({ message: 'unused' }),
       logout: async (_req, res) => res.status(501).json({ message: 'unused' }),
       getMe: async (_req, res) => res.status(501).json({ message: 'unused' }),
       getStudentIdQr: async (_req, res) => res.status(501).json({ message: 'unused' }),
@@ -228,6 +233,7 @@ test('POST /api/v1/auth/login returns 401 for a wrong password through the real 
     '../middleware/rateLimit.middleware': {
       authLimiter: (_req, _res, next) => next(),
       forgotPasswordLimiter: (_req, _res, next) => next(),
+      resendVerificationLimiter: (_req, _res, next) => next(),
       loginLimiter: (_req, _res, next) => next(),
       refreshLimiter: (_req, _res, next) => next(),
       logoutLimiter: (_req, _res, next) => next(),
@@ -256,6 +262,62 @@ test('POST /api/v1/auth/login returns 401 for a wrong password through the real 
   assert.deepEqual(response.body, { message: 'Invalid credentials' })
 })
 
+test('GET /api/v1/departments/public returns public department options without auth', async () => {
+  let protectCalled = false
+  const departmentRoutes = loadWithMocks(resolveFromTest('src', 'routes', 'department.routes.js'), {
+    '../controllers/department.controller': {
+      createDepartment: async (_req, res) => res.status(501).json({ message: 'unused' }),
+      getAllDepartments: async (_req, res) => res.status(501).json({ message: 'unused' }),
+      getPublicDepartments: async (_req, res) => res.json({
+        total: 1,
+        departments: [{ id: 'department-1', name: 'BCA', code: 'BCA' }]
+      }),
+      getDepartmentSections: async (_req, res) => res.status(501).json({ message: 'unused' }),
+      createDepartmentSection: async (_req, res) => res.status(501).json({ message: 'unused' }),
+      deleteDepartmentSection: async (_req, res) => res.status(501).json({ message: 'unused' }),
+      updateDepartment: async (_req, res) => res.status(501).json({ message: 'unused' }),
+      deleteDepartment: async (_req, res) => res.status(501).json({ message: 'unused' })
+    },
+    '../middleware/auth.middleware': {
+      protect: (_req, _res, next) => {
+        protectCalled = true
+        next()
+      },
+      allowRoles: () => (_req, _res, next) => next()
+    },
+    '../middleware/profile.middleware': {
+      attachActorProfiles: (_req, _res, next) => next()
+    },
+    '../middleware/validate.middleware': {
+      validate: () => (_req, _res, next) => next()
+    },
+    '../validators/schemas': {
+      schemas: {
+        departments: {
+          create: {},
+          getSections: {},
+          createSection: {},
+          sectionId: {},
+          update: {},
+          id: {}
+        }
+      }
+    }
+  })
+
+  const testApp = express()
+  testApp.use('/api/v1/departments', departmentRoutes)
+
+  const response = await request(testApp).get('/api/v1/departments/public')
+
+  assert.equal(response.status, 200)
+  assert.equal(protectCalled, false)
+  assert.deepEqual(response.body, {
+    total: 1,
+    departments: [{ id: 'department-1', name: 'BCA', code: 'BCA' }]
+  })
+})
+
 test('POST /api/v1/auth/refresh returns a new token when the refresh cookie is valid', async () => {
   const authRoutes = loadWithMocks(resolveFromTest('src', 'routes', 'auth.routes.js'), {
     '../controllers/auth.controller': {
@@ -271,6 +333,8 @@ test('POST /api/v1/auth/refresh returns a new token when the refresh cookie is v
         }
       }),
       refreshMobile: async (_req, res) => res.status(501).json({ message: 'unused' }),
+      verifyEmail: async (_req, res) => res.status(501).json({ message: 'unused' }),
+      resendVerification: async (_req, res) => res.status(501).json({ message: 'unused' }),
       logout: async (_req, res) => res.status(501).json({ message: 'unused' }),
       getMe: async (_req, res) => res.status(501).json({ message: 'unused' }),
       getStudentIdQr: async (_req, res) => res.status(501).json({ message: 'unused' }),
@@ -290,6 +354,7 @@ test('POST /api/v1/auth/refresh returns a new token when the refresh cookie is v
     '../middleware/rateLimit.middleware': {
       authLimiter: (_req, _res, next) => next(),
       forgotPasswordLimiter: (_req, _res, next) => next(),
+      resendVerificationLimiter: (_req, _res, next) => next(),
       loginLimiter: (_req, _res, next) => next(),
       refreshLimiter: (_req, _res, next) => next(),
       logoutLimiter: (_req, _res, next) => next(),
@@ -323,6 +388,8 @@ test('POST /api/v1/auth/refresh returns 401 when the refresh cookie is missing',
       login: async (_req, res) => res.status(501).json({ message: 'unused' }),
       refresh: async (_req, res) => res.status(401).json({ message: 'Refresh token is required' }),
       refreshMobile: async (_req, res) => res.status(501).json({ message: 'unused' }),
+      verifyEmail: async (_req, res) => res.status(501).json({ message: 'unused' }),
+      resendVerification: async (_req, res) => res.status(501).json({ message: 'unused' }),
       logout: async (_req, res) => res.status(501).json({ message: 'unused' }),
       getMe: async (_req, res) => res.status(501).json({ message: 'unused' }),
       getStudentIdQr: async (_req, res) => res.status(501).json({ message: 'unused' }),
@@ -342,6 +409,7 @@ test('POST /api/v1/auth/refresh returns 401 when the refresh cookie is missing',
     '../middleware/rateLimit.middleware': {
       authLimiter: (_req, _res, next) => next(),
       forgotPasswordLimiter: (_req, _res, next) => next(),
+      resendVerificationLimiter: (_req, _res, next) => next(),
       loginLimiter: (_req, _res, next) => next(),
       refreshLimiter: (_req, _res, next) => next(),
       logoutLimiter: (_req, _res, next) => next(),
@@ -423,6 +491,8 @@ test('POST /api/v1/auth/logout runs the logout limiter before the controller', a
       login: async (_req, res) => res.status(501).json({ message: 'unused' }),
       refresh: async (_req, res) => res.status(501).json({ message: 'unused' }),
       refreshMobile: async (_req, res) => res.status(501).json({ message: 'unused' }),
+      verifyEmail: async (_req, res) => res.status(501).json({ message: 'unused' }),
+      resendVerification: async (_req, res) => res.status(501).json({ message: 'unused' }),
       logout: async (_req, res) => res.status(200).json({ message: 'Logged out successfully' }),
       getMe: async (_req, res) => res.status(501).json({ message: 'unused' }),
       getStudentIdQr: async (_req, res) => res.status(501).json({ message: 'unused' }),
@@ -442,6 +512,7 @@ test('POST /api/v1/auth/logout runs the logout limiter before the controller', a
     '../middleware/rateLimit.middleware': {
       authLimiter: (_req, _res, next) => next(),
       forgotPasswordLimiter: (_req, _res, next) => next(),
+      resendVerificationLimiter: (_req, _res, next) => next(),
       loginLimiter: (_req, _res, next) => next(),
       refreshLimiter: (_req, _res, next) => next(),
       logoutLimiter: (_req, _res, next) => {
@@ -481,6 +552,8 @@ test('POST /api/v1/auth/forgot-password runs the dedicated forgot-password limit
       login: async (_req, res) => res.status(501).json({ message: 'unused' }),
       refresh: async (_req, res) => res.status(501).json({ message: 'unused' }),
       refreshMobile: async (_req, res) => res.status(501).json({ message: 'unused' }),
+      verifyEmail: async (_req, res) => res.status(501).json({ message: 'unused' }),
+      resendVerification: async (_req, res) => res.status(501).json({ message: 'unused' }),
       logout: async (_req, res) => res.status(501).json({ message: 'unused' }),
       getMe: async (_req, res) => res.status(501).json({ message: 'unused' }),
       getStudentIdQr: async (_req, res) => res.status(501).json({ message: 'unused' }),
@@ -503,6 +576,7 @@ test('POST /api/v1/auth/forgot-password runs the dedicated forgot-password limit
         forgotPasswordLimiterCalled = true
         next()
       },
+      resendVerificationLimiter: (_req, _res, next) => next(),
       loginLimiter: (_req, _res, next) => next(),
       refreshLimiter: (_req, _res, next) => next(),
       logoutLimiter: (_req, _res, next) => next(),
@@ -539,6 +613,8 @@ test('PATCH /api/v1/auth/complete-profile rejects invalid dateOfBirth values bef
       login: async (_req, res) => res.status(501).json({ message: 'unused' }),
       refresh: async (_req, res) => res.status(501).json({ message: 'unused' }),
       refreshMobile: async (_req, res) => res.status(501).json({ message: 'unused' }),
+      verifyEmail: async (_req, res) => res.status(501).json({ message: 'unused' }),
+      resendVerification: async (_req, res) => res.status(501).json({ message: 'unused' }),
       logout: async (_req, res) => res.status(501).json({ message: 'unused' }),
       getMe: async (_req, res) => res.status(501).json({ message: 'unused' }),
       getStudentIdQr: async (_req, res) => res.status(501).json({ message: 'unused' }),
@@ -564,6 +640,7 @@ test('PATCH /api/v1/auth/complete-profile rejects invalid dateOfBirth values bef
     '../middleware/rateLimit.middleware': {
       authLimiter: (_req, _res, next) => next(),
       forgotPasswordLimiter: (_req, _res, next) => next(),
+      resendVerificationLimiter: (_req, _res, next) => next(),
       loginLimiter: (_req, _res, next) => next(),
       refreshLimiter: (_req, _res, next) => next(),
       logoutLimiter: (_req, _res, next) => next(),

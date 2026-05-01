@@ -154,6 +154,23 @@ const getAllDepartments = async (req, res) => {
   }
 }
 
+const getPublicDepartments = async (_req, res) => {
+  try {
+    const departments = await prisma.department.findMany({
+      orderBy: { name: 'asc' },
+      select: {
+        id: true,
+        name: true,
+        code: true
+      }
+    })
+
+    res.json({ total: departments.length, departments })
+  } catch (error) {
+    res.internalError(error)
+  }
+}
+
 const updateDepartment = async (req, res) => {
   try {
     const { id } = req.params
@@ -345,6 +362,7 @@ const deleteDepartmentSection = async (req, res) => {
 module.exports = {
   createDepartment,
   getAllDepartments,
+  getPublicDepartments,
   getDepartmentSections,
   createDepartmentSection,
   deleteDepartmentSection,

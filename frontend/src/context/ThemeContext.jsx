@@ -1,7 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 
 const STORAGE_KEY = 'trilearn-theme'
-const LEGACY_STORAGE_KEYS = ['edunexus_theme', 'edunexus-theme']
 const ThemeContext = createContext(null)
 
 const getSystemTheme = () => (
@@ -17,11 +16,7 @@ export const ThemeProvider = ({ children }) => {
         return savedTheme
       }
 
-      const legacyTheme = LEGACY_STORAGE_KEYS
-        .map((key) => window.localStorage.getItem(key))
-        .find(Boolean)
-
-      return legacyTheme || 'system'
+      return 'system'
     } catch {
       return 'system'
     }
@@ -48,7 +43,6 @@ export const ThemeProvider = ({ children }) => {
 
     try {
       window.localStorage.setItem(STORAGE_KEY, theme)
-      LEGACY_STORAGE_KEYS.forEach((key) => window.localStorage.removeItem(key))
     } catch {
       // Ignore storage failures.
     }

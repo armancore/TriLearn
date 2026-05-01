@@ -8,6 +8,11 @@ const { buildUploadedFileUrl } = require('../utils/fileStorage')
 const { removeUploadedFile } = require('../middleware/upload.middleware')
 const { sendMail } = require('../utils/mailer')
 const { passwordResetTemplate } = require('../utils/emailTemplates')
+const {
+  createEmailVerificationToken,
+  hashEmailVerificationToken,
+  sendEmailVerificationEmail
+} = require('../utils/emailVerification')
 const { hashPassword } = require('../utils/security')
 const { signQrPayload } = require('../utils/qrSigning')
 const { sanitizePlainText } = require('../utils/sanitize')
@@ -29,6 +34,7 @@ const buildAuthUser = (user) => ({
   email: user.email,
   avatar: user.avatar || null,
   role: user.role,
+  emailVerified: !!user.emailVerified,
   mustChangePassword: !!user.mustChangePassword,
   profileCompleted: !!user.profileCompleted,
   ...(user.student ? { student: user.student } : {}),
@@ -126,6 +132,7 @@ const getUserSelect = ({ includeProfileDetails = false } = {}) => ({
   role: true,
   avatar: true,
   isActive: true,
+  emailVerified: true,
   mustChangePassword: true,
   profileCompleted: true,
   ...(includeProfileDetails
@@ -162,6 +169,7 @@ const loginUserSelect = {
   password: true,
   role: true,
   isActive: true,
+  emailVerified: true,
   mustChangePassword: true,
   profileCompleted: true,
   failedLoginAttempts: true,
@@ -983,6 +991,84 @@ const forgotPassword = async (req, res) => {
   }
 }
 
+const verifyEmail = async (req, res) => {
+  try {
+    const token = String(req.params?.token || '').trim()
+    if (!token) {
+      return res.status(400).json({ message: 'Verification token is required' })
+    }
+
+    const tokenHash = hashEmailVerificationToken(token)
+    const user = await prisma.user.findFirst({
+      where: {
+        emailVerificationToken: tokenHash,
+        deletedAt: null
+      },
+      select: {
+        id: true,
+        emailVerificationExpiry: true
+      }
+    })
+
+    if (!user || !user.emailVerificationExpiry || user.emailVerificationExpiry <= new Date()) {
+      return res.status(400).json({ message: 'Verification link is invalid or expired' })
+    }
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        emailVerified: true,
+        emailVerificationToken: null,
+        emailVerificationExpiry: null
+      }
+    })
+
+    res.status(200).json({ message: 'Email verified successfully' })
+  } catch (error) {
+    res.internalError(error)
+  }
+}
+
+const resendVerification = async (req, res) => {
+  try {
+    const email = normalizeEmail(req.body?.email)
+    const user = await prisma.user.findUnique({
+      where: { email },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        emailVerified: true,
+        deletedAt: true
+      }
+    })
+
+    if (!user || user.deletedAt || user.emailVerified) {
+      return res.status(200).json({ message: 'If this email needs verification, a new link has been sent.' })
+    }
+
+    const emailVerification = createEmailVerificationToken()
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        emailVerificationToken: emailVerification.tokenHash,
+        emailVerificationExpiry: emailVerification.expiresAt
+      }
+    })
+
+    await sendEmailVerificationEmail({
+      email: user.email,
+      name: user.name,
+      token: emailVerification.token,
+      userId: user.id
+    })
+
+    res.status(200).json({ message: 'If this email needs verification, a new link has been sent.' })
+  } catch (error) {
+    res.internalError(error)
+  }
+}
+
 // ================================
 // RESET PASSWORD
 // ================================
@@ -1308,6 +1394,8 @@ module.exports = {
   changePassword,
   completeProfile,
   forgotPassword,
+  verifyEmail,
+  resendVerification,
   resetPassword,
   refresh,
   refreshMobile,

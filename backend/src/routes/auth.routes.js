@@ -15,12 +15,14 @@ const {
   changePassword,
   completeProfile,
   forgotPassword,
+  verifyEmail,
+  resendVerification,
   resetPassword,
   getActivity,
   logoutAll
 } = authController
 const { protect, allowRoles } = require('../middleware/auth.middleware')
-const { authLimiter, forgotPasswordLimiter, loginLimiter, refreshLimiter, logoutLimiter, uploadLimiter } = require('../middleware/rateLimit.middleware')
+const { authLimiter, forgotPasswordLimiter, loginLimiter, refreshLimiter, logoutLimiter, uploadLimiter, resendVerificationLimiter } = require('../middleware/rateLimit.middleware')
 const { uploadImage, validateUploadedImage } = require('../middleware/upload.middleware')
 const { validate } = require('../middleware/validate.middleware')
 const { schemas } = require('../validators/schemas')
@@ -29,6 +31,8 @@ router.post('/register', authLimiter, validate(schemas.auth.register), register)
 router.post('/student-intake', authLimiter, validate(schemas.auth.studentIntake), submitStudentIntake)
 router.post('/login', loginLimiter, validate(schemas.auth.login), login)
 router.post('/forgot-password', forgotPasswordLimiter, validate(schemas.auth.forgotPassword), forgotPassword)
+router.get('/verify-email/:token', verifyEmail)
+router.post('/resend-verification', resendVerificationLimiter, validate(schemas.auth.resendVerification), resendVerification)
 router.post('/reset-password', authLimiter, validate(schemas.auth.resetPassword), resetPassword)
 router.post('/refresh', refreshLimiter, refresh)
 router.post('/refresh/mobile', refreshLimiter, refreshMobile)

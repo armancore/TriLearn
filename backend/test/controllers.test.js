@@ -534,6 +534,105 @@ test('forgotPassword returns the same generic response when account does not exi
   }
 })
 
+test('verifyEmail marks the user verified and clears token fields', async () => {
+  const userUpdates = []
+  const { verifyEmail } = loadWithMocks(resolveFromTest('src', 'controllers', 'auth.controller.js'), authControllerMocks({
+    '../utils/prisma': {
+      user: {
+        findFirst: async (payload) => {
+          assert.equal(payload.where.emailVerificationToken, 'hashed-token')
+          return {
+            id: 'user-1',
+            emailVerificationExpiry: new Date(Date.now() + 60_000)
+          }
+        },
+        update: async (payload) => {
+          userUpdates.push(payload)
+          return {}
+        }
+      }
+    },
+    '../utils/emailVerification': {
+      createEmailVerificationToken: () => ({
+        token: 'raw-token',
+        tokenHash: 'hashed-token',
+        expiresAt: new Date(Date.now() + 86_400_000)
+      }),
+      hashEmailVerificationToken: () => 'hashed-token',
+      sendEmailVerificationEmail: async () => true
+    }
+  }))
+
+  const req = { params: { token: 'raw-token' } }
+  const res = createResponse()
+
+  await verifyEmail(req, res)
+
+  assert.equal(res.statusCode, 200)
+  assert.deepEqual(res.body, { message: 'Email verified successfully' })
+  assert.deepEqual(userUpdates[0].data, {
+    emailVerified: true,
+    emailVerificationToken: null,
+    emailVerificationExpiry: null
+  })
+})
+
+test('resendVerification regenerates the token and sends a verification email', async () => {
+  const userUpdates = []
+  const sentEmails = []
+  const expiresAt = new Date(Date.now() + 86_400_000)
+  const { resendVerification } = loadWithMocks(resolveFromTest('src', 'controllers', 'auth.controller.js'), authControllerMocks({
+    '../utils/prisma': {
+      user: {
+        findUnique: async (payload) => {
+          assert.equal(payload.where.email, 'student@example.com')
+          return {
+            id: 'user-1',
+            name: 'Student One',
+            email: 'student@example.com',
+            emailVerified: false,
+            deletedAt: null
+          }
+        },
+        update: async (payload) => {
+          userUpdates.push(payload)
+          return {}
+        }
+      }
+    },
+    '../utils/emailVerification': {
+      createEmailVerificationToken: () => ({
+        token: 'new-token',
+        tokenHash: 'new-token-hash',
+        expiresAt
+      }),
+      hashEmailVerificationToken: () => 'unused',
+      sendEmailVerificationEmail: async (payload) => {
+        sentEmails.push(payload)
+        return true
+      }
+    }
+  }))
+
+  const req = { body: { email: 'Student@Example.com' } }
+  const res = createResponse()
+
+  await resendVerification(req, res)
+
+  assert.equal(res.statusCode, 200)
+  assert.deepEqual(res.body, { message: 'If this email needs verification, a new link has been sent.' })
+  assert.deepEqual(userUpdates[0].data, {
+    emailVerificationToken: 'new-token-hash',
+    emailVerificationExpiry: expiresAt
+  })
+  assert.deepEqual(sentEmails[0], {
+    email: 'student@example.com',
+    name: 'Student One',
+    token: 'new-token',
+    userId: 'user-1'
+  })
+})
+
 test('resetPassword revokes existing refresh tokens inside the password reset transaction', async () => {
   const transactionCalls = []
 

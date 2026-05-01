@@ -29,7 +29,7 @@ const passwordResetTemplate = ({ name, resetUrl }) => ({
   text: `Hi ${name},\n\nReset your password: ${resetUrl}\n\nExpires in 30 minutes.`
 })
 
-const welcomeTemplate = ({ name, email, tempPassword }) => ({
+const welcomeTemplate = ({ name, email, tempPassword, verificationUrl }) => ({
   subject: 'Welcome to TriLearn - your account is ready',
   html: base(`
     <p>Hi ${name},</p>
@@ -43,8 +43,33 @@ const welcomeTemplate = ({ name, email, tempPassword }) => ({
     </table>
     <p style="color:#dc2626;font-size:13px">
       You will be asked to change your password on first login.
+    </p>
+    ${verificationUrl
+      ? `<p>Please verify your email address within <strong>24 hours</strong>.</p>${btn(verificationUrl, 'Verify Email')}`
+      : ''}`),
+  text: [
+    `Hi ${name}`,
+    '',
+    `Email: ${email}`,
+    `Password: ${tempPassword}`,
+    '',
+    'Change your password on first login.',
+    ...(verificationUrl
+      ? ['', `Verify your email within 24 hours: ${verificationUrl}`]
+      : [])
+  ].join('\n')
+})
+
+const emailVerificationTemplate = ({ name, verificationUrl }) => ({
+  subject: 'Verify your TriLearn email',
+  html: base(`
+    <p>Hi ${name},</p>
+    <p>Please verify your email address. This link expires in <strong>24 hours</strong>.</p>
+    ${btn(verificationUrl, 'Verify Email')}
+    <p style="color:#64748b;font-size:13px">
+      If you did not expect this email, ignore it.
     </p>`),
-  text: `Hi ${name},\n\nEmail: ${email}\nPassword: ${tempPassword}\n\nChange your password on first login.`
+  text: `Hi ${name},\n\nVerify your email: ${verificationUrl}\n\nExpires in 24 hours.`
 })
 
 const noticeTemplate = ({ title, content, audience, type }) => ({
@@ -59,6 +84,7 @@ const noticeTemplate = ({ title, content, audience, type }) => ({
 
 module.exports = {
   passwordResetTemplate,
+  emailVerificationTemplate,
   welcomeTemplate,
   noticeTemplate
 }

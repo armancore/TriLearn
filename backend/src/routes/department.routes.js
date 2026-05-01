@@ -7,6 +7,7 @@ const { schemas } = require('../validators/schemas')
 const {
   createDepartment,
   getAllDepartments,
+  getPublicDepartments,
   getDepartmentSections,
   createDepartmentSection,
   deleteDepartmentSection,
@@ -14,6 +15,7 @@ const {
   deleteDepartment
 } = require('../controllers/department.controller')
 
+router.get('/public', getPublicDepartments)
 router.get('/', protect, attachActorProfiles, getAllDepartments)
 
 router.use(protect)

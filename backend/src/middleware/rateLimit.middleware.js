@@ -73,6 +73,11 @@ const forgotPasswordRateLimitKey = (req) => {
   return `${ipKey}:${email || 'unknown-email'}`
 }
 
+const emailRateLimitKey = (req) => {
+  const email = String(req.body?.email || '').trim().toLowerCase()
+  return email || ipKeyGenerator(req.ip || '')
+}
+
 const loginRateLimitKey = (req) => {
   const email = String(req.body?.email || '').trim().toLowerCase()
   return email || ipKeyGenerator(req.ip || '')
@@ -111,6 +116,13 @@ const forgotPasswordLimiter = createLimiter({
   max: 5,
   message: 'Too many password reset attempts, please try again later',
   keyGenerator: forgotPasswordRateLimitKey
+})
+
+const resendVerificationLimiter = createLimiter({
+  windowMs: 60 * 60 * 1000,
+  max: 3,
+  message: 'Too many verification email requests, please try again later',
+  keyGenerator: emailRateLimitKey
 })
 
 const loginLimiter = createLimiter({
@@ -175,6 +187,7 @@ module.exports = {
   authLimiter,
   forgotPasswordLimiter,
   forgotPasswordRateLimitKey,
+  resendVerificationLimiter,
   loginRateLimitKey,
   loginLimiter,
   refreshLimiter,
