@@ -25,6 +25,7 @@ const { protect, allowRoles } = require('../middleware/auth.middleware')
 const { authLimiter, forgotPasswordLimiter, loginLimiter, refreshLimiter, logoutLimiter, uploadLimiter, resendVerificationLimiter } = require('../middleware/rateLimit.middleware')
 const { uploadImage, validateUploadedImage } = require('../middleware/upload.middleware')
 const { validate } = require('../middleware/validate.middleware')
+const { validateMobileClient } = require('../middleware/mobileClient.middleware')
 const { schemas } = require('../validators/schemas')
 
 router.post('/register', authLimiter, validate(schemas.auth.register), register)
@@ -68,7 +69,7 @@ router.post('/refresh', refreshLimiter, refresh)
  *       200:
  *         description: New access token and rotated refresh token.
  */
-router.post('/refresh/mobile', refreshLimiter, refreshMobile)
+router.post('/refresh/mobile', validateMobileClient, refreshLimiter, refreshMobile)
 router.post('/logout', logoutLimiter, logout)
 router.post('/logout-all', protect, logoutAll)
 router.get('/me', protect, getMe)

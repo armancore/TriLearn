@@ -8,6 +8,7 @@ const logger = require('./utils/logger')
 const validateEnv = require('./utils/validateEnv')
 const { apiLimiter } = require('./middleware/rateLimit.middleware')
 const { protect } = require('./middleware/auth.middleware')
+const { enforceHttps } = require('./middleware/enforceHttps.middleware')
 const { requestId } = require('./middleware/requestId.middleware')
 const { uploadPublicPaths } = require('./utils/fileStorage')
 const { csrfProtection, getTrustedOrigins, isTrustedOrigin } = require('./middleware/csrf.middleware')
@@ -92,6 +93,7 @@ app.use(helmet({
     preload: true
   }
 }))
+app.use(enforceHttps)
 app.use((_req, res, next) => {
   res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()')
   next()
@@ -185,6 +187,10 @@ const PORT = process.env.PORT || 5000
 const startServer = async () => {
   if (server) {
     return server
+  }
+
+  if (process.env.NODE_ENV === 'production' && process.env.FORCE_HTTPS !== 'true') {
+    logger.warn('FORCE_HTTPS is not set to true in production. Confirm the reverse proxy forwards X-Forwarded-Proto: https before accepting traffic.')
   }
 
   void warmRedisConnection({ context: 'startup warmup' })

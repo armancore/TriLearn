@@ -14,6 +14,8 @@ process.env.FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173'
 process.env.NODE_ENV = process.env.NODE_ENV || 'test'
 
 const { app } = require('../src/index')
+const { enforceHttps } = require('../src/middleware/enforceHttps.middleware')
+const { validateMobileClient } = require('../src/middleware/mobileClient.middleware')
 
 const resolveFromTest = (...segments) => path.resolve(__dirname, '..', ...segments)
 
@@ -84,6 +86,132 @@ test('GET /health returns 404 for external requests without a health check key',
 
   assert.equal(response.status, 404)
   assert.deepEqual(response.body, { message: 'Route not found' })
+})
+
+test('enforceHttps blocks insecure production requests', async () => {
+  const originalNodeEnv = process.env.NODE_ENV
+  process.env.NODE_ENV = 'production'
+
+  try {
+    const testApp = express()
+    testApp.use(enforceHttps)
+    testApp.get('/api/v1/auth/me', (_req, res) => res.json({ ok: true }))
+
+    const response = await request(testApp).get('/api/v1/auth/me')
+
+    assert.equal(response.status, 400)
+    assert.deepEqual(response.body, { message: 'HTTPS is required' })
+  } finally {
+    process.env.NODE_ENV = originalNodeEnv
+  }
+})
+
+test('enforceHttps allows forwarded HTTPS production requests', async () => {
+  const originalNodeEnv = process.env.NODE_ENV
+  process.env.NODE_ENV = 'production'
+
+  try {
+    const testApp = express()
+    testApp.use(enforceHttps)
+    testApp.get('/api/v1/auth/me', (_req, res) => res.json({ ok: true }))
+
+    const response = await request(testApp)
+      .get('/api/v1/auth/me')
+      .set('X-Forwarded-Proto', 'https')
+
+    assert.equal(response.status, 200)
+    assert.deepEqual(response.body, { ok: true })
+  } finally {
+    process.env.NODE_ENV = originalNodeEnv
+  }
+})
+
+test('enforceHttps exempts health and docs routes in production', async () => {
+  const originalNodeEnv = process.env.NODE_ENV
+  process.env.NODE_ENV = 'production'
+
+  try {
+    const testApp = express()
+    testApp.use(enforceHttps)
+    testApp.get('/health', (_req, res) => res.json({ status: 'ok' }))
+    testApp.get('/api/docs', (_req, res) => res.json({ docs: true }))
+
+    const healthResponse = await request(testApp).get('/health')
+    const docsResponse = await request(testApp).get('/api/docs')
+
+    assert.equal(healthResponse.status, 200)
+    assert.deepEqual(healthResponse.body, { status: 'ok' })
+    assert.equal(docsResponse.status, 200)
+    assert.deepEqual(docsResponse.body, { docs: true })
+  } finally {
+    process.env.NODE_ENV = originalNodeEnv
+  }
+})
+
+test('validateMobileClient rejects mobile endpoints without signed client headers', async () => {
+  const testApp = express()
+  testApp.use(validateMobileClient)
+  testApp.post('/auth/refresh/mobile', (_req, res) => res.json({ ok: true }))
+
+  const response = await request(testApp)
+    .post('/auth/refresh/mobile')
+    .set('X-Client-Type', 'mobile')
+
+  assert.equal(response.status, 400)
+  assert.deepEqual(response.body, { message: 'Missing mobile client headers.' })
+})
+
+test('validateMobileClient rejects mobile app versions below MIN_MOBILE_VERSION', async () => {
+  const originalMinMobileVersion = process.env.MIN_MOBILE_VERSION
+  process.env.MIN_MOBILE_VERSION = '2.0.0'
+
+  try {
+    const testApp = express()
+    testApp.use(validateMobileClient)
+    testApp.post('/auth/refresh/mobile', (_req, res) => res.json({ ok: true }))
+
+    const response = await request(testApp)
+      .post('/auth/refresh/mobile')
+      .set('X-Client-Type', 'mobile')
+      .set('X-App-Version', '1.9.9')
+
+    assert.equal(response.status, 426)
+    assert.deepEqual(response.body, {
+      message: 'Please update the TriLearn app',
+      minVersion: '2.0.0'
+    })
+  } finally {
+    if (originalMinMobileVersion === undefined) {
+      delete process.env.MIN_MOBILE_VERSION
+    } else {
+      process.env.MIN_MOBILE_VERSION = originalMinMobileVersion
+    }
+  }
+})
+
+test('validateMobileClient records valid mobile app versions on the request logger', async () => {
+  const logContext = []
+  const testApp = express()
+  testApp.use((req, _res, next) => {
+    req.logger = {
+      child: (context) => {
+        logContext.push(context)
+        return req.logger
+      }
+    }
+    next()
+  })
+  testApp.use(validateMobileClient)
+  testApp.post('/auth/refresh/mobile', (req, res) => res.json({ version: req.mobileAppVersion }))
+
+  const response = await request(testApp)
+    .post('/auth/refresh/mobile')
+    .set('X-Client-Type', 'mobile')
+    .set('X-App-Version', '1.2.3')
+
+  assert.equal(response.status, 200)
+  assert.deepEqual(response.body, { version: '1.2.3' })
+  assert.deepEqual(logContext, [{ mobileAppVersion: '1.2.3' }])
 })
 
 test('GET / responds with the generic not found payload', async () => {

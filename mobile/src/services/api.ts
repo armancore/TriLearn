@@ -1,4 +1,5 @@
 import axios, { AxiosError, type InternalAxiosRequestConfig } from 'axios';
+import Constants from 'expo-constants';
 
 import { API_BASE_URL } from '@/src/constants/config';
 import { refreshAccessToken } from '@/src/services/auth.service';
@@ -12,6 +13,7 @@ interface RetryableRequestConfig extends InternalAxiosRequestConfig {
 
 let refreshPromise: Promise<RefreshTokenResponse> | null = null;
 let isSessionInvalidated = false;
+const APP_VERSION = Constants.expoConfig?.version ?? '1.0.0';
 
 export const resetRefreshState = (): void => {
   refreshPromise = null;
@@ -23,6 +25,7 @@ export const api = axios.create({
   timeout: 15000,
   headers: {
     'X-Client-Type': 'mobile',
+    'X-App-Version': APP_VERSION,
   },
 });
 
@@ -36,6 +39,7 @@ api.interceptors.request.use((config) => {
 
   config.headers = config.headers ?? {};
   (config.headers as Record<string, string>)['X-Client-Type'] = 'mobile';
+  (config.headers as Record<string, string>)['X-App-Version'] = APP_VERSION;
 
   return config;
 });
@@ -45,6 +49,13 @@ api.interceptors.response.use(
   async (error: AxiosError) => {
     const originalRequest = error.config as RetryableRequestConfig | undefined;
     const authState = useAuthStore.getState();
+
+    if (error.response?.status === 426) {
+      isSessionInvalidated = true;
+      authState.clearSession();
+      refreshPromise = null;
+      return Promise.reject(error);
+    }
 
     if (error.response?.status !== 401 || !originalRequest || originalRequest._retry) {
       return Promise.reject(error);
@@ -79,6 +90,8 @@ api.interceptors.response.use(
 
       originalRequest.headers = originalRequest.headers ?? {};
       (originalRequest.headers as Record<string, string>).Authorization = `Bearer ${refreshed.accessToken}`;
+      (originalRequest.headers as Record<string, string>)['X-Client-Type'] = 'mobile';
+      (originalRequest.headers as Record<string, string>)['X-App-Version'] = APP_VERSION;
 
       return api(originalRequest);
     } catch (refreshError) {

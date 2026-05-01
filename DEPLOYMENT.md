@@ -8,6 +8,7 @@
 - Expose `GET /health` for container and platform health checks
 - Configure `FRONTEND_URL` with the exact deployed frontend origin
 - Set upload storage env vars explicitly if you keep local-disk uploads
+- Set `FORCE_HTTPS=true` after confirming the reverse proxy forwards HTTPS metadata
 
 ## Database migrations
 
@@ -42,6 +43,38 @@ DATABASE_URL=postgresql://USER:PASSWORD@HOST:5432/trilearn?connection_limit=10&p
 
 - `GET /ping` for a simple liveness probe
 - `GET /health` for a database-backed readiness probe
+
+## HTTPS reverse proxy
+
+The backend enforces HTTPS in production before routing requests. It accepts a
+request only when Express sees `req.secure === true` or the reverse proxy sends:
+
+```nginx
+proxy_set_header X-Forwarded-Proto $scheme;
+```
+
+A minimal Nginx location block should include:
+
+```nginx
+location / {
+  proxy_pass http://127.0.0.1:5000;
+  proxy_http_version 1.1;
+  proxy_set_header Host $host;
+  proxy_set_header X-Real-IP $remote_addr;
+  proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+  proxy_set_header X-Forwarded-Proto $scheme;
+}
+```
+
+Production deployments should also set:
+
+```env
+FORCE_HTTPS=true
+```
+
+If `NODE_ENV=production` and `FORCE_HTTPS` is not set to `true`, the backend
+logs a startup warning so the deployment team explicitly acknowledges HTTPS and
+proxy forwarding have been configured.
 
 ## Docker
 
