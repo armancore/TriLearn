@@ -4,6 +4,10 @@ import { SOCKET_URL } from '@/src/constants/config';
 
 let socket: Socket | null = null;
 
+type AuthRefreshAck = {
+  ok?: boolean;
+};
+
 export const connectSocket = (token: string, userId: string): Socket => {
   if (socket?.connected) {
     return socket;
@@ -33,8 +37,14 @@ export const updateSocketToken = (newToken: string): void => {
   }
 
   socket.auth = { token: newToken };
-  socket.disconnect();
-  socket.connect();
+
+  if (socket.connected) {
+    socket.emit('auth:refresh', { token: newToken }, (ack?: AuthRefreshAck) => {
+      if (ack?.ok === false) {
+        socket?.disconnect();
+      }
+    });
+  }
 };
 
 export const getSocket = (): Socket | null => socket;

@@ -44,6 +44,7 @@ export default function StudentScannerScreen() {
   const [message, setMessage] = useState('Scan an instructor or gate attendance QR.');
   const [flash, setFlash] = useState<FlashState>(null);
   const resetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isProcessingRef = useRef(false);
 
   const scanMutation = useMutation({
     mutationFn: async (qrData: string) => {
@@ -62,8 +63,10 @@ export default function StudentScannerScreen() {
 
   const resetScanner = useCallback(() => {
     clearResetTimer();
+    isProcessingRef.current = false;
     setFlash(null);
     setMessage('Scan an instructor or gate attendance QR.');
+    setIsFetching(false);
     setIsScanning(true);
   }, [clearResetTimer]);
 
@@ -74,14 +77,19 @@ export default function StudentScannerScreen() {
     }, 1500);
   }, [clearResetTimer, resetScanner]);
 
-  useEffect(() => clearResetTimer, [clearResetTimer]);
+  useEffect(() => () => {
+    clearResetTimer();
+    isProcessingRef.current = false;
+  }, [clearResetTimer]);
 
   const handleBarcodeScanned = useCallback(async ({ data }: BarcodeScanningResult) => {
-    if (!isScanning || isFetching || !data) {
+    if (isProcessingRef.current || !isScanning || !data) {
       return;
     }
 
+    isProcessingRef.current = true;
     setIsFetching(true);
+    setIsScanning(false);
     setMessage('Marking attendance...');
     setFlash(null);
 
@@ -97,10 +105,9 @@ export default function StudentScannerScreen() {
       setFlash({ type: 'error', message: errorMessage });
     } finally {
       setIsFetching(false);
-      setIsScanning(false);
       scheduleAutoReset();
     }
-  }, [isFetching, isScanning, scanMutation, scheduleAutoReset]);
+  }, [isScanning, scanMutation, scheduleAutoReset]);
 
   if (!permission) {
     return (

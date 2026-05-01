@@ -41,6 +41,22 @@ export default function InstructorQrScreen() {
   const [expiresAt, setExpiresAt] = useState<number | null>(null);
   const [secondsRemaining, setSecondsRemaining] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const autoRefreshIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const generateRef = useRef<(() => void) | null>(null);
+
+  const clearAutoRefresh = useCallback(() => {
+    if (autoRefreshIntervalRef.current) {
+      clearInterval(autoRefreshIntervalRef.current);
+      autoRefreshIntervalRef.current = null;
+    }
+  }, []);
+
+  const resetAutoRefresh = useCallback((delayMs: number) => {
+    clearAutoRefresh();
+    autoRefreshIntervalRef.current = setInterval(() => {
+      generateRef.current?.();
+    }, delayMs);
+  }, [clearAutoRefresh]);
 
   const subjectsQuery = useQuery({
     queryKey: ['subjects', 'instructor'],
@@ -78,13 +94,22 @@ export default function InstructorQrScreen() {
       setGeneratedQr(data);
       setExpiresAt(Date.now() + parsedValidMinutes * 60 * 1000);
       setSecondsRemaining(parsedValidMinutes * 60);
+      resetAutoRefresh(parsedValidMinutes * 60 * 1000);
     },
   });
-  const generateRef = useRef(generateMutation.mutate);
 
   useEffect(() => {
     generateRef.current = generateMutation.mutate;
   }, [generateMutation.mutate]);
+
+  useEffect(() => () => clearAutoRefresh(), [clearAutoRefresh]);
+
+  useEffect(() => {
+    clearAutoRefresh();
+    setGeneratedQr(null);
+    setExpiresAt(null);
+    setSecondsRemaining(0);
+  }, [clearAutoRefresh, selectedSubject?.id]);
 
   useEffect(() => {
     if (!expiresAt) return undefined;
@@ -96,16 +121,6 @@ export default function InstructorQrScreen() {
 
     return () => clearInterval(interval);
   }, [expiresAt]);
-
-  useEffect(() => {
-    if (!generatedQr || !selectedSubject) return undefined;
-
-    const interval = setInterval(() => {
-      generateRef.current();
-    }, parsedValidMinutes * 60 * 1000);
-
-    return () => clearInterval(interval);
-  }, [generatedQr, parsedValidMinutes, selectedSubject]);
 
   const handleRefresh = useCallback(async () => {
     setIsRefreshing(true);

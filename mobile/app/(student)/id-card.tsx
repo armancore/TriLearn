@@ -36,6 +36,7 @@ export default function StudentIdCardScreen() {
       return response.data;
     },
     staleTime: 60 * 60 * 1000,
+    refetchOnMount: 'always',
   });
 
   const user = profileQuery.data?.user;

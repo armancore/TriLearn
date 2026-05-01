@@ -55,13 +55,14 @@ const buildWinstonMock = () => {
     }
   }
 
+  const format = (transform) => () => ({ transform })
+  format.combine = (...parts) => parts
+  format.timestamp = () => 'timestamp'
+  format.json = () => 'json'
+
   return {
     createLogger: (options) => options,
-    format: {
-      combine: (...parts) => parts,
-      timestamp: () => 'timestamp',
-      json: () => 'json'
-    },
+    format,
     transports: {
       Console: ConsoleTransport,
       File: FileTransport
@@ -123,4 +124,31 @@ test('logger keeps the file transport outside production', async () => {
       process.env.NODE_ENV = originalNodeEnv
     }
   }
+})
+
+test('logger redacts refresh tokens and other sensitive request body fields', async () => {
+  const logger = loadWithMocks(resolveFromTest('src', 'utils', 'logger.js'), {
+    fs: {
+      mkdirSync: () => {}
+    },
+    winston: buildWinstonMock()
+  })
+
+  const payload = {
+    body: {
+      refreshToken: 'raw-refresh-token',
+      accessToken: 'raw-access-token',
+      nested: {
+        password: 'secret-password'
+      },
+      email: 'student@example.com'
+    }
+  }
+
+  const sanitized = logger.sanitizeLogMeta(payload)
+
+  assert.equal(sanitized.body.refreshToken, logger.REDACTED)
+  assert.equal(sanitized.body.accessToken, logger.REDACTED)
+  assert.equal(sanitized.body.nested.password, logger.REDACTED)
+  assert.equal(sanitized.body.email, 'student@example.com')
 })

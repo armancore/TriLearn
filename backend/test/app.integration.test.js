@@ -15,6 +15,7 @@ process.env.NODE_ENV = process.env.NODE_ENV || 'test'
 
 const { app } = require('../src/index')
 const { enforceHttps } = require('../src/middleware/enforceHttps.middleware')
+const { csrfProtection } = require('../src/middleware/csrf.middleware')
 const { validateMobileClient } = require('../src/middleware/mobileClient.middleware')
 
 const resolveFromTest = (...segments) => path.resolve(__dirname, '..', ...segments)
@@ -212,6 +213,38 @@ test('validateMobileClient records valid mobile app versions on the request logg
   assert.equal(response.status, 200)
   assert.deepEqual(response.body, { version: '1.2.3' })
   assert.deepEqual(logContext, [{ mobileAppVersion: '1.2.3' }])
+})
+
+test('csrfProtection rejects spoofed mobile bearer requests when browser cookies are present', async () => {
+  const testApp = express()
+  testApp.use(csrfProtection)
+  testApp.post('/api/v1/subjects', (_req, res) => res.json({ ok: true }))
+
+  const response = await request(testApp)
+    .post('/api/v1/subjects')
+    .set('Authorization', 'Bearer access-token')
+    .set('X-Client-Type', 'mobile')
+    .set('X-App-Version', '1.2.3')
+    .set('Origin', 'https://evil.example')
+    .set('Cookie', ['refreshToken=web-refresh-token'])
+
+  assert.equal(response.status, 403)
+  assert.deepEqual(response.body, { message: 'CSRF validation failed' })
+})
+
+test('csrfProtection allows native mobile bearer requests without browser context', async () => {
+  const testApp = express()
+  testApp.use(csrfProtection)
+  testApp.post('/api/v1/subjects', (_req, res) => res.json({ ok: true }))
+
+  const response = await request(testApp)
+    .post('/api/v1/subjects')
+    .set('Authorization', 'Bearer access-token')
+    .set('X-Client-Type', 'mobile')
+    .set('X-App-Version', '1.2.3')
+
+  assert.equal(response.status, 200)
+  assert.deepEqual(response.body, { ok: true })
 })
 
 test('GET / responds with the generic not found payload', async () => {

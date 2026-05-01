@@ -78,8 +78,9 @@ const csrfProtection = (req, res, next) => {
   const hasBrowserContext = Boolean(req.headers.origin || req.headers.referer)
   const hasBearerToken = req.headers.authorization?.startsWith('Bearer ') === true
 
-  // Native mobile clients use explicit token headers/body refresh tokens, not browser forms.
-  if (hasValidMobileClientHeaders(req) && hasBearerToken) {
+  // Native mobile clients use explicit tokens, but never skip CSRF when browser
+  // cookies or Origin/Referer headers are present.
+  if (hasValidMobileClientHeaders(req) && hasBearerToken && !hasCookieHeader && !hasBrowserContext) {
     return next()
   }
 

@@ -59,6 +59,29 @@ const resolveSocketToken = (socket) => {
   return null
 }
 
+const verifySocketTokenUser = async (token) => {
+  const decoded = jwt.verify(token, getSocketAccessSecret())
+  if (decoded?.type !== 'access') {
+    throw new Error('Invalid token type')
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { id: decoded.id },
+    select: {
+      id: true,
+      role: true,
+      isActive: true,
+      deletedAt: true
+    }
+  })
+
+  if (!user || user.deletedAt || !user.isActive) {
+    throw new Error('User is not authorized')
+  }
+
+  return user
+}
+
 const createSocketEventRateLimiter = ({ maxEvents, windowMs, now = () => Date.now() }) => {
   let tokens = maxEvents
   let lastRefillAt = now()
@@ -143,26 +166,7 @@ const initRealtime = async ({ server, allowedOrigins = [] }) => {
         return next(new Error('Authentication required'))
       }
 
-      const decoded = jwt.verify(token, getSocketAccessSecret())
-      if (decoded?.type !== 'access') {
-        return next(new Error('Invalid token type'))
-      }
-
-      const user = await prisma.user.findUnique({
-        where: { id: decoded.id },
-        select: {
-          id: true,
-          role: true,
-          isActive: true,
-          deletedAt: true
-        }
-      })
-
-      if (!user || user.deletedAt || !user.isActive) {
-        return next(new Error('User is not authorized'))
-      }
-
-      socket.data.user = user
+      socket.data.user = await verifySocketTokenUser(token)
       next()
     } catch (error) {
       next(error)
@@ -195,6 +199,30 @@ const initRealtime = async ({ server, allowedOrigins = [] }) => {
     })
 
     socket.join(getRoomName(userId))
+
+    socket.on('auth:refresh', async (payload, ack) => {
+      try {
+        const token = typeof payload?.token === 'string' ? payload.token.trim() : ''
+        if (!token) {
+          throw new Error('Authentication required')
+        }
+
+        const nextUser = await verifySocketTokenUser(token)
+        if (nextUser.id !== socket.data.user?.id) {
+          throw new Error('Cannot switch socket users')
+        }
+
+        socket.data.user = nextUser
+        if (typeof ack === 'function') {
+          ack({ ok: true })
+        }
+      } catch {
+        if (typeof ack === 'function') {
+          ack({ ok: false })
+        }
+        socket.disconnect(true)
+      }
+    })
   })
 
   return io

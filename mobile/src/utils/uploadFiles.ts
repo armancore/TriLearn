@@ -4,6 +4,8 @@ import * as Sharing from 'expo-sharing';
 import { BACKEND_ORIGIN } from '@/src/constants/config';
 import { useAuthStore } from '@/src/store/auth.store';
 
+const CLEANUP_DELAY_MS = 5 * 60 * 1000;
+
 const getUploadUrl = (fileUrl: string) => {
   if (/^https?:\/\//i.test(fileUrl)) {
     return fileUrl;
@@ -52,6 +54,7 @@ export const downloadFile = async (
 
   const safeFilename = getSafeFileName(filename);
   const localUri = `${FileSystem.documentDirectory}${Date.now()}_${safeFilename}`;
+  let shouldScheduleCleanup = false;
 
   try {
     const result = await FileSystem.downloadAsync(url, localUri, {
@@ -69,12 +72,19 @@ export const downloadFile = async (
         mimeType: getMimeType(safeFilename),
         dialogTitle: 'Open file',
       });
+      shouldScheduleCleanup = true;
       return;
     }
 
     throw new Error('No file viewer is available on this device.');
   } finally {
-    await FileSystem.deleteAsync(localUri, { idempotent: true });
+    if (shouldScheduleCleanup) {
+      setTimeout(() => {
+        void FileSystem.deleteAsync(localUri, { idempotent: true });
+      }, CLEANUP_DELAY_MS);
+    } else {
+      await FileSystem.deleteAsync(localUri, { idempotent: true });
+    }
   }
 };
 
