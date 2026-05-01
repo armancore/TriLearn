@@ -416,10 +416,11 @@ const submitStudentIntake = async (req, res) => {
     }
 
     const existingUser = await prisma.user.findUnique({
-      where: { email: normalizedEmail }
+      where: { email: normalizedEmail },
+      select: { deletedAt: true }
     })
 
-    if (existingUser) {
+    if (existingUser && !existingUser.deletedAt) {
       return respondGenericEligibility(res, startedAt)
     }
 
@@ -1006,6 +1007,7 @@ const verifyEmail = async (req, res) => {
       },
       select: {
         id: true,
+        emailVerified: true,
         emailVerificationExpiry: true
       }
     })
@@ -1014,12 +1016,14 @@ const verifyEmail = async (req, res) => {
       return res.status(400).json({ message: 'Verification link is invalid or expired' })
     }
 
+    if (user.emailVerified) {
+      return res.status(200).json({ message: 'Email verified successfully' })
+    }
+
     await prisma.user.update({
       where: { id: user.id },
       data: {
-        emailVerified: true,
-        emailVerificationToken: null,
-        emailVerificationExpiry: null
+        emailVerified: true
       }
     })
 

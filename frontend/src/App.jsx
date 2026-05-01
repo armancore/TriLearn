@@ -7,6 +7,7 @@ import ForgotPassword from './pages/auth/ForgotPassword'
 import ResetPassword from './pages/auth/ResetPassword'
 import ChangePassword from './pages/auth/ChangePassword'
 import StudentIntakeForm from './pages/auth/StudentIntakeForm'
+import VerifyEmail from './pages/auth/VerifyEmail'
 import HomePage from './pages/shared/HomePage'
 
 // Admin pages
@@ -76,6 +77,7 @@ const AppRoutes = () => {
       <Route path="/student-intake" element={withRouteBoundary(<StudentIntakeForm />)} />
       <Route path="/forgot-password" element={!user ? withRouteBoundary(<ForgotPassword />) : <Navigate to={homeRoute} />} />
       <Route path="/reset-password" element={!user ? withRouteBoundary(<ResetPassword />) : <Navigate to={homeRoute} />} />
+      <Route path="/verify-email" element={withRouteBoundary(<VerifyEmail />)} />
       <Route path="/change-password" element={<ProtectedRoute><ChangePassword /></ProtectedRoute>} />
 
       {/* Admin Routes */}

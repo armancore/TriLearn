@@ -534,7 +534,7 @@ test('forgotPassword returns the same generic response when account does not exi
   }
 })
 
-test('verifyEmail marks the user verified and clears token fields', async () => {
+test('verifyEmail marks the user verified and keeps the token idempotent until expiry', async () => {
   const userUpdates = []
   const { verifyEmail } = loadWithMocks(resolveFromTest('src', 'controllers', 'auth.controller.js'), authControllerMocks({
     '../utils/prisma': {
@@ -543,6 +543,7 @@ test('verifyEmail marks the user verified and clears token fields', async () => 
           assert.equal(payload.where.emailVerificationToken, 'hashed-token')
           return {
             id: 'user-1',
+            emailVerified: false,
             emailVerificationExpiry: new Date(Date.now() + 60_000)
           }
         },
@@ -571,10 +572,39 @@ test('verifyEmail marks the user verified and clears token fields', async () => 
   assert.equal(res.statusCode, 200)
   assert.deepEqual(res.body, { message: 'Email verified successfully' })
   assert.deepEqual(userUpdates[0].data, {
-    emailVerified: true,
-    emailVerificationToken: null,
-    emailVerificationExpiry: null
+    emailVerified: true
   })
+})
+
+test('verifyEmail returns success for an already verified user with a valid token', async () => {
+  const userUpdates = []
+  const { verifyEmail } = loadWithMocks(resolveFromTest('src', 'controllers', 'auth.controller.js'), authControllerMocks({
+    '../utils/prisma': {
+      user: {
+        findFirst: async () => ({
+          id: 'user-1',
+          emailVerified: true,
+          emailVerificationExpiry: new Date(Date.now() + 60_000)
+        }),
+        update: async (payload) => {
+          userUpdates.push(payload)
+          return {}
+        }
+      }
+    },
+    '../utils/emailVerification': {
+      hashEmailVerificationToken: () => 'hashed-token'
+    }
+  }))
+
+  const req = { params: { token: 'raw-token' } }
+  const res = createResponse()
+
+  await verifyEmail(req, res)
+
+  assert.equal(res.statusCode, 200)
+  assert.deepEqual(res.body, { message: 'Email verified successfully' })
+  assert.equal(userUpdates.length, 0)
 })
 
 test('resendVerification regenerates the token and sends a verification email', async () => {
@@ -1096,6 +1126,54 @@ test('submitStudentIntake returns a generic response when a matching user alread
     Date.now = originalNow
     global.setTimeout = originalSetTimeout
   }
+})
+
+test('submitStudentIntake creates an application when the matching user is soft deleted', async () => {
+  const upsertCalls = []
+  const { submitStudentIntake } = loadWithMocks(resolveFromTest('src', 'controllers', 'auth.controller.js'), authControllerMocks({
+    '../utils/prisma': {
+      studentApplication: {
+        findUnique: async () => null,
+        upsert: async (payload) => {
+          upsertCalls.push(payload)
+          return payload
+        }
+      },
+      user: {
+        findUnique: async () => ({
+          deletedAt: new Date()
+        })
+      }
+    }
+  }))
+
+  const req = {
+    body: {
+      fullName: 'Student User',
+      email: 'student@example.com',
+      phone: '9800000000',
+      fatherName: 'Father',
+      motherName: 'Mother',
+      fatherPhone: '9800000001',
+      motherPhone: '9800000002',
+      bloodGroup: 'A+',
+      localGuardianName: 'Guardian',
+      localGuardianAddress: 'Kathmandu',
+      localGuardianPhone: '9800000003',
+      permanentAddress: 'Bhaktapur',
+      temporaryAddress: 'Lalitpur',
+      dateOfBirth: '2005-01-01',
+      preferredDepartment: 'BCA'
+    }
+  }
+  const res = createResponse()
+
+  await submitStudentIntake(req, res)
+
+  assert.equal(res.statusCode, 200)
+  assert.equal(upsertCalls.length, 1)
+  assert.equal(upsertCalls[0].create.email, 'student@example.com')
+  assert.equal(upsertCalls[0].create.preferredDepartment, 'BCA')
 })
 
 test('logout does not run token revocation when no refresh token is provided', async () => {

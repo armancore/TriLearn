@@ -10,7 +10,7 @@ import {
 } from '../utils/api'
 
 const AuthContext = createContext()
-const PUBLIC_AUTH_ROUTES = new Set(['/login', '/forgot-password', '/reset-password', '/student-intake'])
+const PUBLIC_AUTH_ROUTES = new Set(['/login', '/forgot-password', '/reset-password', '/student-intake', '/verify-email'])
 const clearClientSession = () => {
   setAuthState({ token: null, user: null })
 }
