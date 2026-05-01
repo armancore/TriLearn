@@ -134,7 +134,7 @@ const GateDashboard = () => {
   const operationalChecklist = [
     'Keep the rotating QR visible only during active windows.',
     'Use student ID card scanning when students cannot use mobile scan.',
-    'Confirm semester eligibility before manually assisting scans.',
+    'Confirm the scanner reads the student ID card QR before marking attendance.',
     'Refresh immediately if timer appears stale or window just changed.'
   ]
 
@@ -239,28 +239,7 @@ const GateDashboard = () => {
                 </div>
 
                 {liveQrState?.active ? (
-                  <div className="mt-6 grid gap-5 lg:grid-cols-[minmax(0,1fr)_310px] lg:items-start">
-                    <div className="space-y-3">
-                      {liveQrState.periods?.map((period, index) => (
-                        <motion.div
-                          key={period.id}
-                          className="rounded-2xl border border-[var(--color-card-border)] bg-[var(--color-surface-muted)] px-4 py-4"
-                          initial={reduceMotion ? false : { opacity: 0, y: 10 }}
-                          animate={reduceMotion ? {} : { opacity: 1, y: 0 }}
-                          transition={reduceMotion ? {} : { duration: 0.22, delay: index * 0.05 }}
-                        >
-                          <p className="text-sm font-semibold text-[var(--color-heading)]">{period.title || 'Student QR Slot'}</p>
-                          <p className="mt-1 text-xs text-[var(--color-text-muted)]">{period.startTime} to {period.endTime}</p>
-                          <div className="mt-3 flex flex-wrap gap-2">
-                            {period.allowedSemesters?.map((semester) => (
-                              <span key={semester} className="ui-status-badge ui-status-warning">Semester {semester}</span>
-                            ))}
-                          </div>
-                        </motion.div>
-                      ))}
-                    </div>
-
-                    <div className="rounded-[1.4rem] border border-[var(--color-card-border)] bg-[var(--color-surface-muted)] p-4">
+                  <div className="mx-auto mt-6 max-w-sm rounded-[1.4rem] border border-[var(--color-card-border)] bg-[var(--color-surface-muted)] p-4">
                       <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-[0.18em] text-[var(--color-text-soft)]">
                         <span>Rotating QR</span>
                         <QrCode className="h-4 w-4" />
@@ -279,7 +258,6 @@ const GateDashboard = () => {
                           />
                         </div>
                       </div>
-                    </div>
                   </div>
                 ) : (
                   <div className="mt-6 rounded-3xl border border-dashed border-[var(--color-card-border)] bg-[var(--color-surface-muted)] px-5 py-8 text-center">

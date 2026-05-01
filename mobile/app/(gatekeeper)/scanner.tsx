@@ -2,7 +2,7 @@ import { CameraView, type BarcodeScanningResult, useCameraPermissions } from 'ex
 import { AxiosError } from 'axios';
 import { useMutation } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Text, View } from 'react-native';
 
 import { AppButton } from '@/src/components/AppButton';
 import { COLORS } from '@/src/constants/colors';
@@ -50,20 +50,16 @@ const getErrorMessage = (error: unknown) => {
 export default function GatekeeperScannerScreen() {
   const [permission, requestPermission] = useCameraPermissions();
   const [overlay, setOverlay] = useState<OverlayState | null>(null);
-  const [manualOpen, setManualOpen] = useState(false);
-  const [rollNumber, setRollNumber] = useState('');
   const dismissTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const isScannerLocked = Boolean(overlay);
 
   const mutation = useMutation({
-    mutationFn: async (body: { qrData?: string; rollNumber?: string }) => {
+    mutationFn: async (body: { qrData: string }) => {
       const response = await api.post<ScanResponse>('/attendance/scan-student-id', body);
       return response.data;
     },
     onSuccess: (data) => {
-      setManualOpen(false);
-      setRollNumber('');
       setOverlay({ type: 'success', result: buildScanResult(data) });
     },
     onError: (error) => {
@@ -100,12 +96,6 @@ export default function GatekeeperScannerScreen() {
     },
     [isScannerLocked, mutation],
   );
-
-  const handleManualSubmit = useCallback(() => {
-    const value = rollNumber.trim();
-    if (!value || mutation.isPending || isScannerLocked) return;
-    mutation.mutate({ rollNumber: value });
-  }, [isScannerLocked, mutation, rollNumber]);
 
   const overlayStyles = useMemo(() => {
     if (overlay?.type === 'success') {
@@ -149,7 +139,7 @@ export default function GatekeeperScannerScreen() {
   }
 
   return (
-    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} className="flex-1 bg-slate-950">
+    <View className="flex-1 bg-slate-950">
       <CameraView
         barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
         facing="back"
@@ -167,38 +157,9 @@ export default function GatekeeperScannerScreen() {
         </View>
 
         <View className="rounded-2xl bg-black/50 p-4">
-          {manualOpen ? (
-            <View>
-              <Text className="mb-2 text-sm font-semibold text-white">Manual roll number</Text>
-              <TextInput
-                autoCapitalize="characters"
-                className="h-12 rounded-xl bg-white px-4 text-base text-slate-900"
-                editable={!mutation.isPending && !isScannerLocked}
-                onChangeText={setRollNumber}
-                placeholder="Enter roll number"
-                placeholderTextColor="#9CA3AF"
-                value={rollNumber}
-              />
-              <View className="mt-3 flex-row gap-3">
-                <Pressable className="flex-1 rounded-xl bg-white/15 py-3" onPress={() => setManualOpen(false)}>
-                  <Text className="text-center text-sm font-bold text-white">Cancel</Text>
-                </Pressable>
-                <Pressable
-                  className="flex-1 rounded-xl bg-white py-3"
-                  disabled={!rollNumber.trim() || mutation.isPending || isScannerLocked}
-                  onPress={handleManualSubmit}
-                >
-                  <Text className="text-center text-sm font-bold text-primary">
-                    {mutation.isPending ? 'Checking...' : 'Submit'}
-                  </Text>
-                </Pressable>
-              </View>
-            </View>
-          ) : (
-            <Pressable className="rounded-xl bg-white py-3" onPress={() => setManualOpen(true)}>
-              <Text className="text-center text-sm font-bold text-primary">Enter roll number manually</Text>
-            </Pressable>
-          )}
+          <Text className="text-center text-sm font-semibold text-white">
+            Student ID QR scans only
+          </Text>
         </View>
       </View>
 
@@ -229,6 +190,6 @@ export default function GatekeeperScannerScreen() {
           <ActivityIndicator color="#FFFFFF" size="large" />
         </View>
       ) : null}
-    </KeyboardAvoidingView>
+    </View>
   );
 }

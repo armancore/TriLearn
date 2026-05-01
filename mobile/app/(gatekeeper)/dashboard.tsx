@@ -76,10 +76,9 @@ export default function GatekeeperDashboardScreen() {
   });
 
   const secondsLeft = secondsUntil(query.data?.expiresAt);
-  const activePeriods = query.data?.periods ?? [];
   const allowedSemesters = useMemo(
-    () => [...new Set(activePeriods.flatMap((period) => period.allowedSemesters).concat(query.data?.allowedSemesters ?? []))],
-    [activePeriods, query.data?.allowedSemesters],
+    () => [...new Set(query.data?.allowedSemesters ?? [])],
+    [query.data?.allowedSemesters],
   );
 
   const handleRefresh = useCallback(async () => {
@@ -153,23 +152,6 @@ export default function GatekeeperDashboardScreen() {
                   : 'No active attendance window right now.')}
             </Text>
           </View>
-        )}
-      </View>
-
-      <View className="mt-5 rounded-3xl bg-white p-5">
-        <Text className="text-lg font-bold text-slate-900">Active Periods</Text>
-        {activePeriods.length ? (
-          <View className="mt-3 gap-3">
-            {activePeriods.map((period) => (
-              <View className="rounded-2xl bg-slate-100 p-4" key={period.id}>
-                <Text className="text-base font-bold text-slate-900">{period.title}</Text>
-                <Text className="mt-1 text-sm text-slate-600">{period.startTime} - {period.endTime}</Text>
-                <Text className="mt-2 text-sm font-semibold text-primary">Semesters {period.allowedSemesters.join(', ') || '-'}</Text>
-              </View>
-            ))}
-          </View>
-        ) : (
-          <Text className="mt-3 text-sm text-slate-500">Active windows will appear here when gate attendance is open.</Text>
         )}
       </View>
 

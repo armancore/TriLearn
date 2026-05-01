@@ -26,6 +26,15 @@ const progressTone = (percentage) => {
   return '#ef4444'
 }
 
+const getQrType = (qrData) => {
+  try {
+    const parsed = JSON.parse(qrData)
+    return typeof parsed?.payload?.type === 'string' ? parsed.payload.type : null
+  } catch {
+    return null
+  }
+}
+
 const AttendanceRing = ({ percentage }) => {
   const numericPercentage = Number.parseFloat(percentage) || 0
   const tone = ringTone(numericPercentage)
@@ -118,15 +127,16 @@ const StudentAttendance = () => {
     detectorRef.current = null
   }, [])
 
-  const submitDailyQr = useCallback(async (qrData) => {
+  const submitAttendanceQr = useCallback(async (qrData) => {
     if (!qrData) return
 
     try {
       setSubmittingScan(true)
       setError('')
 
-      const res = await api.post('/attendance/scan-daily-qr', { qrData })
-      const subjectList = res.data.markedSubjects.map((subject) => subject.code).join(', ')
+      const endpoint = getQrType(qrData) === 'GATE_STUDENT_QR' ? '/attendance/scan-daily-qr' : '/attendance/scan-qr'
+      const res = await api.post(endpoint, { qrData })
+      const subjectList = (res.data.markedSubjects || []).map((subject) => subject.code).join(', ')
       showToast({
         title: 'Attendance marked successfully.',
         description: subjectList ? `Recorded for ${subjectList}` : res.data.message
@@ -208,7 +218,7 @@ const StudentAttendance = () => {
           if (qrValue) {
             stopScanner()
             setScannerStatus('QR detected. Submitting attendance...')
-            await submitDailyQr(qrValue)
+            await submitAttendanceQr(qrValue)
           }
         } catch (detectError) {
           logger.error(detectError)
@@ -220,7 +230,7 @@ const StudentAttendance = () => {
       setError('Camera access was denied or unavailable')
       stopScanner()
     }
-  }, [scannerSupported, stopScanner, submitDailyQr, submittingScan])
+  }, [scannerSupported, stopScanner, submitAttendanceQr, submittingScan])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -257,7 +267,7 @@ const StudentAttendance = () => {
           actions={[
             { label: 'Start Scanner', icon: Camera, variant: 'primary', onClick: startScanner, disabled: submittingScan },
             { label: 'Stop', icon: Square, variant: 'secondary', onClick: () => { stopScanner(); setScannerOpen(false); setScannerStatus('Scanner stopped.') } },
-            { label: submittingScan ? 'Submitting...' : 'Submit QR', icon: Upload, variant: 'secondary', onClick: () => submitDailyQr(manualQrData), disabled: !manualQrData.trim() || submittingScan },
+            { label: submittingScan ? 'Submitting...' : 'Submit QR', icon: Upload, variant: 'secondary', onClick: () => submitAttendanceQr(manualQrData), disabled: !manualQrData.trim() || submittingScan },
             { label: downloadingPdf ? 'Preparing PDF...' : 'Download PDF', icon: Download, variant: 'secondary', onClick: downloadAttendancePdf, disabled: downloadingPdf },
             { label: 'Open Requests', icon: FileText, variant: 'secondary', to: '/student/requests' }
           ]}
@@ -338,11 +348,11 @@ const StudentAttendance = () => {
               placeholder="If your phone browser cannot scan live, paste the QR payload here."
               className="ui-form-input"
             />
-            <button
-              type="button"
-              onClick={() => submitDailyQr(manualQrData)}
-              disabled={!manualQrData.trim() || submittingScan}
-              className="ui-role-fill mt-3 px-4 py-2 rounded-lg transition text-sm font-medium disabled:opacity-50"
+              <button
+                type="button"
+                onClick={() => submitAttendanceQr(manualQrData)}
+                disabled={!manualQrData.trim() || submittingScan}
+                className="ui-role-fill mt-3 px-4 py-2 rounded-lg transition text-sm font-medium disabled:opacity-50"
             >
               {submittingScan ? 'Submitting...' : 'Submit QR'}
             </button>
