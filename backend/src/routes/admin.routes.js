@@ -7,24 +7,28 @@ const { uploadSpreadsheet, validateUploadedSpreadsheet } = require('../middlewar
 const { validate } = require('../middleware/validate.middleware')
 const { schemas } = require('../validators/schemas')
 const {
-  getAdminStats,
-  getAllUsers,
-  getUserById,
+  getAdminStats
+} = require('../controllers/admin.controller')
+const {
   getStudentApplications,
   updateStudentApplicationStatus,
   createStudentFromApplication,
-  deleteStudentApplication,
+  deleteStudentApplication
+} = require('../controllers/studentApplications.controller')
+const {
+  getAllUsers,
+  getUserById,
   createCoordinator,
   createGatekeeper,
   createInstructor,
   createStudent,
-  importStudents,
   updateUser,
   bulkAssignStudentSection,
   promoteStudentSemester,
   toggleUserStatus,
   deleteUser
-} = require('../controllers/admin.controller')
+} = require('../controllers/users.controller')
+const { importStudents } = require('../controllers/bulkImport.controller')
 
 router.use(protect)
 router.use(attachActorProfiles)

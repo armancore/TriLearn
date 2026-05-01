@@ -1,4 +1,6 @@
+const crypto = require('crypto')
 const QRCode = require('qrcode')
+const { getReadyRedisClient } = require('../../utils/redis')
 const {
   QR_VALIDITY_MINUTES,
   prisma,
@@ -20,7 +22,7 @@ const generateQR = async (req, res) => {
   try {
     const { subjectId, date, validMinutes } = req.body
     const parsedValidMinutes = Number(validMinutes)
-    const qrValidityMinutes = Number.isInteger(parsedValidMinutes) && parsedValidMinutes >= 1 && parsedValidMinutes <= 60
+    const qrValidityMinutes = Number.isInteger(parsedValidMinutes) && parsedValidMinutes >= 1 && parsedValidMinutes <= 15
       ? parsedValidMinutes
       : QR_VALIDITY_MINUTES
 
@@ -69,7 +71,21 @@ const markAttendanceQR = async (req, res) => {
 
     const parsedQR = parseQrPayload(qrData)
     if (!parsedQR) return res.status(400).json({ message: 'Invalid QR code' })
-    if (new Date() > new Date(parsedQR.expiresAt)) return res.status(400).json({ message: 'QR code has expired' })
+    const expiresAt = new Date(parsedQR.expiresAt)
+    const now = new Date()
+    if (now > expiresAt) return res.status(400).json({ message: 'QR code has expired' })
+
+    const qrHash = crypto.createHash('sha256').update(qrData).digest('hex')
+    const qrReplayKey = `qr-used:${student.id}:${qrHash}`
+    let redis = null
+    try {
+      redis = await getReadyRedisClient({ context: 'QR attendance replay guard' })
+      if (redis && await redis.exists(qrReplayKey)) {
+        return res.status(409).json({ message: 'Attendance already recorded for this QR code' })
+      }
+    } catch {
+      redis = null
+    }
 
     const { subjectId, instructorId } = parsedQR
     const subject = await prisma.subject.findUnique({ where: { id: subjectId } })
@@ -111,6 +127,15 @@ const markAttendanceQR = async (req, res) => {
         student: { include: { user: { select: { name: true } } } }
       }
     })
+
+    if (redis) {
+      try {
+        const remainingValiditySeconds = Math.max(1, Math.ceil((expiresAt.getTime() - Date.now()) / 1000))
+        await redis.set(qrReplayKey, '1', { EX: remainingValiditySeconds })
+      } catch {
+        // Redis replay tracking is best-effort; attendance should not fail after the database write.
+      }
+    }
 
     res.status(201).json({
       message: 'Attendance marked successfully!',

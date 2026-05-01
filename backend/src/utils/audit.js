@@ -1,6 +1,14 @@
 const logger = require('./logger')
 const prisma = require('./prisma')
 
+/**
+ * @typedef {Object} AuditMetadata
+ * @property {string} [ipAddress]
+ * @property {string} [userAgent]
+ * @property {string} [sessionId]
+ * @property {string} [targetUserId]
+ * @property {Record<string, unknown>} [extra]
+ */
 const recordAuditLog = async ({
   actorId,
   actorRole,
@@ -11,6 +19,14 @@ const recordAuditLog = async ({
   db = prisma
 }) => {
   try {
+    const normalizedMetadata = metadata == null || (typeof metadata === 'object' && !Array.isArray(metadata))
+      ? metadata
+      : null
+
+    if (metadata !== normalizedMetadata) {
+      logger.warn('Ignoring invalid audit log metadata payload')
+    }
+
     await db.auditLog.create({
       data: {
         actorId: actorId || null,
@@ -18,7 +34,7 @@ const recordAuditLog = async ({
         action,
         entityType,
         entityId,
-        metadata
+        metadata: normalizedMetadata
       }
     })
   } catch (error) {

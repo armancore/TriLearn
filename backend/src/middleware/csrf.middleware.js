@@ -70,6 +70,17 @@ const resolveRequestOrigin = (req) => {
 }
 
 const csrfProtection = (req, res, next) => {
+  /*
+   * This API uses Origin/Referer validation instead of a synchronizer token because
+   * browser requests with cookie credentials already include a browser-controlled
+   * origin signal that can be checked against the configured frontend origins. The
+   * threat model is browser-initiated cross-site requests where an attacker site can
+   * cause the browser to send ambient cookies to this API but cannot choose a trusted
+   * Origin header for a cross-origin fetch. Native mobile clients that authenticate
+   * with Bearer tokens and send no cookies are exempt because they do not rely on
+   * ambient browser credentials, so the CSRF primitive is absent. This depends on
+   * browsers enforcing the Origin header on cross-origin fetches.
+   */
   if (SAFE_METHODS.has(req.method)) {
     return next()
   }

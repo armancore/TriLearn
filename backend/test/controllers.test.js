@@ -572,7 +572,9 @@ test('verifyEmail marks the user verified and keeps the token idempotent until e
   assert.equal(res.statusCode, 200)
   assert.deepEqual(res.body, { message: 'Email verified successfully' })
   assert.deepEqual(userUpdates[0].data, {
-    emailVerified: true
+    emailVerified: true,
+    emailVerificationToken: null,
+    emailVerificationExpiry: null
   })
 })
 

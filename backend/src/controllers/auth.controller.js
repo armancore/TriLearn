@@ -182,27 +182,13 @@ const loginUserSelect = {
   deletedAt: true
 }
 
-let loginCaptchaSecretWarningShown = false
 const getLoginCaptchaSecret = () => {
   const captchaSecret = String(process.env.LOGIN_CAPTCHA_SECRET || '').trim()
   if (captchaSecret) {
     return captchaSecret
   }
 
-  const jwtSecret = String(process.env.JWT_SECRET || '').trim()
-  if (jwtSecret) {
-    if (!loginCaptchaSecretWarningShown) {
-      loginCaptchaSecretWarningShown = true
-      logger.warn('LOGIN_CAPTCHA_SECRET is not set; falling back to JWT_SECRET for login captcha signing')
-    }
-    return jwtSecret
-  }
-
-  if (!loginCaptchaSecretWarningShown) {
-    loginCaptchaSecretWarningShown = true
-    logger.error('Unable to initialize login captcha signing secret because both LOGIN_CAPTCHA_SECRET and JWT_SECRET are missing')
-  }
-
+  logger.error('Unable to initialize login captcha signing secret because LOGIN_CAPTCHA_SECRET is missing')
   return null
 }
 
@@ -1031,7 +1017,9 @@ const verifyEmail = async (req, res) => {
     await prisma.user.update({
       where: { id: user.id },
       data: {
-        emailVerified: true
+        emailVerified: true,
+        emailVerificationToken: null,
+        emailVerificationExpiry: null
       }
     })
 
@@ -1120,6 +1108,7 @@ const resetPassword = async (req, res) => {
           password: hashedPassword,
           mustChangePassword: false,
           passwordChangedAt: new Date(),
+          // Clear the consumed reset token so the link cannot be reused.
           passwordResetTokenHash: null,
           passwordResetExpiresAt: null,
           failedLoginAttempts: 0,
