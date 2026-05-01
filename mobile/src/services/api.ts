@@ -11,6 +11,12 @@ interface RetryableRequestConfig extends InternalAxiosRequestConfig {
 }
 
 let refreshPromise: Promise<RefreshTokenResponse> | null = null;
+let isSessionInvalidated = false;
+
+export const resetRefreshState = (): void => {
+  refreshPromise = null;
+  isSessionInvalidated = false;
+};
 
 export const api = axios.create({
   baseURL: API_BASE_URL,
@@ -44,7 +50,12 @@ api.interceptors.response.use(
       return Promise.reject(error);
     }
 
+    if (isSessionInvalidated) {
+      return Promise.reject(error);
+    }
+
     if (!authState.refreshToken) {
+      isSessionInvalidated = true;
       authState.clearSession();
       return Promise.reject(error);
     }
@@ -64,16 +75,17 @@ api.interceptors.response.use(
         refreshToken: nextRefreshToken,
       });
       updateSocketToken(refreshed.accessToken);
+      refreshPromise = null;
 
       originalRequest.headers = originalRequest.headers ?? {};
       (originalRequest.headers as Record<string, string>).Authorization = `Bearer ${refreshed.accessToken}`;
 
       return api(originalRequest);
     } catch (refreshError) {
+      isSessionInvalidated = true;
       authState.clearSession();
-      return Promise.reject(refreshError);
-    } finally {
       refreshPromise = null;
+      return Promise.reject(refreshError);
     }
   },
 );

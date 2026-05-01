@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
 
 import { disconnectSocket } from '@/src/services/socket.service';
-import { api } from '@/src/services/api';
+import { api, resetRefreshState } from '@/src/services/api';
 import { login as loginRequest } from '@/src/services/auth.service';
 import { useAuthStore } from '@/src/store/auth.store';
 import { useNotificationsStore } from '@/src/store/notifications.store';
@@ -24,6 +24,7 @@ export const useAuth = () => {
         accessToken: response.accessToken,
         refreshToken: response.refreshToken,
       });
+      resetRefreshState();
       return response;
     },
     [setSession],
