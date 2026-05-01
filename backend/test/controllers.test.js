@@ -881,6 +881,27 @@ test('auth dateOfBirth schemas parse strict YYYY-MM-DD values into Date objects'
 
   assert.ok(completeProfileBody.dateOfBirth instanceof Date)
   assert.equal(completeProfileBody.dateOfBirth.toISOString(), '2005-01-01T00:00:00.000Z')
+
+  const reparsedIntakeBody = schemas.auth.studentIntake.body.parse({
+    fullName: 'Student User',
+    email: 'student@example.com',
+    phone: '9800000000',
+    fatherName: 'Father',
+    motherName: 'Mother',
+    fatherPhone: '9800000001',
+    motherPhone: '9800000002',
+    bloodGroup: 'A+',
+    localGuardianName: 'Guardian',
+    localGuardianAddress: 'Kathmandu',
+    localGuardianPhone: '9800000003',
+    permanentAddress: 'Bhaktapur',
+    temporaryAddress: 'Lalitpur',
+    dateOfBirth: completeProfileBody.dateOfBirth,
+    preferredDepartment: 'BCA'
+  })
+
+  assert.ok(reparsedIntakeBody.dateOfBirth instanceof Date)
+  assert.equal(reparsedIntakeBody.dateOfBirth.toISOString(), '2005-01-01T00:00:00.000Z')
 })
 
 test('auth dateOfBirth schemas reject invalid and out-of-range values', () => {

@@ -92,31 +92,40 @@ const isDateOfBirthInRange = (value) => {
   return value >= MIN_DATE_OF_BIRTH && value <= maxDate
 }
 
-const dateOfBirthSchema = z.string()
-  .trim()
-  .max(10, 'Date of birth must use the YYYY-MM-DD format')
-  .regex(/^\d{4}-\d{2}-\d{2}$/, 'Date of birth must use the YYYY-MM-DD format')
-  .transform((value, ctx) => {
-    const parsed = parseDateOnlyToUtc(value)
-
-    if (!parsed) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'Date of birth must be a real calendar date'
-      })
-      return z.NEVER
+const dateOfBirthSchema = z.preprocess(
+  (value) => {
+    if (value instanceof Date && !Number.isNaN(value.getTime())) {
+      return value.toISOString().slice(0, 10)
     }
 
-    if (!isDateOfBirthInRange(parsed)) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'Date of birth must be between 1920-01-01 and today'
-      })
-      return z.NEVER
-    }
+    return value
+  },
+  z.string()
+    .trim()
+    .max(10, 'Date of birth must use the YYYY-MM-DD format')
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'Date of birth must use the YYYY-MM-DD format')
+    .transform((value, ctx) => {
+      const parsed = parseDateOnlyToUtc(value)
 
-    return parsed
-  })
+      if (!parsed) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Date of birth must be a real calendar date'
+        })
+        return z.NEVER
+      }
+
+      if (!isDateOfBirthInRange(parsed)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Date of birth must be between 1920-01-01 and today'
+        })
+        return z.NEVER
+      }
+
+      return parsed
+    })
+)
 
 const optionalDateOfBirthSchema = z.preprocess(
   emptyToUndefined,
