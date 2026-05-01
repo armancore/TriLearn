@@ -5,11 +5,12 @@ const ACCESS_TOKEN_EXPIRES_IN = process.env.ACCESS_TOKEN_EXPIRES_IN || '15m'
 const REFRESH_TOKEN_EXPIRES_DAYS = parseInt(process.env.REFRESH_TOKEN_EXPIRES_DAYS || '7', 10)
 
 const getAccessSecret = () => {
-  if (!process.env.JWT_SECRET) {
-    throw new Error('JWT_SECRET must be configured')
+  const accessSecret = process.env.JWT_ACCESS_SECRET || process.env.JWT_SECRET
+  if (!accessSecret) {
+    throw new Error('JWT_ACCESS_SECRET must be configured')
   }
 
-  return process.env.JWT_SECRET
+  return accessSecret
 }
 
 const getRefreshSecret = () => {

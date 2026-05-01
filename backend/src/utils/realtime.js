@@ -17,11 +17,12 @@ const SOCKET_EVENT_RATE_LIMIT_WINDOW_MS = parsePositiveInteger(process.env.SOCKE
 const getRoomName = (userId) => `user:${userId}`
 
 const getSocketAccessSecret = () => {
-  if (!process.env.JWT_SECRET) {
-    throw new Error('JWT_SECRET must be configured')
+  const accessSecret = process.env.JWT_ACCESS_SECRET || process.env.JWT_SECRET
+  if (!accessSecret) {
+    throw new Error('JWT_ACCESS_SECRET must be configured')
   }
 
-  return process.env.JWT_SECRET
+  return accessSecret
 }
 
 const isDevelopmentEnvironment = () => process.env.NODE_ENV === 'development'

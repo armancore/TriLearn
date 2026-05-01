@@ -22,7 +22,7 @@ const parseBcryptSaltRounds = (value) => {
   return parsed
 }
 
-const getBcryptSaltRounds = () => parseBcryptSaltRounds(process.env.BCRYPT_SALT_ROUNDS)
+const getBcryptSaltRounds = () => parseBcryptSaltRounds(process.env.BCRYPT_ROUNDS || process.env.BCRYPT_SALT_ROUNDS)
 
 const hashPassword = (password) => bcrypt.hash(password, getBcryptSaltRounds())
 

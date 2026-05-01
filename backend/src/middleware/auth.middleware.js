@@ -47,6 +47,8 @@ const findAuthorizedUser = async (userId) => prisma.user.findUnique({
   select: getUserSelectShape()
 })
 
+const getAccessSecret = () => process.env.JWT_ACCESS_SECRET || process.env.JWT_SECRET
+
 const protect = async (req, res, next) => {
   try {
     // Tokens must be delivered via the Authorization header (Bearer ...) — we keep the JWT in memory on the frontend so we avoid cookies.
@@ -56,7 +58,7 @@ const protect = async (req, res, next) => {
       return res.status(401).json({ message: 'No token, access denied' })
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET)
+    const decoded = jwt.verify(token, getAccessSecret())
     if (decoded?.type !== 'access') {
       return res.status(401).json({ message: 'Invalid token type' })
     }

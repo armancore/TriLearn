@@ -1,0 +1,7 @@
+{
+  "name": "trilearn",
+  "private": true,
+  "scripts": {
+    "dev:docker": "docker-compose up --build"
+  }
+}
