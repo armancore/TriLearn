@@ -12,6 +12,7 @@ const { schemas } = require('../validators/schemas')
 const {
   markAttendanceManual,
   getAttendanceBySubject,
+  getBulkAttendanceSummary,
   getMyAttendance,
   exportMyAttendancePdf,
   getSubjectRoster,
@@ -84,6 +85,7 @@ router.post('/generate-qr', allowRoles('INSTRUCTOR', 'COORDINATOR'), validate(sc
  *         description: Attendance records saved.
  */
 router.post('/manual', allowRoles('INSTRUCTOR', 'COORDINATOR'), validate(schemas.attendance.manual), markAttendanceManual)
+router.get('/bulk-summary', allowRoles('INSTRUCTOR', 'COORDINATOR', 'ADMIN'), validate(schemas.attendance.bulkSummary), getBulkAttendanceSummary)
 router.get('/coordinator/department-report', allowRoles('COORDINATOR'), validate(schemas.attendance.coordinatorReport), getCoordinatorDepartmentAttendanceReport)
 router.get('/coordinator/department-report/export', allowRoles('COORDINATOR'), validate(schemas.attendance.coordinatorExport), exportCoordinatorDepartmentAttendanceReport)
 router.get('/subject/:subjectId/monthly-report', allowRoles('COORDINATOR', 'ADMIN'), validate(schemas.attendance.monthlyReport), getMonthlyAttendanceReport)

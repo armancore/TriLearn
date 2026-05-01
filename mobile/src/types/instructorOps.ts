@@ -49,6 +49,16 @@ export interface AttendanceBySubjectResponse {
   subject: Subject;
 }
 
+export interface AttendanceSummary {
+  present: number;
+  absent: number;
+  late: number;
+  total: number;
+  percentage: number;
+}
+
+export type AttendanceBulkSummaryResponse = Record<string, AttendanceSummary>;
+
 export interface ManualAttendancePayload {
   subjectId: string;
   attendanceDate: string;

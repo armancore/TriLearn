@@ -187,6 +187,7 @@ test('attendance QR route flow generates QR, records attendance, and blocks dupl
     '../controllers/attendance/attendance.controller': {
       markAttendanceManual: async (_req, res) => res.status(501).json({ message: 'unused' }),
       getAttendanceBySubject: async (_req, res) => res.status(501).json({ message: 'unused' }),
+      getBulkAttendanceSummary: async (_req, res) => res.status(501).json({ message: 'unused' }),
       getMyAttendance: async (_req, res) => res.status(501).json({ message: 'unused' }),
       exportMyAttendancePdf: async (_req, res) => res.status(501).json({ message: 'unused' }),
       getSubjectRoster: async (_req, res) => res.status(501).json({ message: 'unused' }),

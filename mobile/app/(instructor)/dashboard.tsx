@@ -6,7 +6,7 @@ import { COLORS } from '@/src/constants/colors';
 import { useAuth } from '@/src/hooks/useAuth';
 import { api } from '@/src/services/api';
 import type { AssignmentsResponse, AssignmentSubmission } from '@/src/types/assignment';
-import type { AttendanceBySubjectResponse } from '@/src/types/instructorOps';
+import type { AttendanceBulkSummaryResponse } from '@/src/types/instructorOps';
 import type { RoutinesResponse } from '@/src/types/routine';
 import type { Subject, SubjectsResponse } from '@/src/types/subject';
 
@@ -83,20 +83,20 @@ export default function InstructorDashboardScreen() {
     queryFn: async () => (await api.get<AssignmentsResponse>('/assignments?page=1&limit=5')).data,
   });
 
-  const attendanceQuery = useQuery({
-    queryKey: ['attendance', 'instructor', 'dashboard', todayDate, subjectsQuery.data?.map((subject) => subject.id).join(',')],
-    enabled: Boolean(subjectsQuery.data?.length),
-    queryFn: async () => {
-      const subjects = subjectsQuery.data ?? [];
-      const summaries = await Promise.all(
-        subjects.slice(0, 6).map(async (subject) => {
-          const response = await api.get<AttendanceBySubjectResponse>(
-            `/attendance/subject/${subject.id}?date=${todayDate}&limit=1`,
-          );
+  const subjectIds = useMemo(
+    () => (subjectsQuery.data ?? []).slice(0, 6).map((subject) => subject.id),
+    [subjectsQuery.data],
+  );
+  const subjectIdsKey = subjectIds.join(',');
 
-          return response.data.summary;
-        }),
+  const attendanceQuery = useQuery({
+    queryKey: ['attendance-bulk', subjectIdsKey],
+    enabled: subjectIds.length > 0,
+    queryFn: async () => {
+      const response = await api.get<AttendanceBulkSummaryResponse>(
+        `/attendance/bulk-summary?subjectIds=${encodeURIComponent(subjectIdsKey)}&date=${todayDate}`,
       );
+      const summaries = Object.values(response.data);
 
       return summaries.reduce(
         (total, summary) => ({
@@ -201,6 +201,8 @@ export default function InstructorDashboardScreen() {
       <SectionHeader title="Attendance Snapshot" subtitle="Recorded across assigned subjects today" />
       {attendanceQuery.isLoading ? (
         <EmptyPanel text="Loading attendance..." />
+      ) : attendanceQuery.isError ? (
+        <EmptyPanel text="Could not load attendance. Pull to refresh and try again." />
       ) : attendance.total === 0 ? (
         <EmptyPanel text="No attendance recorded yet today" />
       ) : (

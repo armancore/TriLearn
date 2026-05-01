@@ -103,6 +103,80 @@ const getAttendanceBySubject = async (req, res) => {
   }
 }
 
+const getBulkAttendanceSummary = async (req, res) => {
+  try {
+    const { subjectIds, date } = req.query
+    const uniqueSubjectIds = [...new Set(subjectIds)]
+    const dayRange = date ? getDayRange(date) : null
+
+    if (date && !dayRange) {
+      return res.status(400).json({ message: 'Please provide a valid date filter' })
+    }
+
+    if (req.user.role === 'INSTRUCTOR' && !req.instructor) {
+      return res.status(403).json({ message: 'Instructor profile not found' })
+    }
+
+    if (req.user.role === 'COORDINATOR' && !req.coordinator?.department) {
+      return res.status(403).json({ message: 'Coordinator department is not configured yet' })
+    }
+
+    const subjectFilters = {
+      id: { in: uniqueSubjectIds },
+      ...(req.user.role === 'INSTRUCTOR' ? { instructorId: req.instructor.id } : {}),
+      ...(req.user.role === 'COORDINATOR' ? { department: req.coordinator.department } : {})
+    }
+
+    const subjects = await prisma.subject.findMany({
+      where: subjectFilters,
+      select: { id: true }
+    })
+    const accessibleSubjectIds = subjects.map((subject) => subject.id)
+
+    if (accessibleSubjectIds.length !== uniqueSubjectIds.length) {
+      return res.status(403).json({ message: 'You can only view attendance for subjects you manage' })
+    }
+
+    const attendance = await prisma.attendance.findMany({
+      where: {
+        subjectId: { in: accessibleSubjectIds },
+        ...(dayRange ? { date: { gte: dayRange.start, lt: dayRange.end } } : {})
+      },
+      select: {
+        subjectId: true,
+        status: true
+      }
+    })
+
+    const summaries = Object.fromEntries(uniqueSubjectIds.map((subjectId) => [
+      subjectId,
+      { present: 0, absent: 0, late: 0, total: 0, percentage: 0 }
+    ]))
+
+    attendance.forEach((record) => {
+      const summary = summaries[record.subjectId]
+      if (!summary) {
+        return
+      }
+
+      summary.total += 1
+      if (record.status === 'PRESENT') summary.present += 1
+      if (record.status === 'ABSENT') summary.absent += 1
+      if (record.status === 'LATE') summary.late += 1
+    })
+
+    Object.values(summaries).forEach((summary) => {
+      summary.percentage = summary.total > 0
+        ? Number((((summary.present + summary.late) / summary.total) * 100).toFixed(1))
+        : 0
+    })
+
+    res.json(summaries)
+  } catch (error) {
+    res.internalError(error)
+  }
+}
+
 const getMyAttendance = async (req, res) => {
   try {
     const { page, limit, skip } = getPagination(req.query)
@@ -425,4 +499,4 @@ const getMonthlyAttendanceReport = async (req, res) => {
   }
 }
 
-module.exports = { markAttendanceManual, getAttendanceBySubject, getMyAttendance, exportMyAttendancePdf, getSubjectRoster, getCoordinatorDepartmentAttendanceReport, getMonthlyAttendanceReport }
+module.exports = { markAttendanceManual, getAttendanceBySubject, getBulkAttendanceSummary, getMyAttendance, exportMyAttendancePdf, getSubjectRoster, getCoordinatorDepartmentAttendanceReport, getMonthlyAttendanceReport }

@@ -19,6 +19,28 @@ const getSafeFileName = (fileUrl: string) => {
   return name.replace(/[^a-zA-Z0-9._-]/g, '_');
 };
 
+export const getMimeType = (filename: string): string => {
+  const extension = filename.split('?')[0]?.split('.').pop()?.toLowerCase();
+
+  const mimeTypes: Record<string, string> = {
+    pdf: 'application/pdf',
+    doc: 'application/msword',
+    docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    xls: 'application/vnd.ms-excel',
+    xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    ppt: 'application/vnd.ms-powerpoint',
+    pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    jpg: 'image/jpeg',
+    jpeg: 'image/jpeg',
+    png: 'image/png',
+    gif: 'image/gif',
+    zip: 'application/zip',
+    txt: 'text/plain',
+  };
+
+  return extension ? mimeTypes[extension] ?? 'application/octet-stream' : 'application/octet-stream';
+};
+
 export const downloadFile = async (
   url: string,
   filename: string,
@@ -44,7 +66,7 @@ export const downloadFile = async (
 
     if (await Sharing.isAvailableAsync()) {
       await Sharing.shareAsync(result.uri, {
-        mimeType: 'application/pdf',
+        mimeType: getMimeType(safeFilename),
         dialogTitle: 'Open file',
       });
       return;

@@ -303,6 +303,15 @@ const staffStudentQrBody = z.object({
   message: 'Provide either qrData or rollNumber'
 })
 
+const subjectIdsQuery = z.object({
+  subjectIds: z.string()
+    .trim()
+    .min(1, 'At least one subject id is required')
+    .transform((value) => value.split(',').map((subjectId) => subjectId.trim()).filter(Boolean))
+    .pipe(z.array(z.string().uuid()).min(1).max(50)),
+  date: optionalString(50)
+})
+
 const absenceTicketBody = z.object({
   attendanceId: z.string().uuid(),
   reason: z.string().trim().min(10).max(1000)
@@ -579,6 +588,7 @@ const schemas = {
     manual: { body: attendanceManualBody },
     scanQr: { body: qrBody },
     scanStudentId: { body: staffStudentQrBody },
+    bulkSummary: { query: subjectIdsQuery },
     gateSettings: {
       query: z.object({
         dayOfWeek: dayOfWeekEnum.optional()
