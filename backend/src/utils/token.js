@@ -22,7 +22,12 @@ const getRefreshSecret = () => {
 }
 
 const signAccessToken = (user) => jwt.sign(
-  { id: user.id, role: user.role, type: 'access' },
+  {
+    id: user.id,
+    role: user.role,
+    type: 'access',
+    jti: crypto.randomUUID()
+  },
   getAccessSecret(),
   { expiresIn: ACCESS_TOKEN_EXPIRES_IN }
 )

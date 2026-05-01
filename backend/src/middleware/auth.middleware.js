@@ -2,6 +2,8 @@ const jwt = require('jsonwebtoken')
 const prisma = require('../utils/prisma')
 const logger = require('../utils/logger')
 const { getInstructorDepartments } = require('../utils/instructorDepartments')
+const { getReadyRedisClient } = require('../utils/redis')
+const { REVOKED_JTI_PREFIX } = require('../constants/auth')
 
 const getUserSelectShape = () => ({
   id: true,
@@ -63,6 +65,13 @@ const protect = async (req, res, next) => {
       return res.status(401).json({ message: 'Invalid token type' })
     }
 
+    if (decoded.jti) {
+      const redis = await getReadyRedisClient({ context: 'access token revocation check' })
+      if (redis && await redis.exists(`${REVOKED_JTI_PREFIX}${decoded.jti}`)) {
+        return res.status(401).json({ message: 'Token has been revoked' })
+      }
+    }
+
     const user = await findAuthorizedUser(decoded.id)
 
     if (!user || !user.isActive) {
@@ -90,6 +99,8 @@ const protect = async (req, res, next) => {
     } else {
       req.user = user
     }
+    req.accessToken = token
+    req.accessTokenPayload = decoded
     next()
 
   } catch (error) {

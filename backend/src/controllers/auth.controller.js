@@ -27,6 +27,11 @@ const {
   getRefreshTokenExpiry,
   getRefreshCookieOptions
 } = require('../utils/token')
+const {
+  revokeAccessTokenFromRequest,
+  revokeAllAccessTokensForUser,
+  trackAccessToken
+} = require('../utils/accessTokenRevocation')
 
 const buildAuthUser = (user) => ({
   id: user.id,
@@ -335,6 +340,8 @@ const issueAuthSession = async (user, res, req, previousRefreshToken, { setRefre
   if (setRefreshCookie) {
     res.cookie('refreshToken', refreshToken, getRefreshCookieOptions(req))
   }
+
+  await trackAccessToken(accessToken)
 
   return {
     accessToken,
@@ -816,6 +823,7 @@ const changePassword = async (req, res) => {
         passwordChangedAt: new Date()
       }
     })
+    await revokeAccessTokenFromRequest(req)
 
     res.json({
       message: 'Password changed successfully!',
@@ -1233,6 +1241,8 @@ const logout = async (req, res) => {
 
   try {
     const refreshToken = req.cookies?.refreshToken
+    await revokeAccessTokenFromRequest(req)
+
     if (!refreshToken) {
       res.clearCookie('refreshToken', {
         ...getRefreshCookieOptions(req),
@@ -1357,6 +1367,9 @@ const getActivity = async (req, res) => {
 
 const logoutAll = async (req, res) => {
   try {
+    await revokeAccessTokenFromRequest(req)
+    await revokeAllAccessTokensForUser(req.user.id)
+
     await prisma.refreshToken.updateMany({
       where: {
         userId: req.user.id,

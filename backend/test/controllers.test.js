@@ -1211,6 +1211,40 @@ test('logout does not run token revocation when no refresh token is provided', a
   assert.equal(updateManyCalls.length, 0)
 })
 
+test('logout revokes the current access token jti when bearer token is provided', async () => {
+  let revokeCalledWith
+  const { logout } = loadWithMocks(resolveFromTest('src', 'controllers', 'auth.controller.js'), authControllerMocks({
+    '../utils/accessTokenRevocation': {
+      revokeAccessTokenFromRequest: async (req) => {
+        revokeCalledWith = req.headers.authorization
+        return true
+      },
+      revokeAllAccessTokensForUser: async () => 0,
+      trackAccessToken: async () => false
+    },
+    '../utils/prisma': {
+      refreshToken: {
+        updateMany: async () => ({ count: 0 })
+      }
+    }
+  }))
+
+  const req = {
+    body: {},
+    cookies: {},
+    headers: {
+      authorization: 'Bearer access-token-with-jti'
+    },
+    ip: '127.0.0.1'
+  }
+  const res = createResponse()
+
+  await logout(req, res)
+
+  assert.equal(res.statusCode, 200)
+  assert.equal(revokeCalledWith, 'Bearer access-token-with-jti')
+})
+
 test('login hides suspension reasons from the response', async () => {
   process.env.QR_SIGNING_SECRET = 'test-qr-secret'
   const warnCalls = []

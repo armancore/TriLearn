@@ -20,6 +20,8 @@ test('signAccessToken embeds the access token type', () => {
   assert.equal(payload.type, 'access')
   assert.equal(payload.id, 'user-1')
   assert.equal(payload.role, 'STUDENT')
+  assert.equal(typeof payload.jti, 'string')
+  assert.ok(payload.jti.length > 0)
 })
 
 test('signRefreshToken and verifyRefreshToken round-trip refresh tokens', () => {

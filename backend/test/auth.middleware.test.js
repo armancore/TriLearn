@@ -77,6 +77,9 @@ test('protect rejects access tokens issued before passwordChangedAt', async () =
     },
     '../utils/logger': {
       error: () => {}
+    },
+    '../utils/redis': {
+      getReadyRedisClient: async () => null
     }
   })
 
@@ -129,6 +132,9 @@ test('protect allows access tokens issued after passwordChangedAt', async () => 
     },
     '../utils/logger': {
       error: () => {}
+    },
+    '../utils/redis': {
+      getReadyRedisClient: async () => null
     }
   })
 
@@ -147,4 +153,50 @@ test('protect allows access tokens issued after passwordChangedAt', async () => 
   assert.equal(res.statusCode, 200)
   assert.equal(nextCalled, true)
   assert.equal(req.user.id, 'user-1')
+})
+
+test('protect rejects access tokens with a revoked jti', async () => {
+  const { protect } = loadWithMocks(resolveFromTest('src', 'middleware', 'auth.middleware.js'), {
+    'jsonwebtoken': {
+      verify: () => ({
+        id: 'user-1',
+        type: 'access',
+        jti: 'revoked-jti',
+        iat: 1_710_000_100
+      })
+    },
+    '../utils/prisma': {
+      user: {
+        findUnique: async () => {
+          throw new Error('user lookup should not run for revoked tokens')
+        }
+      }
+    },
+    '../utils/logger': {
+      error: () => {}
+    },
+    '../utils/redis': {
+      getReadyRedisClient: async () => ({
+        exists: async (key) => key === 'trilearn:revoked:jti:revoked-jti' ? 1 : 0
+      })
+    }
+  })
+
+  const req = {
+    headers: {
+      authorization: 'Bearer revoked-access-token'
+    }
+  }
+  const res = createResponse()
+  let nextCalled = false
+
+  await protect(req, res, () => {
+    nextCalled = true
+  })
+
+  assert.equal(nextCalled, false)
+  assert.equal(res.statusCode, 401)
+  assert.deepEqual(res.body, {
+    message: 'Token has been revoked'
+  })
 })

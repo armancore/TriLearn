@@ -17,6 +17,7 @@ const {
 const { hashPassword, getStudentTemporaryPassword } = require('../utils/security')
 const { sanitizePlainText } = require('../utils/sanitize')
 const { getReadyRedisClient } = require('../utils/redis')
+const { revokeAllAccessTokensForUser } = require('../utils/accessTokenRevocation')
 const {
   getInstructorDepartments,
   normalizeDepartmentList
@@ -1392,6 +1393,10 @@ const toggleUserStatus = async (req, res) => {
       isActive: updatedUser.isActive
     })
 
+    if (!updatedUser.isActive) {
+      await revokeAllAccessTokensForUser(id)
+    }
+
     await recordAuditLog({
       actorId: req.user.id,
       actorRole: req.user.role,
@@ -1459,6 +1464,7 @@ const deleteUser = async (req, res) => {
         where: { id }
       })
     ])
+    await revokeAllAccessTokensForUser(id)
     clearStatsCache()
 
     res.json({ message: 'User deleted successfully!' })
