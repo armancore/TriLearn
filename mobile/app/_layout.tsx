@@ -2,6 +2,7 @@ import { Redirect, Stack, useSegments } from 'expo-router';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { ActivityIndicator, Text, View } from 'react-native';
+import Toast, { BaseToast, ErrorToast, type ToastConfig } from 'react-native-toast-message';
 
 import { COLORS } from '@/src/constants/colors';
 import { ROLE_GROUP_MAP, ROLE_HOME_MAP } from '@/src/constants/routes';
@@ -9,6 +10,36 @@ import { useAuth } from '@/src/hooks/useAuth';
 import { queryClient } from '@/src/services/queryClient';
 import { useSocket } from '@/src/hooks/useSocket';
 import '../global.css';
+
+const toastConfig: ToastConfig = {
+  success: (props) => (
+    <BaseToast
+      {...props}
+      style={{ borderLeftColor: '#15803D' }}
+      contentContainerStyle={{ paddingHorizontal: 16 }}
+      text1Style={{ color: '#10233E', fontSize: 15, fontWeight: '700' }}
+      text2Style={{ color: '#6B7280', fontSize: 13 }}
+    />
+  ),
+  error: (props) => (
+    <ErrorToast
+      {...props}
+      style={{ borderLeftColor: '#B91C1C' }}
+      contentContainerStyle={{ paddingHorizontal: 16 }}
+      text1Style={{ color: '#10233E', fontSize: 15, fontWeight: '700' }}
+      text2Style={{ color: '#6B7280', fontSize: 13 }}
+    />
+  ),
+  info: (props) => (
+    <BaseToast
+      {...props}
+      style={{ borderLeftColor: '#1A3C6E' }}
+      contentContainerStyle={{ paddingHorizontal: 16 }}
+      text1Style={{ color: '#10233E', fontSize: 15, fontWeight: '700' }}
+      text2Style={{ color: '#6B7280', fontSize: 13 }}
+    />
+  ),
+};
 
 export default function RootLayout() {
   const segments = useSegments();
@@ -63,6 +94,7 @@ export default function RootLayout() {
           <Stack.Screen name="(profile)/index" options={{ title: 'Profile', headerBackTitle: 'Back' }} />
           <Stack.Screen name="+not-found" options={{ title: 'Not Found' }} />
         </Stack>
+        <Toast config={toastConfig} />
       </QueryClientProvider>
     </GestureHandlerRootView>
   );

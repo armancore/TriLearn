@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
-import { Alert } from 'react-native';
 import axios from 'axios';
+import Toast from 'react-native-toast-message';
 
 const getErrorMessage = (error: unknown, fallback: string) => {
   if (axios.isAxiosError<{ message?: string }>(error)) {
@@ -15,14 +15,40 @@ const getErrorMessage = (error: unknown, fallback: string) => {
 };
 
 export const useToast = () => {
-  const success = useCallback((message: string, title = 'Success') => {
-    Alert.alert(title, message);
+  const showSuccess = useCallback((message: string) => {
+    Toast.show({
+      type: 'success',
+      text1: message,
+      visibilityTime: 3000,
+      autoHide: true,
+    });
   }, []);
+
+  const showError = useCallback((message: string) => {
+    Toast.show({
+      type: 'error',
+      text1: message,
+      visibilityTime: 3000,
+      autoHide: true,
+    });
+  }, []);
+
+  const showInfo = useCallback((message: string) => {
+    Toast.show({
+      type: 'info',
+      text1: message,
+      visibilityTime: 3000,
+      autoHide: true,
+    });
+  }, []);
+
+  const success = useCallback((message: string) => {
+    showSuccess(message);
+  }, [showSuccess]);
 
   const error = useCallback((errorValue: unknown, fallback = 'Something went wrong.') => {
-    Alert.alert('Unable to complete action', getErrorMessage(errorValue, fallback));
-  }, []);
+    showError(getErrorMessage(errorValue, fallback));
+  }, [showError]);
 
-  return { success, error };
+  return { showSuccess, showError, showInfo, success, error };
 };
-

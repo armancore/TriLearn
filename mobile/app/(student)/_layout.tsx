@@ -1,5 +1,5 @@
-import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { Tabs } from 'expo-router';
 
 import { COLORS } from '@/src/constants/colors';
 import { useNotifications } from '@/src/hooks/useNotifications';
@@ -14,22 +14,8 @@ type StudentTabIconName =
   | 'ribbon'
   | 'document-text-outline'
   | 'document-text'
-  | 'megaphone-outline'
-  | 'megaphone'
-  | 'time-outline'
-  | 'time'
-  | 'notifications-outline'
-  | 'notifications'
-  | 'person-outline'
-  | 'person'
-  | 'card-outline'
-  | 'card'
-  | 'ticket-outline'
-  | 'ticket'
-  | 'folder-outline'
-  | 'folder'
-  | 'qr-code-outline'
-  | 'qr-code';
+  | 'ellipsis-horizontal-circle-outline'
+  | 'ellipsis-horizontal-circle';
 
 const getStudentTabIcon = (
   routeName: string,
@@ -39,44 +25,16 @@ const getStudentTabIcon = (
     return focused ? 'calendar' : 'calendar-outline';
   }
 
-  if (routeName === 'assignments') {
-    return focused ? 'document-text' : 'document-text-outline';
-  }
-
   if (routeName === 'marks') {
     return focused ? 'ribbon' : 'ribbon-outline';
   }
 
-  if (routeName === 'notices') {
-    return focused ? 'megaphone' : 'megaphone-outline';
+  if (routeName === 'assignments') {
+    return focused ? 'document-text' : 'document-text-outline';
   }
 
-  if (routeName === 'routine') {
-    return focused ? 'time' : 'time-outline';
-  }
-
-  if (routeName === 'notifications') {
-    return focused ? 'notifications' : 'notifications-outline';
-  }
-
-  if (routeName === 'profile') {
-    return focused ? 'person' : 'person-outline';
-  }
-
-  if (routeName === 'id-card') {
-    return focused ? 'card' : 'card-outline';
-  }
-
-  if (routeName === 'tickets') {
-    return focused ? 'ticket' : 'ticket-outline';
-  }
-
-  if (routeName === 'materials') {
-    return focused ? 'folder' : 'folder-outline';
-  }
-
-  if (routeName === 'scanner') {
-    return focused ? 'qr-code' : 'qr-code-outline';
+  if (routeName === 'more') {
+    return focused ? 'ellipsis-horizontal-circle' : 'ellipsis-horizontal-circle-outline';
   }
 
   return focused ? 'home' : 'home-outline';
@@ -92,8 +50,19 @@ export default function StudentTabsLayout() {
         headerTintColor: '#FFFFFF',
         headerStyle: { backgroundColor: COLORS.primary },
         headerTitleStyle: { fontWeight: '700' },
-        tabBarActiveTintColor: COLORS.primary,
-        tabBarInactiveTintColor: COLORS.muted,
+        tabBarActiveTintColor: COLORS.accent,
+        tabBarInactiveTintColor: '#6B7280',
+        tabBarLabelPosition: 'below-icon',
+        tabBarStyle: {
+          borderTopColor: '#E5E7EB',
+          height: 64,
+          paddingBottom: 8,
+          paddingTop: 6,
+        },
+        tabBarLabelStyle: {
+          fontSize: 11,
+          fontWeight: '700',
+        },
         tabBarIcon: ({ color, focused, size }) => (
           <Ionicons color={color} name={getStudentTabIcon(route.name, focused)} size={size} />
         ),
@@ -101,22 +70,24 @@ export default function StudentTabsLayout() {
     >
       <Tabs.Screen name="dashboard" options={{ title: 'Dashboard' }} />
       <Tabs.Screen name="attendance" options={{ title: 'Attendance' }} />
-      <Tabs.Screen name="scanner" options={{ href: null }} />
       <Tabs.Screen name="marks" options={{ title: 'Marks' }} />
       <Tabs.Screen name="assignments" options={{ title: 'Assignments' }} />
-      <Tabs.Screen name="notices" options={{ href: null }} />
-      <Tabs.Screen name="routine" options={{ title: 'Routine' }} />
-      <Tabs.Screen name="id-card" options={{ href: null }} />
-      <Tabs.Screen name="tickets" options={{ href: null }} />
-      <Tabs.Screen name="materials" options={{ href: null }} />
       <Tabs.Screen
-        name="notifications"
+        name="more"
         options={{
-          title: 'Notifications',
+          title: 'More',
           tabBarBadge: unreadCount > 0 ? unreadCount : undefined,
         }}
       />
-      <Tabs.Screen name="profile" options={{ title: 'Profile' }} />
+
+      <Tabs.Screen name="routine" options={{ href: null, title: 'Routine' }} />
+      <Tabs.Screen name="notices" options={{ href: null, title: 'Notices' }} />
+      <Tabs.Screen name="materials" options={{ href: null, title: 'Materials' }} />
+      <Tabs.Screen name="id-card" options={{ href: null, title: 'ID Card' }} />
+      <Tabs.Screen name="tickets" options={{ href: null, title: 'Tickets' }} />
+      <Tabs.Screen name="notifications" options={{ href: null, title: 'Notifications' }} />
+      <Tabs.Screen name="scanner" options={{ href: null, title: 'Scanner' }} />
+      <Tabs.Screen name="profile" options={{ href: null, title: 'Profile' }} />
     </Tabs>
   );
 }
