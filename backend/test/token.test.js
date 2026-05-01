@@ -9,7 +9,7 @@ const loadTokenUtils = () => {
 }
 
 test('signAccessToken embeds the access token type', () => {
-  process.env.JWT_SECRET = 'test-access-secret'
+  process.env.JWT_ACCESS_SECRET = 'test-access-secret'
   process.env.JWT_REFRESH_SECRET = 'test-refresh-secret'
   process.env.ACCESS_TOKEN_EXPIRES_IN = '15m'
 
@@ -25,7 +25,7 @@ test('signAccessToken embeds the access token type', () => {
 })
 
 test('signRefreshToken and verifyRefreshToken round-trip refresh tokens', () => {
-  process.env.JWT_SECRET = 'test-access-secret'
+  process.env.JWT_ACCESS_SECRET = 'test-access-secret'
   process.env.JWT_REFRESH_SECRET = 'test-refresh-secret'
   process.env.REFRESH_TOKEN_EXPIRES_DAYS = '7'
 
@@ -41,7 +41,7 @@ test('signRefreshToken and verifyRefreshToken round-trip refresh tokens', () => 
 })
 
 test('signRefreshToken generates unique tokens for rapid successive refreshes', () => {
-  process.env.JWT_SECRET = 'test-access-secret'
+  process.env.JWT_ACCESS_SECRET = 'test-access-secret'
   process.env.JWT_REFRESH_SECRET = 'test-refresh-secret'
   process.env.REFRESH_TOKEN_EXPIRES_DAYS = '7'
 

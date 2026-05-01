@@ -286,7 +286,7 @@ cd frontend && npm run dev
 # ── Core (required) ───────────────────────────────────────
 NODE_ENV=development
 DATABASE_URL=postgresql://user:password@localhost:5432/trilearn
-JWT_SECRET=<random string, 32+ characters>
+JWT_ACCESS_SECRET=<random string, 32+ characters>
 JWT_REFRESH_SECRET=<random string, 32+ characters>
 QR_SIGNING_SECRET=<random string, 32+ characters>
 FRONTEND_URL=http://localhost:5173
@@ -339,7 +339,7 @@ docker run \
 ### Production checklist
 
 - [ ] `NODE_ENV=production`
-- [ ] Unique random values for `JWT_SECRET`, `JWT_REFRESH_SECRET`, and `QR_SIGNING_SECRET` (32+ characters each)
+- [ ] Unique random values for `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, and `QR_SIGNING_SECRET` (32+ characters each)
 - [ ] `REDIS_URL` configured — the server refuses to start in production without it
 - [ ] `FRONTEND_URL` set to the exact origin of the deployed frontend
 - [ ] Any future CDN-hosted frontend `<script src="...">` tags include both `integrity` and `crossorigin="anonymous"`

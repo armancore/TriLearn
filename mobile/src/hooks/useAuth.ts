@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect } from 'react';
 
 import { disconnectSocket } from '@/src/services/socket.service';
 import { api, resetRefreshState } from '@/src/services/api';
@@ -16,8 +16,15 @@ export const useAuth = () => {
   const clearSession = useAuthStore((state) => state.logout);
   const resetNotifications = useNotificationsStore((state) => state.reset);
 
+  useEffect(() => {
+    if (__DEV__ && isHydrated && !accessToken && !refreshToken) {
+      resetRefreshState();
+    }
+  }, [accessToken, isHydrated, refreshToken]);
+
   const login = useCallback(
     async (payload: LoginRequest) => {
+      resetRefreshState();
       const response = await loginRequest(payload);
       setSession({
         user: response.user,
@@ -33,6 +40,7 @@ export const useAuth = () => {
   const logout = useCallback(() => {
     void api.post('/auth/logout').catch(() => {});
     clearSession();
+    resetRefreshState();
     resetNotifications();
     disconnectSocket();
   }, [clearSession, resetNotifications]);

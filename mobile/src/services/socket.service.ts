@@ -8,7 +8,7 @@ type AuthRefreshAck = {
   ok?: boolean;
 };
 
-export const connectSocket = (token: string, userId: string): Socket => {
+export const connectSocket = (token: string): Socket => {
   if (socket?.connected) {
     return socket;
   }
@@ -16,7 +16,6 @@ export const connectSocket = (token: string, userId: string): Socket => {
   socket = io(SOCKET_URL, {
     transports: ['websocket'],
     auth: { token },
-    query: { userId },
   });
 
   return socket;

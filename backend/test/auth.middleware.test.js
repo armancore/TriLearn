@@ -4,6 +4,7 @@ const path = require('node:path')
 const { createRequire } = require('node:module')
 
 const resolveFromTest = (...segments) => path.resolve(__dirname, '..', ...segments)
+process.env.JWT_ACCESS_SECRET = process.env.JWT_ACCESS_SECRET || 'test-access-secret'
 
 const loadWithMocks = (targetPath, mocks) => {
   const modulePath = path.resolve(targetPath)

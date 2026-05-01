@@ -18,7 +18,7 @@ export const useSocket = (): void => {
       return;
     }
 
-    const socket = connectSocket(accessToken, userId);
+    const socket = connectSocket(accessToken);
 
     const handleIncomingNotification = (
       payload: { notification: NotificationItem }

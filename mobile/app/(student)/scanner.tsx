@@ -16,12 +16,42 @@ type FlashState = {
   message: string;
 } | null;
 
-const getQrType = (qrData: string): string | null => {
+type AttendanceQrPayload = {
+  type?: unknown;
+  subjectId?: unknown;
+  instructorId?: unknown;
+  expiresAt?: unknown;
+};
+
+type ParsedAttendanceQr = {
+  endpoint: '/attendance/scan-daily-qr' | '/attendance/scan-qr';
+  qrData: string;
+};
+
+const parseAttendanceQr = (qrData: string): ParsedAttendanceQr => {
   try {
-    const parsed = JSON.parse(qrData) as { payload?: { type?: unknown } };
-    return typeof parsed.payload?.type === 'string' ? parsed.payload.type : null;
+    const parsed = JSON.parse(qrData) as { payload?: AttendanceQrPayload; signature?: unknown };
+    const payload = parsed.payload;
+
+    if (!payload || typeof payload !== 'object' || typeof parsed.signature !== 'string') {
+      throw new Error('Scan a TriLearn attendance QR code.');
+    }
+
+    if (payload.type === 'GATE_STUDENT_QR') {
+      return { endpoint: '/attendance/scan-daily-qr', qrData };
+    }
+
+    if (
+      typeof payload.subjectId === 'string' &&
+      typeof payload.instructorId === 'string' &&
+      typeof payload.expiresAt === 'string'
+    ) {
+      return { endpoint: '/attendance/scan-qr', qrData };
+    }
+
+    throw new Error('Scan a TriLearn attendance QR code.');
   } catch {
-    return null;
+    throw new Error('Scan a TriLearn attendance QR code.');
   }
 };
 
@@ -48,8 +78,8 @@ export default function StudentScannerScreen() {
 
   const scanMutation = useMutation({
     mutationFn: async (qrData: string) => {
-      const endpoint = getQrType(qrData) === 'GATE_STUDENT_QR' ? '/attendance/scan-daily-qr' : '/attendance/scan-qr';
-      const response = await api.post<{ message?: string }>(endpoint, { qrData });
+      const parsedQr = parseAttendanceQr(qrData);
+      const response = await api.post<{ message?: string }>(parsedQr.endpoint, { qrData: parsedQr.qrData });
       return response.data.message ?? 'Attendance marked successfully.';
     },
   });

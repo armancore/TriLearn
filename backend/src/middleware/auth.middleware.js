@@ -49,7 +49,14 @@ const findAuthorizedUser = async (userId) => prisma.user.findUnique({
   select: getUserSelectShape()
 })
 
-const getAccessSecret = () => process.env.JWT_ACCESS_SECRET || process.env.JWT_SECRET
+const getAccessSecret = () => {
+  const accessSecret = process.env.JWT_ACCESS_SECRET
+  if (!accessSecret) {
+    throw new Error('JWT_ACCESS_SECRET must be configured')
+  }
+
+  return accessSecret
+}
 
 const protect = async (req, res, next) => {
   try {

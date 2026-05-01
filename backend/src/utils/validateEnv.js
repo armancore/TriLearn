@@ -1,5 +1,6 @@
 const required = [
   'DATABASE_URL',
+  'JWT_ACCESS_SECRET',
   'LOGIN_CAPTCHA_SECRET',
   'JWT_REFRESH_SECRET',
   'QR_SIGNING_SECRET',
@@ -22,11 +23,6 @@ const validateEnv = () => {
 
   if (missing.length > 0) {
     console.error(`Missing required env vars: ${missing.join(', ')}`)
-    process.exit(1)
-  }
-
-  if (!process.env.JWT_ACCESS_SECRET && !process.env.JWT_SECRET) {
-    console.error('Missing required env vars: JWT_ACCESS_SECRET')
     process.exit(1)
   }
 

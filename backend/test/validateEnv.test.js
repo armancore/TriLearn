@@ -36,7 +36,7 @@ const withPatchedConsoleError = async (fn) => {
 
 const baseEnv = {
   DATABASE_URL: 'postgresql://user:pass@localhost:5432/trilearn',
-  JWT_SECRET: 'jwt-secret',
+  JWT_ACCESS_SECRET: 'access-secret',
   LOGIN_CAPTCHA_SECRET: 'captcha-secret',
   JWT_REFRESH_SECRET: 'refresh-secret',
   QR_SIGNING_SECRET: 'qr-secret',
@@ -66,6 +66,29 @@ test('validateEnv rejects invalid NODE_ENV values', async () => {
         assert.throws(() => validateEnv(), /process\.exit:1/)
         assert.deepEqual(exitCalls, [1])
         assert.match(errorCalls[0], /Invalid NODE_ENV value: staging/)
+      })
+    })
+  } finally {
+    restoreEnv(originalEnv)
+  }
+})
+
+test('validateEnv requires JWT_ACCESS_SECRET even when JWT_SECRET is set', async () => {
+  const originalEnv = { ...process.env }
+  const envWithoutAccessSecret = { ...baseEnv }
+  delete envWithoutAccessSecret.JWT_ACCESS_SECRET
+
+  Object.assign(process.env, envWithoutAccessSecret, {
+    JWT_SECRET: 'legacy-secret'
+  })
+  delete process.env.JWT_ACCESS_SECRET
+
+  try {
+    await withPatchedConsoleError(async (errorCalls) => {
+      await withPatchedExit(async (exitCalls) => {
+        assert.throws(() => validateEnv(), /process\.exit:1/)
+        assert.deepEqual(exitCalls, [1])
+        assert.match(errorCalls[0], /Missing required env vars: JWT_ACCESS_SECRET/)
       })
     })
   } finally {
