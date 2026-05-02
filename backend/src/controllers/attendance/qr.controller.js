@@ -18,6 +18,45 @@ const {
   recordAuditLog
 } = require('./shared')
 
+const getStudentIdQrReplayKey = ({ studentId, qrData }) => {
+  if (!studentId || typeof qrData !== 'string' || !qrData.trim()) {
+    return null
+  }
+
+  const qrHash = crypto.createHash('sha256').update(qrData).digest('hex')
+  return `qr-used:${studentId}:${qrHash}`
+}
+
+const reserveStudentIdQrScan = async ({ student, qrData, parsedQr }) => {
+  const key = getStudentIdQrReplayKey({ studentId: student.id, qrData })
+  if (!key || !parsedQr?.expiresAt) {
+    return { reserved: false }
+  }
+
+  const expiresAt = new Date(parsedQr.expiresAt)
+  const ttlSeconds = Math.max(1, Math.ceil((expiresAt.getTime() - Date.now()) / 1000))
+
+  if (Number.isNaN(expiresAt.getTime()) || ttlSeconds <= 0) {
+    return { reserved: false }
+  }
+
+  try {
+    const redis = await getReadyRedisClient({ context: 'student ID QR replay guard' })
+    if (!redis) {
+      return { reserved: false }
+    }
+
+    const result = await redis.set(key, '1', { EX: ttlSeconds, NX: true })
+    if (result !== 'OK') {
+      return { error: { status: 409, message: 'Student ID QR code has already been used for this scan window' } }
+    }
+
+    return { reserved: true }
+  } catch {
+    return { reserved: false }
+  }
+}
+
 const generateQR = async (req, res) => {
   try {
     const { subjectId, date, validMinutes } = req.body
@@ -336,11 +375,16 @@ const scanStudentIdAttendance = async (req, res) => {
       ? await getStudentByRollNumber(rollNumber)
       : await getStudentByIdCardQr(qrData)
     if (scanned.error) return res.status(scanned.error.status).json({ message: scanned.error.message })
-    const { student } = scanned
+    const { student, parsedQr } = scanned
 
     if (role === 'GATEKEEPER') {
       const eligibility = await getEligibleGateAttendanceForStudent(student, new Date())
       if (eligibility.error) return res.status(eligibility.error.status).json({ message: eligibility.error.message })
+
+      const replayReservation = await reserveStudentIdQrScan({ student, qrData, parsedQr })
+      if (replayReservation.error) {
+        return res.status(replayReservation.error.status).json({ message: replayReservation.error.message })
+      }
 
       const result = await upsertPresentAttendanceForRoutines({
         student,

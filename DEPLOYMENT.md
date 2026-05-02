@@ -76,6 +76,34 @@ If `NODE_ENV=production` and `FORCE_HTTPS` is not set to `true`, the backend
 logs a startup warning so the deployment team explicitly acknowledges HTTPS and
 proxy forwarding have been configured.
 
+## Frontend security headers
+
+The React frontend is a static Vite build. The backend Helmet policy protects
+API responses, but it does not add headers to `frontend/dist/index.html` or the
+compiled JS assets when those files are served by Nginx, Caddy, or a CDN.
+
+Set a Content Security Policy on `text/html` responses from the frontend host.
+A conservative starting point for the current SPA is:
+
+```http
+Content-Security-Policy: default-src 'self'; script-src 'self'; connect-src 'self' wss:; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'
+```
+
+For Nginx deployments that serve the built frontend directly:
+
+```nginx
+location / {
+  try_files $uri $uri/ /index.html;
+  add_header Content-Security-Policy "default-src 'self'; script-src 'self'; connect-src 'self' wss:; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'" always;
+  add_header X-Content-Type-Options "nosniff" always;
+  add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+}
+```
+
+If the API is served from a different origin, add that exact HTTPS origin to
+`connect-src`. If the realtime endpoint is on a different WebSocket origin, add
+that exact `wss://` origin as well.
+
 ## Docker
 
 The backend includes [backend/Dockerfile](backend/Dockerfile) for containerized deployment.

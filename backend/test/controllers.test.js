@@ -2657,6 +2657,111 @@ test('getAllNotices hides student-only notices from instructors', async () => {
   assert.deepEqual(capturedWhere[0].audience, { in: ['ALL', 'INSTRUCTORS_ONLY'] })
 })
 
+test('createNotice scopes coordinator notices to their own department', async () => {
+  const createCalls = []
+
+  const { createNotice } = loadWithMocks(resolveFromTest('src', 'controllers', 'notice.controller.js'), {
+    '../utils/prisma': {
+      notice: {
+        create: async (payload) => {
+          createCalls.push(payload)
+          return {
+            id: 'notice-1',
+            ...payload.data,
+            user: { name: 'Coordinator One', role: 'COORDINATOR' }
+          }
+        }
+      }
+    },
+    '../utils/pagination': {
+      getPagination: () => ({ page: 1, limit: 20, skip: 0 })
+    },
+    '../utils/audit': {
+      recordAuditLog: async () => {}
+    },
+    '../utils/sanitize': {
+      sanitizePlainText: (value) => value
+    },
+    '../utils/instructorDepartments': {
+      getInstructorDepartments: () => [],
+      instructorHasDepartment: () => false
+    },
+    '../jobs/notificationQueue': {
+      NOTICE_POSTED_JOB: 'notice-posted',
+      notificationQueue: { add: async () => {} }
+    }
+  })
+
+  const req = {
+    body: {
+      title: 'Exam notice',
+      content: 'Final exam routine published',
+      audience: 'ALL'
+    },
+    user: { id: 'coordinator-user-1', role: 'COORDINATOR' },
+    coordinator: { department: 'BCA' }
+  }
+  const res = createResponse()
+
+  await createNotice(req, res)
+
+  assert.equal(res.statusCode, 201)
+  assert.equal(createCalls.length, 1)
+  assert.equal(createCalls[0].data.targetDepartment, 'BCA')
+})
+
+test('createNotice blocks coordinators from targeting another department', async () => {
+  const createCalls = []
+
+  const { createNotice } = loadWithMocks(resolveFromTest('src', 'controllers', 'notice.controller.js'), {
+    '../utils/prisma': {
+      notice: {
+        create: async (payload) => {
+          createCalls.push(payload)
+          return payload
+        }
+      }
+    },
+    '../utils/pagination': {
+      getPagination: () => ({ page: 1, limit: 20, skip: 0 })
+    },
+    '../utils/audit': {
+      recordAuditLog: async () => {}
+    },
+    '../utils/sanitize': {
+      sanitizePlainText: (value) => value
+    },
+    '../utils/instructorDepartments': {
+      getInstructorDepartments: () => [],
+      instructorHasDepartment: () => false
+    },
+    '../jobs/notificationQueue': {
+      NOTICE_POSTED_JOB: 'notice-posted',
+      notificationQueue: { add: async () => {} }
+    }
+  })
+
+  const req = {
+    body: {
+      title: 'Exam notice',
+      content: 'Final exam routine published',
+      audience: 'ALL',
+      targetDepartment: 'BBS'
+    },
+    user: { id: 'coordinator-user-1', role: 'COORDINATOR' },
+    coordinator: { department: 'BCA' }
+  }
+  const res = createResponse()
+
+  await createNotice(req, res)
+
+  assert.equal(res.statusCode, 403)
+  assert.deepEqual(res.body, {
+    message: 'Coordinators can only target notices to their own department'
+  })
+  assert.equal(createCalls.length, 0)
+})
+
 test('getAllAssignments returns paginated metadata', async () => {
   const findManyCalls = []
   const { getAllAssignments } = loadWithMocks(resolveFromTest('src', 'controllers', 'assignment.controller.js'), {
@@ -3490,6 +3595,7 @@ test('scanStudentIdAttendance requires subjectId for instructor and coordinator 
 test('scanStudentIdAttendance allows gatekeeper scans without subjectId', async () => {
   let ownedSubjectCalls = 0
   let upsertCalls = 0
+  const redisSetCalls = []
 
   const { scanStudentIdAttendance } = loadWithMocks(resolveFromTest('src', 'controllers', 'attendance', 'qr.controller.js'), {
     './shared': {
@@ -3527,6 +3633,9 @@ test('scanStudentIdAttendance allows gatekeeper scans without subjectId', async 
         }
       },
       getStudentByIdCardQr: async () => ({
+        parsedQr: {
+          expiresAt: new Date(Date.now() + 60_000).toISOString()
+        },
         student: {
           id: 'student-1',
           rollNumber: 'BCA-001',
@@ -3536,6 +3645,14 @@ test('scanStudentIdAttendance allows gatekeeper scans without subjectId', async 
         }
       }),
       recordAuditLog: async () => {}
+    },
+    '../../utils/redis': {
+      getReadyRedisClient: async () => ({
+        set: async (...args) => {
+          redisSetCalls.push(args)
+          return 'OK'
+        }
+      })
     },
     qrcode: {
       toDataURL: async () => 'data:image/png;base64,qr'
@@ -3554,6 +3671,84 @@ test('scanStudentIdAttendance allows gatekeeper scans without subjectId', async 
   assert.equal(res.body.mode, 'GATE_WINDOW')
   assert.equal(upsertCalls, 1)
   assert.equal(ownedSubjectCalls, 0)
+  assert.equal(redisSetCalls.length, 1)
+  assert.match(redisSetCalls[0][0], /^qr-used:student-1:/)
+  assert.equal(redisSetCalls[0][2].NX, true)
+  assert.ok(redisSetCalls[0][2].EX > 0 && redisSetCalls[0][2].EX <= 60)
+})
+
+test('scanStudentIdAttendance rejects reused student ID QR scans when Redis reservation exists', async () => {
+  let upsertCalls = 0
+
+  const { scanStudentIdAttendance } = loadWithMocks(resolveFromTest('src', 'controllers', 'attendance', 'qr.controller.js'), {
+    './shared': {
+      QR_VALIDITY_MINUTES: 15,
+      prisma: {
+        subjectEnrollment: { findUnique: async () => ({ id: 'enrollment-1' }) },
+        attendance: { upsert: async () => ({ id: 'attendance-1' }) }
+      },
+      getDayRange: () => ({
+        start: new Date('2026-04-03T00:00:00.000Z'),
+        end: new Date('2026-04-04T00:00:00.000Z')
+      }),
+      getOwnedSubject: async () => ({}),
+      createSignedQrPayload: () => 'signed',
+      hashQrPayload: () => 'hashed',
+      parseQrPayload: () => ({}),
+      getDailyGateWindows: async () => ({}),
+      normalizeSemesterList: () => [],
+      getEligibleGateAttendanceForStudent: async () => ({
+        routines: [{ id: 'routine-1', subjectId: 'subject-1' }],
+        gateDay: {
+          dayRange: {
+            start: new Date('2026-04-03T00:00:00.000Z'),
+            end: new Date('2026-04-04T00:00:00.000Z')
+          }
+        }
+      }),
+      upsertPresentAttendanceForRoutines: async () => {
+        upsertCalls += 1
+        return {
+          markedSubjects: [{ subjectId: 'subject-1', status: 'PRESENT' }]
+        }
+      },
+      getStudentByIdCardQr: async () => ({
+        parsedQr: {
+          expiresAt: new Date(Date.now() + 60_000).toISOString()
+        },
+        student: {
+          id: 'student-1',
+          rollNumber: 'BCA-001',
+          semester: 4,
+          section: 'A',
+          user: { name: 'Arman Dev' }
+        }
+      }),
+      recordAuditLog: async () => {}
+    },
+    '../../utils/redis': {
+      getReadyRedisClient: async () => ({
+        set: async () => null
+      })
+    },
+    qrcode: {
+      toDataURL: async () => 'data:image/png;base64,qr'
+    }
+  })
+
+  const req = {
+    body: { qrData: 'student-id-qr' },
+    user: { id: 'gatekeeper-user-1', role: 'GATEKEEPER' }
+  }
+  const res = createResponse()
+
+  await scanStudentIdAttendance(req, res)
+
+  assert.equal(res.statusCode, 409)
+  assert.deepEqual(res.body, {
+    message: 'Student ID QR code has already been used for this scan window'
+  })
+  assert.equal(upsertCalls, 0)
 })
 
 test('getStudentIdQr includes an expiry timestamp in the signed student QR payload', async () => {

@@ -14,6 +14,8 @@ const ADMIN_STATS_FIELDS = [
 let statsCache = null
 let statsCacheExpiresAt = 0
 
+// Redis is the shared cache across processes. These module-level values are a
+// short-lived fallback and are intentionally per Node worker when Redis is down.
 const normalizeCachedAdminStats = (value) => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     return null

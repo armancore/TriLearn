@@ -108,6 +108,24 @@ const resolveNoticeTargeting = (req, { audience, targetDepartment, targetSemeste
     }
   }
 
+  if (req.user.role === 'COORDINATOR') {
+    const coordinatorDepartment = req.coordinator?.department
+
+    if (!coordinatorDepartment) {
+      return {
+        error: { status: 403, message: 'Coordinator department is not configured yet' }
+      }
+    }
+
+    if (targetDepartment && targetDepartment !== coordinatorDepartment) {
+      return {
+        error: { status: 403, message: 'Coordinators can only target notices to their own department' }
+      }
+    }
+
+    normalizedTarget.targetDepartment = coordinatorDepartment
+  }
+
   if (
     normalizedTarget.targetDepartment &&
     req.user.role === 'ADMIN' &&
@@ -152,6 +170,18 @@ const notifyUsersAboutNotice = async (notice) => {
     jobId: `notice:${notice.id}`
   })
 }
+
+const coordinatorCanManageNotice = (req, notice) => (
+  req.user.role === 'COORDINATOR' &&
+  req.coordinator?.department &&
+  notice.targetDepartment === req.coordinator.department
+)
+
+const canManageNotice = (req, notice) => (
+  notice.postedBy === req.user.id ||
+  req.user.role === 'ADMIN' ||
+  coordinatorCanManageNotice(req, notice)
+)
 
 // ================================
 // CREATE NOTICE (Admin/Instructor)
@@ -302,9 +332,10 @@ const updateNotice = async (req, res) => {
       return res.status(404).json({ message: 'Notice not found' })
     }
 
-    // Only the person who posted can update
-    if (notice.postedBy !== req.user.id && req.user.role !== 'ADMIN') {
-      return res.status(403).json({ message: 'You can only update your own notices' })
+    // Admins are notice moderators across departments; coordinators can manage
+    // department-targeted notices for their own department.
+    if (!canManageNotice(req, notice)) {
+      return res.status(403).json({ message: 'You can only update notices you own or manage in your department' })
     }
 
     const targeting = resolveNoticeTargeting(req, { audience, targetDepartment, targetSemester })
@@ -357,8 +388,10 @@ const deleteNotice = async (req, res) => {
       return res.status(404).json({ message: 'Notice not found' })
     }
 
-    if (notice.postedBy !== req.user.id && req.user.role !== 'ADMIN') {
-      return res.status(403).json({ message: 'You can only delete your own notices' })
+    // Admins are notice moderators across departments; coordinators can manage
+    // department-targeted notices for their own department.
+    if (!canManageNotice(req, notice)) {
+      return res.status(403).json({ message: 'You can only delete notices you own or manage in your department' })
     }
 
     await prisma.notice.delete({ where: { id } })
