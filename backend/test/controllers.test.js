@@ -1617,7 +1617,7 @@ test('refreshMobile rotates only the body refresh token and does not set a cooki
             id: 'session-1',
             userId: 'user-1',
             revokedAt: null,
-            expiresAt: new Date('2026-05-02T09:00:00.000Z'),
+            expiresAt: new Date('2099-05-02T09:00:00.000Z'),
             user: {
               id: 'user-1',
               name: 'Student One',
@@ -1651,7 +1651,7 @@ test('refreshMobile rotates only the body refresh token and does not set a cooki
         return { id: 'user-1', role: 'STUDENT' }
       },
       hashToken: (token) => `hash:${token}`,
-      getRefreshTokenExpiry: () => new Date('2026-05-31T09:00:00.000Z'),
+      getRefreshTokenExpiry: () => new Date('2099-05-31T09:00:00.000Z'),
       getRefreshCookieOptions: () => ({ path: '/api/v1/auth', httpOnly: true })
     }
   }))
