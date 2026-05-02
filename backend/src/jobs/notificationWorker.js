@@ -76,15 +76,19 @@ const getNoticeRecipientWhere = (notice) => {
 
 const normalizeNotificationRecords = (notifications = []) => notifications
   .filter((notification) => notification?.userId)
-  .map((notification) => ({
-    userId: notification.userId,
-    type: notification.type,
-    title: notification.title,
-    message: notification.message,
-    link: notification.link || null,
-    metadata: notification.metadata || null,
-    dedupeKey: notification.dedupeKey || null
-  }))
+  .map((notification) => {
+    const safeLink = notification.link && String(notification.link).startsWith('/') ? String(notification.link) : null
+
+    return {
+      userId: notification.userId,
+      type: notification.type,
+      title: notification.title,
+      message: notification.message,
+      link: safeLink,
+      metadata: notification.metadata || null,
+      dedupeKey: notification.dedupeKey || null
+    }
+  })
 
 const emitCreatedNotifications = async (records) => {
   const dedupeKeys = records.map((record) => record.dedupeKey).filter(Boolean)

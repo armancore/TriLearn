@@ -44,23 +44,27 @@ const insertNotificationRecord = async ({
   link = null,
   metadata = null,
   dedupeKey = null
-}) => prisma.notification.create({
-  data: {
-    userId,
-    type,
-    title,
-    message,
-    link,
-    metadata,
-    dedupeKey
-  }
-}).catch((error) => {
-  if (error?.code === 'P2002' && dedupeKey) {
-    return null
-  }
+}) => {
+  const safeLink = link && String(link).startsWith('/') ? String(link) : null
 
-  throw error
-})
+  return prisma.notification.create({
+    data: {
+      userId,
+      type,
+      title,
+      message,
+      link: safeLink,
+      metadata,
+      dedupeKey
+    }
+  }).catch((error) => {
+    if (error?.code === 'P2002' && dedupeKey) {
+      return null
+    }
+
+    throw error
+  })
+}
 
 const createNotification = async ({
   userId,
@@ -75,12 +79,14 @@ const createNotification = async ({
     return null
   }
 
+  const safeLink = link && String(link).startsWith('/') ? String(link) : null
+
   return insertNotificationRecord({
     userId,
     type,
     title,
     message,
-    link,
+    link: safeLink,
     metadata,
     dedupeKey
   }).then(async (notification) => {
@@ -108,12 +114,14 @@ const createNotifications = async ({
     return { count: 0 }
   }
 
+  const safeLink = link && String(link).startsWith('/') ? String(link) : null
+
   const notifications = recipients.map((userId) => ({
     userId,
     type,
     title,
     message,
-    link,
+    link: safeLink,
     metadata,
     dedupeKey: typeof dedupeKeyFactory === 'function' ? dedupeKeyFactory(userId) : null
   }))

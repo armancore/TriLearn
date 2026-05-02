@@ -131,9 +131,6 @@ const getAdminStats = async (req, res) => {
   }
 }
 
-delete require.cache[require.resolve('./users.controller')]
-delete require.cache[require.resolve('./bulkImport.controller')]
-delete require.cache[require.resolve('./studentApplications.controller')]
 const {
   getAllUsers,
   getUsers,

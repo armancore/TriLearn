@@ -160,7 +160,7 @@ const AppShell = ({
       setNotifications((current) => current.filter((item) => item.id !== notification.id))
       setUnreadCount((current) => Math.max(0, current - (notification.isRead ? 0 : 1)))
 
-      if (notification.link) {
+      if (notification.link && notification.link.startsWith('/')) {
         navigate(notification.link)
         setNotificationsOpen(false)
       }
