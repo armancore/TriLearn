@@ -2,24 +2,42 @@
 
 Last reviewed: 2026-05-02
 
-`npm audit fix` was run without `--force`. The remaining moderate findings require breaking Expo/Jest Expo upgrades according to npm audit.
+The Expo SDK dependency remediation has been completed.
 
-Current audit status after safe fixes: 19 remaining CVEs, reported as 4 low and
-15 moderate. They trace through the Expo tooling dependency path:
+## 2026-05-02 Expo SDK Upgrade
+
+The mobile app was upgraded from Expo SDK 54 to Expo SDK 55 using the current
+Expo upgrade flow:
+
+```bash
+npm install expo@^55.0.0
+npx expo install --fix
+```
+
+The previous 19 npm audit findings, reported as 4 low and 15 moderate, traced
+through the Expo tooling dependency path:
 
 ```text
 expo-constants -> expo-linking -> expo-router -> @expo/prebuild-config -> expo-splash-screen
 ```
 
-Do not run `npm audit fix --force` as an unplanned hotfix for this project; it
-will force a full Expo SDK dependency bump and should be handled as a planned
-mobile upgrade with device testing.
+After the SDK upgrade, Expo dependency alignment, and targeted npm overrides for
+tooling-only transitive packages (`@tootallnate/once`, `postcss`, and `uuid`),
+`npm audit` reports 0 vulnerabilities.
 
-| Package | Severity | Advisory URL | React Native exploitability note |
-| --- | --- | --- | --- |
-| postcss | Moderate | https://github.com/advisories/GHSA-qx2v-qp2m-jg93 | Likely not exploitable in the shipped React Native app. This is in the Expo Metro/tooling chain and concerns CSS stringification output, not runtime mobile code. |
-| uuid | Moderate | https://github.com/advisories/GHSA-w5hq-g745-h8pq | Likely not exploitable in the shipped React Native app. The vulnerable path is through Expo config/xcode tooling and requires direct use of v3/v5/v6 APIs with a caller-provided buffer. |
+Verification completed:
 
-Recommended remediation: schedule `npx expo upgrade` in the next planned mobile
-sprint, update related Expo packages together, run the mobile test suite, smoke
-test Android/iOS builds, and rerun `npm audit` afterward.
+```bash
+npm audit
+npx expo-doctor
+npm test
+```
+
+Results:
+
+- `npm audit`: 0 vulnerabilities
+- `npx expo-doctor`: 18/18 checks passed
+- `npm test`: 2 test suites passed, 5 tests passed
+
+Remaining release validation: smoke test Android and iOS builds on physical or
+emulated devices before shipping the upgraded mobile app.

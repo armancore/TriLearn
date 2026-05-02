@@ -104,6 +104,14 @@ If the API is served from a different origin, add that exact HTTPS origin to
 `connect-src`. If the realtime endpoint is on a different WebSocket origin, add
 that exact `wss://` origin as well.
 
+Verify the deployed frontend response before closing the CSP deployment task:
+
+```bash
+curl -I https://your-frontend.example
+```
+
+The response for `text/html` should include `Content-Security-Policy`.
+
 ## Docker
 
 The backend includes [backend/Dockerfile](backend/Dockerfile) for containerized deployment.

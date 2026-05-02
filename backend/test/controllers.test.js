@@ -9,6 +9,8 @@ const resolveFromTest = (...segments) => path.resolve(__dirname, '..', ...segmen
 const loadWithMocks = (targetPath, mocks) => {
   const modulePath = path.resolve(targetPath)
   const localRequire = createRequire(modulePath)
+  const sourceRoot = resolveFromTest('src')
+  const previousCacheKeys = new Set(Object.keys(require.cache))
   const touched = []
 
   for (const [request, mockExports] of Object.entries(mocks)) {
@@ -30,7 +32,12 @@ const loadWithMocks = (targetPath, mocks) => {
   try {
     return require(modulePath)
   } finally {
-    delete require.cache[modulePath]
+    for (const cachedPath of Object.keys(require.cache)) {
+      if (!previousCacheKeys.has(cachedPath) && cachedPath.startsWith(sourceRoot)) {
+        delete require.cache[cachedPath]
+      }
+    }
+
     touched.forEach(({ resolved, previous }) => {
       if (previous) {
         require.cache[resolved] = previous
@@ -671,7 +678,8 @@ test('resetPassword revokes existing refresh tokens inside the password reset tr
   const { resetPassword } = loadWithMocks(resolveFromTest('src', 'controllers', 'auth.controller.js'), authControllerMocks({
     '../utils/security': {
       hashPassword: async () => 'hashed-new-password',
-      getRequiredSecret: () => 'test-secret'
+      getRequiredSecret: () => 'test-secret',
+      isKnownWeakPassword: () => false
     },
     '../utils/prisma': {
       user: {
@@ -780,7 +788,8 @@ test('changePassword updates passwordChangedAt when password is changed', async 
   const { changePassword } = loadWithMocks(resolveFromTest('src', 'controllers', 'auth.controller.js'), authControllerMocks({
     '../utils/security': {
       hashPassword: async () => 'hashed-new-password',
-      getRequiredSecret: () => 'test-secret'
+      getRequiredSecret: () => 'test-secret',
+      isKnownWeakPassword: () => false
     },
     '../utils/prisma': {
       user: {
@@ -1723,6 +1732,47 @@ test('getAdminStats returns fresh server-side aggregate counts', async () => {
         }
       }
     },
+    '../utils/statsCache': (() => {
+      let cachedStats = null
+      return {
+        clearStatsCache: () => {
+          cachedStats = null
+        },
+        readSharedStatsCache: async () => cachedStats,
+        writeSharedStatsCache: async (stats) => {
+          cachedStats = stats
+        }
+      }
+    })(),
+    './users.controller': {
+      getAllUsers: async () => {},
+      getUsers: async () => {},
+      getUserById: async () => {},
+      createCoordinator: async () => {},
+      createGatekeeper: async () => {},
+      createInstructor: async () => {},
+      createStudent: async () => {},
+      createUser: async () => {},
+      updateUser: async () => {},
+      toggleUserStatus: async () => {},
+      suspendUser: async () => {},
+      unsuspendUser: async () => {},
+      deleteUser: async () => {},
+      bulkAssignStudentSection: async () => {},
+      promoteStudentSemester: async () => {}
+    },
+    './bulkImport.controller': {
+      importStudents: async () => {}
+    },
+    './studentApplications.controller': {
+      getStudentApplications: async () => {},
+      getStudentApplication: async () => {},
+      reviewStudentApplication: async () => {},
+      updateStudentApplicationStatus: async () => {},
+      convertStudentApplication: async () => {},
+      createStudentFromApplication: async () => {},
+      deleteStudentApplication: async () => {}
+    },
     'bcryptjs': {
       hash: async () => 'hashed'
     },
@@ -1771,100 +1821,26 @@ test('getAdminStats returns fresh server-side aggregate counts', async () => {
   assert.deepEqual(countWheres[1], { role: 'STUDENT', deletedAt: null })
 })
 
-test('getAdminStats ignores poisoned Redis cache payloads and recomputes stats', async () => {
-  const originalNodeEnv = process.env.NODE_ENV
-  const originalRedisUrl = process.env.REDIS_URL
-  process.env.NODE_ENV = 'development'
-  process.env.REDIS_URL = 'redis://localhost:6379'
-
-  let userCountCalls = 0
-  let subjectCountCalls = 0
-
-  try {
-    const { getAdminStats } = loadWithMocks(resolveFromTest('src', 'controllers', 'admin.controller.js'), {
-      '../utils/prisma': {
-        user: {
-          count: async ({ where } = {}) => {
-            userCountCalls += 1
-            if (!where || (where.deletedAt === null && !where.role)) return 50
-            if (where.role === 'STUDENT') return 35
-            if (where.role === 'INSTRUCTOR') return 8
-            if (where.role === 'COORDINATOR') return 4
-            if (where.role === 'GATEKEEPER') return 3
-            return 0
-          }
-        },
-        subject: {
-          count: async () => {
-            subjectCountCalls += 1
-            return 20
-          }
-        }
-      },
-      '../utils/redis': {
-        getReadyRedisClient: async () => ({
-          get: async () => JSON.stringify({
-            totalUsers: 'pwned',
-            totalStudents: 99999
-          }),
-          set: async () => {},
-          del: async () => {}
-        })
-      },
-      'bcryptjs': {
-        hash: async () => 'hashed'
-      },
-      '../utils/enrollment': {
-        enrollStudentInMatchingSubjects: async () => {},
-        syncStudentEnrollmentForSemester: async () => {}
-      },
-      '../utils/logger': {
-        error: () => {},
-        warn: () => {}
-      },
-      './department.controller': {
-        ensureDepartmentExists: async () => true
-      },
-      '../utils/audit': {
-        recordAuditLog: async () => {}
-      },
-      '../utils/mailer': {
-        sendMail: async () => {}
-      },
-      '../utils/emailTemplates': {
-        welcomeTemplate: () => ({ subject: 'Welcome', html: '<p>Welcome</p>', text: 'Welcome' })
-      }
-    })
-
-    const res = createResponse()
-    await getAdminStats({}, res)
-
-    assert.equal(res.statusCode, 200)
-    assert.deepEqual(res.body, {
-      stats: {
-        totalUsers: 50,
-        totalStudents: 35,
-        totalInstructors: 8,
-        totalCoordinators: 4,
-        totalGatekeepers: 3,
-        totalSubjects: 20
-      }
-    })
-    assert.equal(userCountCalls, 5)
-    assert.equal(subjectCountCalls, 1)
-  } finally {
-    if (originalNodeEnv === undefined) {
-      delete process.env.NODE_ENV
-    } else {
-      process.env.NODE_ENV = originalNodeEnv
+test('stats cache ignores poisoned Redis cache payloads', async () => {
+  const { readSharedStatsCache } = loadWithMocks(resolveFromTest('src', 'utils', 'statsCache.js'), {
+    './redis': {
+      getReadyRedisClient: async () => ({
+        get: async () => JSON.stringify({
+          totalUsers: 'pwned',
+          totalStudents: 99999
+        }),
+        set: async () => {},
+        del: async () => {}
+      })
+    },
+    './logger': {
+      warn: () => {}
     }
+  })
 
-    if (originalRedisUrl === undefined) {
-      delete process.env.REDIS_URL
-    } else {
-      process.env.REDIS_URL = originalRedisUrl
-    }
-  }
+  const cachedStats = await readSharedStatsCache()
+
+  assert.equal(cachedStats, null)
 })
 
 test('updateUser does not wipe coordinator department when no department is provided', async () => {
@@ -3802,8 +3778,8 @@ test('getStudentIdQr includes an expiry timestamp in the signed student QR paylo
   assert.equal(parsed.payload.semester, 4)
   assert.ok(!Number.isNaN(expiresAt.getTime()))
 
-  const minExpiry = startedAt + (23 * 60 * 60 * 1000)
-  const maxExpiry = finishedAt + (24 * 60 * 60 * 1000) + 5_000
+  const minExpiry = startedAt + (8 * 60 * 60 * 1000) - 5_000
+  const maxExpiry = finishedAt + (8 * 60 * 60 * 1000) + 5_000
   assert.ok(expiresAt.getTime() >= minExpiry)
   assert.ok(expiresAt.getTime() <= maxExpiry)
 })
@@ -4341,7 +4317,7 @@ test('getMarksBySubject blocks instructors from subjects assigned to a different
 
   assert.equal(res.statusCode, 403)
   assert.deepEqual(res.body, {
-    message: 'You can only manage marks for your assigned subjects'
+    message: 'You can only view marks for your assigned subjects'
   })
   assert.equal(findManyCalls.length, 0)
 })

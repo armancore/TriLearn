@@ -10,6 +10,8 @@ const resolveFromTest = (...segments) => path.resolve(__dirname, '..', ...segmen
 const loadWithMocks = (targetPath, mocks) => {
   const modulePath = path.resolve(targetPath)
   const localRequire = createRequire(modulePath)
+  const sourceRoot = resolveFromTest('src')
+  const previousCacheKeys = new Set(Object.keys(require.cache))
   const touched = []
 
   for (const [request, mockExports] of Object.entries(mocks)) {
@@ -31,7 +33,12 @@ const loadWithMocks = (targetPath, mocks) => {
   try {
     return require(modulePath)
   } finally {
-    delete require.cache[modulePath]
+    for (const cachedPath of Object.keys(require.cache)) {
+      if (!previousCacheKeys.has(cachedPath) && cachedPath.startsWith(sourceRoot)) {
+        delete require.cache[cachedPath]
+      }
+    }
+
     touched.forEach(({ resolved, previous }) => {
       if (previous) {
         require.cache[resolved] = previous
