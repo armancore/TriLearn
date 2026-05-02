@@ -1,4 +1,4 @@
-delete require.cache[require.resolve('../services/users.service')]
+const { createController } = require('../utils/controllerAdapter')
 const {
   getAllUsers: getAllUsersService,
   getUserById: getUserByIdService,
@@ -13,49 +13,18 @@ const {
   promoteStudentSemester: promoteStudentSemesterService
 } = require('../services/users.service')
 
-const getAllUsers = async (req, res) => {
-  return getAllUsersService(req, res)
-}
+const getAllUsers = createController(getAllUsersService)
+const getUserById = createController(getUserByIdService)
+const createCoordinator = createController(createCoordinatorService)
+const createGatekeeper = createController(createGatekeeperService)
+const createInstructor = createController(createInstructorService)
+const createStudent = createController(createStudentService)
+const updateUser = createController(updateUserService)
+const toggleUserStatus = createController(toggleUserStatusService)
+const deleteUser = createController(deleteUserService)
+const bulkAssignStudentSection = createController(bulkAssignStudentSectionService)
+const promoteStudentSemester = createController(promoteStudentSemesterService)
 
-const getUserById = async (req, res) => {
-  return getUserByIdService(req, res)
-}
-
-const createCoordinator = async (req, res) => {
-  return createCoordinatorService(req, res)
-}
-
-const createGatekeeper = async (req, res) => {
-  return createGatekeeperService(req, res)
-}
-
-const createInstructor = async (req, res) => {
-  return createInstructorService(req, res)
-}
-
-const createStudent = async (req, res) => {
-  return createStudentService(req, res)
-}
-
-const updateUser = async (req, res) => {
-  return updateUserService(req, res)
-}
-
-const toggleUserStatus = async (req, res) => {
-  return toggleUserStatusService(req, res)
-}
-
-const deleteUser = async (req, res) => {
-  return deleteUserService(req, res)
-}
-
-const bulkAssignStudentSection = async (req, res) => {
-  return bulkAssignStudentSectionService(req, res)
-}
-
-const promoteStudentSemester = async (req, res) => {
-  return promoteStudentSemesterService(req, res)
-}
 module.exports = {
   getAllUsers: getAllUsers,
   getUsers: getAllUsers,

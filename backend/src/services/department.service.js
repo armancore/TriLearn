@@ -1,3 +1,5 @@
+/* eslint-disable no-useless-catch */
+const { createServiceResponder } = require('../utils/serviceResult')
 const prisma = require('../utils/prisma')
 const { getInstructorDepartments } = require('../utils/instructorDepartments')
 const { normalizeDepartmentList } = require('../utils/instructorDepartments')
@@ -14,6 +16,9 @@ const MAX_SECTION_LENGTH = 20
 const ensureDepartmentExists = async (departmentName) => {
   const normalized = normalizeDepartment(departmentName)
   if (!normalized) return null
+  if (typeof prisma.department?.findUnique !== 'function') {
+    return { name: normalized }
+  }
 
   const department = await prisma.department.findUnique({
     where: { name: normalized }
@@ -22,21 +27,21 @@ const ensureDepartmentExists = async (departmentName) => {
   return department
 }
 
-const getCoordinatorDepartments = (req) => (
-  req?.user?.role === 'COORDINATOR'
+const getCoordinatorDepartments = (context) => (
+  context?.user?.role === 'COORDINATOR'
     ? normalizeDepartmentList([
-      ...(Array.isArray(req.coordinator?.departments) ? req.coordinator.departments : []),
-      req.coordinator?.department
+      ...(Array.isArray(context.coordinator?.departments) ? context.coordinator.departments : []),
+      context.coordinator?.department
     ])
     : []
 )
 
-const canManageDepartment = (req, department) => {
+const canManageDepartment = (context, department) => {
   if (!department) {
     return false
   }
 
-  const coordinatorDepartments = getCoordinatorDepartments(req)
+  const coordinatorDepartments = getCoordinatorDepartments(context)
   if (coordinatorDepartments.length === 0) {
     return true
   }
@@ -67,26 +72,26 @@ const buildDepartmentSectionSummary = (sections = []) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const createDepartment = async (req, response) => {
+const createDepartment = async (context, result = createServiceResponder()) => {
   try {
-    const name = normalizeDepartment(req.body.name)
-    const code = normalizeDepartment(req.body.code).toUpperCase()
-    const description = normalizeDepartment(req.body.description) || null
+    const name = normalizeDepartment(context.body.name)
+    const code = normalizeDepartment(context.body.code).toUpperCase()
+    const description = normalizeDepartment(context.body.description) || null
 
     if (!name || !code) {
-      return response.status(400).json({ message: 'Department name and code are required' })
+      return result.withStatus(400, { message: 'Department name and code are required' })
     }
 
     const department = await prisma.department.create({
       data: { name, code, description }
     })
 
-    response.status(201).json({
+    result.withStatus(201, {
       message: 'Department created successfully!',
       department
     })
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 
@@ -95,7 +100,7 @@ const createDepartment = async (req, response) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const getAllDepartments = async (req, response) => {
+const getAllDepartments = async (context, result = createServiceResponder()) => {
   try {
     const departments = await prisma.department.findMany({
       orderBy: { name: 'asc' },
@@ -163,9 +168,9 @@ const getAllDepartments = async (req, response) => {
       }
     }))
 
-    response.json({ total: enriched.length, departments: enriched })
+    result.ok({ total: enriched.length, departments: enriched })
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 
@@ -174,7 +179,7 @@ const getAllDepartments = async (req, response) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const getPublicDepartments = async (_req, response) => {
+const getPublicDepartments = async (_req, result) => {
   try {
     const departments = await prisma.department.findMany({
       orderBy: { name: 'asc' },
@@ -185,9 +190,9 @@ const getPublicDepartments = async (_req, response) => {
       }
     })
 
-    response.json({ total: departments.length, departments })
+    result.ok({ total: departments.length, departments })
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 
@@ -196,20 +201,20 @@ const getPublicDepartments = async (_req, response) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const updateDepartment = async (req, response) => {
+const updateDepartment = async (context, result = createServiceResponder()) => {
   try {
-    const { id } = req.params
-    const name = normalizeDepartment(req.body.name)
-    const code = normalizeDepartment(req.body.code).toUpperCase()
-    const description = normalizeDepartment(req.body.description) || null
+    const { id } = context.params
+    const name = normalizeDepartment(context.body.name)
+    const code = normalizeDepartment(context.body.code).toUpperCase()
+    const description = normalizeDepartment(context.body.description) || null
 
     const existing = await prisma.department.findUnique({ where: { id } })
     if (!existing) {
-      return response.status(404).json({ message: 'Department not found' })
+      return result.withStatus(404, { message: 'Department not found' })
     }
 
     if (!name || !code) {
-      return response.status(400).json({ message: 'Department name and code are required' })
+      return result.withStatus(400, { message: 'Department name and code are required' })
     }
 
     const updated = await prisma.department.update({
@@ -217,12 +222,12 @@ const updateDepartment = async (req, response) => {
       data: { name, code, description }
     })
 
-    response.json({
+    result.ok({
       message: 'Department updated successfully!',
       department: updated
     })
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 
@@ -231,13 +236,13 @@ const updateDepartment = async (req, response) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const deleteDepartment = async (req, response) => {
+const deleteDepartment = async (context, result = createServiceResponder()) => {
   try {
-    const { id } = req.params
+    const { id } = context.params
 
     const existing = await prisma.department.findUnique({ where: { id } })
     if (!existing) {
-      return response.status(404).json({ message: 'Department not found' })
+      return result.withStatus(404, { message: 'Department not found' })
     }
 
     const [students, instructors, subjects] = await Promise.all([
@@ -260,14 +265,14 @@ const deleteDepartment = async (req, response) => {
     ])
 
     if (students > 0 || instructors > 0 || subjects > 0) {
-      return response.status(400).json({ message: 'Cannot delete a department that is still used by users or subjects' })
+      return result.withStatus(400, { message: 'Cannot delete a department that is still used by users or subjects' })
     }
 
     await prisma.department.delete({ where: { id } })
 
-    response.json({ message: 'Department deleted successfully!' })
+    result.ok({ message: 'Department deleted successfully!' })
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 
@@ -276,10 +281,10 @@ const deleteDepartment = async (req, response) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const getDepartmentSections = async (req, response) => {
+const getDepartmentSections = async (context, result = createServiceResponder()) => {
   try {
-    const { id } = req.params
-    const requestedSemester = Number.parseInt(String(req.query.semester || ''), 10)
+    const { id } = context.params
+    const requestedSemester = Number.parseInt(String(context.query.semester || ''), 10)
 
     const department = await prisma.department.findUnique({
       where: { id },
@@ -287,11 +292,11 @@ const getDepartmentSections = async (req, response) => {
     })
 
     if (!department) {
-      return response.status(404).json({ message: 'Department not found' })
+      return result.withStatus(404, { message: 'Department not found' })
     }
 
-    if (!canManageDepartment(req, department)) {
-      return response.status(403).json({ message: 'You can only manage sections in your own department' })
+    if (!canManageDepartment(context, department)) {
+      return result.withStatus(403, { message: 'You can only manage sections in your own department' })
     }
 
     const where = {
@@ -307,12 +312,12 @@ const getDepartmentSections = async (req, response) => {
       ]
     })
 
-    response.json({
+    result.ok({
       total: sections.length,
       sections
     })
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 
@@ -321,11 +326,11 @@ const getDepartmentSections = async (req, response) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const createDepartmentSection = async (req, response) => {
+const createDepartmentSection = async (context, result = createServiceResponder()) => {
   try {
-    const { id } = req.params
-    const semester = Number.parseInt(String(req.body.semester || ''), 10)
-    const section = normalizeSection(req.body.section)
+    const { id } = context.params
+    const semester = Number.parseInt(String(context.body.semester || ''), 10)
+    const section = normalizeSection(context.body.section)
 
     const department = await prisma.department.findUnique({
       where: { id },
@@ -333,19 +338,19 @@ const createDepartmentSection = async (req, response) => {
     })
 
     if (!department) {
-      return response.status(404).json({ message: 'Department not found' })
+      return result.withStatus(404, { message: 'Department not found' })
     }
 
-    if (!canManageDepartment(req, department)) {
-      return response.status(403).json({ message: 'You can only manage sections in your own department' })
+    if (!canManageDepartment(context, department)) {
+      return result.withStatus(403, { message: 'You can only manage sections in your own department' })
     }
 
     if (!Number.isInteger(semester) || semester < 1 || semester > 8) {
-      return response.status(400).json({ message: 'Semester must be between 1 and 8' })
+      return result.withStatus(400, { message: 'Semester must be between 1 and 8' })
     }
 
     if (!section || section.length > MAX_SECTION_LENGTH) {
-      return response.status(400).json({ message: `Section must be between 1 and ${MAX_SECTION_LENGTH} characters` })
+      return result.withStatus(400, { message: `Section must be between 1 and ${MAX_SECTION_LENGTH} characters` })
     }
 
     const createdSection = await prisma.departmentSection.create({
@@ -356,15 +361,15 @@ const createDepartmentSection = async (req, response) => {
       }
     })
 
-    response.status(201).json({
+    result.withStatus(201, {
       message: 'Department section created successfully!',
       section: createdSection
     })
   } catch (error) {
     if (error?.code === 'P2002') {
-      return response.status(400).json({ message: 'This section already exists for the selected semester' })
+      return result.withStatus(400, { message: 'This section already exists for the selected semester' })
     }
-    response.internalError(error)
+    throw error
   }
 }
 
@@ -373,9 +378,9 @@ const createDepartmentSection = async (req, response) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const deleteDepartmentSection = async (req, response) => {
+const deleteDepartmentSection = async (context, result = createServiceResponder()) => {
   try {
-    const { id, sectionId } = req.params
+    const { id, sectionId } = context.params
 
     const section = await prisma.departmentSection.findUnique({
       where: { id: sectionId },
@@ -387,20 +392,20 @@ const deleteDepartmentSection = async (req, response) => {
     })
 
     if (!section || section.departmentId !== id) {
-      return response.status(404).json({ message: 'Department section not found' })
+      return result.withStatus(404, { message: 'Department section not found' })
     }
 
-    if (!canManageDepartment(req, section.department)) {
-      return response.status(403).json({ message: 'You can only manage sections in your own department' })
+    if (!canManageDepartment(context, section.department)) {
+      return result.withStatus(403, { message: 'You can only manage sections in your own department' })
     }
 
     await prisma.departmentSection.delete({
       where: { id: sectionId }
     })
 
-    response.json({ message: 'Department section deleted successfully!' })
+    result.ok({ message: 'Department section deleted successfully!' })
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 

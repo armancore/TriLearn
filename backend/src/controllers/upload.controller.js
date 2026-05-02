@@ -1,11 +1,10 @@
-delete require.cache[require.resolve('../services/upload.service')]
+const { createController } = require('../utils/controllerAdapter')
 const {
   serveUploadedFile: serveUploadedFileService
 } = require('../services/upload.service')
 
-const serveUploadedFile = async (req, res) => {
-  return serveUploadedFileService(req, res)
-}
+const serveUploadedFile = createController(serveUploadedFileService)
+
 module.exports = {
   serveUploadedFile: serveUploadedFile
 }

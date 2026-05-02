@@ -1,19 +1,21 @@
+/* eslint-disable no-useless-catch */
+const { createServiceResponder } = require('../utils/serviceResult')
 const prisma = require('../utils/prisma')
 const { createNotifications } = require('../utils/notifications')
-const ensureCoordinatorDepartmentScope = async (req, response, departmentValue, message = 'You can only manage routines in your own department') => {
-  if (req.user.role !== 'COORDINATOR') {
+const ensureCoordinatorDepartmentScope = async (context, result, departmentValue, message = 'You can only manage routines in your own department') => {
+  if (context.user.role !== 'COORDINATOR') {
     return null
   }
 
-  const coordinatorDepartments = [req.coordinator?.department].filter(Boolean)
+  const coordinatorDepartments = [context.coordinator?.department].filter(Boolean)
 
   if (coordinatorDepartments.length === 0) {
-    response.status(403).json({ message: 'Coordinator department is not configured yet' })
+    result.withStatus(403, { message: 'Coordinator department is not configured yet' })
     return null
   }
 
   if (departmentValue && !coordinatorDepartments.includes(departmentValue)) {
-    response.status(403).json({ message })
+    result.withStatus(403, { message })
     return null
   }
 
@@ -26,8 +28,8 @@ const applySectionScope = (studentSection) => (
     : undefined
 )
 
-const buildRoutineFilters = async (req) => {
-  const { dayOfWeek, semester, department, section } = req.query
+const buildRoutineFilters = async (context) => {
+  const { dayOfWeek, semester, department, section } = context.query
   const filters = {}
 
   if (dayOfWeek) filters.dayOfWeek = dayOfWeek
@@ -35,17 +37,17 @@ const buildRoutineFilters = async (req) => {
   if (department) filters.department = department
   if (section) filters.section = section
 
-  if (req.user.role === 'INSTRUCTOR') {
+  if (context.user.role === 'INSTRUCTOR') {
     const instructor = await prisma.instructor.findUnique({
-      where: { userId: req.user.id }
+      where: { userId: context.user.id }
     })
 
     filters.instructorId = instructor?.id || '__no_routines__'
   }
 
-  if (req.user.role === 'STUDENT') {
+  if (context.user.role === 'STUDENT') {
     const student = await prisma.student.findUnique({
-      where: { userId: req.user.id }
+      where: { userId: context.user.id }
     })
 
     if (!student) {
@@ -60,8 +62,8 @@ const buildRoutineFilters = async (req) => {
     }
   }
 
-  if (req.user.role === 'COORDINATOR') {
-    const coordinatorDepartments = [req.coordinator?.department].filter(Boolean)
+  if (context.user.role === 'COORDINATOR') {
+    const coordinatorDepartments = [context.coordinator?.department].filter(Boolean)
 
     if (coordinatorDepartments.length === 0) {
       return { id: '__no_routines__' }
@@ -211,7 +213,7 @@ const notifyRoutineDeleted = async (routine) => {
   })
 }
 
-const validateRoutineAcademicScope = async ({ subjectId, instructorId, department, semester, req }) => {
+const validateRoutineAcademicScope = async ({ subjectId, instructorId, department, semester, context }) => {
   const subject = await prisma.subject.findUnique({ where: { id: subjectId } })
   if (!subject) return { error: { status: 404, message: 'Subject not found' } }
 
@@ -239,8 +241,8 @@ const validateRoutineAcademicScope = async ({ subjectId, instructorId, departmen
   const normalizedDepartment = department || null
   const normalizedSubjectDepartment = subject.department || null
 
-  if (req?.user?.role === 'COORDINATOR') {
-    const coordinatorDepartments = [req.coordinator?.department].filter(Boolean)
+  if (context?.user?.role === 'COORDINATOR') {
+    const coordinatorDepartments = [context.coordinator?.department].filter(Boolean)
 
     if (coordinatorDepartments.length === 0) {
       return { error: { status: 403, message: 'Coordinator department is not configured yet' } }
@@ -294,16 +296,16 @@ const getOverlapFilter = ({ dayOfWeek, startTime, endTime, section, room, depart
   }
 }
 
-const respondToRoutineConflict = ({ response, conflict, room, instructorId }) => {
+const respondToRoutineConflict = ({ result, conflict, room, instructorId }) => {
   if (room && conflict.room === room) {
-    return response.status(400).json({ message: `Room ${room} is already booked at this time.` })
+    return result.withStatus(400, { message: `Room ${room} is already booked at this time.` })
   }
 
   if (conflict.instructorId === instructorId) {
-    return response.status(400).json({ message: 'This instructor already has a class at this time.' })
+    return result.withStatus(400, { message: 'This instructor already has a class at this time.' })
   }
 
-  return response.status(400).json({ message: 'This time slot is already taken for this semester and section.' })
+  return result.withStatus(400, { message: 'This time slot is already taken for this semester and section.' })
 }
 
 /**
@@ -311,13 +313,13 @@ const respondToRoutineConflict = ({ response, conflict, room, instructorId }) =>
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const createRoutine = async (req, response) => {
+const createRoutine = async (context, result = createServiceResponder()) => {
   try {
-    const { subjectId, instructorId, department, semester, section, dayOfWeek, startTime, endTime, room, combinedGroupId } = req.body
+    const { subjectId, instructorId, department, semester, section, dayOfWeek, startTime, endTime, room, combinedGroupId } = context.body
 
-    const scope = await validateRoutineAcademicScope({ req, subjectId, instructorId, department, semester })
+    const scope = await validateRoutineAcademicScope({ context, subjectId, instructorId, department, semester })
     if (scope.error) {
-      return response.status(scope.error.status).json({ message: scope.error.message })
+      return result.withStatus(scope.error.status, { message: scope.error.message })
     }
 
     const conflict = await prisma.routine.findFirst({
@@ -325,7 +327,7 @@ const createRoutine = async (req, response) => {
     })
 
     if (conflict) {
-      return respondToRoutineConflict({ response, conflict, room, instructorId })
+      return respondToRoutineConflict({ result, conflict, room, instructorId })
     }
 
     const routine = await prisma.routine.create({
@@ -344,15 +346,15 @@ const createRoutine = async (req, response) => {
       include: getRoutineInclude()
     })
 
-    response.status(201).json({ message: 'Routine created successfully!', routine })
+    result.withStatus(201, { message: 'Routine created successfully!', routine })
 
     void notifyRoutineCreated(routine).catch(() => null)
   } catch (error) {
     if (error?.code === 'P2002') {
-      return response.status(400).json({ message: 'This instructor already has a class at this time.' })
+      return result.withStatus(400, { message: 'This instructor already has a class at this time.' })
     }
 
-    response.internalError(error)
+    throw error
   }
 }
 
@@ -361,9 +363,9 @@ const createRoutine = async (req, response) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const getAllRoutines = async (req, response) => {
+const getAllRoutines = async (context, result = createServiceResponder()) => {
   try {
-    const filters = await buildRoutineFilters(req)
+    const filters = await buildRoutineFilters(context)
 
     const routines = await prisma.routine.findMany({
       where: filters,
@@ -374,9 +376,9 @@ const getAllRoutines = async (req, response) => {
       ]
     })
 
-    response.json({ total: routines.length, routines })
+    result.ok({ total: routines.length, routines })
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 
@@ -385,23 +387,23 @@ const getAllRoutines = async (req, response) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const getRoutineById = async (req, response) => {
+const getRoutineById = async (context, result = createServiceResponder()) => {
   try {
-    const { id } = req.params
+    const { id } = context.params
     const routine = await prisma.routine.findUnique({
       where: { id },
       include: getRoutineInclude()
     })
-    if (!routine) return response.status(404).json({ message: 'Routine not found' })
+    if (!routine) return result.withStatus(404, { message: 'Routine not found' })
 
-    const departmentAllowed = await ensureCoordinatorDepartmentScope(req, response, routine.department)
-    if (req.user.role === 'COORDINATOR' && !departmentAllowed) {
+    const departmentAllowed = await ensureCoordinatorDepartmentScope(context, result, routine.department)
+    if (context.user.role === 'COORDINATOR' && !departmentAllowed) {
       return
     }
 
-    response.json({ routine })
+    result.ok({ routine })
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 
@@ -410,25 +412,25 @@ const getRoutineById = async (req, response) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const updateRoutine = async (req, response) => {
+const updateRoutine = async (context, result = createServiceResponder()) => {
   try {
-    const { id } = req.params
-    const { subjectId, instructorId, department, semester, section, dayOfWeek, startTime, endTime, room, combinedGroupId } = req.body
+    const { id } = context.params
+    const { subjectId, instructorId, department, semester, section, dayOfWeek, startTime, endTime, room, combinedGroupId } = context.body
 
     const routine = await prisma.routine.findUnique({
       where: { id },
       include: getRoutineInclude()
     })
-    if (!routine) return response.status(404).json({ message: 'Routine not found' })
+    if (!routine) return result.withStatus(404, { message: 'Routine not found' })
 
-    const departmentAllowed = await ensureCoordinatorDepartmentScope(req, response, routine.department)
-    if (req.user.role === 'COORDINATOR' && !departmentAllowed) {
+    const departmentAllowed = await ensureCoordinatorDepartmentScope(context, result, routine.department)
+    if (context.user.role === 'COORDINATOR' && !departmentAllowed) {
       return
     }
 
-    const scope = await validateRoutineAcademicScope({ req, subjectId, instructorId, department, semester })
+    const scope = await validateRoutineAcademicScope({ context, subjectId, instructorId, department, semester })
     if (scope.error) {
-      return response.status(scope.error.status).json({ message: scope.error.message })
+      return result.withStatus(scope.error.status, { message: scope.error.message })
     }
 
     const conflict = await prisma.routine.findFirst({
@@ -436,7 +438,7 @@ const updateRoutine = async (req, response) => {
     })
 
     if (conflict) {
-      return respondToRoutineConflict({ response, conflict, room, instructorId })
+      return respondToRoutineConflict({ result, conflict, room, instructorId })
     }
 
     const updated = await prisma.routine.update({
@@ -456,7 +458,7 @@ const updateRoutine = async (req, response) => {
       include: getRoutineInclude()
     })
 
-    response.json({ message: 'Routine updated successfully!', routine: updated })
+    result.ok({ message: 'Routine updated successfully!', routine: updated })
 
     if (routine.subjectId !== updated.subjectId) {
       void Promise.allSettled([
@@ -466,10 +468,10 @@ const updateRoutine = async (req, response) => {
     }
   } catch (error) {
     if (error?.code === 'P2002') {
-      return response.status(400).json({ message: 'This instructor already has a class at this time.' })
+      return result.withStatus(400, { message: 'This instructor already has a class at this time.' })
     }
 
-    response.internalError(error)
+    throw error
   }
 }
 
@@ -478,26 +480,26 @@ const updateRoutine = async (req, response) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const deleteRoutine = async (req, response) => {
+const deleteRoutine = async (context, result = createServiceResponder()) => {
   try {
-    const { id } = req.params
+    const { id } = context.params
     const routine = await prisma.routine.findUnique({
       where: { id },
       include: getRoutineInclude()
     })
-    if (!routine) return response.status(404).json({ message: 'Routine not found' })
+    if (!routine) return result.withStatus(404, { message: 'Routine not found' })
 
-    const departmentAllowed = await ensureCoordinatorDepartmentScope(req, response, routine.department)
-    if (req.user.role === 'COORDINATOR' && !departmentAllowed) {
+    const departmentAllowed = await ensureCoordinatorDepartmentScope(context, result, routine.department)
+    if (context.user.role === 'COORDINATOR' && !departmentAllowed) {
       return
     }
 
     await prisma.routine.delete({ where: { id } })
-    response.json({ message: 'Routine deleted successfully!' })
+    result.ok({ message: 'Routine deleted successfully!' })
 
     void notifyRoutineDeleted(routine).catch(() => null)
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 

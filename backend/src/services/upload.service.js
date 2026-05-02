@@ -1,3 +1,5 @@
+/* eslint-disable no-useless-catch */
+const { createServiceResponder } = require('../utils/serviceResult')
 const fs = require('fs')
 const path = require('path')
 const prisma = require('../utils/prisma')
@@ -11,7 +13,7 @@ const resolvedUploadPublicPaths = Array.isArray(uploadPublicPaths) && uploadPubl
 
 const buildRelativeUploadPaths = (fileName) => resolvedUploadPublicPaths.map((publicPath) => `${publicPath}/${fileName}`)
 
-const setUploadSecurityHeaders = (response) => {
+const setUploadSecurityHeaders = (result) => {
   const allowedFrameAncestors = ["'self'"]
   const trustedOrigins = getTrustedOrigins()
 
@@ -21,9 +23,9 @@ const setUploadSecurityHeaders = (response) => {
     }
   })
 
-  response.setHeader('X-Content-Type-Options', 'nosniff')
-  response.setHeader('Cross-Origin-Resource-Policy', 'same-site')
-  response.setHeader('Content-Security-Policy', `default-src 'none'; frame-ancestors ${allowedFrameAncestors.join(' ')}; sandbox allow-scripts allow-downloads`)
+  result.header('X-Content-Type-Options', 'nosniff')
+  result.header('Cross-Origin-Resource-Policy', 'same-site')
+  result.header('Content-Security-Policy', `default-src 'none'; frame-ancestors ${allowedFrameAncestors.join(' ')}; sandbox allow-scripts allow-downloads`)
 }
 
 const getSafeContentType = (fileName) => {
@@ -59,28 +61,28 @@ const resolveExistingUploadFilePath = (fileName) => {
   return path.join(uploadPath, fileName)
 }
 
-const sendUploadFile = (response, fileName) => {
-  setUploadSecurityHeaders(response)
+const sendUploadFile = (result, fileName) => {
+  setUploadSecurityHeaders(result)
   const contentType = getSafeContentType(fileName)
   const absolutePath = resolveExistingUploadFilePath(fileName)
 
-  return response.sendFile(absolutePath, {
+  return result.sendFile(absolutePath, {
     headers: {
       'Cache-Control': 'private, no-store',
       'Content-Type': contentType,
       'Content-Disposition': `attachment; filename="${path.basename(fileName)}"`
     }
   }, (error) => {
-    if (!error || response.headersSent) {
+    if (!error || result.headersSent) {
       return
     }
 
     if (error.code === 'ENOENT') {
-      response.status(404).json({ message: 'File not found' })
+      result.withStatus(404, { message: 'File not found' })
       return
     }
 
-    response.status(500).json({ message: 'Something went wrong' })
+    result.withStatus(500, { message: 'Something went wrong' })
   })
 }
 
@@ -160,17 +162,17 @@ const canAccessMaterialFile = async (user, material) => {
   return false
 }
 
-const logUploadAccessDenied = async (req, fileName, resourceType) => {
+const logUploadAccessDenied = async (context, fileName, resourceType) => {
   await recordAuditLog({
-    actorId: req.user?.id || null,
-    actorRole: req.user?.role || null,
+    actorId: context.user?.id || null,
+    actorRole: context.user?.role || null,
     action: 'UPLOAD_FILE_ACCESS_DENIED',
     entityType: 'UploadFile',
     entityId: fileName,
     metadata: {
       fileName,
       resourceType,
-      requestPath: req.originalUrl || null
+      requestPath: context.originalUrl || null
     }
   })
 }
@@ -180,16 +182,16 @@ const logUploadAccessDenied = async (req, fileName, resourceType) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const serveUploadedFile = async (req, response) => {
+const serveUploadedFile = async (context, result = createServiceResponder()) => {
   try {
-    const fileName = path.basename(String(req.params.filename || ''))
+    const fileName = path.basename(String(context.params.filename || ''))
     if (!fileName) {
-      return response.status(404).json({ message: 'File not found' })
+      return result.withStatus(404, { message: 'File not found' })
     }
 
     const relativePaths = buildRelativeUploadPaths(fileName)
 
-    const user = req.user
+    const user = context.user
 
     const avatar = await prisma.user.findFirst({
       where: { avatar: { in: relativePaths } },
@@ -198,11 +200,11 @@ const serveUploadedFile = async (req, response) => {
 
     if (avatar) {
       if (!user || (user.id !== avatar.id && !['ADMIN', 'COORDINATOR'].includes(user.role))) {
-        await logUploadAccessDenied(req, fileName, 'AVATAR')
-        return response.status(403).json({ message: 'Access denied' })
+        await logUploadAccessDenied(context, fileName, 'AVATAR')
+        return result.withStatus(403, { message: 'Access denied' })
       }
 
-      return sendUploadFile(response, fileName)
+      return sendUploadFile(result, fileName)
     }
 
     const assignment = await prisma.assignment.findFirst({
@@ -216,11 +218,11 @@ const serveUploadedFile = async (req, response) => {
 
     if (assignment) {
       if (!(await canAccessAssignmentFile(user, assignment))) {
-        await logUploadAccessDenied(req, fileName, 'ASSIGNMENT')
-        return response.status(403).json({ message: 'Access denied' })
+        await logUploadAccessDenied(context, fileName, 'ASSIGNMENT')
+        return result.withStatus(403, { message: 'Access denied' })
       }
 
-      return sendUploadFile(response, fileName)
+      return sendUploadFile(result, fileName)
     }
 
     const submission = await prisma.submission.findFirst({
@@ -238,11 +240,11 @@ const serveUploadedFile = async (req, response) => {
 
     if (submission) {
       if (!(await canAccessSubmissionFile(user, submission))) {
-        await logUploadAccessDenied(req, fileName, 'SUBMISSION')
-        return response.status(403).json({ message: 'Access denied' })
+        await logUploadAccessDenied(context, fileName, 'SUBMISSION')
+        return result.withStatus(403, { message: 'Access denied' })
       }
 
-      return sendUploadFile(response, fileName)
+      return sendUploadFile(result, fileName)
     }
 
     const material = await prisma.studyMaterial.findFirst({
@@ -256,18 +258,16 @@ const serveUploadedFile = async (req, response) => {
 
     if (material) {
       if (!(await canAccessMaterialFile(user, material))) {
-        await logUploadAccessDenied(req, fileName, 'MATERIAL')
-        return response.status(403).json({ message: 'Access denied' })
+        await logUploadAccessDenied(context, fileName, 'MATERIAL')
+        return result.withStatus(403, { message: 'Access denied' })
       }
 
-      return sendUploadFile(response, fileName)
+      return sendUploadFile(result, fileName)
     }
 
-    return response.status(404).json({ message: 'File not found' })
+    return result.withStatus(404, { message: 'File not found' })
   } catch (error) {
-    return response.internalError
-      ? response.internalError(error)
-      : response.status(500).json({ message: 'Something went wrong' })
+    throw error
   }
 }
 

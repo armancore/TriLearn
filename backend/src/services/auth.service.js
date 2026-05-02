@@ -1,3 +1,5 @@
+/* eslint-disable no-useless-catch */
+const { createServiceResponder } = require('../utils/serviceResult')
 const crypto = require('crypto')
 const bcrypt = require('bcryptjs')
 const QRCode = require('qrcode')
@@ -61,7 +63,7 @@ const buildAuthUser = (user) => ({
   ...(user.coordinator ? { coordinator: user.coordinator } : {})
 })
 
-const isMobileClient = (req) => String(req.get('x-client-type') || '').toLowerCase() === 'mobile'
+const isMobileClient = (context) => String(context.get('x-client-type') || '').toLowerCase() === 'mobile'
 const isPasswordResetEnabled = () => process.env.ENABLE_PASSWORD_RESET === 'true'
 const MAX_FAILED_LOGIN_ATTEMPTS = 5
 const LOGIN_LOCKOUT_MINUTES = 15
@@ -77,10 +79,10 @@ const GENERIC_DISABLED_ACCOUNT_MESSAGE = 'Your account has been disabled. Please
 const GENERIC_FORGOT_PASSWORD_MESSAGE = 'If an account with that email exists, a reset link has been sent.'
 const DUMMY_PASSWORD_HASH = '$2b$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy'
 
-const getRequestUserAgent = (req) => String(req.get('user-agent') || '').slice(0, 255) || null
+const getRequestUserAgent = (context) => String(context.get('user-agent') || '').slice(0, 255) || null
 
-const getRequestIpAddress = (req) => {
-  return String(req.ip || req.socket?.remoteAddress || '').slice(0, 64) || null
+const getRequestIpAddress = (context) => {
+  return String(context.ip || context.socket?.remoteAddress || '').slice(0, 64) || null
 }
 
 const waitForMinimumDuration = async (startedAt, minDurationMs) => {
@@ -94,9 +96,9 @@ const waitForMinimumDuration = async (startedAt, minDurationMs) => {
   })
 }
 
-const respondGenericEligibility = async (response, startedAt) => {
+const respondGenericEligibility = async (result, startedAt) => {
   await waitForMinimumDuration(startedAt, STUDENT_INTAKE_MIN_RESPONSE_MS)
-  return response.status(200).json({ message: GENERIC_ELIGIBILITY_MESSAGE })
+  return result.withStatus(200, { message: GENERIC_ELIGIBILITY_MESSAGE })
 }
 
 const userRoleSelect = {
@@ -294,12 +296,12 @@ const buildLoginCaptchaResponse = (email) => {
   }
 }
 
-const issueAuthSession = async (user, response, req, previousRefreshToken, { setRefreshCookie = true } = {}) => {
+const issueAuthSession = async (user, result, context, previousRefreshToken, { setRefreshCookie = true } = {}) => {
   const accessToken = signAccessToken(user)
   const refreshToken = signRefreshToken(user)
   const requestMeta = {
-    ipAddress: getRequestIpAddress(req),
-    userAgent: getRequestUserAgent(req),
+    ipAddress: getRequestIpAddress(context),
+    userAgent: getRequestUserAgent(context),
     lastUsedAt: new Date()
   }
 
@@ -325,7 +327,7 @@ const issueAuthSession = async (user, response, req, previousRefreshToken, { set
   })
 
   if (setRefreshCookie) {
-    response.cookie('refreshToken', refreshToken, getRefreshCookieOptions(req))
+    result.setCookie('refreshToken', refreshToken, getRefreshCookieOptions(context))
   }
 
   await trackAccessToken(accessToken)
@@ -364,7 +366,7 @@ const getProfileSelect = () => getUserSelect({ includeProfileDetails: true })
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const register = (_req, response) => response.status(403).json({
+const register = (_req, result) => result.withStatus(403, {
   message: 'Self-registration is disabled. Please apply through the student intake form.'
 })
 
@@ -373,11 +375,11 @@ const register = (_req, response) => response.status(403).json({
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const submitStudentIntake = async (req, response) => {
+const submitStudentIntake = async (context, result = createServiceResponder()) => {
   const startedAt = Date.now()
 
   try {
-    const parsedBody = schemas.auth.studentIntake.body.parse(req.body)
+    const parsedBody = schemas.auth.studentIntake.body.parse(context.body)
     const {
       fullName,
       email,
@@ -416,7 +418,7 @@ const submitStudentIntake = async (req, response) => {
     const existingApplication = await prisma.studentApplication.findUnique({ where: { email: normalizedEmail } })
 
     if (existingApplication && !['CONVERTED', 'REVIEWED'].includes(existingApplication.status)) {
-      return respondGenericEligibility(response, startedAt)
+      return respondGenericEligibility(result, startedAt)
     }
 
     const existingUser = await prisma.user.findUnique({
@@ -425,7 +427,7 @@ const submitStudentIntake = async (req, response) => {
     })
 
     if (existingUser && !existingUser.deletedAt) {
-      return respondGenericEligibility(response, startedAt)
+      return respondGenericEligibility(result, startedAt)
     }
 
     await prisma.studentApplication.upsert({
@@ -449,16 +451,16 @@ const submitStudentIntake = async (req, response) => {
       }
     })
 
-    return respondGenericEligibility(response, startedAt)
+    return respondGenericEligibility(result, startedAt)
   } catch (error) {
     if (error instanceof ZodError) {
-      return response.status(400).json({
+      return result.withStatus(400, {
         message: 'Validation failed',
         errors: error.flatten()
       })
     }
 
-    response.internalError(error)
+    throw error
   }
 }
 
@@ -470,11 +472,11 @@ const submitStudentIntake = async (req, response) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const login = async (req, response) => {
+const login = async (context, result = createServiceResponder()) => {
   const startedAt = Date.now()
 
   try {
-    const { email: rawEmail, password, captchaToken, captchaAnswer } = req.body
+    const { email: rawEmail, password, captchaToken, captchaAnswer } = context.body
     const email = normalizeEmail(rawEmail)
 
     const user = await prisma.user.findUnique({
@@ -487,18 +489,18 @@ const login = async (req, response) => {
 
     if (!user) {
       await waitForMinimumDuration(startedAt, LOGIN_MIN_RESPONSE_MS)
-      return response.status(401).json({ message: 'Invalid credentials' })
+      return result.withStatus(401, { message: 'Invalid credentials' })
     }
 
     if (user.deletedAt) {
       await waitForMinimumDuration(startedAt, LOGIN_MIN_RESPONSE_MS)
-      return response.status(401).json({ message: 'Invalid credentials' })
+      return result.withStatus(401, { message: 'Invalid credentials' })
     }
 
     if (user.lockedUntil && user.lockedUntil > new Date()) {
       const retryAfterSeconds = Math.max(1, Math.ceil((user.lockedUntil.getTime() - Date.now()) / 1000))
       await waitForMinimumDuration(startedAt, LOGIN_MIN_RESPONSE_MS)
-      return response.status(401).json({
+      return result.withStatus(401, {
         message: 'Invalid credentials',
         retryAfter: retryAfterSeconds
       })
@@ -510,7 +512,7 @@ const login = async (req, response) => {
     // Always enforce captcha once threshold is reached to avoid password-oracle responses.
     if (requiresLoginCaptcha && !hasValidLoginCaptcha) {
       await waitForMinimumDuration(startedAt, LOGIN_MIN_RESPONSE_MS)
-      return response.status(401).json(buildLoginCaptchaResponse(email))
+      return result.withStatus(401, buildLoginCaptchaResponse(email))
     }
 
     if (!isPasswordValid) {
@@ -528,10 +530,10 @@ const login = async (req, response) => {
       await waitForMinimumDuration(startedAt, LOGIN_MIN_RESPONSE_MS)
 
       if (failedLoginAttempts >= LOGIN_CAPTCHA_THRESHOLD && !shouldLockAccount) {
-        return response.status(401).json(buildLoginCaptchaResponse(email))
+        return result.withStatus(401, buildLoginCaptchaResponse(email))
       }
 
-      return response.status(401).json({ message: 'Invalid credentials' })
+      return result.withStatus(401, { message: 'Invalid credentials' })
     }
 
     if (!user.isActive) {
@@ -541,7 +543,7 @@ const login = async (req, response) => {
       })
 
       await waitForMinimumDuration(startedAt, LOGIN_MIN_RESPONSE_MS)
-      return response.status(403).json({
+      return result.withStatus(403, {
         message: GENERIC_DISABLED_ACCOUNT_MESSAGE
       })
     }
@@ -556,7 +558,7 @@ const login = async (req, response) => {
       })
     }
 
-    const session = await issueAuthSession(user, response, req)
+    const session = await issueAuthSession(user, result, context)
     const authUser = await prisma.user.findUnique({
       where: { id: user.id },
       select: getProfileSelect()
@@ -568,8 +570,8 @@ const login = async (req, response) => {
       action: 'AUTH_LOGIN',
       entityType: 'AuthSession',
       metadata: {
-        ipAddress: getRequestIpAddress(req),
-        userAgent: getRequestUserAgent(req)
+        ipAddress: getRequestIpAddress(context),
+        userAgent: getRequestUserAgent(context)
       }
     })
 
@@ -583,13 +585,13 @@ const login = async (req, response) => {
       user: buildAuthUser(authUser || user)
     }
 
-    if (isMobileClient(req)) {
+    if (isMobileClient(context)) {
       responseBody.refreshToken = session.refreshToken
     }
 
-    response.json(responseBody)
+    result.ok(responseBody)
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 
@@ -601,16 +603,16 @@ const login = async (req, response) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const getMe = async (req, response) => {
+const getMe = async (context, result = createServiceResponder()) => {
   try {
     const user = await prisma.user.findUnique({
-      where: { id: req.user.id },
+      where: { id: context.user.id },
       select: getProfileSelect()
     })
 
-    response.json({ user })
+    result.ok({ user })
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 
@@ -619,19 +621,19 @@ const getMe = async (req, response) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const getStudentIdQr = async (req, response) => {
+const getStudentIdQr = async (context, result = createServiceResponder()) => {
   try {
-    if (req.user.role !== 'STUDENT') {
-      return response.status(403).json({ message: 'Only students can access the ID QR.' })
+    if (context.user.role !== 'STUDENT') {
+      return result.withStatus(403, { message: 'Only students can access the ID QR.' })
     }
 
     const user = await prisma.user.findUnique({
-      where: { id: req.user.id },
+      where: { id: context.user.id },
       select: getProfileSelect()
     })
 
     if (!user?.student) {
-      return response.status(404).json({ message: 'Student profile not found' })
+      return result.withStatus(404, { message: 'Student profile not found' })
     }
 
     const expiresAt = getStudentIdQrExpiry()
@@ -653,14 +655,14 @@ const getStudentIdQr = async (req, response) => {
       width: 220
     })
 
-    response.json({
+    result.ok({
       qrCode,
       qrData: qrPayload,
       rollNumber: user.student.rollNumber,
       expiresAt
     })
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 
@@ -669,9 +671,9 @@ const getStudentIdQr = async (req, response) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const updateProfile = async (req, response) => {
+const updateProfile = async (context, result = createServiceResponder()) => {
   try {
-    const parsedBody = schemas.auth.updateProfile.body.parse(req.body)
+    const parsedBody = schemas.auth.updateProfile.body.parse(context.body)
     const {
       name,
       phone,
@@ -689,10 +691,10 @@ const updateProfile = async (req, response) => {
       dateOfBirth,
       section
     } = parsedBody
-    const isStudentRole = req.user.role === 'STUDENT'
+    const isStudentRole = context.user.role === 'STUDENT'
 
     if (isStudentRole && section !== undefined) {
-      return response.status(403).json({
+      return result.withStatus(403, {
         message: 'Students cannot update their section through profile settings'
       })
     }
@@ -716,7 +718,7 @@ const updateProfile = async (req, response) => {
       : (sanitizedProfile.address ?? sanitizedProfile.temporaryAddress)
 
     await prisma.user.update({
-      where: { id: req.user.id },
+      where: { id: context.user.id },
       data: {
         name: name ? sanitizePlainText(name) : undefined,
         phone: phone ?? undefined,
@@ -726,7 +728,7 @@ const updateProfile = async (req, response) => {
 
     if (isStudentRole) {
       await prisma.student.update({
-        where: { userId: req.user.id },
+        where: { userId: context.user.id },
         data: {
           fatherName: sanitizedProfile.fatherName ?? undefined,
           motherName: sanitizedProfile.motherName ?? undefined,
@@ -744,23 +746,23 @@ const updateProfile = async (req, response) => {
     }
 
     const user = await prisma.user.findUnique({
-      where: { id: req.user.id },
+      where: { id: context.user.id },
       select: getProfileSelect()
     })
 
-    response.json({
+    result.ok({
       message: 'Profile updated successfully!',
       user
     })
   } catch (error) {
     if (error instanceof ZodError) {
-      return response.status(400).json({
+      return result.withStatus(400, {
         message: 'Validation failed',
         errors: error.flatten()
       })
     }
 
-    response.internalError(error)
+    throw error
   }
 }
 
@@ -769,24 +771,24 @@ const updateProfile = async (req, response) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const uploadAvatar = async (req, response) => {
+const uploadAvatar = async (context, result = createServiceResponder()) => {
   try {
-    if (!req.file) {
-      return response.status(400).json({ message: 'Please choose an image to upload' })
+    if (!context.file) {
+      return result.withStatus(400, { message: 'Please choose an image to upload' })
     }
 
-    const nextAvatarUrl = buildUploadedFileUrl(req.file)
+    const nextAvatarUrl = buildUploadedFileUrl(context.file)
     if (!nextAvatarUrl) {
-      return response.status(400).json({ message: 'Unable to process uploaded avatar' })
+      return result.withStatus(400, { message: 'Unable to process uploaded avatar' })
     }
 
     const existingUser = await prisma.user.findUnique({
-      where: { id: req.user.id },
+      where: { id: context.user.id },
       select: { avatar: true }
     })
 
     const user = await prisma.user.update({
-      where: { id: req.user.id },
+      where: { id: context.user.id },
       data: { avatar: nextAvatarUrl },
       select: getProfileSelect()
     })
@@ -795,16 +797,16 @@ const uploadAvatar = async (req, response) => {
       await removeUploadedFile(existingUser.avatar)
     }
 
-    response.json({
+    result.ok({
       message: 'Profile photo updated successfully!',
       user,
       authUser: buildAuthUser(user)
     })
   } catch (error) {
-    if (req.file?.path) {
-      await removeUploadedFile(req.file.path)
+    if (context.file?.path) {
+      await removeUploadedFile(context.file.path)
     }
-    response.internalError(error)
+    throw error
   }
 }
 
@@ -816,27 +818,27 @@ const uploadAvatar = async (req, response) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const changePassword = async (req, response) => {
+const changePassword = async (context, result = createServiceResponder()) => {
   try {
-    const parsedBody = schemas.auth.changePassword.body.parse(req.body)
+    const parsedBody = schemas.auth.changePassword.body.parse(context.body)
     const { currentPassword, newPassword } = parsedBody
 
     const user = await prisma.user.findUnique({
-      where: { id: req.user.id }
+      where: { id: context.user.id }
     })
 
     if (!user) {
-      return response.status(404).json({ message: 'User not found' })
+      return result.withStatus(404, { message: 'User not found' })
     }
 
     const isPasswordValid = await bcrypt.compare(currentPassword, user.password)
     if (!isPasswordValid) {
-      return response.status(400).json({ message: 'Current password is incorrect' })
+      return result.withStatus(400, { message: 'Current password is incorrect' })
     }
 
     const isSamePassword = await bcrypt.compare(newPassword, user.password)
     if (isSamePassword) {
-      return response.status(400).json({
+      return result.withStatus(400, {
         message: 'New password must be different from your current password'
       })
     }
@@ -850,21 +852,21 @@ const changePassword = async (req, response) => {
         passwordChangedAt: new Date()
       }
     })
-    await revokeAccessTokenFromRequest(req)
+    await revokeAccessTokenFromRequest(context)
 
-    response.json({
+    result.ok({
       message: 'Password changed successfully!',
       user: buildAuthUser(updatedUser)
     })
   } catch (error) {
     if (error instanceof ZodError) {
-      return response.status(400).json({
+      return result.withStatus(400, {
         message: 'Validation failed',
         errors: error.flatten()
       })
     }
 
-    response.internalError(error)
+    throw error
   }
 }
 
@@ -876,13 +878,13 @@ const changePassword = async (req, response) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const completeProfile = async (req, response) => {
+const completeProfile = async (context, result = createServiceResponder()) => {
   try {
-    if (req.user.role !== 'STUDENT') {
-      return response.status(403).json({ message: 'Only students can complete this profile form' })
+    if (context.user.role !== 'STUDENT') {
+      return result.withStatus(403, { message: 'Only students can complete this profile form' })
     }
 
-    const parsedBody = schemas.auth.completeProfile.body.parse(req.body)
+    const parsedBody = schemas.auth.completeProfile.body.parse(context.body)
 
     const {
       phone,
@@ -914,16 +916,16 @@ const completeProfile = async (req, response) => {
     }
 
     const student = await prisma.student.findUnique({
-      where: { userId: req.user.id }
+      where: { userId: context.user.id }
     })
 
     if (!student) {
-      return response.status(404).json({ message: 'Student profile not found' })
+      return result.withStatus(404, { message: 'Student profile not found' })
     }
 
     const updatedUser = await prisma.$transaction(async (tx) => {
       const userRecord = await tx.user.update({
-          where: { id: req.user.id },
+          where: { id: context.user.id },
           data: {
             phone,
             address: sanitizedProfile.temporaryAddress,
@@ -932,7 +934,7 @@ const completeProfile = async (req, response) => {
       })
 
       await tx.student.update({
-        where: { userId: req.user.id },
+        where: { userId: context.user.id },
         data: {
           fatherName: sanitizedProfile.fatherName,
           motherName: sanitizedProfile.motherName,
@@ -952,19 +954,19 @@ const completeProfile = async (req, response) => {
       return userRecord
     })
 
-    response.json({
+    result.ok({
       message: 'Profile submitted successfully!',
       user: buildAuthUser(updatedUser)
     })
   } catch (error) {
     if (error instanceof ZodError) {
-      return response.status(400).json({
+      return result.withStatus(400, {
         message: 'Validation failed',
         errors: error.flatten()
       })
     }
 
-    response.internalError(error)
+    throw error
   }
 }
 
@@ -976,17 +978,17 @@ const completeProfile = async (req, response) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const forgotPassword = async (req, response) => {
+const forgotPassword = async (context, result = createServiceResponder()) => {
   const startedAt = Date.now()
 
   try {
     if (!isPasswordResetEnabled()) {
-      return response.status(501).json({
+      return result.withStatus(501, {
         message: 'Password reset is not available until email delivery is configured'
       })
     }
 
-    const email = normalizeEmail(req.body?.email)
+    const email = normalizeEmail(context.body?.email)
 
     const user = await prisma.user.findUnique({
       where: { email },
@@ -1029,11 +1031,11 @@ const forgotPassword = async (req, response) => {
     }
 
     await waitForMinimumDuration(startedAt, FORGOT_PASSWORD_MIN_RESPONSE_MS)
-    return response.status(200).json({
+    return result.withStatus(200, {
       message: GENERIC_FORGOT_PASSWORD_MESSAGE
     })
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 
@@ -1042,11 +1044,11 @@ const forgotPassword = async (req, response) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const verifyEmail = async (req, response) => {
+const verifyEmail = async (context, result = createServiceResponder()) => {
   try {
-    const token = String(req.params?.token || '').trim()
+    const token = String(context.params?.token || '').trim()
     if (!token) {
-      return response.status(400).json({ message: 'Verification token is required' })
+      return result.withStatus(400, { message: 'Verification token is required' })
     }
 
     const tokenHash = hashEmailVerificationToken(token)
@@ -1063,11 +1065,11 @@ const verifyEmail = async (req, response) => {
     })
 
     if (!user || !user.emailVerificationExpiry || user.emailVerificationExpiry <= new Date()) {
-      return response.status(400).json({ message: 'Verification link is invalid or expired' })
+      return result.withStatus(400, { message: 'Verification link is invalid or expired' })
     }
 
     if (user.emailVerified) {
-      return response.status(200).json({ message: 'Email verified successfully' })
+      return result.withStatus(200, { message: 'Email verified successfully' })
     }
 
     await prisma.user.update({
@@ -1079,9 +1081,9 @@ const verifyEmail = async (req, response) => {
       }
     })
 
-    response.status(200).json({ message: 'Email verified successfully' })
+    result.withStatus(200, { message: 'Email verified successfully' })
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 
@@ -1090,9 +1092,9 @@ const verifyEmail = async (req, response) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const resendVerification = async (req, response) => {
+const resendVerification = async (context, result = createServiceResponder()) => {
   try {
-    const email = normalizeEmail(req.body?.email)
+    const email = normalizeEmail(context.body?.email)
     const user = await prisma.user.findUnique({
       where: { email },
       select: {
@@ -1105,7 +1107,7 @@ const resendVerification = async (req, response) => {
     })
 
     if (!user || user.deletedAt || user.emailVerified) {
-      return response.status(200).json({ message: 'If this email needs verification, a new link has been sent.' })
+      return result.withStatus(200, { message: 'If this email needs verification, a new link has been sent.' })
     }
 
     const emailVerification = createEmailVerificationToken()
@@ -1124,9 +1126,9 @@ const resendVerification = async (req, response) => {
       userId: user.id
     })
 
-    response.status(200).json({ message: 'If this email needs verification, a new link has been sent.' })
+    result.withStatus(200, { message: 'If this email needs verification, a new link has been sent.' })
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 
@@ -1138,15 +1140,15 @@ const resendVerification = async (req, response) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const resetPassword = async (req, response) => {
+const resetPassword = async (context, result = createServiceResponder()) => {
   try {
     if (!isPasswordResetEnabled()) {
-      return response.status(501).json({
+      return result.withStatus(501, {
         message: 'Password reset is not available until email delivery is configured'
       })
     }
 
-    const { token, password } = req.body
+    const { token, password } = context.body
     const tokenHash = hashToken(token)
 
     const user = await prisma.user.findFirst({
@@ -1162,7 +1164,7 @@ const resetPassword = async (req, response) => {
     })
 
     if (!user) {
-      return response.status(400).json({ message: 'Password reset link is invalid or expired' })
+      return result.withStatus(400, { message: 'Password reset link is invalid or expired' })
     }
 
     const hashedPassword = await hashPassword(password)
@@ -1188,16 +1190,16 @@ const resetPassword = async (req, response) => {
       })
     })
 
-    response.json({ message: 'Password reset successfully!' })
+    result.ok({ message: 'Password reset successfully!' })
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 
-const refreshSession = async (req, response, refreshToken, { includeRefreshToken = false, setRefreshCookie = true } = {}) => {
+const refreshSession = async (context, result, refreshToken, { includeRefreshToken = false, setRefreshCookie = true } = {}) => {
   try {
     if (!refreshToken) {
-      return response.status(401).json({ message: 'Refresh token is required' })
+      return result.withStatus(401, { message: 'Refresh token is required' })
     }
 
     const decoded = verifyRefreshToken(refreshToken)
@@ -1219,16 +1221,16 @@ const refreshSession = async (req, response, refreshToken, { includeRefreshToken
         data: { revokedAt: now }
       })
 
-      response.clearCookie('refreshToken', {
-        ...getRefreshCookieOptions(req),
+      result.expireCookie('refreshToken', {
+        ...getRefreshCookieOptions(context),
         expires: new Date(0)
       })
 
       logger.warn('Refresh token reuse detected; revoked all active sessions', {
         userId: decoded.id,
         sessionId: storedRefreshToken.id,
-        ipAddress: getRequestIpAddress(req),
-        userAgent: getRequestUserAgent(req)
+        ipAddress: getRequestIpAddress(context),
+        userAgent: getRequestUserAgent(context)
       })
 
       await recordAuditLog({
@@ -1238,12 +1240,12 @@ const refreshSession = async (req, response, refreshToken, { includeRefreshToken
         entityType: 'AuthSession',
         metadata: {
           sessionId: storedRefreshToken.id,
-          ipAddress: getRequestIpAddress(req),
-          userAgent: getRequestUserAgent(req)
+          ipAddress: getRequestIpAddress(context),
+          userAgent: getRequestUserAgent(context)
         }
       })
 
-      return response.status(401).json({ message: 'Refresh token is invalid or expired' })
+      return result.withStatus(401, { message: 'Refresh token is invalid or expired' })
     }
 
     if (
@@ -1253,10 +1255,10 @@ const refreshSession = async (req, response, refreshToken, { includeRefreshToken
       storedRefreshToken.expiresAt <= now ||
       !storedRefreshToken.user.isActive
     ) {
-      return response.status(401).json({ message: 'Refresh token is invalid or expired' })
+      return result.withStatus(401, { message: 'Refresh token is invalid or expired' })
     }
 
-    const session = await issueAuthSession(storedRefreshToken.user, response, req, refreshToken, { setRefreshCookie })
+    const session = await issueAuthSession(storedRefreshToken.user, result, context, refreshToken, { setRefreshCookie })
 
     const responseBody = {
       message: 'Token refreshed successfully',
@@ -1269,10 +1271,10 @@ const refreshSession = async (req, response, refreshToken, { includeRefreshToken
       responseBody.refreshToken = session.refreshToken
     }
 
-    response.json(responseBody)
+    result.ok(responseBody)
   } catch (error) {
     logger.error(error.message, { stack: error.stack })
-    response.status(401).json({ message: 'Refresh token is invalid or expired' })
+    result.withStatus(401, { message: 'Refresh token is invalid or expired' })
   }
 }
 
@@ -1281,12 +1283,12 @@ const refreshSession = async (req, response, refreshToken, { includeRefreshToken
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const refresh = async (req, response) => {
-  if (isMobileClient(req)) {
-    return response.status(400).json({ message: 'Use /auth/refresh/mobile for mobile clients.' })
+const refresh = async (context, result = createServiceResponder()) => {
+  if (isMobileClient(context)) {
+    return result.withStatus(400, { message: 'Use /auth/refresh/mobile for mobile clients.' })
   }
 
-  return refreshSession(req, response, req.cookies?.refreshToken)
+  return refreshSession(context, result, context.cookies?.refreshToken)
 }
 
 /**
@@ -1294,10 +1296,10 @@ const refresh = async (req, response) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const refreshMobile = async (req, response) => refreshSession(
-  req,
-  response,
-  req.body?.refreshToken,
+const refreshMobile = async (context, result) => refreshSession(
+  context,
+  result,
+  context.body?.refreshToken,
   { includeRefreshToken: true, setRefreshCookie: false }
 )
 
@@ -1306,34 +1308,34 @@ const refreshMobile = async (req, response) => refreshSession(
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const logout = async (req, response) => {
+const logout = async (context, result = createServiceResponder()) => {
   const startedAt = Date.now()
 
   try {
-    const refreshToken = req.cookies?.refreshToken
-    await revokeAccessTokenFromRequest(req)
+    const refreshToken = context.cookies?.refreshToken
+    await revokeAccessTokenFromRequest(context)
 
     if (!refreshToken) {
-      response.clearCookie('refreshToken', {
-        ...getRefreshCookieOptions(req),
+      result.expireCookie('refreshToken', {
+        ...getRefreshCookieOptions(context),
         expires: new Date(0)
       })
 
-      if (req.user?.id) {
+      if (context.user?.id) {
         await recordAuditLog({
-          actorId: req.user.id,
-          actorRole: req.user.role,
+          actorId: context.user.id,
+          actorRole: context.user.role,
           action: 'AUTH_LOGOUT',
           entityType: 'AuthSession',
           metadata: {
-            ipAddress: getRequestIpAddress(req),
-            userAgent: getRequestUserAgent(req)
+            ipAddress: getRequestIpAddress(context),
+            userAgent: getRequestUserAgent(context)
           }
         })
       }
 
       await waitForMinimumDuration(startedAt, LOGOUT_MIN_RESPONSE_MS)
-      return response.json({ message: 'Logged out successfully' })
+      return result.ok({ message: 'Logged out successfully' })
     }
 
     await prisma.refreshToken.updateMany({
@@ -1344,28 +1346,28 @@ const logout = async (req, response) => {
       data: { revokedAt: new Date() }
     })
 
-    response.clearCookie('refreshToken', {
-      ...getRefreshCookieOptions(req),
+    result.expireCookie('refreshToken', {
+      ...getRefreshCookieOptions(context),
       expires: new Date(0)
     })
 
-    if (req.user?.id) {
+    if (context.user?.id) {
       await recordAuditLog({
-        actorId: req.user.id,
-        actorRole: req.user.role,
+        actorId: context.user.id,
+        actorRole: context.user.role,
         action: 'AUTH_LOGOUT',
         entityType: 'AuthSession',
         metadata: {
-          ipAddress: getRequestIpAddress(req),
-          userAgent: getRequestUserAgent(req)
+          ipAddress: getRequestIpAddress(context),
+          userAgent: getRequestUserAgent(context)
         }
       })
     }
 
     await waitForMinimumDuration(startedAt, LOGOUT_MIN_RESPONSE_MS)
-    response.json({ message: 'Logged out successfully' })
+    result.ok({ message: 'Logged out successfully' })
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 
@@ -1374,22 +1376,22 @@ const logout = async (req, response) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const getActivity = async (req, response) => {
+const getActivity = async (context, result = createServiceResponder()) => {
   try {
-    const currentRefreshToken = req.cookies?.refreshToken
+    const currentRefreshToken = context.cookies?.refreshToken
     const currentTokenHash = currentRefreshToken ? hashToken(currentRefreshToken) : null
     const now = new Date()
 
     const [activity, currentSession, sessions] = await Promise.all([
       prisma.auditLog.findMany({
-        where: { actorId: req.user.id },
+        where: { actorId: context.user.id },
         orderBy: { createdAt: 'desc' },
         take: 10
       }),
       currentTokenHash
         ? prisma.refreshToken.findFirst({
           where: {
-            userId: req.user.id,
+            userId: context.user.id,
             tokenHash: currentTokenHash,
             revokedAt: null,
             expiresAt: { gt: now }
@@ -1401,7 +1403,7 @@ const getActivity = async (req, response) => {
         : null,
       prisma.refreshToken.findMany({
         where: {
-          userId: req.user.id,
+          userId: context.user.id,
           revokedAt: null,
           expiresAt: { gt: now }
         },
@@ -1417,7 +1419,7 @@ const getActivity = async (req, response) => {
       })
     ])
 
-    response.json({
+    result.ok({
       activity: activity.map((item) => ({
         id: item.id,
         action: item.action,
@@ -1436,7 +1438,7 @@ const getActivity = async (req, response) => {
       }))
     })
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 
@@ -1445,38 +1447,38 @@ const getActivity = async (req, response) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const logoutAll = async (req, response) => {
+const logoutAll = async (context, result = createServiceResponder()) => {
   try {
-    await revokeAccessTokenFromRequest(req)
-    await revokeAllAccessTokensForUser(req.user.id)
+    await revokeAccessTokenFromRequest(context)
+    await revokeAllAccessTokensForUser(context.user.id)
 
     await prisma.refreshToken.updateMany({
       where: {
-        userId: req.user.id,
+        userId: context.user.id,
         revokedAt: null
       },
       data: { revokedAt: new Date() }
     })
 
-    response.clearCookie('refreshToken', {
-      ...getRefreshCookieOptions(req),
+    result.expireCookie('refreshToken', {
+      ...getRefreshCookieOptions(context),
       expires: new Date(0)
     })
 
     await recordAuditLog({
-      actorId: req.user.id,
-      actorRole: req.user.role,
+      actorId: context.user.id,
+      actorRole: context.user.role,
       action: 'AUTH_LOGOUT_ALL_DEVICES',
       entityType: 'AuthSession',
       metadata: {
-        ipAddress: getRequestIpAddress(req),
-        userAgent: getRequestUserAgent(req)
+        ipAddress: getRequestIpAddress(context),
+        userAgent: getRequestUserAgent(context)
       }
     })
 
-    response.json({ message: 'Signed out from all devices successfully' })
+    result.ok({ message: 'Signed out from all devices successfully' })
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 

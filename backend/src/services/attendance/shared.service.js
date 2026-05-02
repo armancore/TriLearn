@@ -145,8 +145,8 @@ const getMonthRange = (monthValue) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const getOwnedSubject = async (subjectId, req) => {
-  const { user, instructor } = req
+const getOwnedSubject = async (subjectId, context) => {
+  const { user, instructor } = context
   const subject = await prisma.subject.findUnique({
     where: { id: subjectId },
     include: {
@@ -163,7 +163,7 @@ const getOwnedSubject = async (subjectId, req) => {
   }
 
   if (user.role === 'COORDINATOR') {
-    const coordinatorDepartments = [req.coordinator?.department].filter(Boolean)
+    const coordinatorDepartments = [context.coordinator?.department].filter(Boolean)
 
     if (coordinatorDepartments.length === 0) {
       return { error: { status: 403, message: 'Coordinator department is not configured yet' } }
@@ -293,8 +293,8 @@ const hasPrismaDelegateMethod = (delegate, methodName) => (
 const hasAbsenceTicketDelegate = () => hasPrismaDelegateMethod(prisma.absenceTicket, 'findMany')
 const hasAttendanceHolidayDelegate = () => hasPrismaDelegateMethod(prisma.attendanceHoliday, 'findFirst')
 
-const respondAttendanceTicketUnavailable = (response) => (
-  response.status(503).json({
+const respondAttendanceTicketUnavailable = (result) => (
+  result.withStatus(503, {
     message: 'Attendance tickets are not available yet. Run the latest Prisma generate and migrations for this feature.'
   })
 )
@@ -794,8 +794,8 @@ const formatMonthLabel = (monthValue) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const getAttendanceExportPayload = async ({ subjectId, date, month, req }) => {
-  const access = await getOwnedSubject(subjectId, req)
+const getAttendanceExportPayload = async ({ subjectId, date, month, context }) => {
+  const access = await getOwnedSubject(subjectId, context)
   if (access.error) {
     return { error: access.error }
   }

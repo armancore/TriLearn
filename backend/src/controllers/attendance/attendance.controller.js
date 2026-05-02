@@ -1,4 +1,4 @@
-delete require.cache[require.resolve('../../services/attendance/attendance.service')]
+const { createController } = require('../../utils/controllerAdapter')
 const {
   markAttendanceManual: markAttendanceManualService,
   getAttendanceBySubject: getAttendanceBySubjectService,
@@ -10,37 +10,15 @@ const {
   getMonthlyAttendanceReport: getMonthlyAttendanceReportService
 } = require('../../services/attendance/attendance.service')
 
-const markAttendanceManual = async (req, res) => {
-  return markAttendanceManualService(req, res)
-}
+const markAttendanceManual = createController(markAttendanceManualService)
+const getAttendanceBySubject = createController(getAttendanceBySubjectService)
+const getBulkAttendanceSummary = createController(getBulkAttendanceSummaryService)
+const getMyAttendance = createController(getMyAttendanceService)
+const exportMyAttendancePdf = createController(exportMyAttendancePdfService)
+const getSubjectRoster = createController(getSubjectRosterService)
+const getCoordinatorDepartmentAttendanceReport = createController(getCoordinatorDepartmentAttendanceReportService)
+const getMonthlyAttendanceReport = createController(getMonthlyAttendanceReportService)
 
-const getAttendanceBySubject = async (req, res) => {
-  return getAttendanceBySubjectService(req, res)
-}
-
-const getBulkAttendanceSummary = async (req, res) => {
-  return getBulkAttendanceSummaryService(req, res)
-}
-
-const getMyAttendance = async (req, res) => {
-  return getMyAttendanceService(req, res)
-}
-
-const exportMyAttendancePdf = async (req, res) => {
-  return exportMyAttendancePdfService(req, res)
-}
-
-const getSubjectRoster = async (req, res) => {
-  return getSubjectRosterService(req, res)
-}
-
-const getCoordinatorDepartmentAttendanceReport = async (req, res) => {
-  return getCoordinatorDepartmentAttendanceReportService(req, res)
-}
-
-const getMonthlyAttendanceReport = async (req, res) => {
-  return getMonthlyAttendanceReportService(req, res)
-}
 module.exports = {
   markAttendanceManual: markAttendanceManual,
   getAttendanceBySubject: getAttendanceBySubject,

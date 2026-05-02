@@ -1,3 +1,5 @@
+/* eslint-disable no-useless-catch */
+const { createServiceResponder } = require('../../utils/serviceResult')
 const crypto = require('crypto')
 const QRCode = require('qrcode')
 const { getReadyRedisClient } = require('../../utils/redis')
@@ -16,7 +18,7 @@ const {
   getStudentByIdCardQr,
   getStudentByRollNumber,
   recordAuditLog
-} = require('../../controllers/attendance/shared')
+} = require('./shared.service')
 
 const getStudentIdQrReplayKey = ({ studentId, qrData }) => {
   if (!studentId || typeof qrData !== 'string' || !qrData.trim()) {
@@ -46,8 +48,8 @@ const reserveStudentIdQrScan = async ({ student, qrData, parsedQr }) => {
       return { reserved: false }
     }
 
-    const result = await redis.set(key, '1', { EX: ttlSeconds, NX: true })
-    if (result !== 'OK') {
+    const reservationResult = await redis.set(key, '1', { EX: ttlSeconds, NX: true })
+    if (reservationResult !== 'OK') {
       return { error: { status: 409, message: 'Student ID QR code has already been used for this scan window' } }
     }
 
@@ -62,9 +64,9 @@ const reserveStudentIdQrScan = async ({ student, qrData, parsedQr }) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const generateQR = async (req, response) => {
+const generateQR = async (context, result = createServiceResponder()) => {
   try {
-    const { subjectId, date, validMinutes } = req.body
+    const { subjectId, date, validMinutes } = context.body
     const parsedValidMinutes = Number(validMinutes)
     const qrValidityMinutes = Number.isInteger(parsedValidMinutes) && parsedValidMinutes >= 1 && parsedValidMinutes <= 15
       ? parsedValidMinutes
@@ -77,15 +79,15 @@ const generateQR = async (req, response) => {
       const oneDayAgo = new Date(now.getTime() - (24 * 60 * 60 * 1000))
 
       if (!isIsoDateString || Number.isNaN(parsedDate.getTime()) || parsedDate < oneDayAgo || parsedDate > now) {
-        return response.status(400).json({ message: 'Please provide a valid attendance date.' })
+        return result.withStatus(400, { message: 'Please provide a valid attendance date.' })
       }
     }
 
-    const access = await getOwnedSubject(subjectId, req)
-    if (access.error) return response.status(access.error.status).json({ message: access.error.message })
+    const access = await getOwnedSubject(subjectId, context)
+    if (access.error) return result.withStatus(access.error.status, { message: access.error.message })
 
     const instructorId = access.instructor?.id || access.subject.instructorId
-    if (!instructorId) return response.status(400).json({ message: 'Assign an instructor to this subject before managing attendance' })
+    if (!instructorId) return result.withStatus(400, { message: 'Assign an instructor to this subject before managing attendance' })
 
     const qrData = createSignedQrPayload({
       subjectId,
@@ -95,7 +97,7 @@ const generateQR = async (req, response) => {
     })
 
     const qrCode = await QRCode.toDataURL(qrData)
-    response.json({
+    result.ok({
       message: 'QR Code generated successfully!',
       qrCode,
       expiresIn: `${qrValidityMinutes} minutes`,
@@ -103,7 +105,7 @@ const generateQR = async (req, response) => {
       instructorId
     })
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 
@@ -112,17 +114,17 @@ const generateQR = async (req, response) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const markAttendanceQR = async (req, response) => {
+const markAttendanceQR = async (context, result = createServiceResponder()) => {
   try {
-    const { qrData } = req.body
-    const student = req.student
-    if (!student) return response.status(403).json({ message: 'Student profile not found' })
+    const { qrData } = context.body
+    const student = context.student
+    if (!student) return result.withStatus(403, { message: 'Student profile not found' })
 
     const parsedQR = parseQrPayload(qrData)
-    if (!parsedQR) return response.status(400).json({ message: 'Invalid QR code' })
+    if (!parsedQR) return result.withStatus(400, { message: 'Invalid QR code' })
     const expiresAt = new Date(parsedQR.expiresAt)
     const now = new Date()
-    if (now > expiresAt) return response.status(400).json({ message: 'QR code has expired' })
+    if (now > expiresAt) return result.withStatus(400, { message: 'QR code has expired' })
 
     const qrHash = crypto.createHash('sha256').update(qrData).digest('hex')
     const qrReplayKey = `qr-used:${student.id}:${qrHash}`
@@ -130,7 +132,7 @@ const markAttendanceQR = async (req, response) => {
     try {
       redis = await getReadyRedisClient({ context: 'QR attendance replay guard' })
       if (redis && await redis.exists(qrReplayKey)) {
-        return response.status(409).json({ message: 'Attendance already recorded for this QR code' })
+        return result.withStatus(409, { message: 'Attendance already recorded for this QR code' })
       }
     } catch {
       redis = null
@@ -138,12 +140,12 @@ const markAttendanceQR = async (req, response) => {
 
     const { subjectId, instructorId } = parsedQR
     const subject = await prisma.subject.findUnique({ where: { id: subjectId } })
-    if (!subject) return response.status(404).json({ message: 'Subject not found' })
+    if (!subject) return result.withStatus(404, { message: 'Subject not found' })
 
     const enrollment = await prisma.subjectEnrollment.findUnique({
       where: { subjectId_studentId: { subjectId, studentId: student.id } }
     })
-    if (!enrollment) return response.status(403).json({ message: 'You are not eligible to mark attendance for this subject' })
+    if (!enrollment) return result.withStatus(403, { message: 'You are not eligible to mark attendance for this subject' })
 
     const todayRange = getDayRange()
     const existingAttendance = await prisma.attendance.findUnique({
@@ -157,7 +159,7 @@ const markAttendanceQR = async (req, response) => {
     })
 
     if (existingAttendance) {
-      return response.status(409).json({
+      return result.withStatus(409, {
         message: 'Attendance has already been recorded for this subject today.'
       })
     }
@@ -186,7 +188,7 @@ const markAttendanceQR = async (req, response) => {
       }
     }
 
-    response.status(201).json({
+    result.withStatus(201, {
       message: 'Attendance marked successfully!',
       attendance: {
         id: attendance.id,
@@ -198,15 +200,15 @@ const markAttendanceQR = async (req, response) => {
     })
 
     await recordAuditLog({
-      actorId: req.user.id,
-      actorRole: req.user.role,
+      actorId: context.user.id,
+      actorRole: context.user.role,
       action: 'ATTENDANCE_MARKED_BY_QR',
       entityType: 'Attendance',
       entityId: attendance.id,
       metadata: { subjectId, attendanceDate: todayRange.start }
     })
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 
@@ -215,56 +217,56 @@ const markAttendanceQR = async (req, response) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const markDailyAttendanceQR = async (req, response) => {
+const markDailyAttendanceQR = async (context, result = createServiceResponder()) => {
   try {
-    const { qrData } = req.body
-    const student = req.student
-    if (!student) return response.status(403).json({ message: 'Student profile not found' })
+    const { qrData } = context.body
+    const student = context.student
+    if (!student) return result.withStatus(403, { message: 'Student profile not found' })
 
     const parsedQR = parseQrPayload(qrData)
     if (!parsedQR || parsedQR.type !== 'GATE_STUDENT_QR' || !Array.isArray(parsedQR.windowIds)) {
-      return response.status(400).json({ message: 'Invalid gate attendance QR code' })
+      return result.withStatus(400, { message: 'Invalid gate attendance QR code' })
     }
 
     const now = new Date()
-    if (new Date(parsedQR.expiresAt) <= now) return response.status(400).json({ message: 'This gate QR has already rotated. Please scan the latest QR.' })
+    if (new Date(parsedQR.expiresAt) <= now) return result.withStatus(400, { message: 'This gate QR has already rotated. Please scan the latest QR.' })
 
     const gateDay = await getDailyGateWindows(now)
-    if (gateDay.holiday) return response.status(400).json({ message: `Today is marked as a holiday: ${gateDay.holiday.title}` })
-    if (!gateDay.active.length) return response.status(400).json({ message: 'The scan time has passed for now. Please wait for the next active window.' })
+    if (gateDay.holiday) return result.withStatus(400, { message: `Today is marked as a holiday: ${gateDay.holiday.title}` })
+    if (!gateDay.active.length) return result.withStatus(400, { message: 'The scan time has passed for now. Please wait for the next active window.' })
 
     const activeMap = new Map(gateDay.active.map((window) => [window.id, window]))
     const eligibleWindows = parsedQR.windowIds.map((windowId) => activeMap.get(windowId)).filter(Boolean)
-    if (!eligibleWindows.length) return response.status(400).json({ message: 'This gate QR is not valid for the current routine window.' })
+    if (!eligibleWindows.length) return result.withStatus(400, { message: 'This gate QR is not valid for the current routine window.' })
 
     const allowedSemesters = normalizeSemesterList([...(parsedQR.allowedSemesters || []), ...eligibleWindows.flatMap((window) => window.allowedSemesters)])
-    if (!allowedSemesters.includes(student.semester)) return response.status(403).json({ message: 'Your semester is not allowed to scan this Student QR right now.' })
+    if (!allowedSemesters.includes(student.semester)) return result.withStatus(403, { message: 'Your semester is not allowed to scan this Student QR right now.' })
 
     const eligibility = await getEligibleGateAttendanceForStudent(student, now)
-    if (eligibility.error) return response.status(eligibility.error.status).json({ message: eligibility.error.message })
+    if (eligibility.error) return result.withStatus(eligibility.error.status, { message: eligibility.error.message })
 
-    const result = await upsertPresentAttendanceForRoutines({
+    const attendanceResult = await upsertPresentAttendanceForRoutines({
       student,
       routines: eligibility.routines,
       attendanceDate: gateDay.dayRange,
       qrData,
-      actorRole: req.user.role,
-      actorId: req.user.id
+      actorRole: context.user.role,
+      actorId: context.user.id
     })
-    if (result.error) return response.status(result.error.status).json({ message: result.error.message })
+    if (attendanceResult.error) return result.withStatus(attendanceResult.error.status, { message: attendanceResult.error.message })
 
-    response.status(201).json({
-      message: `Attendance marked for ${result.markedSubjects.length} class${result.markedSubjects.length > 1 ? 'es' : ''}.`,
-      markedSubjects: result.markedSubjects,
+    result.withStatus(201, {
+      message: `Attendance marked for ${attendanceResult.markedSubjects.length} class${attendanceResult.markedSubjects.length > 1 ? 'es' : ''}.`,
+      markedSubjects: attendanceResult.markedSubjects,
       date: gateDay.dayRange.start,
       expiresAt: parsedQR.expiresAt
     })
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 
-const getLiveGateAttendanceQrPayload = async (req) => {
+const getLiveGateAttendanceQrPayload = async (context) => {
   const now = new Date()
   const windows = await getDailyGateWindows(now)
 
@@ -305,7 +307,7 @@ const getLiveGateAttendanceQrPayload = async (req) => {
   const allowedSemesters = normalizeSemesterList(windows.active.flatMap((window) => window.allowedSemesters))
   const qrData = createSignedQrPayload({
     type: 'GATE_STUDENT_QR',
-    issuedBy: req.user.id,
+    issuedBy: context.user.id,
     issuedAt: now.toISOString(),
     expiresAt: expiresAt.toISOString(),
     dayOfWeek: windows.dayOfWeek,
@@ -349,12 +351,12 @@ const getLiveGateAttendanceQrPayload = async (req) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const getLiveGateAttendanceQr = async (req, response) => {
+const getLiveGateAttendanceQr = async (context, result = createServiceResponder()) => {
   try {
-    const payload = await getLiveGateAttendanceQrPayload(req)
-    response.json(payload)
+    const payload = await getLiveGateAttendanceQrPayload(context)
+    result.ok(payload)
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 
@@ -363,22 +365,22 @@ const getLiveGateAttendanceQr = async (req, response) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const generateDailyAttendanceQR = async (req, response) => {
+const generateDailyAttendanceQR = async (context, result = createServiceResponder()) => {
   try {
-    const payload = await getLiveGateAttendanceQrPayload(req)
+    const payload = await getLiveGateAttendanceQrPayload(context)
     if (!payload.active) {
-      return response.status(400).json({
+      return result.withStatus(400, {
         message: payload.nextWindow
           ? 'There is no active attendance period right now. Please wait for the next scheduled class window.'
           : 'No routine is scheduled for today.'
       })
     }
 
-    response.json({ message: 'Rotating gate attendance QR generated successfully!', ...payload })
+    result.ok({ message: 'Rotating gate attendance QR generated successfully!', ...payload })
 
     await recordAuditLog({
-      actorId: req.user.id,
-      actorRole: req.user.role,
+      actorId: context.user.id,
+      actorRole: context.user.role,
       action: 'DAILY_GATE_QR_GENERATED',
       entityType: 'Attendance',
       metadata: {
@@ -388,7 +390,7 @@ const generateDailyAttendanceQR = async (req, response) => {
       }
     })
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 
@@ -397,36 +399,36 @@ const generateDailyAttendanceQR = async (req, response) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const scanStudentIdAttendance = async (req, response) => {
+const scanStudentIdAttendance = async (context, result = createServiceResponder()) => {
   try {
-    const { qrData, rollNumber, subjectId, attendanceDate } = req.body
-    const { role } = req.user
+    const { qrData, rollNumber, subjectId, attendanceDate } = context.body
+    const { role } = context.user
     const scanned = rollNumber
       ? await getStudentByRollNumber(rollNumber)
       : await getStudentByIdCardQr(qrData)
-    if (scanned.error) return response.status(scanned.error.status).json({ message: scanned.error.message })
+    if (scanned.error) return result.withStatus(scanned.error.status, { message: scanned.error.message })
     const { student, parsedQr } = scanned
 
     if (role === 'GATEKEEPER') {
       const eligibility = await getEligibleGateAttendanceForStudent(student, new Date())
-      if (eligibility.error) return response.status(eligibility.error.status).json({ message: eligibility.error.message })
+      if (eligibility.error) return result.withStatus(eligibility.error.status, { message: eligibility.error.message })
 
       const replayReservation = await reserveStudentIdQrScan({ student, qrData, parsedQr })
       if (replayReservation.error) {
-        return response.status(replayReservation.error.status).json({ message: replayReservation.error.message })
+        return result.withStatus(replayReservation.error.status, { message: replayReservation.error.message })
       }
 
-      const result = await upsertPresentAttendanceForRoutines({
+      const attendanceResult = await upsertPresentAttendanceForRoutines({
         student,
         routines: eligibility.routines,
         attendanceDate: eligibility.gateDay.dayRange,
         qrData,
-        actorRole: req.user.role,
-        actorId: req.user.id
+        actorRole: context.user.role,
+        actorId: context.user.id
       })
-      if (result.error) return response.status(result.error.status).json({ message: result.error.message })
+      if (attendanceResult.error) return result.withStatus(attendanceResult.error.status, { message: attendanceResult.error.message })
 
-      return response.status(201).json({
+      return result.withStatus(201, {
         message: `Attendance marked for ${student.user.name}.`,
         mode: 'GATE_WINDOW',
         student: {
@@ -443,22 +445,22 @@ const scanStudentIdAttendance = async (req, response) => {
     }
 
     if (!subjectId) {
-      return response.status(400).json({ message: 'subjectId is required for instructor/coordinator scans' })
+      return result.withStatus(400, { message: 'subjectId is required for instructor/coordinator scans' })
     }
 
-    const access = await getOwnedSubject(subjectId, req)
-    if (access.error) return response.status(access.error.status).json({ message: access.error.message })
+    const access = await getOwnedSubject(subjectId, context)
+    if (access.error) return result.withStatus(access.error.status, { message: access.error.message })
 
     const dayRange = getDayRange(attendanceDate || new Date())
-    if (!dayRange) return response.status(400).json({ message: 'Please provide a valid attendance date.' })
+    if (!dayRange) return result.withStatus(400, { message: 'Please provide a valid attendance date.' })
 
     const enrollment = await prisma.subjectEnrollment.findUnique({
       where: { subjectId_studentId: { subjectId, studentId: student.id } }
     })
-    if (!enrollment) return response.status(400).json({ message: 'This student is not enrolled in the selected subject.' })
+    if (!enrollment) return result.withStatus(400, { message: 'This student is not enrolled in the selected subject.' })
 
     const instructorId = access.instructor?.id || access.subject.instructorId
-    if (!instructorId) return response.status(400).json({ message: 'Assign an instructor to this subject before managing attendance.' })
+    if (!instructorId) return result.withStatus(400, { message: 'Assign an instructor to this subject before managing attendance.' })
     const qrCodeHash = hashQrPayload(qrData)
 
     const record = await prisma.attendance.upsert({
@@ -481,14 +483,14 @@ const scanStudentIdAttendance = async (req, response) => {
     })
 
     await recordAuditLog({
-      actorId: req.user.id,
-      actorRole: req.user.role,
+      actorId: context.user.id,
+      actorRole: context.user.role,
       action: 'STAFF_STUDENT_ID_ATTENDANCE_MARKED',
       entityType: 'Attendance',
       metadata: { studentId: student.id, subjectId, attendanceId: record.id, date: dayRange.start }
     })
 
-    return response.status(201).json({
+    return result.withStatus(201, {
       message: `Attendance marked for ${student.user.name} in ${access.subject.name}.`,
       mode: 'SUBJECT',
       student: {
@@ -506,7 +508,7 @@ const scanStudentIdAttendance = async (req, response) => {
       date: dayRange.start
     })
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 

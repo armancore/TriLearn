@@ -1,10 +1,12 @@
+/* eslint-disable no-useless-catch */
+const { createServiceResponder } = require('../utils/serviceResult')
 const prisma = require('../utils/prisma')
 const { getPagination } = require('../utils/pagination')
 const { buildUploadedFileUrl } = require('../utils/fileStorage')
 const { sanitizePlainText } = require('../utils/sanitize')
 
-const resolveMaterialManager = async (req, subjectId) => {
-  const { user, instructor } = req
+const resolveMaterialManager = async (context, subjectId) => {
+  const { user, instructor } = context
   const subject = await prisma.subject.findUnique({
     where: { id: subjectId }
   })
@@ -44,19 +46,19 @@ const resolveMaterialManager = async (req, subjectId) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const createMaterial = async (req, response) => {
+const createMaterial = async (context, result = createServiceResponder()) => {
   try {
-    const { title, description, fileUrl, subjectId } = req.body
-    const uploadedFileUrl = buildUploadedFileUrl(req.file)
+    const { title, description, fileUrl, subjectId } = context.body
+    const uploadedFileUrl = buildUploadedFileUrl(context.file)
     const finalFileUrl = uploadedFileUrl || fileUrl
 
-    const access = await resolveMaterialManager(req, subjectId)
+    const access = await resolveMaterialManager(context, subjectId)
     if (access.error) {
-      return response.status(access.error.status).json({ message: access.error.message })
+      return result.withStatus(access.error.status, { message: access.error.message })
     }
 
     if (!finalFileUrl) {
-      return response.status(400).json({ message: 'Please upload a PDF or provide a file URL' })
+      return result.withStatus(400, { message: 'Please upload a PDF or provide a file URL' })
     }
 
     const sanitizedTitle = sanitizePlainText(title)
@@ -76,12 +78,12 @@ const createMaterial = async (req, response) => {
       }
     })
 
-    response.status(201).json({
+    result.withStatus(201, {
       message: 'Study material uploaded successfully!',
       material
     })
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 
@@ -93,19 +95,19 @@ const createMaterial = async (req, response) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const getMaterialsBySubject = async (req, response) => {
+const getMaterialsBySubject = async (context, result = createServiceResponder()) => {
   try {
-    const { subjectId } = req.params
+    const { subjectId } = context.params
     const where = { subjectId }
 
-    if (req.user.role === 'INSTRUCTOR') {
-      where.instructorId = req.instructor?.id || '__no_materials__'
+    if (context.user.role === 'INSTRUCTOR') {
+      where.instructorId = context.instructor?.id || '__no_materials__'
     }
 
-    if (req.user.role === 'STUDENT') {
-      const student = req.student
+    if (context.user.role === 'STUDENT') {
+      const student = context.student
       if (!student) {
-        return response.status(403).json({ message: 'Student profile not found' })
+        return result.withStatus(403, { message: 'Student profile not found' })
       }
 
       where.subject = {
@@ -126,9 +128,9 @@ const getMaterialsBySubject = async (req, response) => {
       orderBy: { createdAt: 'desc' }
     })
 
-    response.json({ total: materials.length, materials })
+    result.ok({ total: materials.length, materials })
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 
@@ -140,19 +142,19 @@ const getMaterialsBySubject = async (req, response) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const getAllMaterials = async (req, response) => {
+const getAllMaterials = async (context, result = createServiceResponder()) => {
   try {
-    const { page, limit, skip } = getPagination(req.query)
+    const { page, limit, skip } = getPagination(context.query)
     const where = {}
 
-    if (req.user.role === 'INSTRUCTOR') {
-      where.instructorId = req.instructor?.id || '__no_materials__'
+    if (context.user.role === 'INSTRUCTOR') {
+      where.instructorId = context.instructor?.id || '__no_materials__'
     }
 
-    if (req.user.role === 'STUDENT') {
-      const student = req.student
+    if (context.user.role === 'STUDENT') {
+      const student = context.student
       if (!student) {
-        return response.status(403).json({ message: 'Student profile not found' })
+        return result.withStatus(403, { message: 'Student profile not found' })
       }
 
       where.subject = {
@@ -178,9 +180,9 @@ const getAllMaterials = async (req, response) => {
       prisma.studyMaterial.count({ where })
     ])
 
-    response.json({ total, page, limit, materials })
+    result.ok({ total, page, limit, materials })
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 
@@ -192,26 +194,26 @@ const getAllMaterials = async (req, response) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const deleteMaterial = async (req, response) => {
+const deleteMaterial = async (context, result = createServiceResponder()) => {
   try {
-    const { id } = req.params
+    const { id } = context.params
 
     const material = await prisma.studyMaterial.findUnique({ where: { id } })
     if (!material) {
-      return response.status(404).json({ message: 'Material not found' })
+      return result.withStatus(404, { message: 'Material not found' })
     }
 
-    if (req.user.role === 'INSTRUCTOR') {
-      if (material.instructorId !== req.instructor?.id) {
-        return response.status(403).json({ message: 'You can only delete your own materials' })
+    if (context.user.role === 'INSTRUCTOR') {
+      if (material.instructorId !== context.instructor?.id) {
+        return result.withStatus(403, { message: 'You can only delete your own materials' })
       }
     }
 
     await prisma.studyMaterial.delete({ where: { id } })
 
-    response.json({ message: 'Material deleted successfully!' })
+    result.ok({ message: 'Material deleted successfully!' })
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 

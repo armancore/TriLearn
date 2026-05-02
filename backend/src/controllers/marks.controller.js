@@ -1,4 +1,4 @@
-delete require.cache[require.resolve('../services/marks.service')]
+const { createController } = require('../utils/controllerAdapter')
 const {
   addMarks: addMarksService,
   addMarksBulk: addMarksBulkService,
@@ -13,49 +13,18 @@ const {
   publishMarks: publishMarksService
 } = require('../services/marks.service')
 
-const addMarks = async (req, res) => {
-  return addMarksService(req, res)
-}
+const addMarks = createController(addMarksService)
+const addMarksBulk = createController(addMarksBulkService)
+const updateMarks = createController(updateMarksService)
+const getMarksBySubject = createController(getMarksBySubjectService)
+const getMarksReview = createController(getMarksReviewService)
+const getEnrolledStudentsBySubject = createController(getEnrolledStudentsBySubjectService)
+const getMyMarks = createController(getMyMarksService)
+const getMyMarksSummary = createController(getMyMarksSummaryService)
+const exportMyMarksheetPdf = createController(exportMyMarksheetPdfService)
+const deleteMarks = createController(deleteMarksService)
+const publishMarks = createController(publishMarksService)
 
-const addMarksBulk = async (req, res) => {
-  return addMarksBulkService(req, res)
-}
-
-const updateMarks = async (req, res) => {
-  return updateMarksService(req, res)
-}
-
-const getMarksBySubject = async (req, res) => {
-  return getMarksBySubjectService(req, res)
-}
-
-const getMarksReview = async (req, res) => {
-  return getMarksReviewService(req, res)
-}
-
-const getEnrolledStudentsBySubject = async (req, res) => {
-  return getEnrolledStudentsBySubjectService(req, res)
-}
-
-const getMyMarks = async (req, res) => {
-  return getMyMarksService(req, res)
-}
-
-const getMyMarksSummary = async (req, res) => {
-  return getMyMarksSummaryService(req, res)
-}
-
-const exportMyMarksheetPdf = async (req, res) => {
-  return exportMyMarksheetPdfService(req, res)
-}
-
-const deleteMarks = async (req, res) => {
-  return deleteMarksService(req, res)
-}
-
-const publishMarks = async (req, res) => {
-  return publishMarksService(req, res)
-}
 module.exports = {
   addMarks: addMarks,
   addMarksBulk: addMarksBulk,

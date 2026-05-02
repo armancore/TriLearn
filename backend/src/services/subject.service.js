@@ -1,32 +1,34 @@
+/* eslint-disable no-useless-catch */
+const { createServiceResponder } = require('../utils/serviceResult')
 const prisma = require('../utils/prisma')
 const { getPagination } = require('../utils/pagination')
-const { ensureDepartmentExists } = require('../controllers/department.controller')
+const { ensureDepartmentExists } = require('./department.service')
 const {
   enrollMatchingStudentsInSubject,
   syncMatchingStudentsForSubject
 } = require('../utils/enrollment')
 
-const ensureCoordinatorDepartmentScope = async (req, response, departmentValue, message = 'You can only manage subjects in your own department') => {
-  if (req.user.role !== 'COORDINATOR') {
+const ensureCoordinatorDepartmentScope = async (context, result, departmentValue, message = 'You can only manage subjects in your own department') => {
+  if (context.user.role !== 'COORDINATOR') {
     return null
   }
 
-  const coordinatorDepartments = [req.coordinator?.department].filter(Boolean)
+  const coordinatorDepartments = [context.coordinator?.department].filter(Boolean)
 
   if (coordinatorDepartments.length === 0) {
-    response.status(403).json({ message: 'Coordinator department is not configured yet' })
+    result.withStatus(403, { message: 'Coordinator department is not configured yet' })
     return null
   }
 
   if (departmentValue && !coordinatorDepartments.includes(departmentValue)) {
-    response.status(403).json({ message })
+    result.withStatus(403, { message })
     return null
   }
 
   return coordinatorDepartments
 }
 
-const ensureCoordinatorInstructorScope = async (req, response, instructorId) => {
+const ensureCoordinatorInstructorScope = async (context, result, instructorId) => {
   if (!instructorId) {
     return true
   }
@@ -34,15 +36,15 @@ const ensureCoordinatorInstructorScope = async (req, response, instructorId) => 
   const instructor = await prisma.instructor.findUnique({ where: { id: instructorId } })
 
   if (!instructor) {
-    response.status(404).json({ message: 'Instructor not found' })
+    result.withStatus(404, { message: 'Instructor not found' })
     return false
   }
 
   return true
 }
 
-const buildSubjectVisibilityFilter = async (req, filters = {}) => {
-  const { user } = req
+const buildSubjectVisibilityFilter = async (context, filters = {}) => {
+  const { user } = context
 
   if (user.role === 'INSTRUCTOR') {
     return {
@@ -75,7 +77,7 @@ const buildSubjectVisibilityFilter = async (req, filters = {}) => {
   }
 
   if (user.role === 'COORDINATOR') {
-    const coordinatorDepartments = [req.coordinator?.department].filter(Boolean)
+    const coordinatorDepartments = [context.coordinator?.department].filter(Boolean)
 
     if (coordinatorDepartments.length === 0) {
       return { id: '__no_subjects__' }
@@ -145,9 +147,9 @@ const getEnrollmentTargetStudents = async (subject) => prisma.student.findMany({
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const createSubject = async (req, response) => {
+const createSubject = async (context, result = createServiceResponder()) => {
   try {
-    const { name, code, description, semester, department, instructorId } = req.body
+    const { name, code, description, semester, department, instructorId } = context.body
     const normalizedDepartment = department?.trim() || null
 
     const existingSubject = await prisma.subject.findUnique({
@@ -155,22 +157,22 @@ const createSubject = async (req, response) => {
     })
 
     if (existingSubject) {
-      return response.status(400).json({ message: 'Subject code already exists' })
+      return result.withStatus(400, { message: 'Subject code already exists' })
     }
 
     if (normalizedDepartment) {
       const validDepartment = await ensureDepartmentExists(normalizedDepartment)
       if (!validDepartment) {
-        return response.status(400).json({ message: 'Please select a valid department' })
+        return result.withStatus(400, { message: 'Please select a valid department' })
       }
     }
 
-    const departmentAliases = await ensureCoordinatorDepartmentScope(req, response, normalizedDepartment)
-    if (req.user.role === 'COORDINATOR' && !departmentAliases) {
+    const departmentAliases = await ensureCoordinatorDepartmentScope(context, result, normalizedDepartment)
+    if (context.user.role === 'COORDINATOR' && !departmentAliases) {
       return
     }
 
-    const instructorAllowed = await ensureCoordinatorInstructorScope(req, response, instructorId)
+    const instructorAllowed = await ensureCoordinatorInstructorScope(context, result, instructorId)
     if (!instructorAllowed) {
       return
     }
@@ -193,13 +195,13 @@ const createSubject = async (req, response) => {
       department: normalizedDepartment
     })
 
-    response.status(201).json({
+    result.withStatus(201, {
       message: 'Subject created successfully!',
       subject
     })
 
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 
@@ -211,10 +213,10 @@ const createSubject = async (req, response) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const getAllSubjects = async (req, response) => {
+const getAllSubjects = async (context, result = createServiceResponder()) => {
   try {
-    const { semester, department, search } = req.query
-    const { page, limit, skip } = getPagination(req.query)
+    const { semester, department, search } = context.query
+    const { page, limit, skip } = getPagination(context.query)
 
     const filters = {}
     if (semester) filters.semester = parseInt(semester)
@@ -229,7 +231,7 @@ const getAllSubjects = async (req, response) => {
       ]
     }
 
-    const visibleFilters = await buildSubjectVisibilityFilter(req, filters)
+    const visibleFilters = await buildSubjectVisibilityFilter(context, filters)
 
     const [subjects, total] = await Promise.all([
       prisma.subject.findMany({
@@ -242,10 +244,10 @@ const getAllSubjects = async (req, response) => {
       prisma.subject.count({ where: visibleFilters })
     ])
 
-    response.json({ total, page, limit, subjects })
+    result.ok({ total, page, limit, subjects })
 
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 
@@ -257,11 +259,11 @@ const getAllSubjects = async (req, response) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const getSubjectById = async (req, response) => {
+const getSubjectById = async (context, result = createServiceResponder()) => {
   try {
-    const { id } = req.params
+    const { id } = context.params
 
-    const visibleFilters = await buildSubjectVisibilityFilter(req, { id })
+    const visibleFilters = await buildSubjectVisibilityFilter(context, { id })
 
     const subject = await prisma.subject.findFirst({
       where: visibleFilters,
@@ -301,13 +303,13 @@ const getSubjectById = async (req, response) => {
     })
 
     if (!subject) {
-      return response.status(404).json({ message: 'Subject not found' })
+      return result.withStatus(404, { message: 'Subject not found' })
     }
 
-    response.json({ subject })
+    result.ok({ subject })
 
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 
@@ -319,36 +321,36 @@ const getSubjectById = async (req, response) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const updateSubject = async (req, response) => {
+const updateSubject = async (context, result = createServiceResponder()) => {
   try {
-    const { id } = req.params
-    const { name, description, semester, department, instructorId } = req.body
+    const { id } = context.params
+    const { name, description, semester, department, instructorId } = context.body
     const normalizedDepartment = department?.trim() || null
 
     const subject = await prisma.subject.findUnique({ where: { id } })
     if (!subject) {
-      return response.status(404).json({ message: 'Subject not found' })
+      return result.withStatus(404, { message: 'Subject not found' })
     }
 
-    const departmentAliases = await ensureCoordinatorDepartmentScope(req, response, subject.department)
-    if (req.user.role === 'COORDINATOR' && !departmentAliases) {
+    const departmentAliases = await ensureCoordinatorDepartmentScope(context, result, subject.department)
+    if (context.user.role === 'COORDINATOR' && !departmentAliases) {
       return
     }
 
     if (normalizedDepartment) {
       const validDepartment = await ensureDepartmentExists(normalizedDepartment)
       if (!validDepartment) {
-        return response.status(400).json({ message: 'Please select a valid department' })
+        return result.withStatus(400, { message: 'Please select a valid department' })
       }
     }
 
-    if (req.user.role === 'COORDINATOR') {
-      const nextDepartmentAliases = await ensureCoordinatorDepartmentScope(req, response, normalizedDepartment)
+    if (context.user.role === 'COORDINATOR') {
+      const nextDepartmentAliases = await ensureCoordinatorDepartmentScope(context, result, normalizedDepartment)
       if (!nextDepartmentAliases) {
         return
       }
 
-      const instructorAllowed = await ensureCoordinatorInstructorScope(req, response, instructorId)
+      const instructorAllowed = await ensureCoordinatorInstructorScope(context, result, instructorId)
       if (!instructorAllowed) {
         return
       }
@@ -366,13 +368,13 @@ const updateSubject = async (req, response) => {
       department: updatedSubject.department
     })
 
-    response.json({
+    result.ok({
       message: 'Subject updated successfully!',
       subject: updatedSubject
     })
 
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 
@@ -384,17 +386,17 @@ const updateSubject = async (req, response) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const deleteSubject = async (req, response) => {
+const deleteSubject = async (context, result = createServiceResponder()) => {
   try {
-    const { id } = req.params
+    const { id } = context.params
 
     const subject = await prisma.subject.findUnique({ where: { id } })
     if (!subject) {
-      return response.status(404).json({ message: 'Subject not found' })
+      return result.withStatus(404, { message: 'Subject not found' })
     }
 
-    const departmentAllowed = await ensureCoordinatorDepartmentScope(req, response, subject.department)
-    if (req.user.role === 'COORDINATOR' && !departmentAllowed) {
+    const departmentAllowed = await ensureCoordinatorDepartmentScope(context, result, subject.department)
+    if (context.user.role === 'COORDINATOR' && !departmentAllowed) {
       return
     }
 
@@ -434,10 +436,10 @@ const deleteSubject = async (req, response) => {
       })
     ])
 
-    response.json({ message: 'Subject deleted successfully!' })
+    result.ok({ message: 'Subject deleted successfully!' })
 
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 
@@ -449,22 +451,22 @@ const deleteSubject = async (req, response) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const assignInstructor = async (req, response) => {
+const assignInstructor = async (context, result = createServiceResponder()) => {
   try {
-    const { id } = req.params
-    const { instructorId } = req.body
+    const { id } = context.params
+    const { instructorId } = context.body
 
     const subject = await prisma.subject.findUnique({ where: { id } })
     if (!subject) {
-      return response.status(404).json({ message: 'Subject not found' })
+      return result.withStatus(404, { message: 'Subject not found' })
     }
 
-    const departmentAliases = await ensureCoordinatorDepartmentScope(req, response, subject.department)
-    if (req.user.role === 'COORDINATOR' && !departmentAliases) {
+    const departmentAliases = await ensureCoordinatorDepartmentScope(context, result, subject.department)
+    if (context.user.role === 'COORDINATOR' && !departmentAliases) {
       return
     }
 
-    const instructorAllowed = await ensureCoordinatorInstructorScope(req, response, instructorId)
+    const instructorAllowed = await ensureCoordinatorInstructorScope(context, result, instructorId)
     if (!instructorAllowed) {
       return
     }
@@ -473,7 +475,7 @@ const assignInstructor = async (req, response) => {
       where: { id: instructorId }
     })
     if (!instructor) {
-      return response.status(404).json({ message: 'Instructor not found' })
+      return result.withStatus(404, { message: 'Instructor not found' })
     }
 
     const updatedSubject = await prisma.subject.update({
@@ -482,13 +484,13 @@ const assignInstructor = async (req, response) => {
       include: subjectListInclude
     })
 
-    response.json({
+    result.ok({
       message: 'Instructor assigned successfully!',
       subject: updatedSubject
     })
 
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 
@@ -500,24 +502,24 @@ const assignInstructor = async (req, response) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const getSubjectEnrollments = async (req, response) => {
+const getSubjectEnrollments = async (context, result = createServiceResponder()) => {
   try {
-    const { id } = req.params
+    const { id } = context.params
 
-    if (req.user.role === 'INSTRUCTOR') {
+    if (context.user.role === 'INSTRUCTOR') {
       const allowedSubject = await prisma.subject.findFirst({
         where: {
           id,
           instructor: {
             is: {
-              userId: req.user.id
+              userId: context.user.id
             }
           }
         }
       })
 
       if (!allowedSubject) {
-        return response.status(403).json({ message: 'You can only view enrollments for your assigned subjects' })
+        return result.withStatus(403, { message: 'You can only view enrollments for your assigned subjects' })
       }
     }
 
@@ -550,11 +552,11 @@ const getSubjectEnrollments = async (req, response) => {
     })
 
     if (!subject) {
-      return response.status(404).json({ message: 'Subject not found' })
+      return result.withStatus(404, { message: 'Subject not found' })
     }
 
-    const departmentAllowed = await ensureCoordinatorDepartmentScope(req, response, subject.department)
-    if (req.user.role === 'COORDINATOR' && !departmentAllowed) {
+    const departmentAllowed = await ensureCoordinatorDepartmentScope(context, result, subject.department)
+    if (context.user.role === 'COORDINATOR' && !departmentAllowed) {
       return
     }
 
@@ -578,7 +580,7 @@ const getSubjectEnrollments = async (req, response) => {
       }
     })
 
-    response.json({
+    result.ok({
       subject,
       enrollments: subject.enrollments.map((entry) => ({
         id: entry.id,
@@ -596,7 +598,7 @@ const getSubjectEnrollments = async (req, response) => {
       students: studentOptions
     })
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 
@@ -608,22 +610,22 @@ const getSubjectEnrollments = async (req, response) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const updateSubjectEnrollments = async (req, response) => {
+const updateSubjectEnrollments = async (context, result = createServiceResponder()) => {
   try {
-    const { id } = req.params
-    const { studentIds } = req.body
+    const { id } = context.params
+    const { studentIds } = context.body
 
     if (!Array.isArray(studentIds)) {
-      return response.status(400).json({ message: 'studentIds must be an array' })
+      return result.withStatus(400, { message: 'studentIds must be an array' })
     }
 
     const subject = await prisma.subject.findUnique({ where: { id } })
     if (!subject) {
-      return response.status(404).json({ message: 'Subject not found' })
+      return result.withStatus(404, { message: 'Subject not found' })
     }
 
-    const departmentAllowed = await ensureCoordinatorDepartmentScope(req, response, subject.department)
-    if (req.user.role === 'COORDINATOR' && !departmentAllowed) {
+    const departmentAllowed = await ensureCoordinatorDepartmentScope(context, result, subject.department)
+    if (context.user.role === 'COORDINATOR' && !departmentAllowed) {
       return
     }
 
@@ -635,7 +637,7 @@ const updateSubjectEnrollments = async (req, response) => {
     })
 
     if (students.length !== studentIds.length) {
-      return response.status(400).json({ message: 'One or more selected students were not found' })
+      return result.withStatus(400, { message: 'One or more selected students were not found' })
     }
 
     await prisma.$transaction([
@@ -655,12 +657,12 @@ const updateSubjectEnrollments = async (req, response) => {
       where: { subjectId: id }
     })
 
-    response.json({
+    result.ok({
       message: 'Subject enrollments updated successfully!',
       total: enrollmentCount
     })
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 

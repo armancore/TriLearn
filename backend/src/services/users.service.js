@@ -1,8 +1,10 @@
+/* eslint-disable no-useless-catch */
+const { createServiceResponder } = require('../utils/serviceResult')
 const prisma = require('../utils/prisma')
 const { enrollStudentInMatchingSubjects, syncStudentEnrollmentForSemester } = require('../utils/enrollment')
 const { getPagination } = require('../utils/pagination')
 const logger = require('../utils/logger')
-const { ensureDepartmentExists } = require('../controllers/department.controller')
+const { ensureDepartmentExists } = require('./department.service')
 const { recordAuditLog } = require('../utils/audit')
 const { sendMail } = require('../utils/mailer')
 const { welcomeTemplate } = require('../utils/emailTemplates')
@@ -233,14 +235,14 @@ const syncInstructorDepartmentMemberships = async (tx, instructorId, departments
   )))
 }
 
-const getCoordinatorDepartments = (req) => {
-  if (req?.user?.role !== 'COORDINATOR') {
+const getCoordinatorDepartments = (context) => {
+  if (context?.user?.role !== 'COORDINATOR') {
     return []
   }
 
   return normalizeDepartmentList([
-    ...(Array.isArray(req.coordinator?.departments) ? req.coordinator.departments : []),
-    req.coordinator?.department
+    ...(Array.isArray(context.coordinator?.departments) ? context.coordinator.departments : []),
+    context.coordinator?.department
   ])
 }
 
@@ -267,14 +269,14 @@ const getManagedUserDepartments = (user) => {
   return []
 }
 
-const isCoordinatorInstructorDepartmentUpdate = (req, user, hasInstructorDepartmentUpdate) => (
-  req?.user?.role === 'COORDINATOR' &&
+const isCoordinatorInstructorDepartmentUpdate = (context, user, hasInstructorDepartmentUpdate) => (
+  context?.user?.role === 'COORDINATOR' &&
   user?.role === 'INSTRUCTOR' &&
   hasInstructorDepartmentUpdate
 )
 
-const coordinatorCanManageUser = (req, user) => {
-  if (req?.user?.role !== 'COORDINATOR') {
+const coordinatorCanManageUser = (context, user) => {
+  if (context?.user?.role !== 'COORDINATOR') {
     return true
   }
 
@@ -286,7 +288,7 @@ const coordinatorCanManageUser = (req, user) => {
     return true
   }
 
-  const coordinatorDepartments = getCoordinatorDepartments(req)
+  const coordinatorDepartments = getCoordinatorDepartments(context)
   if (coordinatorDepartments.length === 0) {
     return ['STUDENT', 'INSTRUCTOR', 'GATEKEEPER'].includes(user.role)
   }
@@ -313,23 +315,23 @@ const coordinatorCanManageUser = (req, user) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const getAllUsers = async (req, response) => {
+const getAllUsers = async (context, result = createServiceResponder()) => {
   try {
-    const { role, isActive, search, includeAssignable, semester, graduated } = req.query
-    const { page, limit, skip } = getPagination(req.query)
+    const { role, isActive, search, includeAssignable, semester, graduated } = context.query
+    const { page, limit, skip } = getPagination(context.query)
 
     const filters = { deletedAt: null }
     const andFilters = []
-    if (req.user?.role === 'COORDINATOR') {
+    if (context.user?.role === 'COORDINATOR') {
       const allowedRoles = ['STUDENT', 'INSTRUCTOR', 'GATEKEEPER']
       const canSearchAssignableInstructors = includeAssignable === 'true' && role === 'INSTRUCTOR'
-      const coordinatorDepartments = getCoordinatorDepartments(req)
+      const coordinatorDepartments = getCoordinatorDepartments(context)
 
       if (canSearchAssignableInstructors) {
         filters.role = 'INSTRUCTOR'
       } else if (role) {
         if (!allowedRoles.includes(role)) {
-          return response.json({ total: 0, page, limit, users: [] })
+          return result.ok({ total: 0, page, limit, users: [] })
         }
 
         filters.role = role
@@ -460,10 +462,10 @@ const getAllUsers = async (req, response) => {
       prisma.user.count({ where: filters })
     ])
 
-    response.json({ total, page, limit, users: users.map(addUserInstructorDepartments) })
+    result.ok({ total, page, limit, users: users.map(addUserInstructorDepartments) })
 
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 
@@ -475,9 +477,9 @@ const getAllUsers = async (req, response) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const getUserById = async (req, response) => {
+const getUserById = async (context, result = createServiceResponder()) => {
   try {
-    const { id } = req.params
+    const { id } = context.params
 
     const user = await prisma.user.findFirst({
       where: { id, deletedAt: null },
@@ -500,17 +502,17 @@ const getUserById = async (req, response) => {
     })
 
     if (!user) {
-      return response.status(404).json({ message: 'User not found' })
+      return result.withStatus(404, { message: 'User not found' })
     }
 
-    if (!coordinatorCanManageUser(req, user)) {
-      return response.status(403).json({ message: 'You can only access users in your own department' })
+    if (!coordinatorCanManageUser(context, user)) {
+      return result.withStatus(403, { message: 'You can only access users in your own department' })
     }
 
-    response.json({ user: addUserInstructorDepartments(user) })
+    result.ok({ user: addUserInstructorDepartments(user) })
 
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 
@@ -522,9 +524,9 @@ const getUserById = async (req, response) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const createCoordinator = async (req, response) => {
+const createCoordinator = async (context, result = createServiceResponder()) => {
   try {
-    const { name, email, password, phone, address, department } = req.body
+    const { name, email, password, phone, address, department } = context.body
     const normalizedEmail = normalizeEmail(email)
     const normalizedDepartment = department?.trim() || null
     const sanitizedName = sanitizePlainText(name)
@@ -533,13 +535,13 @@ const createCoordinator = async (req, response) => {
 
     const existingUser = await prisma.user.findUnique({ where: { email: normalizedEmail } })
     if (existingUser) {
-      return response.status(400).json({ message: 'Email already exists' })
+      return result.withStatus(400, { message: 'Email already exists' })
     }
 
     if (normalizedDepartment) {
       const validDepartment = await ensureDepartmentExists(normalizedDepartment)
       if (!validDepartment) {
-        return response.status(400).json({ message: 'Please select a valid department' })
+        return result.withStatus(400, { message: 'Please select a valid department' })
       }
     }
 
@@ -561,7 +563,7 @@ const createCoordinator = async (req, response) => {
     })
     clearStatsCache()
 
-    response.status(201).json({
+    result.withStatus(201, {
       message: 'Coordinator created successfully!',
       user: {
         id: user.id,
@@ -573,8 +575,8 @@ const createCoordinator = async (req, response) => {
     })
 
     await recordAuditLog({
-      actorId: req.user.id,
-      actorRole: req.user.role,
+      actorId: context.user.id,
+      actorRole: context.user.role,
       action: 'USER_CREATED',
       entityType: 'User',
       entityId: user.id,
@@ -584,7 +586,7 @@ const createCoordinator = async (req, response) => {
       }
     })
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 
@@ -596,9 +598,9 @@ const createCoordinator = async (req, response) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const createGatekeeper = async (req, response) => {
+const createGatekeeper = async (context, result = createServiceResponder()) => {
   try {
-    const { name, email, password, phone, address } = req.body
+    const { name, email, password, phone, address } = context.body
     const normalizedEmail = normalizeEmail(email)
     const sanitizedName = sanitizePlainText(name)
     const sanitizedPhone = sanitizeOptionalPlainText(phone)
@@ -606,7 +608,7 @@ const createGatekeeper = async (req, response) => {
 
     const existingUser = await prisma.user.findUnique({ where: { email: normalizedEmail } })
     if (existingUser) {
-      return response.status(400).json({ message: 'Email already exists' })
+      return result.withStatus(400, { message: 'Email already exists' })
     }
 
     const hashedPassword = await hashPassword(password)
@@ -623,7 +625,7 @@ const createGatekeeper = async (req, response) => {
     })
     clearStatsCache()
 
-    response.status(201).json({
+    result.withStatus(201, {
       message: 'Gatekeeper created successfully!',
       user: {
         id: user.id,
@@ -634,15 +636,15 @@ const createGatekeeper = async (req, response) => {
     })
 
     await recordAuditLog({
-      actorId: req.user.id,
-      actorRole: req.user.role,
+      actorId: context.user.id,
+      actorRole: context.user.role,
       action: 'USER_CREATED',
       entityType: 'User',
       entityId: user.id,
       metadata: { role: user.role }
     })
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 
@@ -654,9 +656,9 @@ const createGatekeeper = async (req, response) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const createInstructor = async (req, response) => {
+const createInstructor = async (context, result = createServiceResponder()) => {
   try {
-    const { name, email, password, phone, address, department, departments } = req.body
+    const { name, email, password, phone, address, department, departments } = context.body
     const normalizedEmail = normalizeEmail(email)
     const sanitizedName = sanitizePlainText(name)
     const sanitizedPhone = sanitizeOptionalPlainText(phone)
@@ -664,20 +666,20 @@ const createInstructor = async (req, response) => {
 
     const existingUser = await prisma.user.findUnique({ where: { email: normalizedEmail } })
     if (existingUser) {
-      return response.status(400).json({ message: 'Email already exists' })
+      return result.withStatus(400, { message: 'Email already exists' })
     }
 
     const instructorDepartments = await resolveInstructorDepartmentsInput({ department, departments })
     if (!instructorDepartments?.primaryDepartment) {
-      return response.status(400).json({ message: 'Please select at least one valid department' })
+      return result.withStatus(400, { message: 'Please select at least one valid department' })
     }
 
-    const coordinatorDepartments = getCoordinatorDepartments(req)
+    const coordinatorDepartments = getCoordinatorDepartments(context)
     if (
       coordinatorDepartments.length > 0 &&
       !instructorDepartments.departments.every((value) => coordinatorDepartments.includes(value))
     ) {
-      return response.status(403).json({ message: 'Coordinators can only create instructors in their own department' })
+      return result.withStatus(403, { message: 'Coordinators can only create instructors in their own department' })
     }
 
     const hashedPassword = await hashPassword(password)
@@ -708,7 +710,7 @@ const createInstructor = async (req, response) => {
     const createdInstructor = addInstructorDepartments(user.instructor)
     clearStatsCache()
 
-    response.status(201).json({
+    result.withStatus(201, {
       message: 'Instructor created successfully!',
       user: {
         id: user.id,
@@ -721,8 +723,8 @@ const createInstructor = async (req, response) => {
     })
 
     await recordAuditLog({
-      actorId: req.user.id,
-      actorRole: req.user.role,
+      actorId: context.user.id,
+      actorRole: context.user.role,
       action: 'USER_CREATED',
       entityType: 'User',
       entityId: user.id,
@@ -734,7 +736,7 @@ const createInstructor = async (req, response) => {
     })
 
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 
@@ -746,9 +748,9 @@ const createInstructor = async (req, response) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const createStudent = async (req, response) => {
+const createStudent = async (context, result = createServiceResponder()) => {
   try {
-    const { name, email, studentId, phone, address, semester, section, department } = req.body
+    const { name, email, studentId, phone, address, semester, section, department } = context.body
     const normalizedDepartment = department?.trim() || null
     const normalizedStudentId = studentId.trim().toUpperCase()
     const normalizedEmail = email.trim().toLowerCase()
@@ -764,23 +766,23 @@ const createStudent = async (req, response) => {
       prisma.student.findUnique({ where: { rollNumber: normalizedStudentId } })
     ])
     if (existingUser) {
-      return response.status(400).json({ message: 'Student email already exists' })
+      return result.withStatus(400, { message: 'Student email already exists' })
     }
 
     if (existingStudent) {
-      return response.status(400).json({ message: 'Student ID already exists' })
+      return result.withStatus(400, { message: 'Student ID already exists' })
     }
 
     if (normalizedDepartment) {
       const validDepartment = await ensureDepartmentExists(normalizedDepartment)
       if (!validDepartment) {
-        return response.status(400).json({ message: 'Please select a valid department' })
+        return result.withStatus(400, { message: 'Please select a valid department' })
       }
     }
 
-    const coordinatorDepartments = getCoordinatorDepartments(req)
+    const coordinatorDepartments = getCoordinatorDepartments(context)
     if (coordinatorDepartments.length > 0 && !coordinatorDepartments.includes(normalizedDepartment)) {
-      return response.status(403).json({ message: 'Coordinators can only create students in their own department' })
+      return result.withStatus(403, { message: 'Coordinators can only create students in their own department' })
     }
 
     const validSection = await hasDepartmentSection({
@@ -790,7 +792,7 @@ const createStudent = async (req, response) => {
     })
 
     if (!validSection) {
-      return response.status(400).json({ message: 'Please create this section under the selected department and semester first' })
+      return result.withStatus(400, { message: 'Please create this section under the selected department and semester first' })
     }
 
     const { user, temporaryPassword, emailVerificationToken } = await createStudentAccountRecord({
@@ -812,7 +814,7 @@ const createStudent = async (req, response) => {
     })
     clearStatsCache()
 
-    response.status(201).json({
+    result.withStatus(201, {
       message: welcomeEmailSent
         ? 'Student created and enrolled in matching semester subjects successfully!'
         : 'Student created successfully, but the welcome email could not be delivered.',
@@ -828,8 +830,8 @@ const createStudent = async (req, response) => {
     })
 
     await recordAuditLog({
-      actorId: req.user.id,
-      actorRole: req.user.role,
+      actorId: context.user.id,
+      actorRole: context.user.role,
       action: 'USER_CREATED',
       entityType: 'User',
       entityId: user.id,
@@ -843,7 +845,7 @@ const createStudent = async (req, response) => {
     })
 
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 
@@ -855,18 +857,18 @@ const createStudent = async (req, response) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const updateUser = async (req, response) => {
+const updateUser = async (context, result = createServiceResponder()) => {
   try {
-    const { id } = req.params
-    const { name, phone, address, department, departments, semester, section } = req.body
+    const { id } = context.params
+    const { name, phone, address, department, departments, semester, section } = context.body
     const normalizedDepartment = department?.trim() || null
     const sanitizedName = name === undefined ? undefined : sanitizePlainText(name)
     const sanitizedPhone = phone === undefined ? undefined : sanitizeOptionalPlainText(phone)
     const sanitizedAddress = address === undefined ? undefined : sanitizeOptionalPlainText(address)
     const normalizedSection = section === undefined ? undefined : normalizeSectionValue(section)
     const hasInstructorDepartmentUpdate = (
-      Object.prototype.hasOwnProperty.call(req.body, 'department') ||
-      Object.prototype.hasOwnProperty.call(req.body, 'departments')
+      Object.prototype.hasOwnProperty.call(context.body, 'department') ||
+      Object.prototype.hasOwnProperty.call(context.body, 'departments')
     )
 
     const user = await prisma.user.findFirst({
@@ -903,17 +905,17 @@ const updateUser = async (req, response) => {
       }
     })
     if (!user) {
-      return response.status(404).json({ message: 'User not found' })
+      return result.withStatus(404, { message: 'User not found' })
     }
 
-    if (!isCoordinatorInstructorDepartmentUpdate(req, user, hasInstructorDepartmentUpdate) && !coordinatorCanManageUser(req, user)) {
-      return response.status(403).json({ message: 'You can only manage users in your own department' })
+    if (!isCoordinatorInstructorDepartmentUpdate(context, user, hasInstructorDepartmentUpdate) && !coordinatorCanManageUser(context, user)) {
+      return result.withStatus(403, { message: 'You can only manage users in your own department' })
     }
 
     if (normalizedDepartment && user.role !== 'INSTRUCTOR') {
       const validDepartment = await ensureDepartmentExists(normalizedDepartment)
       if (!validDepartment) {
-        return response.status(400).json({ message: 'Please select a valid department' })
+        return result.withStatus(400, { message: 'Please select a valid department' })
       }
     }
 
@@ -925,13 +927,13 @@ const updateUser = async (req, response) => {
     if (user.role === 'INSTRUCTOR' && hasInstructorDepartmentUpdate) {
       const instructorDepartments = await resolveInstructorDepartmentsInput({ department, departments })
       if (!instructorDepartments?.primaryDepartment) {
-        return response.status(400).json({ message: 'Please select at least one valid department' })
+        return result.withStatus(400, { message: 'Please select at least one valid department' })
       }
 
-      const coordinatorDepartments = getCoordinatorDepartments(req)
+      const coordinatorDepartments = getCoordinatorDepartments(context)
       if (
         coordinatorDepartments.length > 0 &&
-        req.user?.role === 'COORDINATOR'
+        context.user?.role === 'COORDINATOR'
       ) {
         const currentInstructorDepartments = normalizeDepartmentList([
           ...getInstructorDepartments(user.instructor),
@@ -944,7 +946,7 @@ const updateUser = async (req, response) => {
           addedDepartments.some((value) => !coordinatorDepartments.includes(value)) ||
           removedDepartments.some((value) => !coordinatorDepartments.includes(value))
         ) {
-          return response.status(403).json({ message: 'You can only manage your own department assignments for instructors' })
+          return result.withStatus(403, { message: 'You can only manage your own department assignments for instructors' })
         }
       }
 
@@ -966,8 +968,8 @@ const updateUser = async (req, response) => {
     }
 
     if (user.role === 'COORDINATOR' && normalizedDepartment !== null) {
-      if (getCoordinatorDepartments(req).length > 0) {
-        return response.status(403).json({ message: 'You can only manage users in your own department' })
+      if (getCoordinatorDepartments(context).length > 0) {
+        return result.withStatus(403, { message: 'You can only manage users in your own department' })
       }
 
       await prisma.coordinator.update({
@@ -977,13 +979,13 @@ const updateUser = async (req, response) => {
     }
 
     if (user.role === 'STUDENT') {
-      const coordinatorDepartments = getCoordinatorDepartments(req)
+      const coordinatorDepartments = getCoordinatorDepartments(context)
       if (coordinatorDepartments.length > 0 && normalizedDepartment && !coordinatorDepartments.includes(normalizedDepartment)) {
-        return response.status(403).json({ message: 'You can only manage users in your own department' })
+        return result.withStatus(403, { message: 'You can only manage users in your own department' })
       }
 
       if (semester !== undefined && semester > MAX_STUDENT_SEMESTER) {
-        return response.status(400).json({ message: `Semester must be between 1 and ${MAX_STUDENT_SEMESTER}` })
+        return result.withStatus(400, { message: `Semester must be between 1 and ${MAX_STUDENT_SEMESTER}` })
       }
 
       const nextDepartment = normalizedDepartment ?? user.student?.department
@@ -998,7 +1000,7 @@ const updateUser = async (req, response) => {
         })
 
         if (!validSection) {
-          return response.status(400).json({ message: 'Please choose a section that exists for the selected department and semester' })
+          return result.withStatus(400, { message: 'Please choose a section that exists for the selected department and semester' })
         }
       }
 
@@ -1027,11 +1029,11 @@ const updateUser = async (req, response) => {
       })
     }
 
-    response.json({ message: 'User updated successfully!', user: updatedUser })
+    result.ok({ message: 'User updated successfully!', user: updatedUser })
 
     await recordAuditLog({
-      actorId: req.user.id,
-      actorRole: req.user.role,
+      actorId: context.user.id,
+      actorRole: context.user.role,
       action: 'USER_UPDATED',
       entityType: 'User',
       entityId: id,
@@ -1044,7 +1046,7 @@ const updateUser = async (req, response) => {
     })
 
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 
@@ -1056,9 +1058,9 @@ const updateUser = async (req, response) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const toggleUserStatus = async (req, response) => {
+const toggleUserStatus = async (context, result = createServiceResponder()) => {
   try {
-    const { id } = req.params
+    const { id } = context.params
 
     const user = await prisma.user.findFirst({
       where: { id, deletedAt: null },
@@ -1090,15 +1092,15 @@ const toggleUserStatus = async (req, response) => {
     })
 
     if (!user) {
-      return response.status(404).json({ message: 'User not found' })
+      return result.withStatus(404, { message: 'User not found' })
     }
 
-    if (user.id === req.user.id) {
-      return response.status(400).json({ message: 'You cannot disable yourself' })
+    if (user.id === context.user.id) {
+      return result.withStatus(400, { message: 'You cannot disable yourself' })
     }
 
-    if (!coordinatorCanManageUser(req, user)) {
-      return response.status(403).json({ message: 'You can only manage users in your own department' })
+    if (!coordinatorCanManageUser(context, user)) {
+      return result.withStatus(403, { message: 'You can only manage users in your own department' })
     }
 
     const updateResult = await prisma.user.updateMany({
@@ -1110,7 +1112,7 @@ const toggleUserStatus = async (req, response) => {
     })
 
     if (updateResult.count === 0) {
-      return response.status(409).json({
+      return result.withStatus(409, {
         message: 'User status changed before this request could be applied. Please refresh and try again.'
       })
     }
@@ -1123,7 +1125,7 @@ const toggleUserStatus = async (req, response) => {
       }
     })
 
-    response.json({
+    result.ok({
       message: `User ${updatedUser.isActive ? 'enabled' : 'disabled'} successfully!`,
       isActive: updatedUser.isActive
     })
@@ -1133,8 +1135,8 @@ const toggleUserStatus = async (req, response) => {
     }
 
     await recordAuditLog({
-      actorId: req.user.id,
-      actorRole: req.user.role,
+      actorId: context.user.id,
+      actorRole: context.user.role,
       action: updatedUser.isActive ? 'USER_ENABLED' : 'USER_DISABLED',
       entityType: 'User',
       entityId: id,
@@ -1144,7 +1146,7 @@ const toggleUserStatus = async (req, response) => {
     })
 
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 
@@ -1156,9 +1158,9 @@ const toggleUserStatus = async (req, response) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const deleteUser = async (req, response) => {
+const deleteUser = async (context, result = createServiceResponder()) => {
   try {
-    const { id } = req.params
+    const { id } = context.params
 
     const user = await prisma.user.findFirst({
       where: { id, deletedAt: null },
@@ -1171,15 +1173,15 @@ const deleteUser = async (req, response) => {
       }
     })
     if (!user) {
-      return response.status(404).json({ message: 'User not found' })
+      return result.withStatus(404, { message: 'User not found' })
     }
 
-    if (user.id === req.user.id) {
-      return response.status(400).json({ message: 'You cannot delete yourself' })
+    if (user.id === context.user.id) {
+      return result.withStatus(400, { message: 'You cannot delete yourself' })
     }
 
-    if (!coordinatorCanManageUser(req, user)) {
-      return response.status(403).json({ message: 'You can only manage users in your own department' })
+    if (!coordinatorCanManageUser(context, user)) {
+      return result.withStatus(403, { message: 'You can only manage users in your own department' })
     }
 
     if (user.role === 'ADMIN') {
@@ -1188,7 +1190,7 @@ const deleteUser = async (req, response) => {
       })
 
       if (adminCount <= 1) {
-        return response.status(400).json({ message: 'You cannot delete the last admin user' })
+        return result.withStatus(400, { message: 'You cannot delete the last admin user' })
       }
     }
 
@@ -1207,11 +1209,11 @@ const deleteUser = async (req, response) => {
     await revokeAllAccessTokensForUser(id)
     clearStatsCache()
 
-    response.json({ message: 'User deleted successfully!' })
+    result.ok({ message: 'User deleted successfully!' })
 
     await recordAuditLog({
-      actorId: req.user.id,
-      actorRole: req.user.role,
+      actorId: context.user.id,
+      actorRole: context.user.role,
       action: 'USER_DELETED',
       entityType: 'User',
       entityId: id,
@@ -1222,7 +1224,7 @@ const deleteUser = async (req, response) => {
     })
 
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 
@@ -1231,20 +1233,20 @@ const deleteUser = async (req, response) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const bulkAssignStudentSection = async (req, response) => {
+const bulkAssignStudentSection = async (context, result = createServiceResponder()) => {
   try {
-    const { userIds, department, semester, section } = req.body
+    const { userIds, department, semester, section } = context.body
     const normalizedDepartment = normalizeDepartmentValue(department)
     const normalizedSection = normalizeSectionValue(section)
 
     const validDepartment = await ensureDepartmentExists(normalizedDepartment)
     if (!validDepartment) {
-      return response.status(400).json({ message: 'Please select a valid department' })
+      return result.withStatus(400, { message: 'Please select a valid department' })
     }
 
-    const coordinatorDepartments = getCoordinatorDepartments(req)
+    const coordinatorDepartments = getCoordinatorDepartments(context)
     if (coordinatorDepartments.length > 0 && !coordinatorDepartments.includes(normalizedDepartment)) {
-      return response.status(403).json({ message: 'You can only manage students in your own department' })
+      return result.withStatus(403, { message: 'You can only manage students in your own department' })
     }
 
     const validSection = await hasDepartmentSection({
@@ -1253,7 +1255,7 @@ const bulkAssignStudentSection = async (req, response) => {
       section: normalizedSection
     })
     if (!validSection) {
-      return response.status(400).json({ message: 'Please choose a section configured for the selected department and semester' })
+      return result.withStatus(400, { message: 'Please choose a section configured for the selected department and semester' })
     }
 
     const targetUsers = await prisma.user.findMany({
@@ -1277,12 +1279,12 @@ const bulkAssignStudentSection = async (req, response) => {
     })
 
     if (targetUsers.length !== userIds.length) {
-      return response.status(400).json({ message: 'Some selected users are missing or not student accounts' })
+      return result.withStatus(400, { message: 'Some selected users are missing or not student accounts' })
     }
 
-    const blockedUser = targetUsers.find((user) => !coordinatorCanManageUser(req, user))
+    const blockedUser = targetUsers.find((user) => !coordinatorCanManageUser(context, user))
     if (blockedUser) {
-      return response.status(403).json({ message: 'You can only manage students in your own department' })
+      return result.withStatus(403, { message: 'You can only manage students in your own department' })
     }
 
     const updatedStudents = await prisma.$transaction(async (tx) => {
@@ -1322,14 +1324,14 @@ const bulkAssignStudentSection = async (req, response) => {
       })
     )))
 
-    response.json({
+    result.ok({
       message: `Updated sections for ${updatedStudents.length} student${updatedStudents.length === 1 ? '' : 's'}.`,
       updated: updatedStudents.length
     })
 
     await recordAuditLog({
-      actorId: req.user.id,
-      actorRole: req.user.role,
+      actorId: context.user.id,
+      actorRole: context.user.role,
       action: 'STUDENT_SECTION_BULK_ASSIGNED',
       entityType: 'Student',
       metadata: {
@@ -1340,7 +1342,7 @@ const bulkAssignStudentSection = async (req, response) => {
       }
     })
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 
@@ -1349,9 +1351,9 @@ const bulkAssignStudentSection = async (req, response) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const promoteStudentSemester = async (req, response) => {
+const promoteStudentSemester = async (context, result = createServiceResponder()) => {
   try {
-    const { id } = req.params
+    const { id } = context.params
 
     const user = await prisma.user.findFirst({
       where: { id, deletedAt: null },
@@ -1372,15 +1374,15 @@ const promoteStudentSemester = async (req, response) => {
     })
 
     if (!user || user.role !== 'STUDENT' || !user.student) {
-      return response.status(404).json({ message: 'Student not found' })
+      return result.withStatus(404, { message: 'Student not found' })
     }
 
-    if (!coordinatorCanManageUser(req, user)) {
-      return response.status(403).json({ message: 'You can only manage users in your own department' })
+    if (!coordinatorCanManageUser(context, user)) {
+      return result.withStatus(403, { message: 'You can only manage users in your own department' })
     }
 
     if (user.student.isGraduated) {
-      return response.status(400).json({ message: `Student already graduated in ${user.student.graduationYear || 'the recorded year'}` })
+      return result.withStatus(400, { message: `Student already graduated in ${user.student.graduationYear || 'the recorded year'}` })
     }
 
     if (user.student.semester >= MAX_STUDENT_SEMESTER) {
@@ -1405,14 +1407,14 @@ const promoteStudentSemester = async (req, response) => {
         }
       })
 
-      response.json({
+      result.ok({
         message: `${user.name} marked as graduated for ${graduationYear}.`,
         student: graduatedStudent
       })
 
       await recordAuditLog({
-        actorId: req.user.id,
-        actorRole: req.user.role,
+        actorId: context.user.id,
+        actorRole: context.user.role,
         action: 'STUDENT_GRADUATED',
         entityType: 'Student',
         entityId: graduatedStudent.id,
@@ -1453,14 +1455,14 @@ const promoteStudentSemester = async (req, response) => {
       department: updatedStudent.department
     })
 
-    response.json({
+    result.ok({
       message: `Student promoted to semester ${updatedStudent.semester} successfully!`,
       student: updatedStudent
     })
 
     await recordAuditLog({
-      actorId: req.user.id,
-      actorRole: req.user.role,
+      actorId: context.user.id,
+      actorRole: context.user.role,
       action: 'STUDENT_SEMESTER_PROMOTED',
       entityType: 'Student',
       entityId: updatedStudent.id,
@@ -1472,7 +1474,7 @@ const promoteStudentSemester = async (req, response) => {
       }
     })
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 

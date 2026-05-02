@@ -12,7 +12,12 @@ const loadWithMocks = (targetPath, mocks) => {
   const localRequire = createRequire(modulePath)
   const touched = []
 
-  for (const [requestPath, mockExports] of Object.entries(mocks)) {
+  const mockEntries = Object.entries(mocks)
+  if (mocks['./shared']) {
+    mockEntries.push(['../../services/attendance/shared.service', mocks['./shared']])
+  }
+
+  for (const [requestPath, mockExports] of mockEntries) {
     const resolved = localRequire.resolve(requestPath)
     touched.push({
       resolved,

@@ -1,3 +1,5 @@
+/* eslint-disable no-useless-catch */
+const { createServiceResponder } = require('../../utils/serviceResult')
 const { getPagination } = require('../../utils/pagination')
 const PDFDocument = require('pdfkit')
 const {
@@ -14,7 +16,7 @@ const {
   formatMonthLabel,
   getCoordinatorDepartmentReportPayload,
   recordAuditLog
-} = require('../../controllers/attendance/shared')
+} = require('./shared.service')
 
 const sanitizeFilenamePart = (value) => String(value || 'attendance')
   .replace(/[^a-z0-9-_]+/gi, '-')
@@ -27,25 +29,25 @@ const sanitizeFilenamePart = (value) => String(value || 'attendance')
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const markAttendanceManual = async (req, response) => {
+const markAttendanceManual = async (context, result = createServiceResponder()) => {
   try {
-    const { subjectId, attendanceDate, attendanceList, semester, section } = req.body
-    const access = await getOwnedSubject(subjectId, req)
-    if (access.error) return response.status(access.error.status).json({ message: access.error.message })
+    const { subjectId, attendanceDate, attendanceList, semester, section } = context.body
+    const access = await getOwnedSubject(subjectId, context)
+    if (access.error) return result.withStatus(access.error.status, { message: access.error.message })
 
     const instructorId = access.instructor?.id || access.subject.instructorId
-    if (!instructorId) return response.status(400).json({ message: 'Assign an instructor to this subject before managing attendance' })
-    if (!Array.isArray(attendanceList) || attendanceList.length === 0) return response.status(400).json({ message: 'Please provide at least one attendance entry' })
+    if (!instructorId) return result.withStatus(400, { message: 'Assign an instructor to this subject before managing attendance' })
+    if (!Array.isArray(attendanceList) || attendanceList.length === 0) return result.withStatus(400, { message: 'Please provide at least one attendance entry' })
 
     const dayRange = getDayRange(attendanceDate)
-    if (!dayRange) return response.status(400).json({ message: 'Please provide a valid attendance date' })
+    if (!dayRange) return result.withStatus(400, { message: 'Please provide a valid attendance date' })
 
     const subjectStudents = await getSubjectStudents(access.subject, { semester, section })
     const allowedStudentIds = new Set(subjectStudents.map((student) => student.id))
-    if (subjectStudents.length === 0) return response.status(400).json({ message: 'No students are available for the selected module, semester, and section' })
+    if (subjectStudents.length === 0) return result.withStatus(400, { message: 'No students are available for the selected module, semester, and section' })
 
     const invalidEntry = attendanceList.find(({ studentId, status }) => !studentId || !allowedStudentIds.has(studentId) || !ATTENDANCE_STATUSES.includes(status))
-    if (invalidEntry) return response.status(400).json({ message: 'Attendance list contains invalid student or status values' })
+    if (invalidEntry) return result.withStatus(400, { message: 'Attendance list contains invalid student or status values' })
 
     const records = await prisma.$transaction(
       attendanceList.map(({ studentId, status }) => prisma.attendance.upsert({
@@ -55,18 +57,18 @@ const markAttendanceManual = async (req, response) => {
       }))
     )
 
-    response.status(201).json({ message: 'Attendance marked successfully!', total: records.length, records, date: dayRange.start })
+    result.withStatus(201, { message: 'Attendance marked successfully!', total: records.length, records, date: dayRange.start })
 
     await recordAuditLog({
-      actorId: req.user.id,
-      actorRole: req.user.role,
+      actorId: context.user.id,
+      actorRole: context.user.role,
       action: 'ATTENDANCE_MARKED_MANUALLY',
       entityType: 'Attendance',
       entityId: subjectId,
       metadata: { subjectId, attendanceDate: dayRange.start, totalRecords: records.length }
     })
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 
@@ -75,21 +77,21 @@ const markAttendanceManual = async (req, response) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const getAttendanceBySubject = async (req, response) => {
+const getAttendanceBySubject = async (context, result = createServiceResponder()) => {
   try {
-    const { subjectId } = req.params
-    const { date, semester, section } = req.query
-    const { page, limit, skip } = getPagination(req.query)
+    const { subjectId } = context.params
+    const { date, semester, section } = context.query
+    const { page, limit, skip } = getPagination(context.query)
 
-    const access = await getOwnedSubject(subjectId, req)
-    if (access.error) return response.status(access.error.status).json({ message: access.error.message })
+    const access = await getOwnedSubject(subjectId, context)
+    if (access.error) return result.withStatus(access.error.status, { message: access.error.message })
 
     const filters = {
       subjectId,
       ...(semester || section ? { student: { ...(semester ? { semester: parseInt(semester, 10) } : {}), ...(section ? { section } : {}) } } : {})
     }
     const dayRange = date ? getDayRange(date) : null
-    if (date && !dayRange) return response.status(400).json({ message: 'Please provide a valid date filter' })
+    if (date && !dayRange) return result.withStatus(400, { message: 'Please provide a valid date filter' })
     if (dayRange) filters.date = { gte: dayRange.start, lt: dayRange.end }
 
     const [attendance, total, groupedSummary] = await Promise.all([
@@ -107,9 +109,9 @@ const getAttendanceBySubject = async (req, response) => {
       prisma.attendance.groupBy({ by: ['status'], where: filters, _count: { _all: true } })
     ])
 
-    response.json({ total, page, limit, attendance, summary: buildStatusSummary(groupedSummary), subject: access.subject })
+    result.ok({ total, page, limit, attendance, summary: buildStatusSummary(groupedSummary), subject: access.subject })
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 
@@ -118,28 +120,28 @@ const getAttendanceBySubject = async (req, response) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const getBulkAttendanceSummary = async (req, response) => {
+const getBulkAttendanceSummary = async (context, result = createServiceResponder()) => {
   try {
-    const { subjectIds, date } = req.query
+    const { subjectIds, date } = context.query
     const uniqueSubjectIds = [...new Set(subjectIds)]
     const dayRange = date ? getDayRange(date) : null
 
     if (date && !dayRange) {
-      return response.status(400).json({ message: 'Please provide a valid date filter' })
+      return result.withStatus(400, { message: 'Please provide a valid date filter' })
     }
 
-    if (req.user.role === 'INSTRUCTOR' && !req.instructor) {
-      return response.status(403).json({ message: 'Instructor profile not found' })
+    if (context.user.role === 'INSTRUCTOR' && !context.instructor) {
+      return result.withStatus(403, { message: 'Instructor profile not found' })
     }
 
-    if (req.user.role === 'COORDINATOR' && !req.coordinator?.department) {
-      return response.status(403).json({ message: 'Coordinator department is not configured yet' })
+    if (context.user.role === 'COORDINATOR' && !context.coordinator?.department) {
+      return result.withStatus(403, { message: 'Coordinator department is not configured yet' })
     }
 
     const subjectFilters = {
       id: { in: uniqueSubjectIds },
-      ...(req.user.role === 'INSTRUCTOR' ? { instructorId: req.instructor.id } : {}),
-      ...(req.user.role === 'COORDINATOR' ? { department: req.coordinator.department } : {})
+      ...(context.user.role === 'INSTRUCTOR' ? { instructorId: context.instructor.id } : {}),
+      ...(context.user.role === 'COORDINATOR' ? { department: context.coordinator.department } : {})
     }
 
     const subjects = await prisma.subject.findMany({
@@ -149,7 +151,7 @@ const getBulkAttendanceSummary = async (req, response) => {
     const accessibleSubjectIds = subjects.map((subject) => subject.id)
 
     if (accessibleSubjectIds.length !== uniqueSubjectIds.length) {
-      return response.status(403).json({ message: 'You can only view attendance for subjects you manage' })
+      return result.withStatus(403, { message: 'You can only view attendance for subjects you manage' })
     }
 
     const attendance = await prisma.attendance.findMany({
@@ -186,9 +188,9 @@ const getBulkAttendanceSummary = async (req, response) => {
         : 0
     })
 
-    response.json(summaries)
+    result.ok(summaries)
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 
@@ -197,11 +199,11 @@ const getBulkAttendanceSummary = async (req, response) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const getMyAttendance = async (req, response) => {
+const getMyAttendance = async (context, result = createServiceResponder()) => {
   try {
-    const { page, limit, skip } = getPagination(req.query)
-    const student = req.student
-    if (!student) return response.status(403).json({ message: 'Student profile not found' })
+    const { page, limit, skip } = getPagination(context.query)
+    const student = context.student
+    if (!student) return result.withStatus(403, { message: 'Student profile not found' })
 
     const [attendance, total, groupedAttendance] = await Promise.all([
       prisma.attendance.findMany({
@@ -257,9 +259,9 @@ const getMyAttendance = async (req, response) => {
       percentage: `${(((subject.present + subject.late) / subject.total) * 100).toFixed(1)}%`
     })).sort((left, right) => left.code.localeCompare(right.code))
 
-    response.json({ total, page, limit, attendance, summary })
+    result.ok({ total, page, limit, attendance, summary })
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 
@@ -268,10 +270,10 @@ const getMyAttendance = async (req, response) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const exportMyAttendancePdf = async (req, response) => {
+const exportMyAttendancePdf = async (context, result = createServiceResponder()) => {
   try {
-    const student = req.student
-    if (!student) return response.status(403).json({ message: 'Student profile not found' })
+    const student = context.student
+    if (!student) return result.withStatus(403, { message: 'Student profile not found' })
 
     const [attendance, studentProfile] = await Promise.all([
       prisma.attendance.findMany({
@@ -293,7 +295,7 @@ const exportMyAttendancePdf = async (req, response) => {
     ])
 
     if (!studentProfile?.user) {
-      return response.status(404).json({ message: 'Student profile not found' })
+      return result.withStatus(404, { message: 'Student profile not found' })
     }
 
     const summaryMap = {}
@@ -323,11 +325,11 @@ const exportMyAttendancePdf = async (req, response) => {
       .sort((left, right) => left.subject.code.localeCompare(right.subject.code))
 
     const fileName = `attendance-${sanitizeFilenamePart(studentProfile.rollNumber)}.pdf`
-    response.setHeader('Content-Type', 'application/pdf')
-    response.setHeader('Content-Disposition', `attachment; filename="${fileName}"`)
+    result.header('Content-Type', 'application/pdf')
+    result.header('Content-Disposition', `attachment; filename="${fileName}"`)
 
     const doc = new PDFDocument({ margin: 40, size: 'A4' })
-    doc.pipe(response)
+    doc.pipe(result)
 
     doc.fontSize(20).text('TriLearn Attendance Report', { align: 'center' })
     doc.moveDown(0.5)
@@ -381,7 +383,7 @@ const exportMyAttendancePdf = async (req, response) => {
 
     doc.end()
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 
@@ -390,15 +392,15 @@ const exportMyAttendancePdf = async (req, response) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const getSubjectRoster = async (req, response) => {
+const getSubjectRoster = async (context, result = createServiceResponder()) => {
   try {
-    const { subjectId } = req.params
-    const { date, semester, section } = req.query
-    const access = await getOwnedSubject(subjectId, req)
-    if (access.error) return response.status(access.error.status).json({ message: access.error.message })
+    const { subjectId } = context.params
+    const { date, semester, section } = context.query
+    const access = await getOwnedSubject(subjectId, context)
+    if (access.error) return result.withStatus(access.error.status, { message: access.error.message })
 
     const dayRange = getDayRange(date)
-    if (!dayRange) return response.status(400).json({ message: 'Please provide a valid date' })
+    if (!dayRange) return result.withStatus(400, { message: 'Please provide a valid date' })
 
     const [students, attendance] = await Promise.all([
       getSubjectStudents(access.subject, { semester, section }),
@@ -424,7 +426,7 @@ const getSubjectRoster = async (req, response) => {
       attendanceId: attendanceMap.get(student.id)?.id || null
     }))
 
-    response.json({
+    result.ok({
       subject: access.subject,
       date: dayRange.start,
       semester: semester ? parseInt(semester, 10) : null,
@@ -434,7 +436,7 @@ const getSubjectRoster = async (req, response) => {
       summary: buildAttendanceSummary(attendance)
     })
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 
@@ -443,14 +445,14 @@ const getSubjectRoster = async (req, response) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const getCoordinatorDepartmentAttendanceReport = async (req, response) => {
+const getCoordinatorDepartmentAttendanceReport = async (context, result = createServiceResponder()) => {
   try {
-    const { month, semester, section } = req.query
-    const report = await getCoordinatorDepartmentReportPayload({ coordinator: req.coordinator, month, semester, section })
-    if (report.error) return response.status(report.error.status).json({ message: report.error.message })
-    response.json(report)
+    const { month, semester, section } = context.query
+    const report = await getCoordinatorDepartmentReportPayload({ coordinator: context.coordinator, month, semester, section })
+    if (report.error) return result.withStatus(report.error.status, { message: report.error.message })
+    result.ok(report)
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 
@@ -459,15 +461,15 @@ const getCoordinatorDepartmentAttendanceReport = async (req, response) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const getMonthlyAttendanceReport = async (req, response) => {
+const getMonthlyAttendanceReport = async (context, result = createServiceResponder()) => {
   try {
-    const { subjectId } = req.params
-    const { month } = req.query
-    const access = await getOwnedSubject(subjectId, req)
-    if (access.error) return response.status(access.error.status).json({ message: access.error.message })
+    const { subjectId } = context.params
+    const { month } = context.query
+    const access = await getOwnedSubject(subjectId, context)
+    if (access.error) return result.withStatus(access.error.status, { message: access.error.message })
 
     const monthRange = getMonthRange(month)
-    if (!monthRange) return response.status(400).json({ message: 'Please provide a valid month in YYYY-MM format' })
+    if (!monthRange) return result.withStatus(400, { message: 'Please provide a valid month in YYYY-MM format' })
     const [year, monthNumber] = month.split('-').map((value) => Number.parseInt(value, 10))
 
     const [students, attendance] = await Promise.all([
@@ -521,7 +523,7 @@ const getMonthlyAttendanceReport = async (req, response) => {
       }
     })
 
-    response.json({
+    result.ok({
       subject: access.subject,
       month,
       monthLabel: formatMonthLabel(month),
@@ -535,7 +537,7 @@ const getMonthlyAttendanceReport = async (req, response) => {
       students: studentReports
     })
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 

@@ -1,8 +1,10 @@
+/* eslint-disable no-useless-catch */
+const { createServiceResponder } = require('../../utils/serviceResult')
 const {
   prisma,
   hasAbsenceTicketDelegate,
   respondAttendanceTicketUnavailable
-} = require('../../controllers/attendance/shared')
+} = require('./shared.service')
 const { createNotification } = require('../../utils/notifications')
 const { getPagination } = require('../../utils/pagination')
 
@@ -11,15 +13,15 @@ const { getPagination } = require('../../utils/pagination')
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const getMyAbsenceTickets = async (req, response) => {
+const getMyAbsenceTickets = async (context, result = createServiceResponder()) => {
   try {
-    const student = req.student
+    const student = context.student
     if (!student) {
-      return response.status(403).json({ message: 'Student profile not found' })
+      return result.withStatus(403, { message: 'Student profile not found' })
     }
 
     if (!hasAbsenceTicketDelegate()) {
-      return response.json({ tickets: [], absencesWithoutTicket: [] })
+      return result.ok({ tickets: [], absencesWithoutTicket: [] })
     }
 
     const [tickets, absencesWithoutTicket] = await Promise.all([
@@ -49,9 +51,9 @@ const getMyAbsenceTickets = async (req, response) => {
       })
     ])
 
-    response.json({ tickets, absencesWithoutTicket })
+    result.ok({ tickets, absencesWithoutTicket })
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 
@@ -60,18 +62,18 @@ const getMyAbsenceTickets = async (req, response) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const createAbsenceTicket = async (req, response) => {
+const createAbsenceTicket = async (context, result = createServiceResponder()) => {
   try {
-    const student = req.student
+    const student = context.student
     if (!student) {
-      return response.status(403).json({ message: 'Student profile not found' })
+      return result.withStatus(403, { message: 'Student profile not found' })
     }
 
     if (!hasAbsenceTicketDelegate()) {
-      return respondAttendanceTicketUnavailable(response)
+      return respondAttendanceTicketUnavailable(result)
     }
 
-    const { attendanceId, reason } = req.body
+    const { attendanceId, reason } = context.body
     const attendance = await prisma.attendance.findFirst({
       where: {
         id: attendanceId,
@@ -81,12 +83,12 @@ const createAbsenceTicket = async (req, response) => {
     })
 
     if (!attendance) {
-      return response.status(404).json({ message: 'Absent attendance record not found' })
+      return result.withStatus(404, { message: 'Absent attendance record not found' })
     }
 
     const existingTicket = await prisma.absenceTicket.findUnique({ where: { attendanceId } })
     if (existingTicket) {
-      return response.status(400).json({ message: 'A ticket already exists for this absence.' })
+      return result.withStatus(400, { message: 'A ticket already exists for this absence.' })
     }
 
     const ticket = await prisma.absenceTicket.create({
@@ -104,9 +106,9 @@ const createAbsenceTicket = async (req, response) => {
       }
     })
 
-    response.status(201).json({ message: 'Absence ticket submitted successfully.', ticket })
+    result.withStatus(201, { message: 'Absence ticket submitted successfully.', ticket })
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 
@@ -115,22 +117,22 @@ const createAbsenceTicket = async (req, response) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const getAbsenceTicketsForStaff = async (req, response) => {
+const getAbsenceTicketsForStaff = async (context, result = createServiceResponder()) => {
   try {
     if (!hasAbsenceTicketDelegate()) {
-      return response.json({ tickets: [] })
+      return result.ok({ tickets: [] })
     }
-    const { page, limit, skip } = getPagination(req.query)
+    const { page, limit, skip } = getPagination(context.query)
 
     const where = {}
-    if (req.user.role === 'INSTRUCTOR') {
-      if (!req.instructor) return response.status(403).json({ message: 'Instructor profile not found' })
-      where.attendance = { instructorId: req.instructor.id }
+    if (context.user.role === 'INSTRUCTOR') {
+      if (!context.instructor) return result.withStatus(403, { message: 'Instructor profile not found' })
+      where.attendance = { instructorId: context.instructor.id }
     }
 
-    if (req.user.role === 'COORDINATOR') {
-      if (!req.coordinator?.department) return response.status(403).json({ message: 'Coordinator department is not configured yet' })
-      where.attendance = { student: { department: req.coordinator.department } }
+    if (context.user.role === 'COORDINATOR') {
+      if (!context.coordinator?.department) return result.withStatus(403, { message: 'Coordinator department is not configured yet' })
+      where.attendance = { student: { department: context.coordinator.department } }
     }
 
     const [tickets, total] = await Promise.all([
@@ -147,9 +149,9 @@ const getAbsenceTicketsForStaff = async (req, response) => {
       prisma.absenceTicket.count({ where })
     ])
 
-    response.json({ total, page, limit, tickets })
+    result.ok({ total, page, limit, tickets })
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 
@@ -158,14 +160,14 @@ const getAbsenceTicketsForStaff = async (req, response) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const reviewAbsenceTicket = async (req, response) => {
+const reviewAbsenceTicket = async (context, result = createServiceResponder()) => {
   try {
     if (!hasAbsenceTicketDelegate()) {
-      return respondAttendanceTicketUnavailable(response)
+      return respondAttendanceTicketUnavailable(result)
     }
 
-    const { id } = req.params
-    const { status, response } = req.body
+    const { id } = context.params
+    const { status, result: reviewResponse } = context.body
     const existing = await prisma.absenceTicket.findUnique({
       where: { id },
       include: {
@@ -173,27 +175,27 @@ const reviewAbsenceTicket = async (req, response) => {
       }
     })
 
-    if (!existing) return response.status(404).json({ message: 'Absence ticket not found' })
-    if (req.user.role === 'INSTRUCTOR' && existing.attendance.instructorId !== req.instructor?.id) {
-      return response.status(403).json({ message: 'You can only review tickets for your own classes' })
+    if (!existing) return result.withStatus(404, { message: 'Absence ticket not found' })
+    if (context.user.role === 'INSTRUCTOR' && existing.attendance.instructorId !== context.instructor?.id) {
+      return result.withStatus(403, { message: 'You can only review tickets for your own classes' })
     }
-    if (req.user.role === 'COORDINATOR' && existing.attendance.student.department !== req.coordinator?.department) {
-      return response.status(403).json({ message: 'You can only review tickets for your department' })
+    if (context.user.role === 'COORDINATOR' && existing.attendance.student.department !== context.coordinator?.department) {
+      return result.withStatus(403, { message: 'You can only review tickets for your department' })
     }
-    if (existing.status === 'APPROVED') return response.status(409).json({ message: 'Approved requests are locked and cannot be edited.' })
+    if (existing.status === 'APPROVED') return result.withStatus(409, { message: 'Approved requests are locked and cannot be edited.' })
 
     const ticket = await prisma.absenceTicket.update({
       where: { id },
-      data: { status, response, reviewedBy: req.user.id, reviewedAt: new Date() }
+      data: { status, result: reviewResponse, reviewedBy: context.user.id, reviewedAt: new Date() }
     })
 
-    response.json({ message: 'Absence ticket reviewed successfully.', ticket })
+    result.ok({ message: 'Absence ticket reviewed successfully.', ticket })
 
     await createNotification({
       userId: existing.attendance.student.userId,
       type: 'ABSENCE_TICKET_REVIEWED',
       title: `Absence ticket ${status.toLowerCase()}`,
-      message: response || `Your absence ticket has been ${status.toLowerCase()}.`,
+      message: reviewResponse || `Your absence ticket has been ${status.toLowerCase()}.`,
       link: '/student/tickets',
       metadata: {
         ticketId: ticket.id,
@@ -203,7 +205,7 @@ const reviewAbsenceTicket = async (req, response) => {
       dedupeKey: `absence-ticket:${ticket.id}:${status}:${ticket.updatedAt?.toISOString?.() || new Date().toISOString()}`
     })
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 

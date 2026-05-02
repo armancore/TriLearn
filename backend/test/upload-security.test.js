@@ -14,7 +14,12 @@ const loadWithMocks = (targetPath, mocks) => {
   const previousCacheKeys = new Set(Object.keys(require.cache))
   const touched = []
 
-  for (const [request, mockExports] of Object.entries(mocks)) {
+  const mockEntries = Object.entries(mocks)
+  if (mocks['./department.controller']) {
+    mockEntries.push(['../services/department.service', mocks['./department.controller']])
+  }
+
+  for (const [request, mockExports] of mockEntries) {
     const resolved = localRequire.resolve(request)
     touched.push({
       resolved,

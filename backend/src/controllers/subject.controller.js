@@ -1,4 +1,4 @@
-delete require.cache[require.resolve('../services/subject.service')]
+const { createController } = require('../utils/controllerAdapter')
 const {
   createSubject: createSubjectService,
   getAllSubjects: getAllSubjectsService,
@@ -10,37 +10,15 @@ const {
   updateSubjectEnrollments: updateSubjectEnrollmentsService
 } = require('../services/subject.service')
 
-const createSubject = async (req, res) => {
-  return createSubjectService(req, res)
-}
+const createSubject = createController(createSubjectService)
+const getAllSubjects = createController(getAllSubjectsService)
+const getSubjectById = createController(getSubjectByIdService)
+const updateSubject = createController(updateSubjectService)
+const deleteSubject = createController(deleteSubjectService)
+const assignInstructor = createController(assignInstructorService)
+const getSubjectEnrollments = createController(getSubjectEnrollmentsService)
+const updateSubjectEnrollments = createController(updateSubjectEnrollmentsService)
 
-const getAllSubjects = async (req, res) => {
-  return getAllSubjectsService(req, res)
-}
-
-const getSubjectById = async (req, res) => {
-  return getSubjectByIdService(req, res)
-}
-
-const updateSubject = async (req, res) => {
-  return updateSubjectService(req, res)
-}
-
-const deleteSubject = async (req, res) => {
-  return deleteSubjectService(req, res)
-}
-
-const assignInstructor = async (req, res) => {
-  return assignInstructorService(req, res)
-}
-
-const getSubjectEnrollments = async (req, res) => {
-  return getSubjectEnrollmentsService(req, res)
-}
-
-const updateSubjectEnrollments = async (req, res) => {
-  return updateSubjectEnrollmentsService(req, res)
-}
 module.exports = {
   createSubject: createSubject,
   getAllSubjects: getAllSubjects,

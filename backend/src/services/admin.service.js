@@ -1,3 +1,5 @@
+/* eslint-disable no-useless-catch */
+const { createServiceResponder } = require('../utils/serviceResult')
 const prisma = require('../utils/prisma')
 const {
   clearStatsCache,
@@ -10,11 +12,11 @@ const {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const getAdminStats = async (req, response) => {
+const getAdminStats = async (context, result = createServiceResponder()) => {
   try {
     const sharedStats = await readSharedStatsCache()
     if (sharedStats) {
-      return response.json({ stats: sharedStats })
+      return result.ok({ stats: sharedStats })
     }
 
     const [totalUsers, totalStudents, totalInstructors, totalCoordinators, totalGatekeepers, totalSubjects] = await Promise.all([
@@ -37,9 +39,9 @@ const getAdminStats = async (req, response) => {
 
     await writeSharedStatsCache(stats)
 
-    response.json({ stats })
+    result.ok({ stats })
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 

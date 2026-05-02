@@ -1,4 +1,4 @@
-delete require.cache[require.resolve('../services/studyMaterial.service')]
+const { createController } = require('../utils/controllerAdapter')
 const {
   createMaterial: createMaterialService,
   getMaterialsBySubject: getMaterialsBySubjectService,
@@ -6,21 +6,11 @@ const {
   deleteMaterial: deleteMaterialService
 } = require('../services/studyMaterial.service')
 
-const createMaterial = async (req, res) => {
-  return createMaterialService(req, res)
-}
+const createMaterial = createController(createMaterialService)
+const getMaterialsBySubject = createController(getMaterialsBySubjectService)
+const getAllMaterials = createController(getAllMaterialsService)
+const deleteMaterial = createController(deleteMaterialService)
 
-const getMaterialsBySubject = async (req, res) => {
-  return getMaterialsBySubjectService(req, res)
-}
-
-const getAllMaterials = async (req, res) => {
-  return getAllMaterialsService(req, res)
-}
-
-const deleteMaterial = async (req, res) => {
-  return deleteMaterialService(req, res)
-}
 module.exports = {
   createMaterial: createMaterial,
   getMaterialsBySubject: getMaterialsBySubject,

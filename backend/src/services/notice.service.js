@@ -1,3 +1,5 @@
+/* eslint-disable no-useless-catch */
+const { createServiceResponder } = require('../utils/serviceResult')
 const prisma = require('../utils/prisma')
 const {
   getInstructorDepartments,
@@ -11,14 +13,14 @@ const {
   notificationQueue
 } = require('../jobs/notificationQueue')
 
-const validateSanitizedNotice = ({ title, content }, response) => {
+const validateSanitizedNotice = ({ title, content }, result) => {
   if (title.length < 3) {
-    response.status(400).json({ message: 'Notice title must contain at least 3 plain-text characters' })
+    result.withStatus(400, { message: 'Notice title must contain at least 3 plain-text characters' })
     return false
   }
 
   if (content.length < 10) {
-    response.status(400).json({ message: 'Notice content must contain at least 10 plain-text characters' })
+    result.withStatus(400, { message: 'Notice content must contain at least 10 plain-text characters' })
     return false
   }
 
@@ -55,19 +57,19 @@ const getStudentNoticeVisibilityFilters = (student) => {
   }
 }
 
-const getVisibleNoticeFilters = (req, { type, audience } = {}) => {
+const getVisibleNoticeFilters = (context, { type, audience } = {}) => {
   const filters = {}
 
   if (type) {
     filters.type = type
   }
 
-  if (req.user.role === 'STUDENT') {
-    Object.assign(filters, getStudentNoticeVisibilityFilters(req.student))
+  if (context.user.role === 'STUDENT') {
+    Object.assign(filters, getStudentNoticeVisibilityFilters(context.student))
     return filters
   }
 
-  if (req.user.role === 'INSTRUCTOR') {
+  if (context.user.role === 'INSTRUCTOR') {
     const visibleAudiences = ['ALL', 'INSTRUCTORS_ONLY']
     filters.audience = audience
       ? (visibleAudiences.includes(audience) ? audience : '__no_visible_notice__')
@@ -82,7 +84,7 @@ const getVisibleNoticeFilters = (req, { type, audience } = {}) => {
   return filters
 }
 
-const resolveNoticeTargeting = (req, { audience, targetDepartment, targetSemester }) => {
+const resolveNoticeTargeting = (context, { audience, targetDepartment, targetSemester }) => {
   const normalizedAudience = audience || 'ALL'
   const normalizedTarget = {
     audience: normalizedAudience,
@@ -94,8 +96,8 @@ const resolveNoticeTargeting = (req, { audience, targetDepartment, targetSemeste
     normalizedTarget.targetSemester = null
   }
 
-  if (req.user.role === 'INSTRUCTOR') {
-    const instructorDepartments = getInstructorDepartments(req.instructor)
+  if (context.user.role === 'INSTRUCTOR') {
+    const instructorDepartments = getInstructorDepartments(context.instructor)
 
     if (normalizedAudience === 'INSTRUCTORS_ONLY') {
       return {
@@ -108,8 +110,8 @@ const resolveNoticeTargeting = (req, { audience, targetDepartment, targetSemeste
     }
   }
 
-  if (req.user.role === 'COORDINATOR') {
-    const coordinatorDepartment = req.coordinator?.department
+  if (context.user.role === 'COORDINATOR') {
+    const coordinatorDepartment = context.coordinator?.department
 
     if (!coordinatorDepartment) {
       return {
@@ -128,24 +130,24 @@ const resolveNoticeTargeting = (req, { audience, targetDepartment, targetSemeste
 
   if (
     normalizedTarget.targetDepartment &&
-    req.user.role === 'ADMIN' &&
+    context.user.role === 'ADMIN' &&
     typeof normalizedTarget.targetDepartment === 'string'
   ) {
     normalizedTarget.targetDepartment = normalizedTarget.targetDepartment.trim()
   }
 
   if (
-    req.user.role === 'INSTRUCTOR' &&
-    getInstructorDepartments(req.instructor).length > 0 &&
+    context.user.role === 'INSTRUCTOR' &&
+    getInstructorDepartments(context.instructor).length > 0 &&
     targetDepartment &&
-    !instructorHasDepartment(req.instructor, targetDepartment)
+    !instructorHasDepartment(context.instructor, targetDepartment)
   ) {
     return {
       error: { status: 403, message: 'Instructors can only target notices to their own department' }
     }
   }
 
-  if (normalizedAudience === 'INSTRUCTORS_ONLY' && !['ADMIN', 'COORDINATOR'].includes(req.user.role)) {
+  if (normalizedAudience === 'INSTRUCTORS_ONLY' && !['ADMIN', 'COORDINATOR'].includes(context.user.role)) {
     return {
       error: { status: 403, message: 'Only admins and coordinators can post instructor-only notices' }
     }
@@ -171,16 +173,16 @@ const notifyUsersAboutNotice = async (notice) => {
   })
 }
 
-const coordinatorCanManageNotice = (req, notice) => (
-  req.user.role === 'COORDINATOR' &&
-  req.coordinator?.department &&
-  notice.targetDepartment === req.coordinator.department
+const coordinatorCanManageNotice = (context, notice) => (
+  context.user.role === 'COORDINATOR' &&
+  context.coordinator?.department &&
+  notice.targetDepartment === context.coordinator.department
 )
 
-const canManageNotice = (req, notice) => (
-  notice.postedBy === req.user.id ||
-  req.user.role === 'ADMIN' ||
-  coordinatorCanManageNotice(req, notice)
+const canManageNotice = (context, notice) => (
+  notice.postedBy === context.user.id ||
+  context.user.role === 'ADMIN' ||
+  coordinatorCanManageNotice(context, notice)
 )
 
 // ================================
@@ -191,19 +193,19 @@ const canManageNotice = (req, notice) => (
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const createNotice = async (req, response) => {
+const createNotice = async (context, result = createServiceResponder()) => {
   try {
-    const { title, content, type, audience, targetDepartment, targetSemester } = req.body
+    const { title, content, type, audience, targetDepartment, targetSemester } = context.body
     const sanitizedTitle = sanitizePlainText(title)
     const sanitizedContent = sanitizePlainText(content)
 
-    if (!validateSanitizedNotice({ title: sanitizedTitle, content: sanitizedContent }, response)) {
+    if (!validateSanitizedNotice({ title: sanitizedTitle, content: sanitizedContent }, result)) {
       return
     }
 
-    const targeting = resolveNoticeTargeting(req, { audience, targetDepartment, targetSemester })
+    const targeting = resolveNoticeTargeting(context, { audience, targetDepartment, targetSemester })
     if (targeting.error) {
-      return response.status(targeting.error.status).json({ message: targeting.error.message })
+      return result.withStatus(targeting.error.status, { message: targeting.error.message })
     }
 
     const notice = await prisma.notice.create({
@@ -214,14 +216,14 @@ const createNotice = async (req, response) => {
         audience: targeting.data.audience,
         targetDepartment: targeting.data.targetDepartment,
         targetSemester: targeting.data.targetSemester,
-        postedBy: req.user.id
+        postedBy: context.user.id
       },
       include: {
         user: { select: { name: true, role: true } }
       }
     })
 
-    response.status(201).json({
+    result.withStatus(201, {
       message: 'Notice created successfully!',
       notice
     })
@@ -229,8 +231,8 @@ const createNotice = async (req, response) => {
     await notifyUsersAboutNotice(notice)
 
     await recordAuditLog({
-      actorId: req.user.id,
-      actorRole: req.user.role,
+      actorId: context.user.id,
+      actorRole: context.user.role,
       action: 'NOTICE_CREATED',
       entityType: 'Notice',
       entityId: notice.id,
@@ -243,7 +245,7 @@ const createNotice = async (req, response) => {
     })
 
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 
@@ -255,12 +257,12 @@ const createNotice = async (req, response) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const getAllNotices = async (req, response) => {
+const getAllNotices = async (context, result = createServiceResponder()) => {
   try {
-    const { type, audience, search } = req.query
-    const { page, limit, skip } = getPagination(req.query)
+    const { type, audience, search } = context.query
+    const { page, limit, skip } = getPagination(context.query)
 
-    const filters = getVisibleNoticeFilters(req, { type, audience })
+    const filters = getVisibleNoticeFilters(context, { type, audience })
     if (search) {
       filters.AND = [
         ...(filters.AND || []),
@@ -288,10 +290,10 @@ const getAllNotices = async (req, response) => {
       prisma.notice.count({ where: filters })
     ])
 
-    response.json({ total, page, limit, notices })
+    result.ok({ total, page, limit, notices })
 
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 
@@ -303,14 +305,14 @@ const getAllNotices = async (req, response) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const getNoticeById = async (req, response) => {
+const getNoticeById = async (context, result = createServiceResponder()) => {
   try {
-    const { id } = req.params
+    const { id } = context.params
 
     const notice = await prisma.notice.findFirst({
       where: {
         id,
-        ...getVisibleNoticeFilters(req)
+        ...getVisibleNoticeFilters(context)
       },
       include: {
         user: { select: { name: true, role: true } }
@@ -318,13 +320,13 @@ const getNoticeById = async (req, response) => {
     })
 
     if (!notice) {
-      return response.status(404).json({ message: 'Notice not found' })
+      return result.withStatus(404, { message: 'Notice not found' })
     }
 
-    response.json({ notice })
+    result.ok({ notice })
 
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 
@@ -336,31 +338,31 @@ const getNoticeById = async (req, response) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const updateNotice = async (req, response) => {
+const updateNotice = async (context, result = createServiceResponder()) => {
   try {
-    const { id } = req.params
-    const { title, content, type, audience, targetDepartment, targetSemester } = req.body
+    const { id } = context.params
+    const { title, content, type, audience, targetDepartment, targetSemester } = context.body
     const sanitizedTitle = sanitizePlainText(title)
     const sanitizedContent = sanitizePlainText(content)
 
-    if (!validateSanitizedNotice({ title: sanitizedTitle, content: sanitizedContent }, response)) {
+    if (!validateSanitizedNotice({ title: sanitizedTitle, content: sanitizedContent }, result)) {
       return
     }
 
     const notice = await prisma.notice.findUnique({ where: { id } })
     if (!notice) {
-      return response.status(404).json({ message: 'Notice not found' })
+      return result.withStatus(404, { message: 'Notice not found' })
     }
 
     // Admins are notice moderators across departments; coordinators can manage
     // department-targeted notices for their own department.
-    if (!canManageNotice(req, notice)) {
-      return response.status(403).json({ message: 'You can only update notices you own or manage in your department' })
+    if (!canManageNotice(context, notice)) {
+      return result.withStatus(403, { message: 'You can only update notices you own or manage in your department' })
     }
 
-    const targeting = resolveNoticeTargeting(req, { audience, targetDepartment, targetSemester })
+    const targeting = resolveNoticeTargeting(context, { audience, targetDepartment, targetSemester })
     if (targeting.error) {
-      return response.status(targeting.error.status).json({ message: targeting.error.message })
+      return result.withStatus(targeting.error.status, { message: targeting.error.message })
     }
 
     const updated = await prisma.notice.update({
@@ -375,11 +377,11 @@ const updateNotice = async (req, response) => {
       }
     })
 
-    response.json({ message: 'Notice updated successfully!', notice: updated })
+    result.ok({ message: 'Notice updated successfully!', notice: updated })
 
     await recordAuditLog({
-      actorId: req.user.id,
-      actorRole: req.user.role,
+      actorId: context.user.id,
+      actorRole: context.user.role,
       action: 'NOTICE_UPDATED',
       entityType: 'Notice',
       entityId: updated.id,
@@ -392,7 +394,7 @@ const updateNotice = async (req, response) => {
     })
 
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 
@@ -404,28 +406,28 @@ const updateNotice = async (req, response) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const deleteNotice = async (req, response) => {
+const deleteNotice = async (context, result = createServiceResponder()) => {
   try {
-    const { id } = req.params
+    const { id } = context.params
 
     const notice = await prisma.notice.findUnique({ where: { id } })
     if (!notice) {
-      return response.status(404).json({ message: 'Notice not found' })
+      return result.withStatus(404, { message: 'Notice not found' })
     }
 
     // Admins are notice moderators across departments; coordinators can manage
     // department-targeted notices for their own department.
-    if (!canManageNotice(req, notice)) {
-      return response.status(403).json({ message: 'You can only delete notices you own or manage in your department' })
+    if (!canManageNotice(context, notice)) {
+      return result.withStatus(403, { message: 'You can only delete notices you own or manage in your department' })
     }
 
     await prisma.notice.delete({ where: { id } })
 
-    response.json({ message: 'Notice deleted successfully!' })
+    result.ok({ message: 'Notice deleted successfully!' })
 
     await recordAuditLog({
-      actorId: req.user.id,
-      actorRole: req.user.role,
+      actorId: context.user.id,
+      actorRole: context.user.role,
       action: 'NOTICE_DELETED',
       entityType: 'Notice',
       entityId: id,
@@ -433,7 +435,7 @@ const deleteNotice = async (req, response) => {
     })
 
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 

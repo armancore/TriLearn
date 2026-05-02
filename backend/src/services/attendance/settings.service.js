@@ -1,4 +1,6 @@
-const { prisma, getDayRange, normalizeSemesterList } = require('../../controllers/attendance/shared')
+/* eslint-disable no-useless-catch */
+const { createServiceResponder } = require('../../utils/serviceResult')
+const { prisma, getDayRange, normalizeSemesterList } = require('./shared.service')
 const { sanitizePlainText } = require('../../utils/sanitize')
 
 const findConflictingGateWindow = async ({ id, dayOfWeek, startTime, endTime, allowedSemesters }) => prisma.gateScanWindow.findFirst({
@@ -16,9 +18,9 @@ const findConflictingGateWindow = async ({ id, dayOfWeek, startTime, endTime, al
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const getGateAttendanceSettings = async (req, response) => {
+const getGateAttendanceSettings = async (context, result = createServiceResponder()) => {
   try {
-    const { dayOfWeek } = req.query
+    const { dayOfWeek } = context.query
     const todayRange = getDayRange(new Date())
     const [windows, holidays, scannedTodayRecords] = await Promise.all([
       prisma.gateScanWindow.findMany({
@@ -37,13 +39,13 @@ const getGateAttendanceSettings = async (req, response) => {
         : []
     ])
 
-    response.json({
+    result.ok({
       windows: windows.map((window) => ({ ...window, allowedSemesters: normalizeSemesterList(window.allowedSemesters) })),
       holidays,
       scannedToday: scannedTodayRecords.length
     })
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 
@@ -52,23 +54,23 @@ const getGateAttendanceSettings = async (req, response) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const createGateScanWindow = async (req, response) => {
+const createGateScanWindow = async (context, result = createServiceResponder()) => {
   try {
-    const { title, dayOfWeek, startTime, endTime, allowedSemesters, isActive = true } = req.body
+    const { title, dayOfWeek, startTime, endTime, allowedSemesters, isActive = true } = context.body
     const normalizedSemesters = normalizeSemesterList(allowedSemesters)
     const conflict = await findConflictingGateWindow({ dayOfWeek, startTime, endTime, allowedSemesters: normalizedSemesters })
-    if (conflict) return response.status(400).json({ message: 'This time window overlaps with another Student QR slot for one of the same semesters.' })
+    if (conflict) return result.withStatus(400, { message: 'This time window overlaps with another Student QR slot for one of the same semesters.' })
 
     const window = await prisma.gateScanWindow.create({
       data: { title: sanitizePlainText(title), dayOfWeek, startTime, endTime, allowedSemesters: normalizedSemesters, isActive }
     })
 
-    response.status(201).json({
+    result.withStatus(201, {
       message: 'Student QR window saved successfully.',
       window: { ...window, allowedSemesters: normalizeSemesterList(window.allowedSemesters) }
     })
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 
@@ -77,17 +79,17 @@ const createGateScanWindow = async (req, response) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const updateGateScanWindow = async (req, response) => {
+const updateGateScanWindow = async (context, result = createServiceResponder()) => {
   try {
-    const { id } = req.params
-    const { title, dayOfWeek, startTime, endTime, allowedSemesters, isActive = true } = req.body
+    const { id } = context.params
+    const { title, dayOfWeek, startTime, endTime, allowedSemesters, isActive = true } = context.body
     const normalizedSemesters = normalizeSemesterList(allowedSemesters)
 
     const existing = await prisma.gateScanWindow.findUnique({ where: { id } })
-    if (!existing) return response.status(404).json({ message: 'Student QR window not found' })
+    if (!existing) return result.withStatus(404, { message: 'Student QR window not found' })
 
     const conflict = await findConflictingGateWindow({ id, dayOfWeek, startTime, endTime, allowedSemesters: normalizedSemesters })
-    if (conflict) return response.status(400).json({ message: 'This time window overlaps with another Student QR slot for one of the same semesters.' })
+    if (conflict) return result.withStatus(400, { message: 'This time window overlaps with another Student QR slot for one of the same semesters.' })
 
     const sanitizedTitle = sanitizePlainText(title)
 
@@ -96,12 +98,12 @@ const updateGateScanWindow = async (req, response) => {
       data: { title: sanitizedTitle, dayOfWeek, startTime, endTime, allowedSemesters: normalizedSemesters, isActive }
     })
 
-    response.json({
+    result.ok({
       message: 'Student QR window updated successfully.',
       window: { ...window, allowedSemesters: normalizeSemesterList(window.allowedSemesters) }
     })
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 
@@ -110,15 +112,15 @@ const updateGateScanWindow = async (req, response) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const deleteGateScanWindow = async (req, response) => {
+const deleteGateScanWindow = async (context, result = createServiceResponder()) => {
   try {
-    const { id } = req.params
+    const { id } = context.params
     const existing = await prisma.gateScanWindow.findUnique({ where: { id } })
-    if (!existing) return response.status(404).json({ message: 'Student QR window not found' })
+    if (!existing) return result.withStatus(404, { message: 'Student QR window not found' })
     await prisma.gateScanWindow.delete({ where: { id } })
-    response.json({ message: 'Student QR window deleted successfully.' })
+    result.ok({ message: 'Student QR window deleted successfully.' })
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 
@@ -127,11 +129,11 @@ const deleteGateScanWindow = async (req, response) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const createAttendanceHoliday = async (req, response) => {
+const createAttendanceHoliday = async (context, result = createServiceResponder()) => {
   try {
-    const { date, title, description, isActive = true } = req.body
+    const { date, title, description, isActive = true } = context.body
     const dayRange = getDayRange(date)
-    if (!dayRange) return response.status(400).json({ message: 'Invalid holiday date' })
+    if (!dayRange) return result.withStatus(400, { message: 'Invalid holiday date' })
 
     const sanitizedTitle = sanitizePlainText(title)
     const sanitizedDescription = sanitizePlainText(description)
@@ -142,9 +144,9 @@ const createAttendanceHoliday = async (req, response) => {
       create: { date: dayRange.start, title: sanitizedTitle, description: sanitizedDescription, isActive }
     })
 
-    response.status(201).json({ message: 'Holiday saved successfully.', holiday })
+    result.withStatus(201, { message: 'Holiday saved successfully.', holiday })
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 
@@ -153,15 +155,15 @@ const createAttendanceHoliday = async (req, response) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const deleteAttendanceHoliday = async (req, response) => {
+const deleteAttendanceHoliday = async (context, result = createServiceResponder()) => {
   try {
-    const { id } = req.params
+    const { id } = context.params
     const existing = await prisma.attendanceHoliday.findUnique({ where: { id } })
-    if (!existing) return response.status(404).json({ message: 'Holiday not found' })
+    if (!existing) return result.withStatus(404, { message: 'Holiday not found' })
     await prisma.attendanceHoliday.delete({ where: { id } })
-    response.json({ message: 'Holiday removed successfully.' })
+    result.ok({ message: 'Holiday removed successfully.' })
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 

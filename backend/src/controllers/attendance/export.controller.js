@@ -1,16 +1,12 @@
-delete require.cache[require.resolve('../../services/attendance/export.service')]
+const { createController } = require('../../utils/controllerAdapter')
 const {
   exportCoordinatorDepartmentAttendanceReport: exportCoordinatorDepartmentAttendanceReportService,
   exportAttendanceBySubject: exportAttendanceBySubjectService
 } = require('../../services/attendance/export.service')
 
-const exportCoordinatorDepartmentAttendanceReport = async (req, res) => {
-  return exportCoordinatorDepartmentAttendanceReportService(req, res)
-}
+const exportCoordinatorDepartmentAttendanceReport = createController(exportCoordinatorDepartmentAttendanceReportService)
+const exportAttendanceBySubject = createController(exportAttendanceBySubjectService)
 
-const exportAttendanceBySubject = async (req, res) => {
-  return exportAttendanceBySubjectService(req, res)
-}
 module.exports = {
   exportCoordinatorDepartmentAttendanceReport: exportCoordinatorDepartmentAttendanceReport,
   exportAttendanceBySubject: exportAttendanceBySubject

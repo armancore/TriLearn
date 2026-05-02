@@ -1,4 +1,4 @@
-delete require.cache[require.resolve('../services/notice.service')]
+const { createController } = require('../utils/controllerAdapter')
 const {
   createNotice: createNoticeService,
   getAllNotices: getAllNoticesService,
@@ -7,25 +7,12 @@ const {
   deleteNotice: deleteNoticeService
 } = require('../services/notice.service')
 
-const createNotice = async (req, res) => {
-  return createNoticeService(req, res)
-}
+const createNotice = createController(createNoticeService)
+const getAllNotices = createController(getAllNoticesService)
+const getNoticeById = createController(getNoticeByIdService)
+const updateNotice = createController(updateNoticeService)
+const deleteNotice = createController(deleteNoticeService)
 
-const getAllNotices = async (req, res) => {
-  return getAllNoticesService(req, res)
-}
-
-const getNoticeById = async (req, res) => {
-  return getNoticeByIdService(req, res)
-}
-
-const updateNotice = async (req, res) => {
-  return updateNoticeService(req, res)
-}
-
-const deleteNotice = async (req, res) => {
-  return deleteNoticeService(req, res)
-}
 module.exports = {
   createNotice: createNotice,
   getAllNotices: getAllNotices,

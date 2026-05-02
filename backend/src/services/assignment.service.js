@@ -1,3 +1,5 @@
+/* eslint-disable no-useless-catch */
+const { createServiceResponder } = require('../utils/serviceResult')
 const prisma = require('../utils/prisma')
 const { buildUploadedFileUrl } = require('../utils/fileStorage')
 const { getPagination } = require('../utils/pagination')
@@ -5,8 +7,8 @@ const ExcelJS = require('exceljs')
 const PDFDocument = require('pdfkit')
 const { sanitizePlainText, sanitizeXlsxCell } = require('../utils/sanitize')
 
-const resolveAssignmentManager = async (req, subjectId) => {
-  const { user, instructor } = req
+const resolveAssignmentManager = async (context, subjectId) => {
+  const { user, instructor } = context
   const subject = await prisma.subject.findUnique({
     where: { id: subjectId },
     include: {
@@ -92,23 +94,23 @@ const buildAssignmentExportRows = (assignment) => (
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const createAssignment = async (req, response) => {
+const createAssignment = async (context, result = createServiceResponder()) => {
   try {
-    const { title, description, subjectId, dueDate, totalMarks } = req.body
-    const questionPdfUrl = buildUploadedFileUrl(req.file)
+    const { title, description, subjectId, dueDate, totalMarks } = context.body
+    const questionPdfUrl = buildUploadedFileUrl(context.file)
     const parsedTotalMarks = totalMarks ? parseInt(totalMarks, 10) : 100
 
     if (!questionPdfUrl) {
-      return response.status(400).json({ message: 'Please upload the assignment question PDF' })
+      return result.withStatus(400, { message: 'Please upload the assignment question PDF' })
     }
 
     if (Number.isNaN(parsedTotalMarks) || parsedTotalMarks <= 0) {
-      return response.status(400).json({ message: 'Total marks must be a valid positive number' })
+      return result.withStatus(400, { message: 'Total marks must be a valid positive number' })
     }
 
-    const access = await resolveAssignmentManager(req, subjectId)
+    const access = await resolveAssignmentManager(context, subjectId)
     if (access.error) {
-      return response.status(access.error.status).json({ message: access.error.message })
+      return result.withStatus(access.error.status, { message: access.error.message })
     }
 
     const sanitizedTitle = sanitizePlainText(title)
@@ -130,12 +132,12 @@ const createAssignment = async (req, response) => {
       }
     })
 
-    response.status(201).json({
+    result.withStatus(201, {
       message: 'Assignment created successfully!',
       assignment
     })
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 
@@ -147,22 +149,22 @@ const createAssignment = async (req, response) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const getAllAssignments = async (req, response) => {
+const getAllAssignments = async (context, result = createServiceResponder()) => {
   try {
-    const { subjectId } = req.query
-    const { page, limit, skip } = getPagination(req.query)
+    const { subjectId } = context.query
+    const { page, limit, skip } = getPagination(context.query)
 
     const filters = {}
     if (subjectId) filters.subjectId = subjectId
 
-    if (req.user.role === 'INSTRUCTOR') {
-      filters.instructorId = req.instructor?.id || '__no_assignments__'
+    if (context.user.role === 'INSTRUCTOR') {
+      filters.instructorId = context.instructor?.id || '__no_assignments__'
     }
 
-    if (req.user.role === 'STUDENT') {
-      const student = req.student
+    if (context.user.role === 'STUDENT') {
+      const student = context.student
       if (!student) {
-        return response.status(403).json({ message: 'Student profile not found' })
+        return result.withStatus(403, { message: 'Student profile not found' })
       }
 
       filters.subject = {
@@ -189,9 +191,9 @@ const getAllAssignments = async (req, response) => {
       prisma.assignment.count({ where: filters })
     ])
 
-    response.json({ total, page, limit, assignments })
+    result.ok({ total, page, limit, assignments })
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 
@@ -203,9 +205,9 @@ const getAllAssignments = async (req, response) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const getAssignmentById = async (req, response) => {
+const getAssignmentById = async (context, result = createServiceResponder()) => {
   try {
-    const { id } = req.params
+    const { id } = context.params
 
     const assignment = await prisma.assignment.findUnique({
       where: { id },
@@ -221,14 +223,14 @@ const getAssignmentById = async (req, response) => {
     })
 
     if (!assignment) {
-      return response.status(404).json({ message: 'Assignment not found' })
+      return result.withStatus(404, { message: 'Assignment not found' })
     }
 
-    if (req.user.role === 'STUDENT') {
-      const student = req.student
+    if (context.user.role === 'STUDENT') {
+      const student = context.student
 
       if (!student) {
-        return response.status(403).json({ message: 'Student profile not found' })
+        return result.withStatus(403, { message: 'Student profile not found' })
       }
 
       const enrolled = await prisma.subjectEnrollment.findUnique({
@@ -241,10 +243,10 @@ const getAssignmentById = async (req, response) => {
       })
 
       if (!enrolled) {
-        return response.status(403).json({ message: 'You can only view assignments for your enrolled modules' })
+        return result.withStatus(403, { message: 'You can only view assignments for your enrolled modules' })
       }
 
-      return response.json({
+      return result.ok({
         assignment: {
           ...assignment,
           submissions: assignment.submissions
@@ -254,9 +256,9 @@ const getAssignmentById = async (req, response) => {
       })
     }
 
-    response.json({ assignment })
+    result.ok({ assignment })
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 
@@ -268,25 +270,25 @@ const getAssignmentById = async (req, response) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const updateAssignment = async (req, response) => {
+const updateAssignment = async (context, result = createServiceResponder()) => {
   try {
-    const { id } = req.params
-    const { title, description, dueDate, totalMarks } = req.body
-    const questionPdfUrl = buildUploadedFileUrl(req.file)
+    const { id } = context.params
+    const { title, description, dueDate, totalMarks } = context.body
+    const questionPdfUrl = buildUploadedFileUrl(context.file)
     const parsedTotalMarks = totalMarks !== undefined ? parseInt(totalMarks, 10) : undefined
 
     const assignment = await prisma.assignment.findUnique({ where: { id } })
     if (!assignment) {
-      return response.status(404).json({ message: 'Assignment not found' })
+      return result.withStatus(404, { message: 'Assignment not found' })
     }
 
     if (parsedTotalMarks !== undefined && (Number.isNaN(parsedTotalMarks) || parsedTotalMarks <= 0)) {
-      return response.status(400).json({ message: 'Total marks must be a valid positive number' })
+      return result.withStatus(400, { message: 'Total marks must be a valid positive number' })
     }
 
-    if (req.user.role === 'INSTRUCTOR') {
-      if (assignment.instructorId !== req.instructor?.id) {
-        return response.status(403).json({ message: 'You can only update your own assignments' })
+    if (context.user.role === 'INSTRUCTOR') {
+      if (assignment.instructorId !== context.instructor?.id) {
+        return result.withStatus(403, { message: 'You can only update your own assignments' })
       }
     }
 
@@ -304,9 +306,9 @@ const updateAssignment = async (req, response) => {
       }
     })
 
-    response.json({ message: 'Assignment updated successfully!', assignment: updated })
+    result.ok({ message: 'Assignment updated successfully!', assignment: updated })
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 
@@ -318,26 +320,26 @@ const updateAssignment = async (req, response) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const deleteAssignment = async (req, response) => {
+const deleteAssignment = async (context, result = createServiceResponder()) => {
   try {
-    const { id } = req.params
+    const { id } = context.params
 
     const assignment = await prisma.assignment.findUnique({ where: { id } })
     if (!assignment) {
-      return response.status(404).json({ message: 'Assignment not found' })
+      return result.withStatus(404, { message: 'Assignment not found' })
     }
 
-    if (req.user.role === 'INSTRUCTOR') {
-      if (assignment.instructorId !== req.instructor?.id) {
-        return response.status(403).json({ message: 'You can only delete your own assignments' })
+    if (context.user.role === 'INSTRUCTOR') {
+      if (assignment.instructorId !== context.instructor?.id) {
+        return result.withStatus(403, { message: 'You can only delete your own assignments' })
       }
     }
 
     await prisma.assignment.delete({ where: { id } })
 
-    response.json({ message: 'Assignment deleted successfully!' })
+    result.ok({ message: 'Assignment deleted successfully!' })
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 
@@ -349,21 +351,21 @@ const deleteAssignment = async (req, response) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const submitAssignment = async (req, response) => {
+const submitAssignment = async (context, result = createServiceResponder()) => {
   try {
-    const { id } = req.params
-    const { note } = req.body
-    const fileUrl = buildUploadedFileUrl(req.file)
+    const { id } = context.params
+    const { note } = context.body
+    const fileUrl = buildUploadedFileUrl(context.file)
 
-    const student = req.student
+    const student = context.student
 
     if (!student) {
-      return response.status(403).json({ message: 'Student profile not found' })
+      return result.withStatus(403, { message: 'Student profile not found' })
     }
 
     const assignment = await prisma.assignment.findUnique({ where: { id } })
     if (!assignment) {
-      return response.status(404).json({ message: 'Assignment not found' })
+      return result.withStatus(404, { message: 'Assignment not found' })
     }
 
     const existingSubmission = await prisma.submission.findFirst({
@@ -371,11 +373,11 @@ const submitAssignment = async (req, response) => {
     })
 
     if (existingSubmission) {
-      return response.status(400).json({ message: 'You have already submitted this assignment' })
+      return result.withStatus(400, { message: 'You have already submitted this assignment' })
     }
 
     if (!fileUrl) {
-      return response.status(400).json({ message: 'Please upload your answer PDF' })
+      return result.withStatus(400, { message: 'Please upload your answer PDF' })
     }
 
     const isLate = new Date() > new Date(assignment.dueDate)
@@ -396,12 +398,12 @@ const submitAssignment = async (req, response) => {
       }
     })
 
-    response.status(201).json({
+    result.withStatus(201, {
       message: isLate ? 'Assignment submitted late!' : 'Assignment submitted successfully!',
       submission
     })
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 
@@ -413,12 +415,12 @@ const submitAssignment = async (req, response) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const getMySubmissions = async (req, response) => {
+const getMySubmissions = async (context, result = createServiceResponder()) => {
   try {
-    const student = req.student
+    const student = context.student
 
     if (!student) {
-      return response.status(403).json({ message: 'Student profile not found' })
+      return result.withStatus(403, { message: 'Student profile not found' })
     }
 
     const submissions = await prisma.submission.findMany({
@@ -433,12 +435,12 @@ const getMySubmissions = async (req, response) => {
       orderBy: { submittedAt: 'desc' }
     })
 
-    response.json({
+    result.ok({
       total: submissions.length,
       submissions: submissions.map((submission) => getSubmissionViewForRole(submission, 'STUDENT'))
     })
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 
@@ -450,10 +452,10 @@ const getMySubmissions = async (req, response) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const gradeSubmission = async (req, response) => {
+const gradeSubmission = async (context, result = createServiceResponder()) => {
   try {
-    const { submissionId } = req.params
-    const { obtainedMarks, feedback } = req.body
+    const { submissionId } = context.params
+    const { obtainedMarks, feedback } = context.body
 
     const submission = await prisma.submission.findUnique({
       where: { id: submissionId },
@@ -461,17 +463,17 @@ const gradeSubmission = async (req, response) => {
     })
 
     if (!submission) {
-      return response.status(404).json({ message: 'Submission not found' })
+      return result.withStatus(404, { message: 'Submission not found' })
     }
 
-    if (req.user.role === 'INSTRUCTOR') {
-      if (submission.assignment.instructorId !== req.instructor?.id) {
-        return response.status(403).json({ message: 'You can only grade submissions for your own assignments' })
+    if (context.user.role === 'INSTRUCTOR') {
+      if (submission.assignment.instructorId !== context.instructor?.id) {
+        return result.withStatus(403, { message: 'You can only grade submissions for your own assignments' })
       }
     }
 
     if (obtainedMarks > submission.assignment.totalMarks) {
-      return response.status(400).json({
+      return result.withStatus(400, {
         message: `Marks cannot exceed total marks (${submission.assignment.totalMarks})`
       })
     }
@@ -487,9 +489,9 @@ const gradeSubmission = async (req, response) => {
       }
     })
 
-    response.json({ message: 'Submission graded successfully!', submission: updated })
+    result.ok({ message: 'Submission graded successfully!', submission: updated })
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 
@@ -498,10 +500,10 @@ const gradeSubmission = async (req, response) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const exportAssignmentGrades = async (req, response) => {
+const exportAssignmentGrades = async (context, result = createServiceResponder()) => {
   try {
-    const { id } = req.params
-    const { format = 'xlsx' } = req.query
+    const { id } = context.params
+    const { format = 'xlsx' } = context.query
 
     const assignment = await prisma.assignment.findUnique({
       where: { id },
@@ -523,22 +525,22 @@ const exportAssignmentGrades = async (req, response) => {
     })
 
     if (!assignment) {
-      return response.status(404).json({ message: 'Assignment not found' })
+      return result.withStatus(404, { message: 'Assignment not found' })
     }
 
-    if (req.user.role === 'INSTRUCTOR' && assignment.instructorId !== req.instructor?.id) {
-      return response.status(403).json({ message: 'You can only export grades for your own assignments' })
+    if (context.user.role === 'INSTRUCTOR' && assignment.instructorId !== context.instructor?.id) {
+      return result.withStatus(403, { message: 'You can only export grades for your own assignments' })
     }
 
     const rows = buildAssignmentExportRows(assignment)
     const fileBase = `assignment-grades-${sanitizeFilenamePart(assignment.subject?.code || assignment.title)}-${sanitizeFilenamePart(assignment.title)}`
 
     if (format === 'pdf') {
-      response.setHeader('Content-Type', 'application/pdf')
-      response.setHeader('Content-Disposition', `attachment; filename="${fileBase}.pdf"`)
+      result.header('Content-Type', 'application/pdf')
+      result.header('Content-Disposition', `attachment; filename="${fileBase}.pdf"`)
 
       const doc = new PDFDocument({ margin: 40, size: 'A4' })
-      doc.pipe(response)
+      doc.pipe(result)
 
       doc.fontSize(18).text('Assignment Grade Report', { align: 'center' })
       doc.moveDown(0.5)
@@ -604,12 +606,12 @@ const exportAssignmentGrades = async (req, response) => {
       })
     })
 
-    response.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-    response.setHeader('Content-Disposition', `attachment; filename="${fileBase}.xlsx"`)
-    await workbook.xlsx.write(response)
-    response.end()
+    result.header('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    result.header('Content-Disposition', `attachment; filename="${fileBase}.xlsx"`)
+    await workbook.xlsx.write(result)
+    result.end()
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 

@@ -1,4 +1,4 @@
-delete require.cache[require.resolve('../services/auth.service')]
+const { createController } = require('../utils/controllerAdapter')
 const {
   register: registerService,
   submitStudentIntake: submitStudentIntakeService,
@@ -20,77 +20,25 @@ const {
   logoutAll: logoutAllService
 } = require('../services/auth.service')
 
-const register = async (req, res) => {
-  return registerService(req, res)
-}
+const register = createController(registerService)
+const submitStudentIntake = createController(submitStudentIntakeService)
+const login = createController(loginService)
+const getStudentIdQr = createController(getStudentIdQrService)
+const getMe = createController(getMeService)
+const updateProfile = createController(updateProfileService)
+const uploadAvatar = createController(uploadAvatarService)
+const changePassword = createController(changePasswordService)
+const completeProfile = createController(completeProfileService)
+const forgotPassword = createController(forgotPasswordService)
+const verifyEmail = createController(verifyEmailService)
+const resendVerification = createController(resendVerificationService)
+const resetPassword = createController(resetPasswordService)
+const refresh = createController(refreshService)
+const refreshMobile = createController(refreshMobileService)
+const logout = createController(logoutService)
+const getActivity = createController(getActivityService)
+const logoutAll = createController(logoutAllService)
 
-const submitStudentIntake = async (req, res) => {
-  return submitStudentIntakeService(req, res)
-}
-
-const login = async (req, res) => {
-  return loginService(req, res)
-}
-
-const getStudentIdQr = async (req, res) => {
-  return getStudentIdQrService(req, res)
-}
-
-const getMe = async (req, res) => {
-  return getMeService(req, res)
-}
-
-const updateProfile = async (req, res) => {
-  return updateProfileService(req, res)
-}
-
-const uploadAvatar = async (req, res) => {
-  return uploadAvatarService(req, res)
-}
-
-const changePassword = async (req, res) => {
-  return changePasswordService(req, res)
-}
-
-const completeProfile = async (req, res) => {
-  return completeProfileService(req, res)
-}
-
-const forgotPassword = async (req, res) => {
-  return forgotPasswordService(req, res)
-}
-
-const verifyEmail = async (req, res) => {
-  return verifyEmailService(req, res)
-}
-
-const resendVerification = async (req, res) => {
-  return resendVerificationService(req, res)
-}
-
-const resetPassword = async (req, res) => {
-  return resetPasswordService(req, res)
-}
-
-const refresh = async (req, res) => {
-  return refreshService(req, res)
-}
-
-const refreshMobile = async (req, res) => {
-  return refreshMobileService(req, res)
-}
-
-const logout = async (req, res) => {
-  return logoutService(req, res)
-}
-
-const getActivity = async (req, res) => {
-  return getActivityService(req, res)
-}
-
-const logoutAll = async (req, res) => {
-  return logoutAllService(req, res)
-}
 module.exports = {
   register: register,
   submitStudentIntake: submitStudentIntake,

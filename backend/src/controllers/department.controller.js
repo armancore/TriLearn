@@ -1,4 +1,4 @@
-delete require.cache[require.resolve('../services/department.service')]
+const { createController } = require('../utils/controllerAdapter')
 const {
   createDepartment: createDepartmentService,
   getAllDepartments: getAllDepartmentsService,
@@ -8,40 +8,19 @@ const {
   deleteDepartmentSection: deleteDepartmentSectionService,
   updateDepartment: updateDepartmentService,
   deleteDepartment: deleteDepartmentService,
-  ensureDepartmentExists: ensureDepartmentExistsService
+  ensureDepartmentExistsService: ensureDepartmentExistsServiceService
 } = require('../services/department.service')
 
-const createDepartment = async (req, res) => {
-  return createDepartmentService(req, res)
-}
+const createDepartment = createController(createDepartmentService)
+const getAllDepartments = createController(getAllDepartmentsService)
+const getPublicDepartments = createController(getPublicDepartmentsService)
+const getDepartmentSections = createController(getDepartmentSectionsService)
+const createDepartmentSection = createController(createDepartmentSectionService)
+const deleteDepartmentSection = createController(deleteDepartmentSectionService)
+const updateDepartment = createController(updateDepartmentService)
+const deleteDepartment = createController(deleteDepartmentService)
+const ensureDepartmentExistsService = createController(ensureDepartmentExistsServiceService)
 
-const getAllDepartments = async (req, res) => {
-  return getAllDepartmentsService(req, res)
-}
-
-const getPublicDepartments = async (req, res) => {
-  return getPublicDepartmentsService(req, res)
-}
-
-const getDepartmentSections = async (req, res) => {
-  return getDepartmentSectionsService(req, res)
-}
-
-const createDepartmentSection = async (req, res) => {
-  return createDepartmentSectionService(req, res)
-}
-
-const deleteDepartmentSection = async (req, res) => {
-  return deleteDepartmentSectionService(req, res)
-}
-
-const updateDepartment = async (req, res) => {
-  return updateDepartmentService(req, res)
-}
-
-const deleteDepartment = async (req, res) => {
-  return deleteDepartmentService(req, res)
-}
 module.exports = {
   createDepartment: createDepartment,
   getAllDepartments: getAllDepartments,

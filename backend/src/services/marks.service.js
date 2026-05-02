@@ -1,3 +1,5 @@
+/* eslint-disable no-useless-catch */
+const { createServiceResponder } = require('../utils/serviceResult')
 const prisma = require('../utils/prisma')
 const { Prisma } = require('@prisma/client')
 const { getPagination } = require('../utils/pagination')
@@ -229,19 +231,19 @@ const getRankingSummary = async ({ student, examType }) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const getMyMarksSummary = async (req, response) => {
+const getMyMarksSummary = async (context, result = createServiceResponder()) => {
   try {
-    const { examType } = req.query
-    const student = req.student
+    const { examType } = context.query
+    const student = context.student
 
     if (!student) {
-      return response.status(403).json({ message: 'Student profile not found' })
+      return result.withStatus(403, { message: 'Student profile not found' })
     }
 
     const { availableExamTypes, selectedExamType } = await getStudentExamContext(student.id, examType)
 
     if (!selectedExamType) {
-      return response.json({
+      return result.ok({
         examType: null,
         availableExamTypes: [],
         resultSheet: emptyStudentResultSheet(),
@@ -270,7 +272,7 @@ const getMyMarksSummary = async (req, response) => {
       examType: selectedExamType
     })
 
-    response.json({
+    result.ok({
       examType: selectedExamType,
       availableExamTypes,
       resultSheet,
@@ -304,7 +306,7 @@ const getMyMarksSummary = async (req, response) => {
       }
     })
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 
@@ -368,26 +370,26 @@ const getStudentMarksheetPayload = async ({ student, examType }) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const exportMyMarksheetPdf = async (req, response) => {
+const exportMyMarksheetPdf = async (context, result = createServiceResponder()) => {
   try {
-    const { examType } = req.query
-    const student = req.student
+    const { examType } = context.query
+    const student = context.student
 
     if (!student) {
-      return response.status(403).json({ message: 'Student profile not found' })
+      return result.withStatus(403, { message: 'Student profile not found' })
     }
 
     const payload = await getStudentMarksheetPayload({ student, examType })
     if (payload.error) {
-      return response.status(payload.error.status).json({ message: payload.error.message })
+      return result.withStatus(payload.error.status, { message: payload.error.message })
     }
 
     const fileName = `marksheet-${sanitizeFilenamePart(payload.student.rollNumber)}-sem-${payload.student.semester}-${sanitizeFilenamePart(payload.examType)}.pdf`
-    response.setHeader('Content-Type', 'application/pdf')
-    response.setHeader('Content-Disposition', `attachment; filename="${fileName}"`)
+    result.header('Content-Type', 'application/pdf')
+    result.header('Content-Disposition', `attachment; filename="${fileName}"`)
 
     const doc = new PDFDocument({ margin: 40, size: 'A4' })
-    doc.pipe(response)
+    doc.pipe(result)
 
     doc.fontSize(20).text('TriLearn Semester Marksheet', { align: 'center' })
     doc.moveDown(0.3)
@@ -448,12 +450,12 @@ const exportMyMarksheetPdf = async (req, response) => {
     doc.fontSize(9).fillColor('#64748b').text(`Generated on ${new Date().toLocaleString()}`, { align: 'right' })
     doc.end()
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 
-const getManagedSubject = async (subjectId, req) => {
-  const { user, instructor, coordinator } = req
+const getManagedSubject = async (subjectId, context) => {
+  const { user, instructor, coordinator } = context
   const subject = await prisma.subject.findUnique({
     where: { id: subjectId },
     include: {
@@ -500,7 +502,7 @@ const getManagedSubject = async (subjectId, req) => {
   return { subject }
 }
 
-const buildStaffReviewFilters = ({ req, subjectId, examType }) => {
+const buildStaffReviewFilters = ({ context, subjectId, examType }) => {
   const where = {}
 
   if (subjectId) {
@@ -511,8 +513,8 @@ const buildStaffReviewFilters = ({ req, subjectId, examType }) => {
     where.examType = examType
   }
 
-  if (req.user.role === 'COORDINATOR') {
-    if (!req.coordinator?.department) {
+  if (context.user.role === 'COORDINATOR') {
+    if (!context.coordinator?.department) {
       return {
         error: {
           status: 403,
@@ -522,7 +524,7 @@ const buildStaffReviewFilters = ({ req, subjectId, examType }) => {
     }
 
     where.subject = {
-      department: req.coordinator.department
+      department: context.coordinator.department
     }
   }
 
@@ -548,13 +550,13 @@ const createMarkPayload = ({ studentId, subjectId, instructorId, examType, total
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const addMarks = async (req, response) => {
+const addMarks = async (context, result = createServiceResponder()) => {
   try {
-    const { studentId, subjectId, examType, totalMarks, obtainedMarks, remarks } = req.body
+    const { studentId, subjectId, examType, totalMarks, obtainedMarks, remarks } = context.body
 
-    const access = await getManagedSubject(subjectId, req)
+    const access = await getManagedSubject(subjectId, context)
     if (access.error) {
-      return response.status(access.error.status).json({ message: access.error.message })
+      return result.withStatus(access.error.status, { message: access.error.message })
     }
 
     const enrollment = await prisma.subjectEnrollment.findUnique({
@@ -567,12 +569,12 @@ const addMarks = async (req, response) => {
     })
 
     if (!enrollment) {
-      return response.status(400).json({ message: 'Selected student is not enrolled in this subject' })
+      return result.withStatus(400, { message: 'Selected student is not enrolled in this subject' })
     }
 
     const instructorId = access.instructor?.id || access.subject.instructorId
     if (!instructorId) {
-      return response.status(400).json({ message: 'Assign an instructor to this subject before managing marks' })
+      return result.withStatus(400, { message: 'Assign an instructor to this subject before managing marks' })
     }
 
     let mark
@@ -595,24 +597,24 @@ const addMarks = async (req, response) => {
       })
     } catch (error) {
       if (error.code === 'P2002') {
-        return response.status(400).json({ message: 'Marks already added for this exam type' })
+        return result.withStatus(400, { message: 'Marks already added for this exam type' })
       }
 
       throw error
     }
 
-    response.status(201).json({ message: 'Marks added successfully!', mark: decorateMark(mark) })
+    result.withStatus(201, { message: 'Marks added successfully!', mark: decorateMark(mark) })
 
     await recordAuditLog({
-      actorId: req.user.id,
-      actorRole: req.user.role,
+      actorId: context.user.id,
+      actorRole: context.user.role,
       action: 'MARK_CREATED',
       entityType: 'Mark',
       entityId: mark.id,
       metadata: { subjectId, studentId, examType }
     })
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 
@@ -621,23 +623,23 @@ const addMarks = async (req, response) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const addMarksBulk = async (req, response) => {
+const addMarksBulk = async (context, result = createServiceResponder()) => {
   try {
-    const { subjectId, examType, totalMarks, entries } = req.body
+    const { subjectId, examType, totalMarks, entries } = context.body
 
-    const access = await getManagedSubject(subjectId, req)
+    const access = await getManagedSubject(subjectId, context)
     if (access.error) {
-      return response.status(access.error.status).json({ message: access.error.message })
+      return result.withStatus(access.error.status, { message: access.error.message })
     }
 
     const instructorId = access.instructor?.id || access.subject.instructorId
     if (!instructorId) {
-      return response.status(400).json({ message: 'Assign an instructor to this subject before managing marks' })
+      return result.withStatus(400, { message: 'Assign an instructor to this subject before managing marks' })
     }
 
     const uniqueStudentIds = [...new Set(entries.map((entry) => entry.studentId))]
     if (uniqueStudentIds.length !== entries.length) {
-      return response.status(400).json({ message: 'Each student can only appear once in a bulk marks request' })
+      return result.withStatus(400, { message: 'Each student can only appear once in a bulk marks request' })
     }
 
     const [enrollments, existingMarks] = await Promise.all([
@@ -663,7 +665,7 @@ const addMarksBulk = async (req, response) => {
 
     const notEnrolledIds = uniqueStudentIds.filter((studentId) => !enrolledStudentIds.has(studentId))
     if (notEnrolledIds.length > 0) {
-      return response.status(400).json({
+      return result.withStatus(400, {
         message: 'Some selected students are not enrolled in this subject',
         studentIds: notEnrolledIds
       })
@@ -671,7 +673,7 @@ const addMarksBulk = async (req, response) => {
 
     const duplicateMarkIds = uniqueStudentIds.filter((studentId) => existingStudentIds.has(studentId))
     if (duplicateMarkIds.length > 0) {
-      return response.status(400).json({
+      return result.withStatus(400, {
         message: 'Marks already exist for some students in this exam type',
         studentIds: duplicateMarkIds
       })
@@ -695,7 +697,7 @@ const addMarksBulk = async (req, response) => {
       })
     )))
 
-    response.status(201).json({
+    result.withStatus(201, {
       message: `Marks added successfully for ${createdMarks.length} student${createdMarks.length === 1 ? '' : 's'}!`,
       marks: createdMarks.map(decorateMark),
       count: createdMarks.length
@@ -703,8 +705,8 @@ const addMarksBulk = async (req, response) => {
 
     await prisma.auditLog.createMany({
       data: createdMarks.map((mark) => ({
-        actorId: req.user.id,
-        actorRole: req.user.role,
+        actorId: context.user.id,
+        actorRole: context.user.role,
         action: 'MARK_CREATED',
         entityType: 'Mark',
         entityId: mark.id,
@@ -713,10 +715,10 @@ const addMarksBulk = async (req, response) => {
     })
   } catch (error) {
     if (error.code === 'P2002') {
-      return response.status(400).json({ message: 'One or more marks already exist for this exam type' })
+      return result.withStatus(400, { message: 'One or more marks already exist for this exam type' })
     }
 
-    response.internalError(error)
+    throw error
   }
 }
 
@@ -725,19 +727,19 @@ const addMarksBulk = async (req, response) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const updateMarks = async (req, response) => {
+const updateMarks = async (context, result = createServiceResponder()) => {
   try {
-    const { id } = req.params
-    const { obtainedMarks, remarks } = req.body
+    const { id } = context.params
+    const { obtainedMarks, remarks } = context.body
 
     const mark = await prisma.mark.findUnique({ where: { id } })
     if (!mark) {
-      return response.status(404).json({ message: 'Mark not found' })
+      return result.withStatus(404, { message: 'Mark not found' })
     }
 
-    const access = await getManagedSubject(mark.subjectId, req)
+    const access = await getManagedSubject(mark.subjectId, context)
     if (access.error) {
-      return response.status(access.error.status).json({ message: access.error.message })
+      return result.withStatus(access.error.status, { message: access.error.message })
     }
 
     const updated = await prisma.mark.update({
@@ -752,21 +754,21 @@ const updateMarks = async (req, response) => {
       }
     })
 
-    response.json({
+    result.ok({
       message: 'Marks updated successfully! The result is now unpublished until the coordinator publishes it again.',
       mark: decorateMark(updated)
     })
 
     await recordAuditLog({
-      actorId: req.user.id,
-      actorRole: req.user.role,
+      actorId: context.user.id,
+      actorRole: context.user.role,
       action: 'MARK_UPDATED',
       entityType: 'Mark',
       entityId: updated.id,
       metadata: { obtainedMarks: updated.obtainedMarks }
     })
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 
@@ -775,15 +777,15 @@ const updateMarks = async (req, response) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const getMarksBySubject = async (req, response) => {
+const getMarksBySubject = async (context, result = createServiceResponder()) => {
   try {
-    const { subjectId } = req.params
-    const { examType } = req.query
-    const { page, limit, skip } = getPagination(req.query)
+    const { subjectId } = context.params
+    const { examType } = context.query
+    const { page, limit, skip } = getPagination(context.query)
 
-    const access = await getManagedSubject(subjectId, req)
+    const access = await getManagedSubject(subjectId, context)
     if (access.error) {
-      return response.status(access.error.status).json({ message: access.error.message })
+      return result.withStatus(access.error.status, { message: access.error.message })
     }
 
     const filters = { subjectId }
@@ -814,7 +816,7 @@ const getMarksBySubject = async (req, response) => {
         )
       : 0
 
-    response.json({
+    result.ok({
       total,
       page,
       limit,
@@ -830,7 +832,7 @@ const getMarksBySubject = async (req, response) => {
       }
     })
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 
@@ -839,14 +841,14 @@ const getMarksBySubject = async (req, response) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const getMarksReview = async (req, response) => {
+const getMarksReview = async (context, result = createServiceResponder()) => {
   try {
-    const { examType, subjectId } = req.query
-    const { page, limit, skip } = getPagination(req.query)
+    const { examType, subjectId } = context.query
+    const { page, limit, skip } = getPagination(context.query)
 
-    const filters = buildStaffReviewFilters({ req, subjectId, examType })
+    const filters = buildStaffReviewFilters({ context, subjectId, examType })
     if (filters.error) {
-      return response.status(filters.error.status).json({ message: filters.error.message })
+      return result.withStatus(filters.error.status, { message: filters.error.message })
     }
 
     const { where } = filters
@@ -876,7 +878,7 @@ const getMarksReview = async (req, response) => {
       published: decoratedMarks.filter((mark) => mark.examType === type && mark.isPublished).length
     })).filter((item) => item.count > 0)
 
-    response.json({
+    result.ok({
       total,
       page,
       limit,
@@ -890,7 +892,7 @@ const getMarksReview = async (req, response) => {
       }
     })
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 
@@ -899,13 +901,13 @@ const getMarksReview = async (req, response) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const getEnrolledStudentsBySubject = async (req, response) => {
+const getEnrolledStudentsBySubject = async (context, result = createServiceResponder()) => {
   try {
-    const { subjectId } = req.params
+    const { subjectId } = context.params
 
-    const access = await getManagedSubject(subjectId, req)
+    const access = await getManagedSubject(subjectId, context)
     if (access.error) {
-      return response.status(access.error.status).json({ message: access.error.message })
+      return result.withStatus(access.error.status, { message: access.error.message })
     }
 
     const enrolledStudents = await prisma.subjectEnrollment.findMany({
@@ -942,9 +944,9 @@ const getEnrolledStudentsBySubject = async (req, response) => {
         department: student.department
       }))
 
-    response.json({ total: students.length, students, subject: access.subject })
+    result.ok({ total: students.length, students, subject: access.subject })
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 
@@ -953,20 +955,20 @@ const getEnrolledStudentsBySubject = async (req, response) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const getMyMarks = async (req, response) => {
+const getMyMarks = async (context, result = createServiceResponder()) => {
   try {
-    const { page, limit, skip } = getPagination(req.query)
-    const { examType } = req.query
-    const student = req.student
+    const { page, limit, skip } = getPagination(context.query)
+    const { examType } = context.query
+    const student = context.student
 
     if (!student) {
-      return response.status(403).json({ message: 'Student profile not found' })
+      return result.withStatus(403, { message: 'Student profile not found' })
     }
 
     const { availableExamTypes, selectedExamType } = await getStudentExamContext(student.id, examType)
 
     if (!selectedExamType) {
-      return response.json({
+      return result.ok({
         total: 0,
         page,
         limit,
@@ -982,7 +984,7 @@ const getMyMarks = async (req, response) => {
       take: limit
     })
 
-    response.json({
+    result.ok({
       total,
       page,
       limit,
@@ -992,7 +994,7 @@ const getMyMarks = async (req, response) => {
       resultSheet
     })
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 
@@ -1001,27 +1003,27 @@ const getMyMarks = async (req, response) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const deleteMarks = async (req, response) => {
+const deleteMarks = async (context, result = createServiceResponder()) => {
   try {
-    const { id } = req.params
+    const { id } = context.params
 
     const mark = await prisma.mark.findUnique({ where: { id } })
     if (!mark) {
-      return response.status(404).json({ message: 'Mark not found' })
+      return result.withStatus(404, { message: 'Mark not found' })
     }
 
-    const access = await getManagedSubject(mark.subjectId, req)
+    const access = await getManagedSubject(mark.subjectId, context)
     if (access.error) {
-      return response.status(access.error.status).json({ message: access.error.message })
+      return result.withStatus(access.error.status, { message: access.error.message })
     }
 
     await prisma.mark.delete({ where: { id } })
 
-    response.json({ message: 'Mark deleted successfully!' })
+    result.ok({ message: 'Mark deleted successfully!' })
 
     await recordAuditLog({
-      actorId: req.user.id,
-      actorRole: req.user.role,
+      actorId: context.user.id,
+      actorRole: context.user.role,
       action: 'MARK_DELETED',
       entityType: 'Mark',
       entityId: id,
@@ -1032,7 +1034,7 @@ const deleteMarks = async (req, response) => {
       }
     })
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 
@@ -1041,25 +1043,25 @@ const deleteMarks = async (req, response) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const publishMarks = async (req, response) => {
+const publishMarks = async (context, result = createServiceResponder()) => {
   try {
-    const { subjectId, examType } = req.body
+    const { subjectId, examType } = context.body
 
-    if (!['COORDINATOR', 'ADMIN'].includes(req.user.role)) {
-      return response.status(403).json({ message: 'Only admins and coordinators can publish exam results' })
+    if (!['COORDINATOR', 'ADMIN'].includes(context.user.role)) {
+      return result.withStatus(403, { message: 'Only admins and coordinators can publish exam results' })
     }
 
     if (examType === 'PRACTICAL') {
-      return response.status(400).json({ message: 'Practical marks remain internal and cannot be published for students.' })
+      return result.withStatus(400, { message: 'Practical marks remain internal and cannot be published for students.' })
     }
 
     const where = {
       examType,
       ...(subjectId ? { subjectId } : {}),
-      ...(req.user.role === 'COORDINATOR' && req.coordinator?.department
+      ...(context.user.role === 'COORDINATOR' && context.coordinator?.department
         ? {
             subject: {
-              department: req.coordinator.department
+              department: context.coordinator.department
             }
           }
         : {})
@@ -1067,22 +1069,22 @@ const publishMarks = async (req, response) => {
 
     const existingCount = await prisma.mark.count({ where })
     if (existingCount === 0) {
-      return response.status(404).json({ message: 'No exam marks were found for the selected publication scope' })
+      return result.withStatus(404, { message: 'No exam marks were found for the selected publication scope' })
     }
 
-    const result = await prisma.mark.updateMany({
+    const publishResult = await prisma.mark.updateMany({
       where,
       data: {
         isPublished: true,
         publishedAt: new Date(),
-        publishedBy: req.user.id
+        publishedBy: context.user.id
       }
     })
 
     const scopeLabel = subjectId ? 'module' : 'selected scope'
-    response.json({
+    result.ok({
       message: `${examType} results published successfully for the selected ${scopeLabel}.`,
-      count: result.count
+      count: publishResult.count
     })
 
     const publishedMarks = await prisma.mark.findMany({
@@ -1113,25 +1115,25 @@ const publishMarks = async (req, response) => {
       metadata: {
         examType,
         subjectId: subjectId || null,
-        audience: req.user.role
+        audience: context.user.role
       },
-      dedupeKeyFactory: (userId) => `marks-published:${userId}:${examType}:${subjectId || req.user.role}`
+      dedupeKeyFactory: (userId) => `marks-published:${userId}:${examType}:${subjectId || context.user.role}`
     })
 
     await recordAuditLog({
-      actorId: req.user.id,
-      actorRole: req.user.role,
+      actorId: context.user.id,
+      actorRole: context.user.role,
       action: 'MARKS_PUBLISHED',
       entityType: 'Mark',
       metadata: {
         subjectId: subjectId || 'ALL_SELECTED_SUBJECTS',
         examType,
-        count: result.count,
-        audience: req.user.role
+        count: publishResult.count,
+        audience: context.user.role
       }
     })
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 

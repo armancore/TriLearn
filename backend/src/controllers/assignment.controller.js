@@ -1,4 +1,4 @@
-delete require.cache[require.resolve('../services/assignment.service')]
+const { createController } = require('../utils/controllerAdapter')
 const {
   createAssignment: createAssignmentService,
   getAllAssignments: getAllAssignmentsService,
@@ -11,41 +11,16 @@ const {
   exportAssignmentGrades: exportAssignmentGradesService
 } = require('../services/assignment.service')
 
-const createAssignment = async (req, res) => {
-  return createAssignmentService(req, res)
-}
+const createAssignment = createController(createAssignmentService)
+const getAllAssignments = createController(getAllAssignmentsService)
+const getAssignmentById = createController(getAssignmentByIdService)
+const updateAssignment = createController(updateAssignmentService)
+const deleteAssignment = createController(deleteAssignmentService)
+const submitAssignment = createController(submitAssignmentService)
+const getMySubmissions = createController(getMySubmissionsService)
+const gradeSubmission = createController(gradeSubmissionService)
+const exportAssignmentGrades = createController(exportAssignmentGradesService)
 
-const getAllAssignments = async (req, res) => {
-  return getAllAssignmentsService(req, res)
-}
-
-const getAssignmentById = async (req, res) => {
-  return getAssignmentByIdService(req, res)
-}
-
-const updateAssignment = async (req, res) => {
-  return updateAssignmentService(req, res)
-}
-
-const deleteAssignment = async (req, res) => {
-  return deleteAssignmentService(req, res)
-}
-
-const submitAssignment = async (req, res) => {
-  return submitAssignmentService(req, res)
-}
-
-const getMySubmissions = async (req, res) => {
-  return getMySubmissionsService(req, res)
-}
-
-const gradeSubmission = async (req, res) => {
-  return gradeSubmissionService(req, res)
-}
-
-const exportAssignmentGrades = async (req, res) => {
-  return exportAssignmentGradesService(req, res)
-}
 module.exports = {
   createAssignment: createAssignment,
   getAllAssignments: getAllAssignments,

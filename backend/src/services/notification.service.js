@@ -1,3 +1,5 @@
+/* eslint-disable no-useless-catch */
+const { createServiceResponder } = require('../utils/serviceResult')
 const prisma = require('../utils/prisma')
 const {
   emitNotificationRead,
@@ -9,15 +11,15 @@ const {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const listNotifications = async (req, response) => {
+const listNotifications = async (context, result = createServiceResponder()) => {
   try {
-    const limit = Math.min(Math.max(Number.parseInt(req.query.limit, 10) || 10, 1), 50)
-    const page = Math.max(1, Number.parseInt(req.query.page, 10) || 1)
+    const limit = Math.min(Math.max(Number.parseInt(context.query.limit, 10) || 10, 1), 50)
+    const page = Math.max(1, Number.parseInt(context.query.page, 10) || 1)
     const skip = (page - 1) * limit
-    const unreadOnly = req.query.unreadOnly === 'true'
+    const unreadOnly = context.query.unreadOnly === 'true'
 
     const where = {
-      userId: req.user.id,
+      userId: context.user.id,
       ...(unreadOnly ? { isRead: false } : {})
     }
 
@@ -31,15 +33,15 @@ const listNotifications = async (req, response) => {
       prisma.notification.count({ where }),
       prisma.notification.count({
         where: {
-          userId: req.user.id,
+          userId: context.user.id,
           isRead: false
         }
       })
     ])
 
-    response.json({ total, page, limit, unreadCount, notifications })
+    result.ok({ total, page, limit, unreadCount, notifications })
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 
@@ -48,18 +50,18 @@ const listNotifications = async (req, response) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const getUnreadNotificationCount = async (req, response) => {
+const getUnreadNotificationCount = async (context, result = createServiceResponder()) => {
   try {
     const unreadCount = await prisma.notification.count({
       where: {
-        userId: req.user.id,
+        userId: context.user.id,
         isRead: false
       }
     })
 
-    response.json({ unreadCount })
+    result.ok({ unreadCount })
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 
@@ -68,17 +70,17 @@ const getUnreadNotificationCount = async (req, response) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const markNotificationRead = async (req, response) => {
+const markNotificationRead = async (context, result = createServiceResponder()) => {
   try {
     const notification = await prisma.notification.findFirst({
       where: {
-        id: req.params.id,
-        userId: req.user.id
+        id: context.params.id,
+        userId: context.user.id
       }
     })
 
     if (!notification) {
-      return response.status(404).json({ message: 'Notification not found' })
+      return result.withStatus(404, { message: 'Notification not found' })
     }
 
     const updated = await prisma.notification.update({
@@ -91,16 +93,16 @@ const markNotificationRead = async (req, response) => {
 
     const unreadCount = await prisma.notification.count({
       where: {
-        userId: req.user.id,
+        userId: context.user.id,
         isRead: false
       }
     })
 
-    emitNotificationRead(req.user.id, updated.id, updated.readAt, unreadCount)
+    emitNotificationRead(context.user.id, updated.id, updated.readAt, unreadCount)
 
-    response.json({ notification: updated })
+    result.ok({ notification: updated })
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 
@@ -109,11 +111,11 @@ const markNotificationRead = async (req, response) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const markAllNotificationsRead = async (req, response) => {
+const markAllNotificationsRead = async (context, result = createServiceResponder()) => {
   try {
-    const result = await prisma.notification.updateMany({
+    const updateResult = await prisma.notification.updateMany({
       where: {
-        userId: req.user.id,
+        userId: context.user.id,
         isRead: false
       },
       data: {
@@ -122,14 +124,14 @@ const markAllNotificationsRead = async (req, response) => {
       }
     })
 
-    emitNotificationsReadAll(req.user.id, new Date().toISOString())
+    emitNotificationsReadAll(context.user.id, new Date().toISOString())
 
-    response.json({
+    result.ok({
       message: 'Notifications marked as read.',
-      count: result.count
+      count: updateResult.count
     })
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 
@@ -138,26 +140,26 @@ const markAllNotificationsRead = async (req, response) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const registerDeviceToken = async (req, response) => {
+const registerDeviceToken = async (context, result = createServiceResponder()) => {
   try {
-    const { token, platform } = req.body
+    const { token, platform } = context.body
 
     await prisma.deviceToken.upsert({
       where: { token },
       update: {
-        userId: req.user.id,
+        userId: context.user.id,
         platform
       },
       create: {
-        userId: req.user.id,
+        userId: context.user.id,
         token,
         platform
       }
     })
 
-    response.status(201).json({ message: 'Device token registered successfully.' })
+    result.withStatus(201, { message: 'Device token registered successfully.' })
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 
@@ -166,20 +168,20 @@ const registerDeviceToken = async (req, response) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const unregisterDeviceToken = async (req, response) => {
+const unregisterDeviceToken = async (context, result = createServiceResponder()) => {
   try {
-    const { token } = req.body
+    const { token } = context.body
 
     await prisma.deviceToken.deleteMany({
       where: {
-        userId: req.user.id,
+        userId: context.user.id,
         token
       }
     })
 
-    response.json({ message: 'Device token removed successfully.' })
+    result.ok({ message: 'Device token removed successfully.' })
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 

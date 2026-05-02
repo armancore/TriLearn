@@ -1,11 +1,10 @@
-delete require.cache[require.resolve('../services/bulkImport.service')]
+const { createController } = require('../utils/controllerAdapter')
 const {
   importStudents: importStudentsService
 } = require('../services/bulkImport.service')
 
-const importStudents = async (req, res) => {
-  return importStudentsService(req, res)
-}
+const importStudents = createController(importStudentsService)
+
 module.exports = {
   importStudents: importStudents
 }

@@ -1,4 +1,4 @@
-delete require.cache[require.resolve('../../services/attendance/tickets.service')]
+const { createController } = require('../../utils/controllerAdapter')
 const {
   getMyAbsenceTickets: getMyAbsenceTicketsService,
   createAbsenceTicket: createAbsenceTicketService,
@@ -6,21 +6,11 @@ const {
   reviewAbsenceTicket: reviewAbsenceTicketService
 } = require('../../services/attendance/tickets.service')
 
-const getMyAbsenceTickets = async (req, res) => {
-  return getMyAbsenceTicketsService(req, res)
-}
+const getMyAbsenceTickets = createController(getMyAbsenceTicketsService)
+const createAbsenceTicket = createController(createAbsenceTicketService)
+const getAbsenceTicketsForStaff = createController(getAbsenceTicketsForStaffService)
+const reviewAbsenceTicket = createController(reviewAbsenceTicketService)
 
-const createAbsenceTicket = async (req, res) => {
-  return createAbsenceTicketService(req, res)
-}
-
-const getAbsenceTicketsForStaff = async (req, res) => {
-  return getAbsenceTicketsForStaffService(req, res)
-}
-
-const reviewAbsenceTicket = async (req, res) => {
-  return reviewAbsenceTicketService(req, res)
-}
 module.exports = {
   getMyAbsenceTickets: getMyAbsenceTickets,
   createAbsenceTicket: createAbsenceTicket,

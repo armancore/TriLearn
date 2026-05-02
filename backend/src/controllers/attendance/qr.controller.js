@@ -1,4 +1,4 @@
-delete require.cache[require.resolve('../../services/attendance/qr.service')]
+const { createController } = require('../../utils/controllerAdapter')
 const {
   generateQR: generateQRService,
   markAttendanceQR: markAttendanceQRService,
@@ -8,29 +8,13 @@ const {
   scanStudentIdAttendance: scanStudentIdAttendanceService
 } = require('../../services/attendance/qr.service')
 
-const generateQR = async (req, res) => {
-  return generateQRService(req, res)
-}
+const generateQR = createController(generateQRService)
+const markAttendanceQR = createController(markAttendanceQRService)
+const markDailyAttendanceQR = createController(markDailyAttendanceQRService)
+const getLiveGateAttendanceQr = createController(getLiveGateAttendanceQrService)
+const generateDailyAttendanceQR = createController(generateDailyAttendanceQRService)
+const scanStudentIdAttendance = createController(scanStudentIdAttendanceService)
 
-const markAttendanceQR = async (req, res) => {
-  return markAttendanceQRService(req, res)
-}
-
-const markDailyAttendanceQR = async (req, res) => {
-  return markDailyAttendanceQRService(req, res)
-}
-
-const getLiveGateAttendanceQr = async (req, res) => {
-  return getLiveGateAttendanceQrService(req, res)
-}
-
-const generateDailyAttendanceQR = async (req, res) => {
-  return generateDailyAttendanceQRService(req, res)
-}
-
-const scanStudentIdAttendance = async (req, res) => {
-  return scanStudentIdAttendanceService(req, res)
-}
 module.exports = {
   generateQR: generateQR,
   markAttendanceQR: markAttendanceQR,

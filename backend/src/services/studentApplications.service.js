@@ -1,8 +1,10 @@
+/* eslint-disable no-useless-catch */
+const { createServiceResponder } = require('../utils/serviceResult')
 const prisma = require('../utils/prisma')
 const { enrollStudentInMatchingSubjects } = require('../utils/enrollment')
 const { getPagination } = require('../utils/pagination')
 const logger = require('../utils/logger')
-const { ensureDepartmentExists } = require('../controllers/department.controller')
+const { ensureDepartmentExists } = require('./department.service')
 const { recordAuditLog } = require('../utils/audit')
 const { sendMail } = require('../utils/mailer')
 const { welcomeTemplate } = require('../utils/emailTemplates')
@@ -79,14 +81,14 @@ const hasDepartmentSection = async ({ department, semester, section }) => {
   return Boolean(record)
 }
 
-const getCoordinatorDepartments = (req) => {
-  if (req?.user?.role !== 'COORDINATOR') {
+const getCoordinatorDepartments = (context) => {
+  if (context?.user?.role !== 'COORDINATOR') {
     return []
   }
 
   return normalizeDepartmentList([
-    ...(Array.isArray(req.coordinator?.departments) ? req.coordinator.departments : []),
-    req.coordinator?.department
+    ...(Array.isArray(context.coordinator?.departments) ? context.coordinator.departments : []),
+    context.coordinator?.department
   ])
 }
 /**
@@ -94,12 +96,12 @@ const getCoordinatorDepartments = (req) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const getStudentApplications = async (req, response) => {
+const getStudentApplications = async (context, result = createServiceResponder()) => {
   try {
-    const { status } = req.query
-    const { page, limit, skip } = getPagination(req.query)
+    const { status } = context.query
+    const { page, limit, skip } = getPagination(context.query)
     const filters = {}
-    const coordinatorDepartments = getCoordinatorDepartments(req)
+    const coordinatorDepartments = getCoordinatorDepartments(context)
 
     if (status) {
       filters.status = status
@@ -119,9 +121,9 @@ const getStudentApplications = async (req, response) => {
       prisma.studentApplication.count({ where: filters })
     ])
 
-    response.json({ total, page, limit, applications })
+    result.ok({ total, page, limit, applications })
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 
@@ -130,28 +132,28 @@ const getStudentApplications = async (req, response) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const getStudentApplication = async (req, response) => {
+const getStudentApplication = async (context, result = createServiceResponder()) => {
   try {
-    const { id } = req.params
+    const { id } = context.params
     const application = await prisma.studentApplication.findUnique({
       where: { id }
     })
 
     if (!application) {
-      return response.status(404).json({ message: 'Student application not found' })
+      return result.withStatus(404, { message: 'Student application not found' })
     }
 
-    const coordinatorDepartments = getCoordinatorDepartments(req)
+    const coordinatorDepartments = getCoordinatorDepartments(context)
     if (
       coordinatorDepartments.length > 0 &&
       !coordinatorDepartments.includes(application.preferredDepartment)
     ) {
-      return response.status(403).json({ message: 'You can only manage applications in your own department' })
+      return result.withStatus(403, { message: 'You can only manage applications in your own department' })
     }
 
-    response.json({ application })
+    result.ok({ application })
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 
@@ -160,13 +162,13 @@ const getStudentApplication = async (req, response) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const updateStudentApplicationStatus = async (req, response) => {
+const updateStudentApplicationStatus = async (context, result = createServiceResponder()) => {
   try {
-    const { id } = req.params
-    const { status } = req.body
+    const { id } = context.params
+    const { status } = context.body
 
     if (status === 'CONVERTED') {
-      return response.status(400).json({
+      return result.withStatus(400, {
         message: 'Student applications can only be marked as converted when an account is created from the application.'
       })
     }
@@ -176,15 +178,15 @@ const updateStudentApplicationStatus = async (req, response) => {
     })
 
     if (!existingApplication) {
-      return response.status(404).json({ message: 'Student application not found' })
+      return result.withStatus(404, { message: 'Student application not found' })
     }
 
-    const coordinatorDepartments = getCoordinatorDepartments(req)
+    const coordinatorDepartments = getCoordinatorDepartments(context)
     if (
       coordinatorDepartments.length > 0 &&
       !coordinatorDepartments.includes(existingApplication.preferredDepartment)
     ) {
-      return response.status(403).json({ message: 'You can only manage applications in your own department' })
+      return result.withStatus(403, { message: 'You can only manage applications in your own department' })
     }
 
     const application = await prisma.studentApplication.update({
@@ -192,16 +194,16 @@ const updateStudentApplicationStatus = async (req, response) => {
       data: {
         status,
         reviewedAt: new Date(),
-        reviewedBy: req.user.id
+        reviewedBy: context.user.id
       }
     })
 
-    response.json({
+    result.ok({
       message: 'Application status updated successfully!',
       application
     })
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 
@@ -210,10 +212,10 @@ const updateStudentApplicationStatus = async (req, response) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const createStudentFromApplication = async (req, response) => {
+const createStudentFromApplication = async (context, result = createServiceResponder()) => {
   try {
-    const { id } = req.params
-    const { studentId, department, semester, section } = req.body
+    const { id } = context.params
+    const { studentId, department, semester, section } = context.body
     const normalizedStudentId = studentId.trim().toUpperCase()
     const normalizedDepartment = department.trim()
     const normalizedSection = normalizeSectionValue(section || '')
@@ -223,7 +225,7 @@ const createStudentFromApplication = async (req, response) => {
     })
 
     if (!application) {
-      return response.status(404).json({ message: 'Student application not found' })
+      return result.withStatus(404, { message: 'Student application not found' })
     }
 
     if (application.linkedUserId || application.status === 'CONVERTED') {
@@ -238,21 +240,21 @@ const createStudentFromApplication = async (req, response) => {
         : null
 
       if (linkedActiveUser) {
-        return response.status(400).json({ message: 'A student account has already been created from this application' })
+        return result.withStatus(400, { message: 'A student account has already been created from this application' })
       }
     }
 
-    const coordinatorDepartments = getCoordinatorDepartments(req)
+    const coordinatorDepartments = getCoordinatorDepartments(context)
     if (
       coordinatorDepartments.length > 0 &&
       !coordinatorDepartments.includes(application.preferredDepartment)
     ) {
-      return response.status(403).json({ message: 'You can only manage applications in your own department' })
+      return result.withStatus(403, { message: 'You can only manage applications in your own department' })
     }
 
     const validDepartment = await ensureDepartmentExists(normalizedDepartment)
     if (!validDepartment) {
-      return response.status(400).json({ message: 'Please select a valid department' })
+      return result.withStatus(400, { message: 'Please select a valid department' })
     }
 
     const normalizedApplicationEmail = normalizeEmail(application.email)
@@ -268,16 +270,16 @@ const createStudentFromApplication = async (req, response) => {
     ])
 
     if (existingUser) {
-      return response.status(400).json({ message: 'An account already exists with the application email address' })
+      return result.withStatus(400, { message: 'An account already exists with the application email address' })
     }
 
     if (existingStudent) {
-      return response.status(400).json({ message: 'Student ID already exists' })
+      return result.withStatus(400, { message: 'Student ID already exists' })
     }
 
     const sectionToAssign = normalizedSection || normalizeSectionValue(application.preferredSection)
     if (!sectionToAssign) {
-      return response.status(400).json({ message: 'Section is required to create a student account from application' })
+      return result.withStatus(400, { message: 'Section is required to create a student account from application' })
     }
 
     const validSection = await hasDepartmentSection({
@@ -287,7 +289,7 @@ const createStudentFromApplication = async (req, response) => {
     })
 
     if (!validSection) {
-      return response.status(400).json({ message: 'Please create this section under the selected department and semester first' })
+      return result.withStatus(400, { message: 'Please create this section under the selected department and semester first' })
     }
 
     const temporaryPassword = getStudentTemporaryPassword()
@@ -335,7 +337,7 @@ const createStudentFromApplication = async (req, response) => {
       data: {
         status: 'CONVERTED',
         reviewedAt: new Date(),
-        reviewedBy: req.user.id,
+        reviewedBy: context.user.id,
         linkedUserId: user.id,
         preferredDepartment: normalizedDepartment,
         preferredSemester: semester,
@@ -357,7 +359,7 @@ const createStudentFromApplication = async (req, response) => {
       emailVerificationToken: emailVerification.token
     })
 
-    response.status(201).json({
+    result.withStatus(201, {
       message: welcomeEmailSent
         ? 'Student account created from application successfully!'
         : 'Student account created, but the welcome email could not be delivered.',
@@ -373,8 +375,8 @@ const createStudentFromApplication = async (req, response) => {
     })
 
     await recordAuditLog({
-      actorId: req.user.id,
-      actorRole: req.user.role,
+      actorId: context.user.id,
+      actorRole: context.user.role,
       action: 'USER_CREATED_FROM_APPLICATION',
       entityType: 'StudentApplication',
       entityId: id,
@@ -386,7 +388,7 @@ const createStudentFromApplication = async (req, response) => {
       }
     })
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 
@@ -395,35 +397,35 @@ const createStudentFromApplication = async (req, response) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const deleteStudentApplication = async (req, response) => {
+const deleteStudentApplication = async (context, result = createServiceResponder()) => {
   try {
-    const { id } = req.params
+    const { id } = context.params
 
     const application = await prisma.studentApplication.findUnique({
       where: { id }
     })
 
     if (!application) {
-      return response.status(404).json({ message: 'Student application not found' })
+      return result.withStatus(404, { message: 'Student application not found' })
     }
 
-    const coordinatorDepartments = getCoordinatorDepartments(req)
+    const coordinatorDepartments = getCoordinatorDepartments(context)
     if (
       coordinatorDepartments.length > 0 &&
       !coordinatorDepartments.includes(application.preferredDepartment)
     ) {
-      return response.status(403).json({ message: 'You can only manage applications in your own department' })
+      return result.withStatus(403, { message: 'You can only manage applications in your own department' })
     }
 
     await prisma.studentApplication.delete({
       where: { id }
     })
 
-    response.json({ message: 'Student application deleted successfully!' })
+    result.ok({ message: 'Student application deleted successfully!' })
 
     await recordAuditLog({
-      actorId: req.user.id,
-      actorRole: req.user.role,
+      actorId: context.user.id,
+      actorRole: context.user.role,
       action: 'STUDENT_APPLICATION_DELETED',
       entityType: 'StudentApplication',
       entityId: id,
@@ -434,7 +436,7 @@ const deleteStudentApplication = async (req, response) => {
       }
     })
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 

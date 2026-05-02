@@ -1,10 +1,12 @@
+/* eslint-disable no-useless-catch */
+const { createServiceResponder } = require('../../utils/serviceResult')
 const ExcelJS = require('exceljs')
 const PDFDocument = require('pdfkit')
 const {
   getAttendanceExportPayload,
   getCoordinatorDepartmentReportPayload,
   formatDisplayDate
-} = require('../../controllers/attendance/shared')
+} = require('./shared.service')
 const { sanitizeXlsxCell } = require('../../utils/sanitize')
 
 const sanitizeFilenamePart = (value) => String(value || 'report')
@@ -13,14 +15,14 @@ const sanitizeFilenamePart = (value) => String(value || 'report')
   .replace(/^-|-$/g, '')
   .toLowerCase()
 
-const exportAttendancePdf = ({ response, attendance, summary, subject, dateLabel }) => {
+const exportAttendancePdf = ({ result, attendance, summary, subject, dateLabel }) => {
   const fileName = `attendance-${sanitizeFilenamePart(subject.code || subject.name)}-${sanitizeFilenamePart(dateLabel)}.pdf`
   const doc = new PDFDocument({ margin: 40, size: 'A4' })
 
-  response.setHeader('Content-Type', 'application/pdf')
-  response.setHeader('Content-Disposition', `attachment; filename="${fileName}"`)
+  result.header('Content-Type', 'application/pdf')
+  result.header('Content-Disposition', `attachment; filename="${fileName}"`)
 
-  doc.pipe(response)
+  doc.pipe(result)
   doc.fontSize(18).text('Attendance Report', { align: 'center' })
   doc.moveDown(0.5)
   doc.fontSize(12).text(`Subject: ${subject.name} (${subject.code})`)
@@ -50,7 +52,7 @@ const exportAttendancePdf = ({ response, attendance, summary, subject, dateLabel
   doc.end()
 }
 
-const exportAttendanceWorkbook = async ({ response, attendance, summary, subject, dateLabel }) => {
+const exportAttendanceWorkbook = async ({ result, attendance, summary, subject, dateLabel }) => {
   const workbook = new ExcelJS.Workbook()
   const summarySheet = workbook.addWorksheet('Summary')
   const recordsSheet = workbook.addWorksheet('Records')
@@ -88,20 +90,20 @@ const exportAttendanceWorkbook = async ({ response, attendance, summary, subject
     })
   })
 
-  response.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-  response.setHeader('Content-Disposition', `attachment; filename="${fileName}"`)
-  await workbook.xlsx.write(response)
-  response.end()
+  result.header('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+  result.header('Content-Disposition', `attachment; filename="${fileName}"`)
+  await workbook.xlsx.write(result)
+  result.end()
 }
 
-const exportCoordinatorDepartmentReportPdf = ({ response, report }) => {
+const exportCoordinatorDepartmentReportPdf = ({ result, report }) => {
   const fileName = `department-attendance-${sanitizeFilenamePart(report.department)}-sem-${report.semester}-${sanitizeFilenamePart(report.monthLabel)}${report.section ? `-section-${sanitizeFilenamePart(report.section)}` : ''}.pdf`
   const doc = new PDFDocument({ margin: 40, size: 'A4' })
 
-  response.setHeader('Content-Type', 'application/pdf')
-  response.setHeader('Content-Disposition', `attachment; filename="${fileName}"`)
+  result.header('Content-Type', 'application/pdf')
+  result.header('Content-Disposition', `attachment; filename="${fileName}"`)
 
-  doc.pipe(response)
+  doc.pipe(result)
   doc.fontSize(18).text('Department Attendance Report', { align: 'center' })
   doc.moveDown(0.5)
   doc.fontSize(12).text(`Department: ${report.department}`)
@@ -146,7 +148,7 @@ const exportCoordinatorDepartmentReportPdf = ({ response, report }) => {
   doc.end()
 }
 
-const exportCoordinatorDepartmentReportWorkbook = async ({ response, report }) => {
+const exportCoordinatorDepartmentReportWorkbook = async ({ result, report }) => {
   const workbook = new ExcelJS.Workbook()
   const summarySheet = workbook.addWorksheet('Summary')
   const studentsSheet = workbook.addWorksheet('Student Averages')
@@ -212,10 +214,10 @@ const exportCoordinatorDepartmentReportWorkbook = async ({ response, report }) =
     })
   })
 
-  response.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-  response.setHeader('Content-Disposition', `attachment; filename="${fileName}"`)
-  await workbook.xlsx.write(response)
-  response.end()
+  result.header('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+  result.header('Content-Disposition', `attachment; filename="${fileName}"`)
+  await workbook.xlsx.write(result)
+  result.end()
 }
 
 /**
@@ -223,28 +225,28 @@ const exportCoordinatorDepartmentReportWorkbook = async ({ response, report }) =
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const exportCoordinatorDepartmentAttendanceReport = async (req, response) => {
+const exportCoordinatorDepartmentAttendanceReport = async (context, result = createServiceResponder()) => {
   try {
-    const { month, semester, section, format = 'xlsx' } = req.query
+    const { month, semester, section, format = 'xlsx' } = context.query
     const report = await getCoordinatorDepartmentReportPayload({
-      coordinator: req.coordinator,
+      coordinator: context.coordinator,
       month,
       semester,
       section
     })
 
     if (report.error) {
-      return response.status(report.error.status).json({ message: report.error.message })
+      return result.withStatus(report.error.status, { message: report.error.message })
     }
 
     if (format === 'pdf') {
-      exportCoordinatorDepartmentReportPdf({ response, report })
+      exportCoordinatorDepartmentReportPdf({ result, report })
       return
     }
 
-    await exportCoordinatorDepartmentReportWorkbook({ response, report })
+    await exportCoordinatorDepartmentReportWorkbook({ result, report })
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 
@@ -253,30 +255,30 @@ const exportCoordinatorDepartmentAttendanceReport = async (req, response) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const exportAttendanceBySubject = async (req, response) => {
+const exportAttendanceBySubject = async (context, result = createServiceResponder()) => {
   try {
-    const { subjectId } = req.params
-    const { date, month, format = 'xlsx' } = req.query
+    const { subjectId } = context.params
+    const { date, month, format = 'xlsx' } = context.query
 
     const report = await getAttendanceExportPayload({
       subjectId,
       date,
       month,
-      req
+      context
     })
 
     if (report.error) {
-      return response.status(report.error.status).json({ message: report.error.message })
+      return result.withStatus(report.error.status, { message: report.error.message })
     }
 
     if (format === 'pdf') {
-      exportAttendancePdf({ response, ...report })
+      exportAttendancePdf({ result, ...report })
       return
     }
 
-    await exportAttendanceWorkbook({ response, ...report })
+    await exportAttendanceWorkbook({ result, ...report })
   } catch (error) {
-    response.internalError(error)
+    throw error
   }
 }
 

@@ -1,3 +1,5 @@
+/* eslint-disable no-useless-catch */
+const { createServiceResponder } = require('../utils/serviceResult')
 const prisma = require('../utils/prisma')
 const crypto = require('crypto')
 const fs = require('fs')
@@ -158,14 +160,14 @@ const sectionScopeKey = ({ department, semester, section }) => (
   `${normalizeDepartmentValue(department).toLowerCase()}::${Number(semester)}::${normalizeSectionValue(section) || ''}`
 )
 
-const getCoordinatorDepartments = (req) => {
-  if (req?.user?.role !== 'COORDINATOR') {
+const getCoordinatorDepartments = (context) => {
+  if (context?.user?.role !== 'COORDINATOR') {
     return []
   }
 
   return normalizeDepartmentList([
-    ...(Array.isArray(req.coordinator?.departments) ? req.coordinator.departments : []),
-    req.coordinator?.department
+    ...(Array.isArray(context.coordinator?.departments) ? context.coordinator.departments : []),
+    context.coordinator?.department
   ])
 }
 
@@ -174,24 +176,24 @@ const getCoordinatorDepartments = (req) => {
  * @param {...any} args - Service arguments.
  * @returns {Promise<any>|any} Service result.
  */
-const importStudents = async (req, response) => {
-  const uploadedFilePath = req.file?.path
+const importStudents = async (context, result = createServiceResponder()) => {
+  const uploadedFilePath = context.file?.path
 
   try {
-    if (!req.file?.path) {
-      return response.status(400).json({ message: 'Please upload a CSV or XLSX file to import students' })
+    if (!context.file?.path) {
+      return result.withStatus(400, { message: 'Please upload a CSV or XLSX file to import students' })
     }
 
     let importedRows
     try {
-      importedRows = await loadStudentImportRows(req.file.path, req.file.originalname)
+      importedRows = await loadStudentImportRows(context.file.path, context.file.originalname)
     } catch (error) {
-      return response.status(400).json({
+      return result.withStatus(400, {
         message: error?.message || 'Unable to read the uploaded student import file'
       })
     }
     if (importedRows.length === 0) {
-      return response.status(400).json({ message: 'The uploaded file does not contain any student rows' })
+      return result.withStatus(400, { message: 'The uploaded file does not contain any student rows' })
     }
 
     const departmentSectionDelegate = getDepartmentSectionDelegate()
@@ -217,7 +219,7 @@ const importStudents = async (req, response) => {
         section: entry.section
       }))
     )
-    const coordinatorDepartments = getCoordinatorDepartments(req)
+    const coordinatorDepartments = getCoordinatorDepartments(context)
     const seenEmails = new Set()
     const seenStudentIds = new Set()
     const normalizedRows = []
@@ -488,8 +490,8 @@ const importStudents = async (req, response) => {
       clearStatsCache()
 
       await recordAuditLog({
-        actorId: req.user.id,
-        actorRole: req.user.role,
+        actorId: context.user.id,
+        actorRole: context.user.role,
         action: 'USER_BULK_IMPORTED',
         entityType: 'User',
         metadata: {
@@ -499,7 +501,7 @@ const importStudents = async (req, response) => {
       })
     }
 
-    response.status(created.length > 0 ? 201 : 400).json({
+    result.withStatus(created.length > 0 ? 201 : 400, {
       message: created.length > 0
         ? 'Student import completed.'
         : 'No student accounts were created from the uploaded file.',
@@ -512,7 +514,7 @@ const importStudents = async (req, response) => {
       failures
     })
   } catch (error) {
-    response.internalError(error, 'Unable to import students')
+    throw error
   } finally {
     if (uploadedFilePath) {
       await fs.promises.unlink(uploadedFilePath).catch(() => {})
