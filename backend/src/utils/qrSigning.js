@@ -33,7 +33,13 @@ const parseConfiguredKeys = () => {
   return keys
 }
 
-const getQrSigningKeys = () => parseConfiguredKeys()
+let _cachedKeys = null
+const getQrSigningKeys = () => {
+  if (!_cachedKeys) {
+    _cachedKeys = parseConfiguredKeys()
+  }
+  return _cachedKeys
+}
 
 const getActiveQrSigningKey = () => {
   const keys = getQrSigningKeys()

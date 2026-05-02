@@ -12,89 +12,19 @@ const {
 } = require('../utils/emailVerification')
 const { hashPassword, getStudentTemporaryPassword } = require('../utils/security')
 const { sanitizePlainText } = require('../utils/sanitize')
-const { getReadyRedisClient } = require('../utils/redis')
 const { revokeAllAccessTokensForUser } = require('../utils/accessTokenRevocation')
+const { clearStatsCache } = require('../utils/statsCache')
+const {
+  normalizeEmail,
+  sanitizeOptionalPlainText,
+  deleteStaleDeletedStudentAccounts
+} = require('../utils/adminHelpers')
 const {
   getInstructorDepartments,
   normalizeDepartmentList
 } = require('../utils/instructorDepartments')
 
-const STATS_CACHE_KEY = 'admin:stats:v1'
 const MAX_STUDENT_SEMESTER = 8
-const normalizeEmail = (value) => String(value || '').trim().toLowerCase()
-
-const deleteStaleDeletedStudentAccounts = async (client, { emails = [], studentIds = [] } = {}) => {
-  if (
-    !client?.user ||
-    typeof client.user.findMany !== 'function' ||
-    typeof client.user.deleteMany !== 'function'
-  ) {
-    return 0
-  }
-
-  const normalizedEmails = [...new Set(emails.map(normalizeEmail).filter(Boolean))]
-  const normalizedStudentIds = [...new Set(
-    studentIds
-      .map((studentId) => String(studentId || '').trim().toUpperCase())
-      .filter(Boolean)
-  )]
-
-  if (normalizedEmails.length === 0 && normalizedStudentIds.length === 0) {
-    return 0
-  }
-
-  const orFilters = []
-  if (normalizedEmails.length > 0) {
-    orFilters.push({ email: { in: normalizedEmails } })
-  }
-  if (normalizedStudentIds.length > 0) {
-    orFilters.push({
-      student: {
-        is: {
-          rollNumber: { in: normalizedStudentIds }
-        }
-      }
-    })
-  }
-
-  const staleUsers = await client.user.findMany({
-    where: {
-      deletedAt: { not: null },
-      OR: orFilters
-    },
-    select: { id: true }
-  })
-
-  if (staleUsers.length === 0) {
-    return 0
-  }
-
-  const result = await client.user.deleteMany({
-    where: {
-      id: { in: staleUsers.map((user) => user.id) }
-    }
-  })
-
-  return result.count || staleUsers.length
-}
-
-const clearSharedStatsCache = async () => {
-  try {
-    const client = await getReadyRedisClient({ context: 'admin stats cache' })
-    if (!client) {
-      return
-    }
-
-    await client.del(STATS_CACHE_KEY)
-  } catch (error) {
-    logger.warn('Failed to clear admin stats cache in Redis', { message: error.message })
-  }
-}
-
-const clearStatsCache = () => {
-  void clearSharedStatsCache()
-}
-const sanitizeOptionalPlainText = (value) => (value == null ? value : sanitizePlainText(value))
 
 const buildContainsSearch = (search) => ({
   contains: search,

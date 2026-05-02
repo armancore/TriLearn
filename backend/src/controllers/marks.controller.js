@@ -481,7 +481,7 @@ const getManagedSubject = async (subjectId, req) => {
     }
 
     if (subject.instructorId !== instructor.id) {
-      return { error: { status: 403, message: 'You can only manage marks for your assigned subjects' } }
+      return { error: { status: 403, message: 'You can only view marks for your assigned subjects' } }
     }
 
     return { subject, instructor }

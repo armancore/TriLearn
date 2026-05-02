@@ -25,7 +25,7 @@ const parseBcryptSaltRounds = (value) => {
 
 const getBcryptSaltRounds = () => {
   if (!process.env.BCRYPT_ROUNDS && process.env.BCRYPT_SALT_ROUNDS) {
-    logger.warn('BCRYPT_SALT_ROUNDS is deprecated; rename it to BCRYPT_ROUNDS in your .env')
+    logger.warn('BCRYPT_SALT_ROUNDS is deprecated and will be removed in a future version. Rename it to BCRYPT_ROUNDS in your .env file.')
   }
 
   return parseBcryptSaltRounds(process.env.BCRYPT_ROUNDS || process.env.BCRYPT_SALT_ROUNDS)

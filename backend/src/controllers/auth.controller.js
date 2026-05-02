@@ -16,6 +16,10 @@ const {
 const { hashPassword } = require('../utils/security')
 const { signQrPayload } = require('../utils/qrSigning')
 const { sanitizePlainText } = require('../utils/sanitize')
+const {
+  normalizeEmail,
+  sanitizeOptionalPlainText
+} = require('../utils/adminHelpers')
 const { schemas } = require('../validators/schemas')
 const { getInstructorDepartments } = require('../utils/instructorDepartments')
 const { ZodError } = require('zod')
@@ -61,7 +65,7 @@ const isMobileClient = (req) => String(req.get('x-client-type') || '').toLowerCa
 const isPasswordResetEnabled = () => process.env.ENABLE_PASSWORD_RESET === 'true'
 const MAX_FAILED_LOGIN_ATTEMPTS = 5
 const LOGIN_LOCKOUT_MINUTES = 15
-const STUDENT_ID_QR_VALIDITY_HOURS = 24
+const STUDENT_ID_QR_VALIDITY_HOURS = 8
 const LOGOUT_MIN_RESPONSE_MS = 75
 const STUDENT_INTAKE_MIN_RESPONSE_MS = 75
 const LOGIN_MIN_RESPONSE_MS = 75
@@ -94,9 +98,6 @@ const respondGenericEligibility = async (res, startedAt) => {
   await waitForMinimumDuration(startedAt, STUDENT_INTAKE_MIN_RESPONSE_MS)
   return res.status(200).json({ message: GENERIC_ELIGIBILITY_MESSAGE })
 }
-
-const sanitizeOptionalPlainText = (value) => (value == null ? value : sanitizePlainText(value))
-const normalizeEmail = (value) => String(value || '').trim().toLowerCase()
 
 const userRoleSelect = {
   student: {

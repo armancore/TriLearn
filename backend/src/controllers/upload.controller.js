@@ -73,9 +73,7 @@ const sendUploadFile = (res, fileName, { forceAttachment = false } = {}) => {
     headers: {
       'Cache-Control': 'private, no-store',
       'Content-Type': contentType,
-      'Content-Disposition': shouldForceAttachment
-        ? `attachment; filename="${path.basename(fileName)}"`
-        : 'inline'
+      'Content-Disposition': `attachment; filename="${path.basename(fileName)}"`
     }
   }, (error) => {
     if (!error || res.headersSent) {
