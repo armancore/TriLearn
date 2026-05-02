@@ -15,7 +15,6 @@ const { hashPassword, getStudentTemporaryPassword } = require('../utils/security
 const { sanitizePlainText, sanitizeXlsxCell } = require('../utils/sanitize')
 const { clearStatsCache } = require('../utils/statsCache')
 const {
-  normalizeEmail,
   sanitizeOptionalPlainText,
   deleteStaleDeletedStudentAccounts
 } = require('../utils/adminHelpers')

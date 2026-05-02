@@ -59,14 +59,9 @@ const resolveExistingUploadFilePath = (fileName) => {
   return path.join(uploadPath, fileName)
 }
 
-const sendUploadFile = (res, fileName, { forceAttachment = false } = {}) => {
+const sendUploadFile = (res, fileName) => {
   setUploadSecurityHeaders(res)
   const contentType = getSafeContentType(fileName)
-  const shouldForceAttachment = (
-    forceAttachment ||
-    contentType === 'application/octet-stream' ||
-    contentType === 'application/pdf'
-  )
   const absolutePath = resolveExistingUploadFilePath(fileName)
 
   return res.sendFile(absolutePath, {
