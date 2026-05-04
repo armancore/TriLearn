@@ -7,7 +7,14 @@ const sharp = require('sharp')
 const { fileTypeFromBuffer } = require('file-type')
 const { PDFDocument } = require('pdf-lib')
 const logger = require('../utils/logger')
-const { uploadPath } = require('../utils/fileStorage')
+const fileStorage = require('../utils/fileStorage')
+
+const {
+  uploadPath,
+  uploadFile,
+  deleteFile
+} = fileStorage
+const isS3Configured = fileStorage.isS3Configured || (() => false)
 
 const DEFAULT_ROLE_LIMITS = {
   ADMIN: 15 * 1024 * 1024,
@@ -43,6 +50,20 @@ const sanitizeUploadedOriginalName = (originalname, fallback = 'upload.pdf') => 
 const generateUploadedFileName = (originalname) => {
   const safeName = sanitizeUploadedOriginalName(originalname)
   return `${crypto.randomUUID()}-${safeName}`
+}
+
+const storeValidatedUpload = async (buffer, fileName, mimeType) => {
+  const localPath = path.join(uploadPath, fileName)
+  if (typeof uploadFile !== 'function') {
+    await fs.promises.writeFile(localPath, buffer)
+    return { path: localPath, url: localPath }
+  }
+
+  const storedFile = await uploadFile(buffer, fileName, mimeType)
+  return {
+    path: isS3Configured() ? storedFile.url : localPath,
+    url: storedFile.url
+  }
 }
 
 const pdfOnly = (_req, file, cb) => {
@@ -208,12 +229,11 @@ const validateUploadedPdf = async (req, res, next) => {
     await PDFDocument.load(req.file.buffer)
 
     const fileName = generateUploadedFileName(req.file.originalname)
-    const filePath = path.join(uploadPath, fileName)
-
-    await fs.promises.writeFile(filePath, req.file.buffer)
+    const storedFile = await storeValidatedUpload(req.file.buffer, fileName, req.file.mimetype)
 
     req.file.filename = fileName
-    req.file.path = filePath
+    req.file.path = storedFile.path
+    req.file.url = storedFile.url
 
     next()
   } catch (error) {
@@ -236,26 +256,33 @@ const validateUploadedImage = async (req, res, next) => {
     }
 
     const fileName = generateUploadedFileName(req.file.originalname)
-    const filePath = path.join(uploadPath, fileName)
+    let processedBuffer
 
     try {
-      await sharp(req.file.buffer)
-        .rotate()
-        .toFile(filePath)
+      const processor = sharp(req.file.buffer).rotate()
+      if (typeof uploadFile === 'function') {
+        processedBuffer = await processor.toBuffer()
+      } else {
+        await processor.toFile(path.join(uploadPath, fileName))
+      }
     } catch (sharpError) {
-      await fs.promises.unlink(filePath).catch(() => {})
       logger.error(sharpError.message, { stack: sharpError.stack })
       return res.status(400).json({ message: 'Could not process uploaded image' })
     }
 
+    const storedFile = typeof uploadFile === 'function'
+      ? await storeValidatedUpload(processedBuffer, fileName, req.file.mimetype)
+      : { path: path.join(uploadPath, fileName), url: path.join(uploadPath, fileName) }
+
     req.file.filename = fileName
-    req.file.path = filePath
+    req.file.path = storedFile.path
+    req.file.url = storedFile.url
 
     next()
   } catch (error) {
     logger.error(error.message, { stack: error.stack })
     if (req.file?.path) {
-      await fs.promises.unlink(req.file.path).catch(() => {})
+      await deleteFile(req.file.path).catch(() => {})
     }
     res.status(400).json({ message: 'Unable to validate uploaded image' })
   }
@@ -321,18 +348,17 @@ const validateUploadedSpreadsheet = async (req, res, next) => {
     }
 
     const fileName = generateUploadedFileName(req.file.originalname)
-    const filePath = path.join(uploadPath, fileName)
-
-    await fs.promises.writeFile(filePath, req.file.buffer)
+    const storedFile = await storeValidatedUpload(req.file.buffer, fileName, req.file.mimetype)
 
     req.file.filename = fileName
-    req.file.path = filePath
+    req.file.path = storedFile.path
+    req.file.url = storedFile.url
 
     return next()
   } catch (error) {
     logger.error(error.message, { stack: error.stack })
     if (req.file?.path) {
-      await fs.promises.unlink(req.file.path).catch(() => {})
+      await deleteFile(req.file.path).catch(() => {})
     }
     return res.status(400).json({ message: 'Unable to validate uploaded spreadsheet' })
   }
@@ -342,6 +368,11 @@ const removeUploadedFile = async (fileUrl) => {
   if (!fileUrl) return
 
   try {
+    if (typeof deleteFile === 'function') {
+      await deleteFile(fileUrl)
+      return
+    }
+
     const fileName = path.basename(String(fileUrl))
     if (!fileName) return
     await fs.promises.unlink(path.join(uploadPath, fileName)).catch(() => {})

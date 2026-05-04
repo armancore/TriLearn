@@ -1,4 +1,3 @@
-/* eslint-disable no-useless-catch */
 const { createServiceResponder } = require('../utils/serviceResult')
 const prisma = require('../utils/prisma')
 const { getInstructorDepartments } = require('../utils/instructorDepartments')
@@ -73,26 +72,22 @@ const buildDepartmentSectionSummary = (sections = []) => {
  * @returns {Promise<any>|any} Service result.
  */
 const createDepartment = async (context, result = createServiceResponder()) => {
-  try {
     const name = normalizeDepartment(context.body.name)
-    const code = normalizeDepartment(context.body.code).toUpperCase()
-    const description = normalizeDepartment(context.body.description) || null
+  const code = normalizeDepartment(context.body.code).toUpperCase()
+  const description = normalizeDepartment(context.body.description) || null
 
-    if (!name || !code) {
-      return result.withStatus(400, { message: 'Department name and code are required' })
-    }
-
-    const department = await prisma.department.create({
-      data: { name, code, description }
-    })
-
-    result.withStatus(201, {
-      message: 'Department created successfully!',
-      department
-    })
-  } catch (error) {
-    throw error
+  if (!name || !code) {
+    return result.withStatus(400, { message: 'Department name and code are required' })
   }
+
+  const department = await prisma.department.create({
+    data: { name, code, description }
+  })
+
+  result.withStatus(201, {
+    message: 'Department created successfully!',
+    department
+  })
 }
 
 /**
@@ -101,77 +96,73 @@ const createDepartment = async (context, result = createServiceResponder()) => {
  * @returns {Promise<any>|any} Service result.
  */
 const getAllDepartments = async (context, result = createServiceResponder()) => {
-  try {
     const departments = await prisma.department.findMany({
-      orderBy: { name: 'asc' },
-      include: {
-        sections: {
-          orderBy: [
-            { semester: 'asc' },
-            { section: 'asc' }
-          ]
+    orderBy: { name: 'asc' },
+    include: {
+      sections: {
+        orderBy: [
+          { semester: 'asc' },
+          { section: 'asc' }
+        ]
+      }
+    }
+  })
+
+  const [studentCounts, instructors, subjectCounts] = await Promise.all([
+    prisma.student.groupBy({
+      by: ['department'],
+      _count: { _all: true },
+      where: { department: { not: null } }
+    }),
+    prisma.instructor.findMany({
+      select: {
+        department: true,
+        departmentMemberships: {
+          include: {
+            department: {
+              select: { name: true }
+            }
+          },
+          orderBy: { createdAt: 'asc' }
         }
       }
+    }),
+    prisma.subject.groupBy({
+      by: ['department'],
+      _count: { _all: true },
+      where: { department: { not: null } }
+    })
+  ])
+
+  const toCountMap = (groups) => groups.reduce((acc, group) => {
+    if (group.department) {
+      acc[group.department] = group._count._all
+    }
+
+    return acc
+  }, {})
+
+  const studentCountMap = toCountMap(studentCounts)
+  const instructorCountMap = instructors.reduce((acc, instructor) => {
+    getInstructorDepartments(instructor).forEach((departmentName) => {
+      acc[departmentName] = (acc[departmentName] || 0) + 1
     })
 
-    const [studentCounts, instructors, subjectCounts] = await Promise.all([
-      prisma.student.groupBy({
-        by: ['department'],
-        _count: { _all: true },
-        where: { department: { not: null } }
-      }),
-      prisma.instructor.findMany({
-        select: {
-          department: true,
-          departmentMemberships: {
-            include: {
-              department: {
-                select: { name: true }
-              }
-            },
-            orderBy: { createdAt: 'asc' }
-          }
-        }
-      }),
-      prisma.subject.groupBy({
-        by: ['department'],
-        _count: { _all: true },
-        where: { department: { not: null } }
-      })
-    ])
+    return acc
+  }, {})
+  const subjectCountMap = toCountMap(subjectCounts)
 
-    const toCountMap = (groups) => groups.reduce((acc, group) => {
-      if (group.department) {
-        acc[group.department] = group._count._all
-      }
+  const enriched = departments.map((department) => ({
+    ...department,
+    semesterSections: buildDepartmentSectionSummary(department.sections),
+    _count: {
+      students: studentCountMap[department.name] || 0,
+      instructors: instructorCountMap[department.name] || 0,
+      subjects: subjectCountMap[department.name] || 0
+    }
+  }))
 
-      return acc
-    }, {})
-
-    const studentCountMap = toCountMap(studentCounts)
-    const instructorCountMap = instructors.reduce((acc, instructor) => {
-      getInstructorDepartments(instructor).forEach((departmentName) => {
-        acc[departmentName] = (acc[departmentName] || 0) + 1
-      })
-
-      return acc
-    }, {})
-    const subjectCountMap = toCountMap(subjectCounts)
-
-    const enriched = departments.map((department) => ({
-      ...department,
-      semesterSections: buildDepartmentSectionSummary(department.sections),
-      _count: {
-        students: studentCountMap[department.name] || 0,
-        instructors: instructorCountMap[department.name] || 0,
-        subjects: subjectCountMap[department.name] || 0
-      }
-    }))
-
-    result.ok({ total: enriched.length, departments: enriched })
-  } catch (error) {
-    throw error
-  }
+  result.ok({ total: enriched.length, departments: enriched })
 }
 
 /**
@@ -180,20 +171,16 @@ const getAllDepartments = async (context, result = createServiceResponder()) => 
  * @returns {Promise<any>|any} Service result.
  */
 const getPublicDepartments = async (_req, result) => {
-  try {
     const departments = await prisma.department.findMany({
-      orderBy: { name: 'asc' },
-      select: {
-        id: true,
-        name: true,
-        code: true
-      }
-    })
+    orderBy: { name: 'asc' },
+    select: {
+      id: true,
+      name: true,
+      code: true
+    }
+  })
 
-    result.ok({ total: departments.length, departments })
-  } catch (error) {
-    throw error
-  }
+  result.ok({ total: departments.length, departments })
 }
 
 /**
@@ -202,33 +189,29 @@ const getPublicDepartments = async (_req, result) => {
  * @returns {Promise<any>|any} Service result.
  */
 const updateDepartment = async (context, result = createServiceResponder()) => {
-  try {
     const { id } = context.params
-    const name = normalizeDepartment(context.body.name)
-    const code = normalizeDepartment(context.body.code).toUpperCase()
-    const description = normalizeDepartment(context.body.description) || null
+  const name = normalizeDepartment(context.body.name)
+  const code = normalizeDepartment(context.body.code).toUpperCase()
+  const description = normalizeDepartment(context.body.description) || null
 
-    const existing = await prisma.department.findUnique({ where: { id } })
-    if (!existing) {
-      return result.withStatus(404, { message: 'Department not found' })
-    }
-
-    if (!name || !code) {
-      return result.withStatus(400, { message: 'Department name and code are required' })
-    }
-
-    const updated = await prisma.department.update({
-      where: { id },
-      data: { name, code, description }
-    })
-
-    result.ok({
-      message: 'Department updated successfully!',
-      department: updated
-    })
-  } catch (error) {
-    throw error
+  const existing = await prisma.department.findUnique({ where: { id } })
+  if (!existing) {
+    return result.withStatus(404, { message: 'Department not found' })
   }
+
+  if (!name || !code) {
+    return result.withStatus(400, { message: 'Department name and code are required' })
+  }
+
+  const updated = await prisma.department.update({
+    where: { id },
+    data: { name, code, description }
+  })
+
+  result.ok({
+    message: 'Department updated successfully!',
+    department: updated
+  })
 }
 
 /**
@@ -237,43 +220,39 @@ const updateDepartment = async (context, result = createServiceResponder()) => {
  * @returns {Promise<any>|any} Service result.
  */
 const deleteDepartment = async (context, result = createServiceResponder()) => {
-  try {
     const { id } = context.params
 
-    const existing = await prisma.department.findUnique({ where: { id } })
-    if (!existing) {
-      return result.withStatus(404, { message: 'Department not found' })
-    }
+  const existing = await prisma.department.findUnique({ where: { id } })
+  if (!existing) {
+    return result.withStatus(404, { message: 'Department not found' })
+  }
 
-    const [students, instructors, subjects] = await Promise.all([
-      prisma.student.count({ where: { department: existing.name } }),
-      prisma.instructor.count({
-        where: {
-          OR: [
-            { department: existing.name },
-            {
-              departmentMemberships: {
-                some: {
-                  departmentId: existing.id
-                }
+  const [students, instructors, subjects] = await Promise.all([
+    prisma.student.count({ where: { department: existing.name } }),
+    prisma.instructor.count({
+      where: {
+        OR: [
+          { department: existing.name },
+          {
+            departmentMemberships: {
+              some: {
+                departmentId: existing.id
               }
             }
-          ]
-        }
-      }),
-      prisma.subject.count({ where: { department: existing.name } })
-    ])
+          }
+        ]
+      }
+    }),
+    prisma.subject.count({ where: { department: existing.name } })
+  ])
 
-    if (students > 0 || instructors > 0 || subjects > 0) {
-      return result.withStatus(400, { message: 'Cannot delete a department that is still used by users or subjects' })
-    }
-
-    await prisma.department.delete({ where: { id } })
-
-    result.ok({ message: 'Department deleted successfully!' })
-  } catch (error) {
-    throw error
+  if (students > 0 || instructors > 0 || subjects > 0) {
+    return result.withStatus(400, { message: 'Cannot delete a department that is still used by users or subjects' })
   }
+
+  await prisma.department.delete({ where: { id } })
+
+  result.ok({ message: 'Department deleted successfully!' })
 }
 
 /**
@@ -282,43 +261,39 @@ const deleteDepartment = async (context, result = createServiceResponder()) => {
  * @returns {Promise<any>|any} Service result.
  */
 const getDepartmentSections = async (context, result = createServiceResponder()) => {
-  try {
     const { id } = context.params
-    const requestedSemester = Number.parseInt(String(context.query.semester || ''), 10)
+  const requestedSemester = Number.parseInt(String(context.query.semester || ''), 10)
 
-    const department = await prisma.department.findUnique({
-      where: { id },
-      select: { id: true, name: true }
-    })
+  const department = await prisma.department.findUnique({
+    where: { id },
+    select: { id: true, name: true }
+  })
 
-    if (!department) {
-      return result.withStatus(404, { message: 'Department not found' })
-    }
-
-    if (!canManageDepartment(context, department)) {
-      return result.withStatus(403, { message: 'You can only manage sections in your own department' })
-    }
-
-    const where = {
-      departmentId: department.id,
-      ...(Number.isInteger(requestedSemester) ? { semester: requestedSemester } : {})
-    }
-
-    const sections = await prisma.departmentSection.findMany({
-      where,
-      orderBy: [
-        { semester: 'asc' },
-        { section: 'asc' }
-      ]
-    })
-
-    result.ok({
-      total: sections.length,
-      sections
-    })
-  } catch (error) {
-    throw error
+  if (!department) {
+    return result.withStatus(404, { message: 'Department not found' })
   }
+
+  if (!canManageDepartment(context, department)) {
+    return result.withStatus(403, { message: 'You can only manage sections in your own department' })
+  }
+
+  const where = {
+    departmentId: department.id,
+    ...(Number.isInteger(requestedSemester) ? { semester: requestedSemester } : {})
+  }
+
+  const sections = await prisma.departmentSection.findMany({
+    where,
+    orderBy: [
+      { semester: 'asc' },
+      { section: 'asc' }
+    ]
+  })
+
+  result.ok({
+    total: sections.length,
+    sections
+  })
 }
 
 /**
@@ -379,34 +354,30 @@ const createDepartmentSection = async (context, result = createServiceResponder(
  * @returns {Promise<any>|any} Service result.
  */
 const deleteDepartmentSection = async (context, result = createServiceResponder()) => {
-  try {
     const { id, sectionId } = context.params
 
-    const section = await prisma.departmentSection.findUnique({
-      where: { id: sectionId },
-      include: {
-        department: {
-          select: { id: true, name: true }
-        }
+  const section = await prisma.departmentSection.findUnique({
+    where: { id: sectionId },
+    include: {
+      department: {
+        select: { id: true, name: true }
       }
-    })
-
-    if (!section || section.departmentId !== id) {
-      return result.withStatus(404, { message: 'Department section not found' })
     }
+  })
 
-    if (!canManageDepartment(context, section.department)) {
-      return result.withStatus(403, { message: 'You can only manage sections in your own department' })
-    }
-
-    await prisma.departmentSection.delete({
-      where: { id: sectionId }
-    })
-
-    result.ok({ message: 'Department section deleted successfully!' })
-  } catch (error) {
-    throw error
+  if (!section || section.departmentId !== id) {
+    return result.withStatus(404, { message: 'Department section not found' })
   }
+
+  if (!canManageDepartment(context, section.department)) {
+    return result.withStatus(403, { message: 'You can only manage sections in your own department' })
+  }
+
+  await prisma.departmentSection.delete({
+    where: { id: sectionId }
+  })
+
+  result.ok({ message: 'Department section deleted successfully!' })
 }
 
 module.exports = {

@@ -1,4 +1,3 @@
-/* eslint-disable no-useless-catch */
 const { createServiceResponder } = require('../utils/serviceResult')
 const prisma = require('../utils/prisma')
 const { createNotifications } = require('../utils/notifications')
@@ -364,22 +363,18 @@ const createRoutine = async (context, result = createServiceResponder()) => {
  * @returns {Promise<any>|any} Service result.
  */
 const getAllRoutines = async (context, result = createServiceResponder()) => {
-  try {
     const filters = await buildRoutineFilters(context)
 
-    const routines = await prisma.routine.findMany({
-      where: filters,
-      include: getRoutineInclude(),
-      orderBy: [
-        { dayOfWeek: 'asc' },
-        { startTime: 'asc' }
-      ]
-    })
+  const routines = await prisma.routine.findMany({
+    where: filters,
+    include: getRoutineInclude(),
+    orderBy: [
+      { dayOfWeek: 'asc' },
+      { startTime: 'asc' }
+    ]
+  })
 
-    result.ok({ total: routines.length, routines })
-  } catch (error) {
-    throw error
-  }
+  result.ok({ total: routines.length, routines })
 }
 
 /**
@@ -388,23 +383,19 @@ const getAllRoutines = async (context, result = createServiceResponder()) => {
  * @returns {Promise<any>|any} Service result.
  */
 const getRoutineById = async (context, result = createServiceResponder()) => {
-  try {
     const { id } = context.params
-    const routine = await prisma.routine.findUnique({
-      where: { id },
-      include: getRoutineInclude()
-    })
-    if (!routine) return result.withStatus(404, { message: 'Routine not found' })
+  const routine = await prisma.routine.findUnique({
+    where: { id },
+    include: getRoutineInclude()
+  })
+  if (!routine) return result.withStatus(404, { message: 'Routine not found' })
 
-    const departmentAllowed = await ensureCoordinatorDepartmentScope(context, result, routine.department)
-    if (context.user.role === 'COORDINATOR' && !departmentAllowed) {
-      return
-    }
-
-    result.ok({ routine })
-  } catch (error) {
-    throw error
+  const departmentAllowed = await ensureCoordinatorDepartmentScope(context, result, routine.department)
+  if (context.user.role === 'COORDINATOR' && !departmentAllowed) {
+    return
   }
+
+  result.ok({ routine })
 }
 
 /**
@@ -481,26 +472,22 @@ const updateRoutine = async (context, result = createServiceResponder()) => {
  * @returns {Promise<any>|any} Service result.
  */
 const deleteRoutine = async (context, result = createServiceResponder()) => {
-  try {
     const { id } = context.params
-    const routine = await prisma.routine.findUnique({
-      where: { id },
-      include: getRoutineInclude()
-    })
-    if (!routine) return result.withStatus(404, { message: 'Routine not found' })
+  const routine = await prisma.routine.findUnique({
+    where: { id },
+    include: getRoutineInclude()
+  })
+  if (!routine) return result.withStatus(404, { message: 'Routine not found' })
 
-    const departmentAllowed = await ensureCoordinatorDepartmentScope(context, result, routine.department)
-    if (context.user.role === 'COORDINATOR' && !departmentAllowed) {
-      return
-    }
-
-    await prisma.routine.delete({ where: { id } })
-    result.ok({ message: 'Routine deleted successfully!' })
-
-    void notifyRoutineDeleted(routine).catch(() => null)
-  } catch (error) {
-    throw error
+  const departmentAllowed = await ensureCoordinatorDepartmentScope(context, result, routine.department)
+  if (context.user.role === 'COORDINATOR' && !departmentAllowed) {
+    return
   }
+
+  await prisma.routine.delete({ where: { id } })
+  result.ok({ message: 'Routine deleted successfully!' })
+
+  void notifyRoutineDeleted(routine).catch(() => null)
 }
 
 module.exports = { createRoutine, getAllRoutines, getRoutineById, updateRoutine, deleteRoutine }

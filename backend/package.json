@@ -20,6 +20,7 @@
   "type": "commonjs",
   "dependencies": {
     "@asteasolutions/zod-to-openapi": "^8.5.0",
+    "@aws-sdk/client-s3": "^3.1041.0",
     "@prisma/adapter-pg": "^7.8.0",
     "@prisma/client": "^7.8.0",
     "@socket.io/redis-adapter": "^8.3.0",
@@ -59,6 +60,7 @@
     "eslint": "^9.39.4",
     "eslint-plugin-n": "^17.23.1",
     "globals": "^17.4.0",
+    "jest": "^30.3.0",
     "nodemon": "^3.1.14",
     "supertest": "^7.1.4"
   }

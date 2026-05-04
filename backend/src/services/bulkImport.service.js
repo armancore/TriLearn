@@ -1,4 +1,3 @@
-/* eslint-disable no-useless-catch */
 const { createServiceResponder } = require('../utils/serviceResult')
 const prisma = require('../utils/prisma')
 const crypto = require('crypto')
@@ -513,9 +512,7 @@ const importStudents = async (context, result = createServiceResponder()) => {
       created: created.map(({ temporaryPassword: _temporaryPassword, emailVerificationToken: _emailVerificationToken, ...row }) => row),
       failures
     })
-  } catch (error) {
-    throw error
-  } finally {
+  }  finally {
     if (uploadedFilePath) {
       await fs.promises.unlink(uploadedFilePath).catch(() => {})
     }

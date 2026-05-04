@@ -1,4 +1,3 @@
-/* eslint-disable no-useless-catch */
 const { createServiceResponder } = require('../utils/serviceResult')
 const prisma = require('../utils/prisma')
 const { Prisma } = require('@prisma/client')
@@ -232,82 +231,78 @@ const getRankingSummary = async ({ student, examType }) => {
  * @returns {Promise<any>|any} Service result.
  */
 const getMyMarksSummary = async (context, result = createServiceResponder()) => {
-  try {
     const { examType } = context.query
-    const student = context.student
+  const student = context.student
 
-    if (!student) {
-      return result.withStatus(403, { message: 'Student profile not found' })
-    }
+  if (!student) {
+    return result.withStatus(403, { message: 'Student profile not found' })
+  }
 
-    const { availableExamTypes, selectedExamType } = await getStudentExamContext(student.id, examType)
+  const { availableExamTypes, selectedExamType } = await getStudentExamContext(student.id, examType)
 
-    if (!selectedExamType) {
-      return result.ok({
-        examType: null,
-        availableExamTypes: [],
-        resultSheet: emptyStudentResultSheet(),
-        analytics: {
-          chartData: [],
-          strongestSubject: null,
-          weakestSubject: null
-        },
-        ranking: {
-          rank: null,
-          cohortSize: 0,
-          percentile: 0
-        }
-      })
-    }
-
-    const { resultSheet } = await getPublishedStudentMarks({
-      studentId: student.id,
-      examType: selectedExamType
-    })
-
-    const strongestSubject = [...resultSheet.subjects].sort((left, right) => right.percentage - left.percentage)[0] || null
-    const weakestSubject = [...resultSheet.subjects].sort((left, right) => left.percentage - right.percentage)[0] || null
-    const ranking = await getRankingSummary({
-      student,
-      examType: selectedExamType
-    })
-
-    result.ok({
-      examType: selectedExamType,
-      availableExamTypes,
-      resultSheet,
+  if (!selectedExamType) {
+    return result.ok({
+      examType: null,
+      availableExamTypes: [],
+      resultSheet: emptyStudentResultSheet(),
       analytics: {
-        chartData: resultSheet.subjects.map((subject) => ({
-          subjectCode: subject.subjectCode,
-          subjectName: subject.subjectName,
-          percentage: subject.percentage,
-          gradePoint: subject.gradePoint,
-          grade: subject.grade
-        })),
-        strongestSubject: strongestSubject ? {
-          subjectCode: strongestSubject.subjectCode,
-          subjectName: strongestSubject.subjectName,
-          percentage: strongestSubject.percentage,
-          grade: strongestSubject.grade
-        } : null,
-        weakestSubject: weakestSubject ? {
-          subjectCode: weakestSubject.subjectCode,
-          subjectName: weakestSubject.subjectName,
-          percentage: weakestSubject.percentage,
-          grade: weakestSubject.grade
-        } : null
+        chartData: [],
+        strongestSubject: null,
+        weakestSubject: null
       },
       ranking: {
-        ...ranking,
-        scope: {
-          semester: student.semester,
-          department: student.department || null
-        }
+        rank: null,
+        cohortSize: 0,
+        percentile: 0
       }
     })
-  } catch (error) {
-    throw error
   }
+
+  const { resultSheet } = await getPublishedStudentMarks({
+    studentId: student.id,
+    examType: selectedExamType
+  })
+
+  const strongestSubject = [...resultSheet.subjects].sort((left, right) => right.percentage - left.percentage)[0] || null
+  const weakestSubject = [...resultSheet.subjects].sort((left, right) => left.percentage - right.percentage)[0] || null
+  const ranking = await getRankingSummary({
+    student,
+    examType: selectedExamType
+  })
+
+  result.ok({
+    examType: selectedExamType,
+    availableExamTypes,
+    resultSheet,
+    analytics: {
+      chartData: resultSheet.subjects.map((subject) => ({
+        subjectCode: subject.subjectCode,
+        subjectName: subject.subjectName,
+        percentage: subject.percentage,
+        gradePoint: subject.gradePoint,
+        grade: subject.grade
+      })),
+      strongestSubject: strongestSubject ? {
+        subjectCode: strongestSubject.subjectCode,
+        subjectName: strongestSubject.subjectName,
+        percentage: strongestSubject.percentage,
+        grade: strongestSubject.grade
+      } : null,
+      weakestSubject: weakestSubject ? {
+        subjectCode: weakestSubject.subjectCode,
+        subjectName: weakestSubject.subjectName,
+        percentage: weakestSubject.percentage,
+        grade: weakestSubject.grade
+      } : null
+    },
+    ranking: {
+      ...ranking,
+      scope: {
+        semester: student.semester,
+        department: student.department || null
+      }
+    }
+  })
 }
 
 const getStudentMarksheetPayload = async ({ student, examType }) => {
@@ -371,87 +366,83 @@ const getStudentMarksheetPayload = async ({ student, examType }) => {
  * @returns {Promise<any>|any} Service result.
  */
 const exportMyMarksheetPdf = async (context, result = createServiceResponder()) => {
-  try {
     const { examType } = context.query
-    const student = context.student
+  const student = context.student
 
-    if (!student) {
-      return result.withStatus(403, { message: 'Student profile not found' })
-    }
-
-    const payload = await getStudentMarksheetPayload({ student, examType })
-    if (payload.error) {
-      return result.withStatus(payload.error.status, { message: payload.error.message })
-    }
-
-    const fileName = `marksheet-${sanitizeFilenamePart(payload.student.rollNumber)}-sem-${payload.student.semester}-${sanitizeFilenamePart(payload.examType)}.pdf`
-    result.header('Content-Type', 'application/pdf')
-    result.header('Content-Disposition', `attachment; filename="${fileName}"`)
-
-    const doc = new PDFDocument({ margin: 40, size: 'A4' })
-    doc.pipe(result)
-
-    doc.fontSize(20).text('TriLearn Semester Marksheet', { align: 'center' })
-    doc.moveDown(0.3)
-    doc.fontSize(11).text(`${payload.examLabel} Result`, { align: 'center' })
-    doc.moveDown(1)
-
-    doc.fontSize(12).text(`Student: ${payload.student.user.name}`)
-    doc.text(`Roll Number: ${payload.student.rollNumber}`)
-    doc.text(`Email: ${payload.student.user.email}`)
-    doc.text(`Department: ${payload.student.department || '-'}`)
-    doc.text(`Semester: ${payload.student.semester}`)
-    doc.text(`Section: ${payload.student.section || '-'}`)
-    doc.moveDown(0.8)
-
-    doc.fontSize(13).text('Result Overview')
-    doc.fontSize(11)
-    doc.text(`Overall GPA: ${payload.resultSheet.overallGpa.toFixed(2)}`)
-    doc.text(`Overall Grade: ${payload.resultSheet.overallGrade}`)
-    doc.text(`Overall Percentage: ${payload.resultSheet.overallPercentage.toFixed(2)}%`)
-    doc.text(`Combined Score: ${payload.resultSheet.totals.obtainedMarks}/${payload.resultSheet.totals.totalMarks}`)
-    if (payload.ranking.rank) {
-      doc.text(`Semester Rank: #${payload.ranking.rank} out of ${payload.ranking.cohortSize}`)
-      doc.text(`Percentile: ${payload.ranking.percentile.toFixed(2)}%`)
-    }
-    doc.moveDown(0.8)
-
-    doc.fontSize(13).text('Subject-wise Marks')
-    doc.moveDown(0.5)
-
-    payload.resultSheet.subjects.forEach((subject, index) => {
-      if (doc.y > 720) {
-        doc.addPage()
-      }
-
-      doc.fontSize(11).text(`${index + 1}. ${subject.subjectName} (${subject.subjectCode})`)
-      doc.fontSize(10)
-      doc.text(`Marks: ${subject.obtainedMarks}/${subject.totalMarks}`)
-      doc.text(`Percentage: ${subject.percentage.toFixed(2)}%`)
-      doc.text(`Grade: ${subject.grade}`)
-      doc.text(`Grade Point: ${subject.gradePoint.toFixed(1)}`)
-      doc.text(`Remarks: ${subject.remarks || '-'}`)
-      doc.moveDown(0.5)
-    })
-
-    if (payload.strongestSubject || payload.weakestSubject) {
-      if (doc.y > 700) {
-        doc.addPage()
-      }
-
-      doc.moveDown(0.5)
-      doc.fontSize(13).text('Performance Snapshot')
-      doc.fontSize(10)
-      doc.text(`Strongest Subject: ${payload.strongestSubject ? `${payload.strongestSubject.subjectName} (${payload.strongestSubject.subjectCode}) - ${payload.strongestSubject.percentage.toFixed(2)}%` : '-'}`)
-      doc.text(`Needs Attention: ${payload.weakestSubject ? `${payload.weakestSubject.subjectName} (${payload.weakestSubject.subjectCode}) - ${payload.weakestSubject.percentage.toFixed(2)}%` : '-'}`)
-    }
-
-    doc.moveDown(1)
-    doc.fontSize(9).fillColor('#64748b').text(`Generated on ${new Date().toLocaleString()}`, { align: 'right' })
-    doc.end()
-  } catch (error) {
-    throw error
+  if (!student) {
+    return result.withStatus(403, { message: 'Student profile not found' })
   }
+
+  const payload = await getStudentMarksheetPayload({ student, examType })
+  if (payload.error) {
+    return result.withStatus(payload.error.status, { message: payload.error.message })
+  }
+
+  const fileName = `marksheet-${sanitizeFilenamePart(payload.student.rollNumber)}-sem-${payload.student.semester}-${sanitizeFilenamePart(payload.examType)}.pdf`
+  result.header('Content-Type', 'application/pdf')
+  result.header('Content-Disposition', `attachment; filename="${fileName}"`)
+
+  const doc = new PDFDocument({ margin: 40, size: 'A4' })
+  doc.pipe(result)
+
+  doc.fontSize(20).text('TriLearn Semester Marksheet', { align: 'center' })
+  doc.moveDown(0.3)
+  doc.fontSize(11).text(`${payload.examLabel} Result`, { align: 'center' })
+  doc.moveDown(1)
+
+  doc.fontSize(12).text(`Student: ${payload.student.user.name}`)
+  doc.text(`Roll Number: ${payload.student.rollNumber}`)
+  doc.text(`Email: ${payload.student.user.email}`)
+  doc.text(`Department: ${payload.student.department || '-'}`)
+  doc.text(`Semester: ${payload.student.semester}`)
+  doc.text(`Section: ${payload.student.section || '-'}`)
+  doc.moveDown(0.8)
+
+  doc.fontSize(13).text('Result Overview')
+  doc.fontSize(11)
+  doc.text(`Overall GPA: ${payload.resultSheet.overallGpa.toFixed(2)}`)
+  doc.text(`Overall Grade: ${payload.resultSheet.overallGrade}`)
+  doc.text(`Overall Percentage: ${payload.resultSheet.overallPercentage.toFixed(2)}%`)
+  doc.text(`Combined Score: ${payload.resultSheet.totals.obtainedMarks}/${payload.resultSheet.totals.totalMarks}`)
+  if (payload.ranking.rank) {
+    doc.text(`Semester Rank: #${payload.ranking.rank} out of ${payload.ranking.cohortSize}`)
+    doc.text(`Percentile: ${payload.ranking.percentile.toFixed(2)}%`)
+  }
+  doc.moveDown(0.8)
+
+  doc.fontSize(13).text('Subject-wise Marks')
+  doc.moveDown(0.5)
+
+  payload.resultSheet.subjects.forEach((subject, index) => {
+    if (doc.y > 720) {
+      doc.addPage()
+    }
+
+    doc.fontSize(11).text(`${index + 1}. ${subject.subjectName} (${subject.subjectCode})`)
+    doc.fontSize(10)
+    doc.text(`Marks: ${subject.obtainedMarks}/${subject.totalMarks}`)
+    doc.text(`Percentage: ${subject.percentage.toFixed(2)}%`)
+    doc.text(`Grade: ${subject.grade}`)
+    doc.text(`Grade Point: ${subject.gradePoint.toFixed(1)}`)
+    doc.text(`Remarks: ${subject.remarks || '-'}`)
+    doc.moveDown(0.5)
+  })
+
+  if (payload.strongestSubject || payload.weakestSubject) {
+    if (doc.y > 700) {
+      doc.addPage()
+    }
+
+    doc.moveDown(0.5)
+    doc.fontSize(13).text('Performance Snapshot')
+    doc.fontSize(10)
+    doc.text(`Strongest Subject: ${payload.strongestSubject ? `${payload.strongestSubject.subjectName} (${payload.strongestSubject.subjectCode}) - ${payload.strongestSubject.percentage.toFixed(2)}%` : '-'}`)
+    doc.text(`Needs Attention: ${payload.weakestSubject ? `${payload.weakestSubject.subjectName} (${payload.weakestSubject.subjectCode}) - ${payload.weakestSubject.percentage.toFixed(2)}%` : '-'}`)
+  }
+
+  doc.moveDown(1)
+  doc.fontSize(9).fillColor('#64748b').text(`Generated on ${new Date().toLocaleString()}`, { align: 'right' })
+  doc.end()
 }
 
 const getManagedSubject = async (subjectId, context) => {
@@ -551,71 +542,67 @@ const createMarkPayload = ({ studentId, subjectId, instructorId, examType, total
  * @returns {Promise<any>|any} Service result.
  */
 const addMarks = async (context, result = createServiceResponder()) => {
-  try {
     const { studentId, subjectId, examType, totalMarks, obtainedMarks, remarks } = context.body
 
-    const access = await getManagedSubject(subjectId, context)
-    if (access.error) {
-      return result.withStatus(access.error.status, { message: access.error.message })
-    }
+  const access = await getManagedSubject(subjectId, context)
+  if (access.error) {
+    return result.withStatus(access.error.status, { message: access.error.message })
+  }
 
-    const enrollment = await prisma.subjectEnrollment.findUnique({
-      where: {
-        subjectId_studentId: {
-          subjectId,
-          studentId
-        }
+  const enrollment = await prisma.subjectEnrollment.findUnique({
+    where: {
+      subjectId_studentId: {
+        subjectId,
+        studentId
       }
-    })
-
-    if (!enrollment) {
-      return result.withStatus(400, { message: 'Selected student is not enrolled in this subject' })
     }
+  })
 
-    const instructorId = access.instructor?.id || access.subject.instructorId
-    if (!instructorId) {
-      return result.withStatus(400, { message: 'Assign an instructor to this subject before managing marks' })
-    }
+  if (!enrollment) {
+    return result.withStatus(400, { message: 'Selected student is not enrolled in this subject' })
+  }
 
-    let mark
+  const instructorId = access.instructor?.id || access.subject.instructorId
+  if (!instructorId) {
+    return result.withStatus(400, { message: 'Assign an instructor to this subject before managing marks' })
+  }
 
-    try {
-      mark = await prisma.mark.create({
-        data: createMarkPayload({
-          studentId,
-          subjectId,
-          instructorId,
-          examType,
-          totalMarks,
-          obtainedMarks,
-          remarks
-        }),
-        include: {
-          student: { include: { user: { select: { name: true } } } },
-          subject: { select: { name: true, code: true } }
-        }
-      })
-    } catch (error) {
-      if (error.code === 'P2002') {
-        return result.withStatus(400, { message: 'Marks already added for this exam type' })
+  let mark
+
+  try {
+    mark = await prisma.mark.create({
+      data: createMarkPayload({
+        studentId,
+        subjectId,
+        instructorId,
+        examType,
+        totalMarks,
+        obtainedMarks,
+        remarks
+      }),
+      include: {
+        student: { include: { user: { select: { name: true } } } },
+        subject: { select: { name: true, code: true } }
       }
-
-      throw error
-    }
-
-    result.withStatus(201, { message: 'Marks added successfully!', mark: decorateMark(mark) })
-
-    await recordAuditLog({
-      actorId: context.user.id,
-      actorRole: context.user.role,
-      action: 'MARK_CREATED',
-      entityType: 'Mark',
-      entityId: mark.id,
-      metadata: { subjectId, studentId, examType }
     })
   } catch (error) {
+    if (error.code === 'P2002') {
+      return result.withStatus(400, { message: 'Marks already added for this exam type' })
+    }
+
     throw error
   }
+
+  result.withStatus(201, { message: 'Marks added successfully!', mark: decorateMark(mark) })
+
+  await recordAuditLog({
+    actorId: context.user.id,
+    actorRole: context.user.role,
+    action: 'MARK_CREATED',
+    entityType: 'Mark',
+    entityId: mark.id,
+    metadata: { subjectId, studentId, examType }
+  })
 }
 
 /**
@@ -728,48 +715,44 @@ const addMarksBulk = async (context, result = createServiceResponder()) => {
  * @returns {Promise<any>|any} Service result.
  */
 const updateMarks = async (context, result = createServiceResponder()) => {
-  try {
     const { id } = context.params
-    const { obtainedMarks, remarks } = context.body
+  const { obtainedMarks, remarks } = context.body
 
-    const mark = await prisma.mark.findUnique({ where: { id } })
-    if (!mark) {
-      return result.withStatus(404, { message: 'Mark not found' })
-    }
-
-    const access = await getManagedSubject(mark.subjectId, context)
-    if (access.error) {
-      return result.withStatus(access.error.status, { message: access.error.message })
-    }
-
-    const updated = await prisma.mark.update({
-      where: { id },
-      data: {
-        ...getGradeSnapshot(obtainedMarks, mark.totalMarks),
-        obtainedMarks,
-        remarks: sanitizePlainText(remarks),
-        isPublished: false,
-        publishedAt: null,
-        publishedBy: null
-      }
-    })
-
-    result.ok({
-      message: 'Marks updated successfully! The result is now unpublished until the coordinator publishes it again.',
-      mark: decorateMark(updated)
-    })
-
-    await recordAuditLog({
-      actorId: context.user.id,
-      actorRole: context.user.role,
-      action: 'MARK_UPDATED',
-      entityType: 'Mark',
-      entityId: updated.id,
-      metadata: { obtainedMarks: updated.obtainedMarks }
-    })
-  } catch (error) {
-    throw error
+  const mark = await prisma.mark.findUnique({ where: { id } })
+  if (!mark) {
+    return result.withStatus(404, { message: 'Mark not found' })
   }
+
+  const access = await getManagedSubject(mark.subjectId, context)
+  if (access.error) {
+    return result.withStatus(access.error.status, { message: access.error.message })
+  }
+
+  const updated = await prisma.mark.update({
+    where: { id },
+    data: {
+      ...getGradeSnapshot(obtainedMarks, mark.totalMarks),
+      obtainedMarks,
+      remarks: sanitizePlainText(remarks),
+      isPublished: false,
+      publishedAt: null,
+      publishedBy: null
+    }
+  })
+
+  result.ok({
+    message: 'Marks updated successfully! The result is now unpublished until the coordinator publishes it again.',
+    mark: decorateMark(updated)
+  })
+
+  await recordAuditLog({
+    actorId: context.user.id,
+    actorRole: context.user.role,
+    action: 'MARK_UPDATED',
+    entityType: 'Mark',
+    entityId: updated.id,
+    metadata: { obtainedMarks: updated.obtainedMarks }
+  })
 }
 
 /**
@@ -778,62 +761,58 @@ const updateMarks = async (context, result = createServiceResponder()) => {
  * @returns {Promise<any>|any} Service result.
  */
 const getMarksBySubject = async (context, result = createServiceResponder()) => {
-  try {
     const { subjectId } = context.params
-    const { examType } = context.query
-    const { page, limit, skip } = getPagination(context.query)
+  const { examType } = context.query
+  const { page, limit, skip } = getPagination(context.query)
 
-    const access = await getManagedSubject(subjectId, context)
-    if (access.error) {
-      return result.withStatus(access.error.status, { message: access.error.message })
-    }
-
-    const filters = { subjectId }
-    if (examType) filters.examType = examType
-
-    const [marks, total] = await Promise.all([
-      prisma.mark.findMany({
-        where: filters,
-        include: {
-          student: { include: { user: { select: { name: true } } } },
-          subject: { select: { name: true, code: true } }
-        },
-        orderBy: [
-          { examType: 'asc' },
-          { createdAt: 'desc' }
-        ],
-        skip,
-        take: limit
-      }),
-      prisma.mark.count({ where: filters })
-    ])
-
-    const decoratedMarks = marks.map(decorateMark)
-    const overallPercentage = decoratedMarks.length > 0
-      ? getPercentage(
-          decoratedMarks.reduce((sum, mark) => sum + mark.obtainedMarks, 0),
-          decoratedMarks.reduce((sum, mark) => sum + mark.totalMarks, 0)
-        )
-      : 0
-
-    result.ok({
-      total,
-      page,
-      limit,
-      marks: decoratedMarks,
-      subject: access.subject,
-      availableExamTypes: [...new Set(decoratedMarks.map((mark) => mark.examType))],
-      stats: {
-        records: total,
-        published: decoratedMarks.filter((mark) => mark.isPublished).length,
-        unpublished: decoratedMarks.filter((mark) => !mark.isPublished).length,
-        overallPercentage: Number(overallPercentage.toFixed(2)),
-        overallGrade: getGradeFromPercentage(overallPercentage)
-      }
-    })
-  } catch (error) {
-    throw error
+  const access = await getManagedSubject(subjectId, context)
+  if (access.error) {
+    return result.withStatus(access.error.status, { message: access.error.message })
   }
+
+  const filters = { subjectId }
+  if (examType) filters.examType = examType
+
+  const [marks, total] = await Promise.all([
+    prisma.mark.findMany({
+      where: filters,
+      include: {
+        student: { include: { user: { select: { name: true } } } },
+        subject: { select: { name: true, code: true } }
+      },
+      orderBy: [
+        { examType: 'asc' },
+        { createdAt: 'desc' }
+      ],
+      skip,
+      take: limit
+    }),
+    prisma.mark.count({ where: filters })
+  ])
+
+  const decoratedMarks = marks.map(decorateMark)
+  const overallPercentage = decoratedMarks.length > 0
+    ? getPercentage(
+        decoratedMarks.reduce((sum, mark) => sum + mark.obtainedMarks, 0),
+        decoratedMarks.reduce((sum, mark) => sum + mark.totalMarks, 0)
+      )
+    : 0
+
+  result.ok({
+    total,
+    page,
+    limit,
+    marks: decoratedMarks,
+    subject: access.subject,
+    availableExamTypes: [...new Set(decoratedMarks.map((mark) => mark.examType))],
+    stats: {
+      records: total,
+      published: decoratedMarks.filter((mark) => mark.isPublished).length,
+      unpublished: decoratedMarks.filter((mark) => !mark.isPublished).length,
+      overallPercentage: Number(overallPercentage.toFixed(2)),
+      overallGrade: getGradeFromPercentage(overallPercentage)
+    }
+  })
 }
 
 /**
@@ -842,58 +821,54 @@ const getMarksBySubject = async (context, result = createServiceResponder()) => 
  * @returns {Promise<any>|any} Service result.
  */
 const getMarksReview = async (context, result = createServiceResponder()) => {
-  try {
     const { examType, subjectId } = context.query
-    const { page, limit, skip } = getPagination(context.query)
+  const { page, limit, skip } = getPagination(context.query)
 
-    const filters = buildStaffReviewFilters({ context, subjectId, examType })
-    if (filters.error) {
-      return result.withStatus(filters.error.status, { message: filters.error.message })
-    }
-
-    const { where } = filters
-
-    const [marks, total] = await Promise.all([
-      prisma.mark.findMany({
-        where,
-        include: {
-          student: { include: { user: { select: { name: true, email: true } } } },
-          subject: { select: { id: true, name: true, code: true, semester: true, department: true } }
-        },
-        orderBy: [
-          { examType: 'asc' },
-          { subject: { code: 'asc' } },
-          { student: { rollNumber: 'asc' } }
-        ],
-        skip,
-        take: limit
-      }),
-      prisma.mark.count({ where })
-    ])
-
-    const decoratedMarks = marks.map(decorateMark)
-    const byExamType = EXAM_TYPES.map((type) => ({
-      examType: type,
-      count: decoratedMarks.filter((mark) => mark.examType === type).length,
-      published: decoratedMarks.filter((mark) => mark.examType === type && mark.isPublished).length
-    })).filter((item) => item.count > 0)
-
-    result.ok({
-      total,
-      page,
-      limit,
-      marks: decoratedMarks,
-      availableExamTypes: [...new Set(decoratedMarks.map((mark) => mark.examType))],
-      stats: {
-        total,
-        published: decoratedMarks.filter((mark) => mark.isPublished).length,
-        unpublished: decoratedMarks.filter((mark) => !mark.isPublished).length,
-        byExamType
-      }
-    })
-  } catch (error) {
-    throw error
+  const filters = buildStaffReviewFilters({ context, subjectId, examType })
+  if (filters.error) {
+    return result.withStatus(filters.error.status, { message: filters.error.message })
   }
+
+  const { where } = filters
+
+  const [marks, total] = await Promise.all([
+    prisma.mark.findMany({
+      where,
+      include: {
+        student: { include: { user: { select: { name: true, email: true } } } },
+        subject: { select: { id: true, name: true, code: true, semester: true, department: true } }
+      },
+      orderBy: [
+        { examType: 'asc' },
+        { subject: { code: 'asc' } },
+        { student: { rollNumber: 'asc' } }
+      ],
+      skip,
+      take: limit
+    }),
+    prisma.mark.count({ where })
+  ])
+
+  const decoratedMarks = marks.map(decorateMark)
+  const byExamType = EXAM_TYPES.map((type) => ({
+    examType: type,
+    count: decoratedMarks.filter((mark) => mark.examType === type).length,
+    published: decoratedMarks.filter((mark) => mark.examType === type && mark.isPublished).length
+  })).filter((item) => item.count > 0)
+
+  result.ok({
+    total,
+    page,
+    limit,
+    marks: decoratedMarks,
+    availableExamTypes: [...new Set(decoratedMarks.map((mark) => mark.examType))],
+    stats: {
+      total,
+      published: decoratedMarks.filter((mark) => mark.isPublished).length,
+      unpublished: decoratedMarks.filter((mark) => !mark.isPublished).length,
+      byExamType
+    }
+  })
 }
 
 /**
@@ -902,52 +877,48 @@ const getMarksReview = async (context, result = createServiceResponder()) => {
  * @returns {Promise<any>|any} Service result.
  */
 const getEnrolledStudentsBySubject = async (context, result = createServiceResponder()) => {
-  try {
     const { subjectId } = context.params
 
-    const access = await getManagedSubject(subjectId, context)
-    if (access.error) {
-      return result.withStatus(access.error.status, { message: access.error.message })
-    }
+  const access = await getManagedSubject(subjectId, context)
+  if (access.error) {
+    return result.withStatus(access.error.status, { message: access.error.message })
+  }
 
-    const enrolledStudents = await prisma.subjectEnrollment.findMany({
-      where: { subjectId },
-      include: {
-        student: {
-          include: {
-            user: {
-              select: {
-                id: true,
-                name: true,
-                email: true,
-                isActive: true
-              }
+  const enrolledStudents = await prisma.subjectEnrollment.findMany({
+    where: { subjectId },
+    include: {
+      student: {
+        include: {
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              isActive: true
             }
           }
         }
-      },
-      orderBy: {
-        student: { rollNumber: 'asc' }
       }
-    })
+    },
+    orderBy: {
+      student: { rollNumber: 'asc' }
+    }
+  })
 
-    const students = enrolledStudents
-      .filter(({ student }) => student?.user?.isActive)
-      .map(({ student }) => ({
-        id: student.id,
-        userId: student.user.id,
-        name: student.user.name,
-        email: student.user.email,
-        rollNumber: student.rollNumber,
-        semester: student.semester,
-        section: student.section,
-        department: student.department
-      }))
+  const students = enrolledStudents
+    .filter(({ student }) => student?.user?.isActive)
+    .map(({ student }) => ({
+      id: student.id,
+      userId: student.user.id,
+      name: student.user.name,
+      email: student.user.email,
+      rollNumber: student.rollNumber,
+      semester: student.semester,
+      section: student.section,
+      department: student.department
+    }))
 
-    result.ok({ total: students.length, students, subject: access.subject })
-  } catch (error) {
-    throw error
-  }
+  result.ok({ total: students.length, students, subject: access.subject })
 }
 
 /**
@@ -956,46 +927,42 @@ const getEnrolledStudentsBySubject = async (context, result = createServiceRespo
  * @returns {Promise<any>|any} Service result.
  */
 const getMyMarks = async (context, result = createServiceResponder()) => {
-  try {
     const { page, limit, skip } = getPagination(context.query)
-    const { examType } = context.query
-    const student = context.student
+  const { examType } = context.query
+  const student = context.student
 
-    if (!student) {
-      return result.withStatus(403, { message: 'Student profile not found' })
-    }
+  if (!student) {
+    return result.withStatus(403, { message: 'Student profile not found' })
+  }
 
-    const { availableExamTypes, selectedExamType } = await getStudentExamContext(student.id, examType)
+  const { availableExamTypes, selectedExamType } = await getStudentExamContext(student.id, examType)
 
-    if (!selectedExamType) {
-      return result.ok({
-        total: 0,
-        page,
-        limit,
-        examType: null,
-        availableExamTypes: [],
-        resultSheet: emptyStudentResultSheet()
-      })
-    }
-    const { marks, total, resultSheet } = await getPublishedStudentMarks({
-      studentId: student.id,
-      examType: selectedExamType,
-      skip,
-      take: limit
-    })
-
-    result.ok({
-      total,
+  if (!selectedExamType) {
+    return result.ok({
+      total: 0,
       page,
       limit,
-      examType: selectedExamType,
-      availableExamTypes,
-      marks: marks.map(decorateMark),
-      resultSheet
+      examType: null,
+      availableExamTypes: [],
+      resultSheet: emptyStudentResultSheet()
     })
-  } catch (error) {
-    throw error
   }
+  const { marks, total, resultSheet } = await getPublishedStudentMarks({
+    studentId: student.id,
+    examType: selectedExamType,
+    skip,
+    take: limit
+  })
+
+  result.ok({
+    total,
+    page,
+    limit,
+    examType: selectedExamType,
+    availableExamTypes,
+    marks: marks.map(decorateMark),
+    resultSheet
+  })
 }
 
 /**
@@ -1004,38 +971,34 @@ const getMyMarks = async (context, result = createServiceResponder()) => {
  * @returns {Promise<any>|any} Service result.
  */
 const deleteMarks = async (context, result = createServiceResponder()) => {
-  try {
     const { id } = context.params
 
-    const mark = await prisma.mark.findUnique({ where: { id } })
-    if (!mark) {
-      return result.withStatus(404, { message: 'Mark not found' })
-    }
-
-    const access = await getManagedSubject(mark.subjectId, context)
-    if (access.error) {
-      return result.withStatus(access.error.status, { message: access.error.message })
-    }
-
-    await prisma.mark.delete({ where: { id } })
-
-    result.ok({ message: 'Mark deleted successfully!' })
-
-    await recordAuditLog({
-      actorId: context.user.id,
-      actorRole: context.user.role,
-      action: 'MARK_DELETED',
-      entityType: 'Mark',
-      entityId: id,
-      metadata: {
-        studentId: mark.studentId,
-        subjectId: mark.subjectId,
-        examType: mark.examType
-      }
-    })
-  } catch (error) {
-    throw error
+  const mark = await prisma.mark.findUnique({ where: { id } })
+  if (!mark) {
+    return result.withStatus(404, { message: 'Mark not found' })
   }
+
+  const access = await getManagedSubject(mark.subjectId, context)
+  if (access.error) {
+    return result.withStatus(access.error.status, { message: access.error.message })
+  }
+
+  await prisma.mark.delete({ where: { id } })
+
+  result.ok({ message: 'Mark deleted successfully!' })
+
+  await recordAuditLog({
+    actorId: context.user.id,
+    actorRole: context.user.role,
+    action: 'MARK_DELETED',
+    entityType: 'Mark',
+    entityId: id,
+    metadata: {
+      studentId: mark.studentId,
+      subjectId: mark.subjectId,
+      examType: mark.examType
+    }
+  })
 }
 
 /**
@@ -1044,97 +1007,93 @@ const deleteMarks = async (context, result = createServiceResponder()) => {
  * @returns {Promise<any>|any} Service result.
  */
 const publishMarks = async (context, result = createServiceResponder()) => {
-  try {
     const { subjectId, examType } = context.body
 
-    if (!['COORDINATOR', 'ADMIN'].includes(context.user.role)) {
-      return result.withStatus(403, { message: 'Only admins and coordinators can publish exam results' })
-    }
+  if (!['COORDINATOR', 'ADMIN'].includes(context.user.role)) {
+    return result.withStatus(403, { message: 'Only admins and coordinators can publish exam results' })
+  }
 
-    if (examType === 'PRACTICAL') {
-      return result.withStatus(400, { message: 'Practical marks remain internal and cannot be published for students.' })
-    }
+  if (examType === 'PRACTICAL') {
+    return result.withStatus(400, { message: 'Practical marks remain internal and cannot be published for students.' })
+  }
 
-    const where = {
-      examType,
-      ...(subjectId ? { subjectId } : {}),
-      ...(context.user.role === 'COORDINATOR' && context.coordinator?.department
-        ? {
-            subject: {
-              department: context.coordinator.department
-            }
-          }
-        : {})
-    }
-
-    const existingCount = await prisma.mark.count({ where })
-    if (existingCount === 0) {
-      return result.withStatus(404, { message: 'No exam marks were found for the selected publication scope' })
-    }
-
-    const publishResult = await prisma.mark.updateMany({
-      where,
-      data: {
-        isPublished: true,
-        publishedAt: new Date(),
-        publishedBy: context.user.id
-      }
-    })
-
-    const scopeLabel = subjectId ? 'module' : 'selected scope'
-    result.ok({
-      message: `${examType} results published successfully for the selected ${scopeLabel}.`,
-      count: publishResult.count
-    })
-
-    const publishedMarks = await prisma.mark.findMany({
-      where,
-      select: {
-        student: {
-          select: {
-            userId: true
-          }
-        },
-        subject: {
-          select: {
-            name: true
+  const where = {
+    examType,
+    ...(subjectId ? { subjectId } : {}),
+    ...(context.user.role === 'COORDINATOR' && context.coordinator?.department
+      ? {
+          subject: {
+            department: context.coordinator.department
           }
         }
-      },
-      distinct: ['studentId']
-    })
-
-    await createNotifications({
-      userIds: publishedMarks.map((mark) => mark.student.userId),
-      type: 'MARKS_PUBLISHED',
-      title: `${examType} results published`,
-      message: subjectId
-        ? `Your ${examType.toLowerCase()} result for ${publishedMarks[0]?.subject?.name || 'the selected module'} is now available.`
-        : `Your ${examType.toLowerCase()} results are now available.`,
-      link: '/student/marks',
-      metadata: {
-        examType,
-        subjectId: subjectId || null,
-        audience: context.user.role
-      },
-      dedupeKeyFactory: (userId) => `marks-published:${userId}:${examType}:${subjectId || context.user.role}`
-    })
-
-    await recordAuditLog({
-      actorId: context.user.id,
-      actorRole: context.user.role,
-      action: 'MARKS_PUBLISHED',
-      entityType: 'Mark',
-      metadata: {
-        subjectId: subjectId || 'ALL_SELECTED_SUBJECTS',
-        examType,
-        count: publishResult.count,
-        audience: context.user.role
-      }
-    })
-  } catch (error) {
-    throw error
+      : {})
   }
+
+  const existingCount = await prisma.mark.count({ where })
+  if (existingCount === 0) {
+    return result.withStatus(404, { message: 'No exam marks were found for the selected publication scope' })
+  }
+
+  const publishResult = await prisma.mark.updateMany({
+    where,
+    data: {
+      isPublished: true,
+      publishedAt: new Date(),
+      publishedBy: context.user.id
+    }
+  })
+
+  const scopeLabel = subjectId ? 'module' : 'selected scope'
+  result.ok({
+    message: `${examType} results published successfully for the selected ${scopeLabel}.`,
+    count: publishResult.count
+  })
+
+  const publishedMarks = await prisma.mark.findMany({
+    where,
+    select: {
+      student: {
+        select: {
+          userId: true
+        }
+      },
+      subject: {
+        select: {
+          name: true
+        }
+      }
+    },
+    distinct: ['studentId']
+  })
+
+  await createNotifications({
+    userIds: publishedMarks.map((mark) => mark.student.userId),
+    type: 'MARKS_PUBLISHED',
+    title: `${examType} results published`,
+    message: subjectId
+      ? `Your ${examType.toLowerCase()} result for ${publishedMarks[0]?.subject?.name || 'the selected module'} is now available.`
+      : `Your ${examType.toLowerCase()} results are now available.`,
+    link: '/student/marks',
+    metadata: {
+      examType,
+      subjectId: subjectId || null,
+      audience: context.user.role
+    },
+    dedupeKeyFactory: (userId) => `marks-published:${userId}:${examType}:${subjectId || context.user.role}`
+  })
+
+  await recordAuditLog({
+    actorId: context.user.id,
+    actorRole: context.user.role,
+    action: 'MARKS_PUBLISHED',
+    entityType: 'Mark',
+    metadata: {
+      subjectId: subjectId || 'ALL_SELECTED_SUBJECTS',
+      examType,
+      count: publishResult.count,
+      audience: context.user.role
+    }
+  })
 }
 
 module.exports = {

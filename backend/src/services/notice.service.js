@@ -1,4 +1,3 @@
-/* eslint-disable no-useless-catch */
 const { createServiceResponder } = require('../utils/serviceResult')
 const prisma = require('../utils/prisma')
 const {
@@ -194,59 +193,55 @@ const canManageNotice = (context, notice) => (
  * @returns {Promise<any>|any} Service result.
  */
 const createNotice = async (context, result = createServiceResponder()) => {
-  try {
     const { title, content, type, audience, targetDepartment, targetSemester } = context.body
-    const sanitizedTitle = sanitizePlainText(title)
-    const sanitizedContent = sanitizePlainText(content)
+  const sanitizedTitle = sanitizePlainText(title)
+  const sanitizedContent = sanitizePlainText(content)
 
-    if (!validateSanitizedNotice({ title: sanitizedTitle, content: sanitizedContent }, result)) {
-      return
-    }
-
-    const targeting = resolveNoticeTargeting(context, { audience, targetDepartment, targetSemester })
-    if (targeting.error) {
-      return result.withStatus(targeting.error.status, { message: targeting.error.message })
-    }
-
-    const notice = await prisma.notice.create({
-      data: {
-        title: sanitizedTitle,
-        content: sanitizedContent,
-        type: type || 'GENERAL',
-        audience: targeting.data.audience,
-        targetDepartment: targeting.data.targetDepartment,
-        targetSemester: targeting.data.targetSemester,
-        postedBy: context.user.id
-      },
-      include: {
-        user: { select: { name: true, role: true } }
-      }
-    })
-
-    result.withStatus(201, {
-      message: 'Notice created successfully!',
-      notice
-    })
-
-    await notifyUsersAboutNotice(notice)
-
-    await recordAuditLog({
-      actorId: context.user.id,
-      actorRole: context.user.role,
-      action: 'NOTICE_CREATED',
-      entityType: 'Notice',
-      entityId: notice.id,
-      metadata: {
-        type: notice.type,
-        audience: notice.audience,
-        targetDepartment: notice.targetDepartment,
-        targetSemester: notice.targetSemester
-      }
-    })
-
-  } catch (error) {
-    throw error
+  if (!validateSanitizedNotice({ title: sanitizedTitle, content: sanitizedContent }, result)) {
+    return
   }
+
+  const targeting = resolveNoticeTargeting(context, { audience, targetDepartment, targetSemester })
+  if (targeting.error) {
+    return result.withStatus(targeting.error.status, { message: targeting.error.message })
+  }
+
+  const notice = await prisma.notice.create({
+    data: {
+      title: sanitizedTitle,
+      content: sanitizedContent,
+      type: type || 'GENERAL',
+      audience: targeting.data.audience,
+      targetDepartment: targeting.data.targetDepartment,
+      targetSemester: targeting.data.targetSemester,
+      postedBy: context.user.id
+    },
+    include: {
+      user: { select: { name: true, role: true } }
+    }
+  })
+
+  result.withStatus(201, {
+    message: 'Notice created successfully!',
+    notice
+  })
+
+  await notifyUsersAboutNotice(notice)
+
+  await recordAuditLog({
+    actorId: context.user.id,
+    actorRole: context.user.role,
+    action: 'NOTICE_CREATED',
+    entityType: 'Notice',
+    entityId: notice.id,
+    metadata: {
+      type: notice.type,
+      audience: notice.audience,
+      targetDepartment: notice.targetDepartment,
+      targetSemester: notice.targetSemester
+    }
+  })
+
 }
 
 // ================================
@@ -258,43 +253,39 @@ const createNotice = async (context, result = createServiceResponder()) => {
  * @returns {Promise<any>|any} Service result.
  */
 const getAllNotices = async (context, result = createServiceResponder()) => {
-  try {
     const { type, audience, search } = context.query
-    const { page, limit, skip } = getPagination(context.query)
+  const { page, limit, skip } = getPagination(context.query)
 
-    const filters = getVisibleNoticeFilters(context, { type, audience })
-    if (search) {
-      filters.AND = [
-        ...(filters.AND || []),
-        {
-          OR: [
-            { title: buildContainsSearch(search) },
-            { content: buildContainsSearch(search) },
-            { targetDepartment: buildContainsSearch(search) },
-            { user: { is: { name: buildContainsSearch(search) } } }
-          ]
-        }
-      ]
-    }
-
-    const [notices, total] = await Promise.all([
-      prisma.notice.findMany({
-        where: filters,
-        skip,
-        take: limit,
-        include: {
-          user: { select: { name: true, role: true } }
-        },
-        orderBy: { createdAt: 'desc' }
-      }),
-      prisma.notice.count({ where: filters })
-    ])
-
-    result.ok({ total, page, limit, notices })
-
-  } catch (error) {
-    throw error
+  const filters = getVisibleNoticeFilters(context, { type, audience })
+  if (search) {
+    filters.AND = [
+      ...(filters.AND || []),
+      {
+        OR: [
+          { title: buildContainsSearch(search) },
+          { content: buildContainsSearch(search) },
+          { targetDepartment: buildContainsSearch(search) },
+          { user: { is: { name: buildContainsSearch(search) } } }
+        ]
+      }
+    ]
   }
+
+  const [notices, total] = await Promise.all([
+    prisma.notice.findMany({
+      where: filters,
+      skip,
+      take: limit,
+      include: {
+        user: { select: { name: true, role: true } }
+      },
+      orderBy: { createdAt: 'desc' }
+    }),
+    prisma.notice.count({ where: filters })
+  ])
+
+  result.ok({ total, page, limit, notices })
+
 }
 
 // ================================
@@ -306,28 +297,24 @@ const getAllNotices = async (context, result = createServiceResponder()) => {
  * @returns {Promise<any>|any} Service result.
  */
 const getNoticeById = async (context, result = createServiceResponder()) => {
-  try {
     const { id } = context.params
 
-    const notice = await prisma.notice.findFirst({
-      where: {
-        id,
-        ...getVisibleNoticeFilters(context)
-      },
-      include: {
-        user: { select: { name: true, role: true } }
-      }
-    })
-
-    if (!notice) {
-      return result.withStatus(404, { message: 'Notice not found' })
+  const notice = await prisma.notice.findFirst({
+    where: {
+      id,
+      ...getVisibleNoticeFilters(context)
+    },
+    include: {
+      user: { select: { name: true, role: true } }
     }
+  })
 
-    result.ok({ notice })
-
-  } catch (error) {
-    throw error
+  if (!notice) {
+    return result.withStatus(404, { message: 'Notice not found' })
   }
+
+  result.ok({ notice })
+
 }
 
 // ================================
@@ -339,63 +326,59 @@ const getNoticeById = async (context, result = createServiceResponder()) => {
  * @returns {Promise<any>|any} Service result.
  */
 const updateNotice = async (context, result = createServiceResponder()) => {
-  try {
     const { id } = context.params
-    const { title, content, type, audience, targetDepartment, targetSemester } = context.body
-    const sanitizedTitle = sanitizePlainText(title)
-    const sanitizedContent = sanitizePlainText(content)
+  const { title, content, type, audience, targetDepartment, targetSemester } = context.body
+  const sanitizedTitle = sanitizePlainText(title)
+  const sanitizedContent = sanitizePlainText(content)
 
-    if (!validateSanitizedNotice({ title: sanitizedTitle, content: sanitizedContent }, result)) {
-      return
-    }
-
-    const notice = await prisma.notice.findUnique({ where: { id } })
-    if (!notice) {
-      return result.withStatus(404, { message: 'Notice not found' })
-    }
-
-    // Admins are notice moderators across departments; coordinators can manage
-    // department-targeted notices for their own department.
-    if (!canManageNotice(context, notice)) {
-      return result.withStatus(403, { message: 'You can only update notices you own or manage in your department' })
-    }
-
-    const targeting = resolveNoticeTargeting(context, { audience, targetDepartment, targetSemester })
-    if (targeting.error) {
-      return result.withStatus(targeting.error.status, { message: targeting.error.message })
-    }
-
-    const updated = await prisma.notice.update({
-      where: { id },
-      data: {
-        title: sanitizedTitle,
-        content: sanitizedContent,
-        type,
-        audience: targeting.data.audience,
-        targetDepartment: targeting.data.targetDepartment,
-        targetSemester: targeting.data.targetSemester
-      }
-    })
-
-    result.ok({ message: 'Notice updated successfully!', notice: updated })
-
-    await recordAuditLog({
-      actorId: context.user.id,
-      actorRole: context.user.role,
-      action: 'NOTICE_UPDATED',
-      entityType: 'Notice',
-      entityId: updated.id,
-      metadata: {
-        type: updated.type,
-        audience: updated.audience,
-        targetDepartment: updated.targetDepartment,
-        targetSemester: updated.targetSemester
-      }
-    })
-
-  } catch (error) {
-    throw error
+  if (!validateSanitizedNotice({ title: sanitizedTitle, content: sanitizedContent }, result)) {
+    return
   }
+
+  const notice = await prisma.notice.findUnique({ where: { id } })
+  if (!notice) {
+    return result.withStatus(404, { message: 'Notice not found' })
+  }
+
+  // Admins are notice moderators across departments; coordinators can manage
+  // department-targeted notices for their own department.
+  if (!canManageNotice(context, notice)) {
+    return result.withStatus(403, { message: 'You can only update notices you own or manage in your department' })
+  }
+
+  const targeting = resolveNoticeTargeting(context, { audience, targetDepartment, targetSemester })
+  if (targeting.error) {
+    return result.withStatus(targeting.error.status, { message: targeting.error.message })
+  }
+
+  const updated = await prisma.notice.update({
+    where: { id },
+    data: {
+      title: sanitizedTitle,
+      content: sanitizedContent,
+      type,
+      audience: targeting.data.audience,
+      targetDepartment: targeting.data.targetDepartment,
+      targetSemester: targeting.data.targetSemester
+    }
+  })
+
+  result.ok({ message: 'Notice updated successfully!', notice: updated })
+
+  await recordAuditLog({
+    actorId: context.user.id,
+    actorRole: context.user.role,
+    action: 'NOTICE_UPDATED',
+    entityType: 'Notice',
+    entityId: updated.id,
+    metadata: {
+      type: updated.type,
+      audience: updated.audience,
+      targetDepartment: updated.targetDepartment,
+      targetSemester: updated.targetSemester
+    }
+  })
+
 }
 
 // ================================
@@ -407,36 +390,32 @@ const updateNotice = async (context, result = createServiceResponder()) => {
  * @returns {Promise<any>|any} Service result.
  */
 const deleteNotice = async (context, result = createServiceResponder()) => {
-  try {
     const { id } = context.params
 
-    const notice = await prisma.notice.findUnique({ where: { id } })
-    if (!notice) {
-      return result.withStatus(404, { message: 'Notice not found' })
-    }
-
-    // Admins are notice moderators across departments; coordinators can manage
-    // department-targeted notices for their own department.
-    if (!canManageNotice(context, notice)) {
-      return result.withStatus(403, { message: 'You can only delete notices you own or manage in your department' })
-    }
-
-    await prisma.notice.delete({ where: { id } })
-
-    result.ok({ message: 'Notice deleted successfully!' })
-
-    await recordAuditLog({
-      actorId: context.user.id,
-      actorRole: context.user.role,
-      action: 'NOTICE_DELETED',
-      entityType: 'Notice',
-      entityId: id,
-      metadata: { type: notice.type }
-    })
-
-  } catch (error) {
-    throw error
+  const notice = await prisma.notice.findUnique({ where: { id } })
+  if (!notice) {
+    return result.withStatus(404, { message: 'Notice not found' })
   }
+
+  // Admins are notice moderators across departments; coordinators can manage
+  // department-targeted notices for their own department.
+  if (!canManageNotice(context, notice)) {
+    return result.withStatus(403, { message: 'You can only delete notices you own or manage in your department' })
+  }
+
+  await prisma.notice.delete({ where: { id } })
+
+  result.ok({ message: 'Notice deleted successfully!' })
+
+  await recordAuditLog({
+    actorId: context.user.id,
+    actorRole: context.user.role,
+    action: 'NOTICE_DELETED',
+    entityType: 'Notice',
+    entityId: id,
+    metadata: { type: notice.type }
+  })
+
 }
 
 module.exports = {

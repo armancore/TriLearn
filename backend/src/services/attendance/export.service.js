@@ -1,4 +1,3 @@
-/* eslint-disable no-useless-catch */
 const { createServiceResponder } = require('../../utils/serviceResult')
 const ExcelJS = require('exceljs')
 const PDFDocument = require('pdfkit')
@@ -226,28 +225,24 @@ const exportCoordinatorDepartmentReportWorkbook = async ({ result, report }) => 
  * @returns {Promise<any>|any} Service result.
  */
 const exportCoordinatorDepartmentAttendanceReport = async (context, result = createServiceResponder()) => {
-  try {
     const { month, semester, section, format = 'xlsx' } = context.query
-    const report = await getCoordinatorDepartmentReportPayload({
-      coordinator: context.coordinator,
-      month,
-      semester,
-      section
-    })
+  const report = await getCoordinatorDepartmentReportPayload({
+    coordinator: context.coordinator,
+    month,
+    semester,
+    section
+  })
 
-    if (report.error) {
-      return result.withStatus(report.error.status, { message: report.error.message })
-    }
-
-    if (format === 'pdf') {
-      exportCoordinatorDepartmentReportPdf({ result, report })
-      return
-    }
-
-    await exportCoordinatorDepartmentReportWorkbook({ result, report })
-  } catch (error) {
-    throw error
+  if (report.error) {
+    return result.withStatus(report.error.status, { message: report.error.message })
   }
+
+  if (format === 'pdf') {
+    exportCoordinatorDepartmentReportPdf({ result, report })
+    return
+  }
+
+  await exportCoordinatorDepartmentReportWorkbook({ result, report })
 }
 
 /**
@@ -256,30 +251,26 @@ const exportCoordinatorDepartmentAttendanceReport = async (context, result = cre
  * @returns {Promise<any>|any} Service result.
  */
 const exportAttendanceBySubject = async (context, result = createServiceResponder()) => {
-  try {
     const { subjectId } = context.params
-    const { date, month, format = 'xlsx' } = context.query
+  const { date, month, format = 'xlsx' } = context.query
 
-    const report = await getAttendanceExportPayload({
-      subjectId,
-      date,
-      month,
-      context
-    })
+  const report = await getAttendanceExportPayload({
+    subjectId,
+    date,
+    month,
+    context
+  })
 
-    if (report.error) {
-      return result.withStatus(report.error.status, { message: report.error.message })
-    }
-
-    if (format === 'pdf') {
-      exportAttendancePdf({ result, ...report })
-      return
-    }
-
-    await exportAttendanceWorkbook({ result, ...report })
-  } catch (error) {
-    throw error
+  if (report.error) {
+    return result.withStatus(report.error.status, { message: report.error.message })
   }
+
+  if (format === 'pdf') {
+    exportAttendancePdf({ result, ...report })
+    return
+  }
+
+  await exportAttendanceWorkbook({ result, ...report })
 }
 
 module.exports = {

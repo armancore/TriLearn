@@ -1,4 +1,3 @@
-/* eslint-disable no-useless-catch */
 const { createServiceResponder } = require('../utils/serviceResult')
 const crypto = require('crypto')
 const bcrypt = require('bcryptjs')
@@ -475,124 +474,120 @@ const submitStudentIntake = async (context, result = createServiceResponder()) =
 const login = async (context, result = createServiceResponder()) => {
   const startedAt = Date.now()
 
-  try {
     const { email: rawEmail, password, captchaToken, captchaAnswer } = context.body
-    const email = normalizeEmail(rawEmail)
+  const email = normalizeEmail(rawEmail)
 
-    const user = await prisma.user.findUnique({
-      where: { email },
-      select: loginUserSelect
+  const user = await prisma.user.findUnique({
+    where: { email },
+    select: loginUserSelect
+  })
+
+  const passwordHash = user?.password || DUMMY_PASSWORD_HASH
+  const isPasswordValid = await bcrypt.compare(password, passwordHash)
+
+  if (!user) {
+    await waitForMinimumDuration(startedAt, LOGIN_MIN_RESPONSE_MS)
+    return result.withStatus(401, { message: 'Invalid credentials' })
+  }
+
+  if (user.deletedAt) {
+    await waitForMinimumDuration(startedAt, LOGIN_MIN_RESPONSE_MS)
+    return result.withStatus(401, { message: 'Invalid credentials' })
+  }
+
+  if (user.lockedUntil && user.lockedUntil > new Date()) {
+    const retryAfterSeconds = Math.max(1, Math.ceil((user.lockedUntil.getTime() - Date.now()) / 1000))
+    await waitForMinimumDuration(startedAt, LOGIN_MIN_RESPONSE_MS)
+    return result.withStatus(401, {
+      message: 'Invalid credentials',
+      retryAfter: retryAfterSeconds
     })
+  }
 
-    const passwordHash = user?.password || DUMMY_PASSWORD_HASH
-    const isPasswordValid = await bcrypt.compare(password, passwordHash)
+  const requiresLoginCaptcha = shouldRequireLoginCaptcha(user)
+  const hasValidLoginCaptcha = !requiresLoginCaptcha || validateLoginCaptcha({ email, captchaToken, captchaAnswer })
 
-    if (!user) {
-      await waitForMinimumDuration(startedAt, LOGIN_MIN_RESPONSE_MS)
-      return result.withStatus(401, { message: 'Invalid credentials' })
-    }
+  // Always enforce captcha once threshold is reached to avoid password-oracle responses.
+  if (requiresLoginCaptcha && !hasValidLoginCaptcha) {
+    await waitForMinimumDuration(startedAt, LOGIN_MIN_RESPONSE_MS)
+    return result.withStatus(401, buildLoginCaptchaResponse(email))
+  }
 
-    if (user.deletedAt) {
-      await waitForMinimumDuration(startedAt, LOGIN_MIN_RESPONSE_MS)
-      return result.withStatus(401, { message: 'Invalid credentials' })
-    }
+  if (!isPasswordValid) {
+    const failedLoginAttempts = (user.failedLoginAttempts || 0) + 1
+    const shouldLockAccount = failedLoginAttempts >= MAX_FAILED_LOGIN_ATTEMPTS
 
-    if (user.lockedUntil && user.lockedUntil > new Date()) {
-      const retryAfterSeconds = Math.max(1, Math.ceil((user.lockedUntil.getTime() - Date.now()) / 1000))
-      await waitForMinimumDuration(startedAt, LOGIN_MIN_RESPONSE_MS)
-      return result.withStatus(401, {
-        message: 'Invalid credentials',
-        retryAfter: retryAfterSeconds
-      })
-    }
-
-    const requiresLoginCaptcha = shouldRequireLoginCaptcha(user)
-    const hasValidLoginCaptcha = !requiresLoginCaptcha || validateLoginCaptcha({ email, captchaToken, captchaAnswer })
-
-    // Always enforce captcha once threshold is reached to avoid password-oracle responses.
-    if (requiresLoginCaptcha && !hasValidLoginCaptcha) {
-      await waitForMinimumDuration(startedAt, LOGIN_MIN_RESPONSE_MS)
-      return result.withStatus(401, buildLoginCaptchaResponse(email))
-    }
-
-    if (!isPasswordValid) {
-      const failedLoginAttempts = (user.failedLoginAttempts || 0) + 1
-      const shouldLockAccount = failedLoginAttempts >= MAX_FAILED_LOGIN_ATTEMPTS
-
-      await prisma.user.update({
-        where: { id: user.id },
-        data: {
-          failedLoginAttempts,
-          lockedUntil: shouldLockAccount ? getLoginLockoutExpiry() : null
-        }
-      })
-
-      await waitForMinimumDuration(startedAt, LOGIN_MIN_RESPONSE_MS)
-
-      if (failedLoginAttempts >= LOGIN_CAPTCHA_THRESHOLD && !shouldLockAccount) {
-        return result.withStatus(401, buildLoginCaptchaResponse(email))
-      }
-
-      return result.withStatus(401, { message: 'Invalid credentials' })
-    }
-
-    if (!user.isActive) {
-      logger.warn('Suspended user login blocked', {
-        userId: user.id,
-        email: user.email
-      })
-
-      await waitForMinimumDuration(startedAt, LOGIN_MIN_RESPONSE_MS)
-      return result.withStatus(403, {
-        message: GENERIC_DISABLED_ACCOUNT_MESSAGE
-      })
-    }
-
-    if (user.failedLoginAttempts || user.lockedUntil) {
-      await prisma.user.update({
-        where: { id: user.id },
-        data: {
-          failedLoginAttempts: 0,
-          lockedUntil: null
-        }
-      })
-    }
-
-    const session = await issueAuthSession(user, result, context)
-    const authUser = await prisma.user.findUnique({
+    await prisma.user.update({
       where: { id: user.id },
-      select: getProfileSelect()
-    })
-
-    await recordAuditLog({
-      actorId: user.id,
-      actorRole: user.role,
-      action: 'AUTH_LOGIN',
-      entityType: 'AuthSession',
-      metadata: {
-        ipAddress: getRequestIpAddress(context),
-        userAgent: getRequestUserAgent(context)
+      data: {
+        failedLoginAttempts,
+        lockedUntil: shouldLockAccount ? getLoginLockoutExpiry() : null
       }
     })
 
     await waitForMinimumDuration(startedAt, LOGIN_MIN_RESPONSE_MS)
-    const responseBody = {
-      message: user.mustChangePassword
-        ? 'Login successful. Please change your password to continue.'
-        : 'Login successful!',
-      token: session.accessToken,
-      accessToken: session.accessToken,
-      user: buildAuthUser(authUser || user)
+
+    if (failedLoginAttempts >= LOGIN_CAPTCHA_THRESHOLD && !shouldLockAccount) {
+      return result.withStatus(401, buildLoginCaptchaResponse(email))
     }
 
-    if (isMobileClient(context)) {
-      responseBody.refreshToken = session.refreshToken
-    }
-
-    result.ok(responseBody)
-  } catch (error) {
-    throw error
+    return result.withStatus(401, { message: 'Invalid credentials' })
   }
+
+  if (!user.isActive) {
+    logger.warn('Suspended user login blocked', {
+      userId: user.id,
+      email: user.email
+    })
+
+    await waitForMinimumDuration(startedAt, LOGIN_MIN_RESPONSE_MS)
+    return result.withStatus(403, {
+      message: GENERIC_DISABLED_ACCOUNT_MESSAGE
+    })
+  }
+
+  if (user.failedLoginAttempts || user.lockedUntil) {
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        failedLoginAttempts: 0,
+        lockedUntil: null
+      }
+    })
+  }
+
+  const session = await issueAuthSession(user, result, context)
+  const authUser = await prisma.user.findUnique({
+    where: { id: user.id },
+    select: getProfileSelect()
+  })
+
+  await recordAuditLog({
+    actorId: user.id,
+    actorRole: user.role,
+    action: 'AUTH_LOGIN',
+    entityType: 'AuthSession',
+    metadata: {
+      ipAddress: getRequestIpAddress(context),
+      userAgent: getRequestUserAgent(context)
+    }
+  })
+
+  await waitForMinimumDuration(startedAt, LOGIN_MIN_RESPONSE_MS)
+  const responseBody = {
+    message: user.mustChangePassword
+      ? 'Login successful. Please change your password to continue.'
+      : 'Login successful!',
+    token: session.accessToken,
+    accessToken: session.accessToken,
+    user: buildAuthUser(authUser || user)
+  }
+
+  if (isMobileClient(context)) {
+    responseBody.refreshToken = session.refreshToken
+  }
+
+  result.ok(responseBody)
 }
 
 // ================================
@@ -604,16 +599,12 @@ const login = async (context, result = createServiceResponder()) => {
  * @returns {Promise<any>|any} Service result.
  */
 const getMe = async (context, result = createServiceResponder()) => {
-  try {
     const user = await prisma.user.findUnique({
-      where: { id: context.user.id },
-      select: getProfileSelect()
-    })
+    where: { id: context.user.id },
+    select: getProfileSelect()
+  })
 
-    result.ok({ user })
-  } catch (error) {
-    throw error
-  }
+  result.ok({ user })
 }
 
 /**
@@ -622,48 +613,44 @@ const getMe = async (context, result = createServiceResponder()) => {
  * @returns {Promise<any>|any} Service result.
  */
 const getStudentIdQr = async (context, result = createServiceResponder()) => {
-  try {
     if (context.user.role !== 'STUDENT') {
-      return result.withStatus(403, { message: 'Only students can access the ID QR.' })
-    }
-
-    const user = await prisma.user.findUnique({
-      where: { id: context.user.id },
-      select: getProfileSelect()
-    })
-
-    if (!user?.student) {
-      return result.withStatus(404, { message: 'Student profile not found' })
-    }
-
-    const expiresAt = getStudentIdQrExpiry()
-    const qrPayload = signQrPayload({
-      type: 'STUDENT_ID_CARD',
-      studentId: user.student.id,
-      rollNumber: user.student.rollNumber,
-      name: user.name,
-      email: user.email,
-      phone: user.phone || '',
-      department: user.student.department || '',
-      semester: user.student.semester,
-      section: user.student.section || '',
-      expiresAt: expiresAt.toISOString()
-    })
-
-    const qrCode = await QRCode.toDataURL(qrPayload, {
-      margin: 1,
-      width: 220
-    })
-
-    result.ok({
-      qrCode,
-      qrData: qrPayload,
-      rollNumber: user.student.rollNumber,
-      expiresAt
-    })
-  } catch (error) {
-    throw error
+    return result.withStatus(403, { message: 'Only students can access the ID QR.' })
   }
+
+  const user = await prisma.user.findUnique({
+    where: { id: context.user.id },
+    select: getProfileSelect()
+  })
+
+  if (!user?.student) {
+    return result.withStatus(404, { message: 'Student profile not found' })
+  }
+
+  const expiresAt = getStudentIdQrExpiry()
+  const qrPayload = signQrPayload({
+    type: 'STUDENT_ID_CARD',
+    studentId: user.student.id,
+    rollNumber: user.student.rollNumber,
+    name: user.name,
+    email: user.email,
+    phone: user.phone || '',
+    department: user.student.department || '',
+    semester: user.student.semester,
+    section: user.student.section || '',
+    expiresAt: expiresAt.toISOString()
+  })
+
+  const qrCode = await QRCode.toDataURL(qrPayload, {
+    margin: 1,
+    width: 220
+  })
+
+  result.ok({
+    qrCode,
+    qrData: qrPayload,
+    rollNumber: user.student.rollNumber,
+    expiresAt
+  })
 }
 
 /**
@@ -981,62 +968,58 @@ const completeProfile = async (context, result = createServiceResponder()) => {
 const forgotPassword = async (context, result = createServiceResponder()) => {
   const startedAt = Date.now()
 
-  try {
     if (!isPasswordResetEnabled()) {
-      return result.withStatus(501, {
-        message: 'Password reset is not available until email delivery is configured'
-      })
+    return result.withStatus(501, {
+      message: 'Password reset is not available until email delivery is configured'
+    })
+  }
+
+  const email = normalizeEmail(context.body?.email)
+
+  const user = await prisma.user.findUnique({
+    where: { email },
+    select: {
+      id: true,
+      name: true,
+      email: true
     }
+  })
 
-    const email = normalizeEmail(context.body?.email)
+  if (user) {
+    const resetToken = crypto.randomBytes(32).toString('hex')
+    const resetTokenHash = hashToken(resetToken)
+    const expiresAt = getResetTokenExpiry()
 
-    const user = await prisma.user.findUnique({
-      where: { email },
-      select: {
-        id: true,
-        name: true,
-        email: true
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        passwordResetTokenHash: resetTokenHash,
+        passwordResetExpiresAt: expiresAt
       }
     })
 
-    if (user) {
-      const resetToken = crypto.randomBytes(32).toString('hex')
-      const resetTokenHash = hashToken(resetToken)
-      const expiresAt = getResetTokenExpiry()
-
-      await prisma.user.update({
-        where: { id: user.id },
-        data: {
-          passwordResetTokenHash: resetTokenHash,
-          passwordResetExpiresAt: expiresAt
-        }
-      })
-
-      const resetUrl = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`
-      const { subject, html, text } = passwordResetTemplate({
-        name: user.name,
-        resetUrl
-      })
-
-      sendMail({ to: user.email, subject, html, text })
-        .then(() => {
-          logger.info('Password reset email queued', {
-            userId: user.id,
-            email: user.email
-          })
-        })
-        .catch((mailError) => {
-          logger.error(mailError.message, { stack: mailError.stack, userId: user.id })
-        })
-    }
-
-    await waitForMinimumDuration(startedAt, FORGOT_PASSWORD_MIN_RESPONSE_MS)
-    return result.withStatus(200, {
-      message: GENERIC_FORGOT_PASSWORD_MESSAGE
+    const resetUrl = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`
+    const { subject, html, text } = passwordResetTemplate({
+      name: user.name,
+      resetUrl
     })
-  } catch (error) {
-    throw error
+
+    sendMail({ to: user.email, subject, html, text })
+      .then(() => {
+        logger.info('Password reset email queued', {
+          userId: user.id,
+          email: user.email
+        })
+      })
+      .catch((mailError) => {
+        logger.error(mailError.message, { stack: mailError.stack, userId: user.id })
+      })
   }
+
+  await waitForMinimumDuration(startedAt, FORGOT_PASSWORD_MIN_RESPONSE_MS)
+  return result.withStatus(200, {
+    message: GENERIC_FORGOT_PASSWORD_MESSAGE
+  })
 }
 
 /**
@@ -1045,46 +1028,42 @@ const forgotPassword = async (context, result = createServiceResponder()) => {
  * @returns {Promise<any>|any} Service result.
  */
 const verifyEmail = async (context, result = createServiceResponder()) => {
-  try {
     const token = String(context.params?.token || '').trim()
-    if (!token) {
-      return result.withStatus(400, { message: 'Verification token is required' })
-    }
-
-    const tokenHash = hashEmailVerificationToken(token)
-    const user = await prisma.user.findFirst({
-      where: {
-        emailVerificationToken: tokenHash,
-        deletedAt: null
-      },
-      select: {
-        id: true,
-        emailVerified: true,
-        emailVerificationExpiry: true
-      }
-    })
-
-    if (!user || !user.emailVerificationExpiry || user.emailVerificationExpiry <= new Date()) {
-      return result.withStatus(400, { message: 'Verification link is invalid or expired' })
-    }
-
-    if (user.emailVerified) {
-      return result.withStatus(200, { message: 'Email verified successfully' })
-    }
-
-    await prisma.user.update({
-      where: { id: user.id },
-      data: {
-        emailVerified: true,
-        emailVerificationToken: null,
-        emailVerificationExpiry: null
-      }
-    })
-
-    result.withStatus(200, { message: 'Email verified successfully' })
-  } catch (error) {
-    throw error
+  if (!token) {
+    return result.withStatus(400, { message: 'Verification token is required' })
   }
+
+  const tokenHash = hashEmailVerificationToken(token)
+  const user = await prisma.user.findFirst({
+    where: {
+      emailVerificationToken: tokenHash,
+      deletedAt: null
+    },
+    select: {
+      id: true,
+      emailVerified: true,
+      emailVerificationExpiry: true
+    }
+  })
+
+  if (!user || !user.emailVerificationExpiry || user.emailVerificationExpiry <= new Date()) {
+    return result.withStatus(400, { message: 'Verification link is invalid or expired' })
+  }
+
+  if (user.emailVerified) {
+    return result.withStatus(200, { message: 'Email verified successfully' })
+  }
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data: {
+      emailVerified: true,
+      emailVerificationToken: null,
+      emailVerificationExpiry: null
+    }
+  })
+
+  result.withStatus(200, { message: 'Email verified successfully' })
 }
 
 /**
@@ -1093,43 +1072,39 @@ const verifyEmail = async (context, result = createServiceResponder()) => {
  * @returns {Promise<any>|any} Service result.
  */
 const resendVerification = async (context, result = createServiceResponder()) => {
-  try {
     const email = normalizeEmail(context.body?.email)
-    const user = await prisma.user.findUnique({
-      where: { email },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        emailVerified: true,
-        deletedAt: true
-      }
-    })
-
-    if (!user || user.deletedAt || user.emailVerified) {
-      return result.withStatus(200, { message: 'If this email needs verification, a new link has been sent.' })
+  const user = await prisma.user.findUnique({
+    where: { email },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      emailVerified: true,
+      deletedAt: true
     }
+  })
 
-    const emailVerification = createEmailVerificationToken()
-    await prisma.user.update({
-      where: { id: user.id },
-      data: {
-        emailVerificationToken: emailVerification.tokenHash,
-        emailVerificationExpiry: emailVerification.expiresAt
-      }
-    })
-
-    await sendEmailVerificationEmail({
-      email: user.email,
-      name: user.name,
-      token: emailVerification.token,
-      userId: user.id
-    })
-
-    result.withStatus(200, { message: 'If this email needs verification, a new link has been sent.' })
-  } catch (error) {
-    throw error
+  if (!user || user.deletedAt || user.emailVerified) {
+    return result.withStatus(200, { message: 'If this email needs verification, a new link has been sent.' })
   }
+
+  const emailVerification = createEmailVerificationToken()
+  await prisma.user.update({
+    where: { id: user.id },
+    data: {
+      emailVerificationToken: emailVerification.tokenHash,
+      emailVerificationExpiry: emailVerification.expiresAt
+    }
+  })
+
+  await sendEmailVerificationEmail({
+    email: user.email,
+    name: user.name,
+    token: emailVerification.token,
+    userId: user.id
+  })
+
+  result.withStatus(200, { message: 'If this email needs verification, a new link has been sent.' })
 }
 
 // ================================
@@ -1141,59 +1116,55 @@ const resendVerification = async (context, result = createServiceResponder()) =>
  * @returns {Promise<any>|any} Service result.
  */
 const resetPassword = async (context, result = createServiceResponder()) => {
-  try {
     if (!isPasswordResetEnabled()) {
-      return result.withStatus(501, {
-        message: 'Password reset is not available until email delivery is configured'
-      })
+    return result.withStatus(501, {
+      message: 'Password reset is not available until email delivery is configured'
+    })
+  }
+
+  const { token, password } = context.body
+  const tokenHash = hashToken(token)
+
+  const user = await prisma.user.findFirst({
+    where: {
+      passwordResetTokenHash: tokenHash,
+      passwordResetExpiresAt: {
+        gt: new Date()
+      }
+    },
+    select: {
+      id: true
     }
+  })
 
-    const { token, password } = context.body
-    const tokenHash = hashToken(token)
+  if (!user) {
+    return result.withStatus(400, { message: 'Password reset link is invalid or expired' })
+  }
 
-    const user = await prisma.user.findFirst({
-      where: {
-        passwordResetTokenHash: tokenHash,
-        passwordResetExpiresAt: {
-          gt: new Date()
-        }
-      },
-      select: {
-        id: true
+  const hashedPassword = await hashPassword(password)
+
+  await prisma.$transaction(async (tx) => {
+    await tx.user.update({
+      where: { id: user.id },
+      data: {
+        password: hashedPassword,
+        mustChangePassword: false,
+        passwordChangedAt: new Date(),
+        // Clear the consumed reset token so the link cannot be reused.
+        passwordResetTokenHash: null,
+        passwordResetExpiresAt: null,
+        failedLoginAttempts: 0,
+        lockedUntil: null
       }
     })
 
-    if (!user) {
-      return result.withStatus(400, { message: 'Password reset link is invalid or expired' })
-    }
-
-    const hashedPassword = await hashPassword(password)
-
-    await prisma.$transaction(async (tx) => {
-      await tx.user.update({
-        where: { id: user.id },
-        data: {
-          password: hashedPassword,
-          mustChangePassword: false,
-          passwordChangedAt: new Date(),
-          // Clear the consumed reset token so the link cannot be reused.
-          passwordResetTokenHash: null,
-          passwordResetExpiresAt: null,
-          failedLoginAttempts: 0,
-          lockedUntil: null
-        }
-      })
-
-      await tx.refreshToken.updateMany({
-        where: { userId: user.id },
-        data: { revokedAt: new Date() }
-      })
+    await tx.refreshToken.updateMany({
+      where: { userId: user.id },
+      data: { revokedAt: new Date() }
     })
+  })
 
-    result.ok({ message: 'Password reset successfully!' })
-  } catch (error) {
-    throw error
-  }
+  result.ok({ message: 'Password reset successfully!' })
 }
 
 const refreshSession = async (context, result, refreshToken, { includeRefreshToken = false, setRefreshCookie = true } = {}) => {
@@ -1311,41 +1282,10 @@ const refreshMobile = async (context, result) => refreshSession(
 const logout = async (context, result = createServiceResponder()) => {
   const startedAt = Date.now()
 
-  try {
     const refreshToken = context.cookies?.refreshToken
-    await revokeAccessTokenFromRequest(context)
+  await revokeAccessTokenFromRequest(context)
 
-    if (!refreshToken) {
-      result.expireCookie('refreshToken', {
-        ...getRefreshCookieOptions(context),
-        expires: new Date(0)
-      })
-
-      if (context.user?.id) {
-        await recordAuditLog({
-          actorId: context.user.id,
-          actorRole: context.user.role,
-          action: 'AUTH_LOGOUT',
-          entityType: 'AuthSession',
-          metadata: {
-            ipAddress: getRequestIpAddress(context),
-            userAgent: getRequestUserAgent(context)
-          }
-        })
-      }
-
-      await waitForMinimumDuration(startedAt, LOGOUT_MIN_RESPONSE_MS)
-      return result.ok({ message: 'Logged out successfully' })
-    }
-
-    await prisma.refreshToken.updateMany({
-      where: {
-        tokenHash: hashToken(refreshToken),
-        revokedAt: null
-      },
-      data: { revokedAt: new Date() }
-    })
-
+  if (!refreshToken) {
     result.expireCookie('refreshToken', {
       ...getRefreshCookieOptions(context),
       expires: new Date(0)
@@ -1365,10 +1305,37 @@ const logout = async (context, result = createServiceResponder()) => {
     }
 
     await waitForMinimumDuration(startedAt, LOGOUT_MIN_RESPONSE_MS)
-    result.ok({ message: 'Logged out successfully' })
-  } catch (error) {
-    throw error
+    return result.ok({ message: 'Logged out successfully' })
   }
+
+  await prisma.refreshToken.updateMany({
+    where: {
+      tokenHash: hashToken(refreshToken),
+      revokedAt: null
+    },
+    data: { revokedAt: new Date() }
+  })
+
+  result.expireCookie('refreshToken', {
+    ...getRefreshCookieOptions(context),
+    expires: new Date(0)
+  })
+
+  if (context.user?.id) {
+    await recordAuditLog({
+      actorId: context.user.id,
+      actorRole: context.user.role,
+      action: 'AUTH_LOGOUT',
+      entityType: 'AuthSession',
+      metadata: {
+        ipAddress: getRequestIpAddress(context),
+        userAgent: getRequestUserAgent(context)
+      }
+    })
+  }
+
+  await waitForMinimumDuration(startedAt, LOGOUT_MIN_RESPONSE_MS)
+  result.ok({ message: 'Logged out successfully' })
 }
 
 /**
@@ -1377,69 +1344,65 @@ const logout = async (context, result = createServiceResponder()) => {
  * @returns {Promise<any>|any} Service result.
  */
 const getActivity = async (context, result = createServiceResponder()) => {
-  try {
     const currentRefreshToken = context.cookies?.refreshToken
-    const currentTokenHash = currentRefreshToken ? hashToken(currentRefreshToken) : null
-    const now = new Date()
+  const currentTokenHash = currentRefreshToken ? hashToken(currentRefreshToken) : null
+  const now = new Date()
 
-    const [activity, currentSession, sessions] = await Promise.all([
-      prisma.auditLog.findMany({
-        where: { actorId: context.user.id },
-        orderBy: { createdAt: 'desc' },
-        take: 10
-      }),
-      currentTokenHash
-        ? prisma.refreshToken.findFirst({
-          where: {
-            userId: context.user.id,
-            tokenHash: currentTokenHash,
-            revokedAt: null,
-            expiresAt: { gt: now }
-          },
-          select: {
-            id: true
-          }
-        })
-        : null,
-      prisma.refreshToken.findMany({
+  const [activity, currentSession, sessions] = await Promise.all([
+    prisma.auditLog.findMany({
+      where: { actorId: context.user.id },
+      orderBy: { createdAt: 'desc' },
+      take: 10
+    }),
+    currentTokenHash
+      ? prisma.refreshToken.findFirst({
         where: {
           userId: context.user.id,
+          tokenHash: currentTokenHash,
           revokedAt: null,
           expiresAt: { gt: now }
         },
-        orderBy: { createdAt: 'desc' },
         select: {
-          id: true,
-          ipAddress: true,
-          userAgent: true,
-          createdAt: true,
-          lastUsedAt: true,
-          expiresAt: true
+          id: true
         }
       })
-    ])
-
-    result.ok({
-      activity: activity.map((item) => ({
-        id: item.id,
-        action: item.action,
-        entityType: item.entityType,
-        metadata: item.metadata,
-        createdAt: item.createdAt
-      })),
-      sessions: sessions.map((session) => ({
-        id: session.id,
-        ipAddress: session.ipAddress,
-        userAgent: session.userAgent,
-        createdAt: session.createdAt,
-        lastUsedAt: session.lastUsedAt,
-        expiresAt: session.expiresAt,
-        current: currentSession ? session.id === currentSession.id : false
-      }))
+      : null,
+    prisma.refreshToken.findMany({
+      where: {
+        userId: context.user.id,
+        revokedAt: null,
+        expiresAt: { gt: now }
+      },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        ipAddress: true,
+        userAgent: true,
+        createdAt: true,
+        lastUsedAt: true,
+        expiresAt: true
+      }
     })
-  } catch (error) {
-    throw error
-  }
+  ])
+
+  result.ok({
+    activity: activity.map((item) => ({
+      id: item.id,
+      action: item.action,
+      entityType: item.entityType,
+      metadata: item.metadata,
+      createdAt: item.createdAt
+    })),
+    sessions: sessions.map((session) => ({
+      id: session.id,
+      ipAddress: session.ipAddress,
+      userAgent: session.userAgent,
+      createdAt: session.createdAt,
+      lastUsedAt: session.lastUsedAt,
+      expiresAt: session.expiresAt,
+      current: currentSession ? session.id === currentSession.id : false
+    }))
+  })
 }
 
 /**
@@ -1448,38 +1411,34 @@ const getActivity = async (context, result = createServiceResponder()) => {
  * @returns {Promise<any>|any} Service result.
  */
 const logoutAll = async (context, result = createServiceResponder()) => {
-  try {
     await revokeAccessTokenFromRequest(context)
-    await revokeAllAccessTokensForUser(context.user.id)
+  await revokeAllAccessTokensForUser(context.user.id)
 
-    await prisma.refreshToken.updateMany({
-      where: {
-        userId: context.user.id,
-        revokedAt: null
-      },
-      data: { revokedAt: new Date() }
-    })
+  await prisma.refreshToken.updateMany({
+    where: {
+      userId: context.user.id,
+      revokedAt: null
+    },
+    data: { revokedAt: new Date() }
+  })
 
-    result.expireCookie('refreshToken', {
-      ...getRefreshCookieOptions(context),
-      expires: new Date(0)
-    })
+  result.expireCookie('refreshToken', {
+    ...getRefreshCookieOptions(context),
+    expires: new Date(0)
+  })
 
-    await recordAuditLog({
-      actorId: context.user.id,
-      actorRole: context.user.role,
-      action: 'AUTH_LOGOUT_ALL_DEVICES',
-      entityType: 'AuthSession',
-      metadata: {
-        ipAddress: getRequestIpAddress(context),
-        userAgent: getRequestUserAgent(context)
-      }
-    })
+  await recordAuditLog({
+    actorId: context.user.id,
+    actorRole: context.user.role,
+    action: 'AUTH_LOGOUT_ALL_DEVICES',
+    entityType: 'AuthSession',
+    metadata: {
+      ipAddress: getRequestIpAddress(context),
+      userAgent: getRequestUserAgent(context)
+    }
+  })
 
-    result.ok({ message: 'Signed out from all devices successfully' })
-  } catch (error) {
-    throw error
-  }
+  result.ok({ message: 'Signed out from all devices successfully' })
 }
 
 module.exports = {

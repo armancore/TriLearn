@@ -15,6 +15,12 @@ const requiredProductionMail = [
   'RESEND_SMTP_USER',
   'RESEND_SMTP_PASS'
 ]
+const s3EnvVars = [
+  'S3_BUCKET',
+  'S3_REGION',
+  'S3_ACCESS_KEY',
+  'S3_SECRET_KEY'
+]
 const validNodeEnvironments = new Set(['development', 'test', 'production'])
 const validBooleanFlagValues = new Set(['true', 'false'])
 
@@ -47,6 +53,13 @@ const validateEnv = () => {
   if (process.env.NODE_ENV === 'production' && !process.env.REDIS_URL) {
     console.error('Missing required env var: REDIS_URL. Production rate limiting must use Redis.')
     process.exit(1)
+  }
+
+  if (process.env.NODE_ENV === 'production') {
+    const missingS3EnvVars = s3EnvVars.filter((key) => !String(process.env[key] || '').trim())
+    if (missingS3EnvVars.length > 0) {
+      console.warn(`Warning: Missing S3 env vars: ${missingS3EnvVars.join(', ')}. Uploads will fall back to local disk and will not be shared across instances.`)
+    }
   }
 
   if (process.env.NODE_ENV === 'production' && process.env.DISABLE_RATE_LIMITS === 'true') {

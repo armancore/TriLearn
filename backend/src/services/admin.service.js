@@ -1,4 +1,3 @@
-/* eslint-disable no-useless-catch */
 const { createServiceResponder } = require('../utils/serviceResult')
 const prisma = require('../utils/prisma')
 const {
@@ -13,36 +12,32 @@ const {
  * @returns {Promise<any>|any} Service result.
  */
 const getAdminStats = async (context, result = createServiceResponder()) => {
-  try {
     const sharedStats = await readSharedStatsCache()
-    if (sharedStats) {
-      return result.ok({ stats: sharedStats })
-    }
-
-    const [totalUsers, totalStudents, totalInstructors, totalCoordinators, totalGatekeepers, totalSubjects] = await Promise.all([
-      prisma.user.count({ where: { deletedAt: null } }),
-      prisma.user.count({ where: { role: 'STUDENT', deletedAt: null } }),
-      prisma.user.count({ where: { role: 'INSTRUCTOR', deletedAt: null } }),
-      prisma.user.count({ where: { role: 'COORDINATOR', deletedAt: null } }),
-      prisma.user.count({ where: { role: 'GATEKEEPER', deletedAt: null } }),
-      prisma.subject.count()
-    ])
-
-    const stats = {
-      totalUsers,
-      totalStudents,
-      totalInstructors,
-      totalCoordinators,
-      totalGatekeepers,
-      totalSubjects
-    }
-
-    await writeSharedStatsCache(stats)
-
-    result.ok({ stats })
-  } catch (error) {
-    throw error
+  if (sharedStats) {
+    return result.ok({ stats: sharedStats })
   }
+
+  const [totalUsers, totalStudents, totalInstructors, totalCoordinators, totalGatekeepers, totalSubjects] = await Promise.all([
+    prisma.user.count({ where: { deletedAt: null } }),
+    prisma.user.count({ where: { role: 'STUDENT', deletedAt: null } }),
+    prisma.user.count({ where: { role: 'INSTRUCTOR', deletedAt: null } }),
+    prisma.user.count({ where: { role: 'COORDINATOR', deletedAt: null } }),
+    prisma.user.count({ where: { role: 'GATEKEEPER', deletedAt: null } }),
+    prisma.subject.count()
+  ])
+
+  const stats = {
+    totalUsers,
+    totalStudents,
+    totalInstructors,
+    totalCoordinators,
+    totalGatekeepers,
+    totalSubjects
+  }
+
+  await writeSharedStatsCache(stats)
+
+  result.ok({ stats })
 }
 
 const {

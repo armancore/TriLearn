@@ -82,7 +82,12 @@ const verifySocketTokenUser = async (token) => {
   return user
 }
 
-const createSocketEventRateLimiter = ({ maxEvents, windowMs, now = () => Date.now() }) => {
+/*
+ * This rate limiter is per-connection and in-process. It does not share
+ * state across cluster instances. For multi-instance deployments, replace
+ * with a Redis-backed sliding window counter keyed on socket.data.user.id.
+ */
+const createSocketEventRateLimiter = ({ maxEvents, windowMs, now = () => Date.now(), redisClient = null, socket = null }) => {
   let tokens = maxEvents
   let lastRefillAt = now()
 
@@ -100,6 +105,19 @@ const createSocketEventRateLimiter = ({ maxEvents, windowMs, now = () => Date.no
 
   return {
     consume: (cost = 1) => {
+      const userId = socket?.data?.user?.id
+      if (redisClient && userId) {
+        const windowKey = Math.floor(now() / windowMs)
+        const key = `socket-rate:${userId}:${windowKey}`
+        return redisClient.incr(key).then(async (count) => {
+          if (count === 1) {
+            await redisClient.expire(key, Math.ceil(windowMs / 1000))
+          }
+
+          return count <= maxEvents
+        })
+      }
+
       refillTokens()
       if (tokens < cost) {
         return false
@@ -158,6 +176,7 @@ const initRealtime = async ({ server, allowedOrigins = [] }) => {
   })
 
   await attachRedisAdapter(io)
+  const redisRateLimiterClient = await getReadyRedisClient({ context: 'Socket event rate limiter' })
 
   io.use(async (socket, next) => {
     try {
@@ -182,16 +201,18 @@ const initRealtime = async ({ server, allowedOrigins = [] }) => {
 
     const eventRateLimiter = createSocketEventRateLimiter({
       maxEvents: SOCKET_EVENT_RATE_LIMIT_MAX,
-      windowMs: SOCKET_EVENT_RATE_LIMIT_WINDOW_MS
+      windowMs: SOCKET_EVENT_RATE_LIMIT_WINDOW_MS,
+      redisClient: redisRateLimiterClient,
+      socket
     })
 
-    socket.use((packet, next) => {
+    socket.use(async (packet, next) => {
       const eventName = Array.isArray(packet) ? packet[0] : null
       if (eventName === 'disconnect' || eventName === 'disconnecting') {
         return next()
       }
 
-      if (eventRateLimiter.consume()) {
+      if (await eventRateLimiter.consume()) {
         return next()
       }
 

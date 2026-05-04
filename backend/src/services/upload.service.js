@@ -1,4 +1,3 @@
-/* eslint-disable no-useless-catch */
 const { createServiceResponder } = require('../utils/serviceResult')
 const fs = require('fs')
 const path = require('path')
@@ -183,92 +182,88 @@ const logUploadAccessDenied = async (context, fileName, resourceType) => {
  * @returns {Promise<any>|any} Service result.
  */
 const serveUploadedFile = async (context, result = createServiceResponder()) => {
-  try {
     const fileName = path.basename(String(context.params.filename || ''))
-    if (!fileName) {
-      return result.withStatus(404, { message: 'File not found' })
+  if (!fileName) {
+    return result.withStatus(404, { message: 'File not found' })
+  }
+
+  const relativePaths = buildRelativeUploadPaths(fileName)
+
+  const user = context.user
+
+  const avatar = await prisma.user.findFirst({
+    where: { avatar: { in: relativePaths } },
+    select: { id: true }
+  })
+
+  if (avatar) {
+    if (!user || (user.id !== avatar.id && !['ADMIN', 'COORDINATOR'].includes(user.role))) {
+      await logUploadAccessDenied(context, fileName, 'AVATAR')
+      return result.withStatus(403, { message: 'Access denied' })
     }
 
-    const relativePaths = buildRelativeUploadPaths(fileName)
+    return sendUploadFile(result, fileName)
+  }
 
-    const user = context.user
+  const assignment = await prisma.assignment.findFirst({
+    where: { questionPdfUrl: { in: relativePaths } },
+    select: {
+      id: true,
+      subjectId: true,
+      instructorId: true
+    }
+  })
 
-    const avatar = await prisma.user.findFirst({
-      where: { avatar: { in: relativePaths } },
-      select: { id: true }
-    })
-
-    if (avatar) {
-      if (!user || (user.id !== avatar.id && !['ADMIN', 'COORDINATOR'].includes(user.role))) {
-        await logUploadAccessDenied(context, fileName, 'AVATAR')
-        return result.withStatus(403, { message: 'Access denied' })
-      }
-
-      return sendUploadFile(result, fileName)
+  if (assignment) {
+    if (!(await canAccessAssignmentFile(user, assignment))) {
+      await logUploadAccessDenied(context, fileName, 'ASSIGNMENT')
+      return result.withStatus(403, { message: 'Access denied' })
     }
 
-    const assignment = await prisma.assignment.findFirst({
-      where: { questionPdfUrl: { in: relativePaths } },
-      select: {
-        id: true,
-        subjectId: true,
-        instructorId: true
-      }
-    })
+    return sendUploadFile(result, fileName)
+  }
 
-    if (assignment) {
-      if (!(await canAccessAssignmentFile(user, assignment))) {
-        await logUploadAccessDenied(context, fileName, 'ASSIGNMENT')
-        return result.withStatus(403, { message: 'Access denied' })
-      }
-
-      return sendUploadFile(result, fileName)
-    }
-
-    const submission = await prisma.submission.findFirst({
-      where: { fileUrl: { in: relativePaths } },
-      select: {
-        id: true,
-        studentId: true,
-        assignment: {
-          select: {
-            instructorId: true
-          }
+  const submission = await prisma.submission.findFirst({
+    where: { fileUrl: { in: relativePaths } },
+    select: {
+      id: true,
+      studentId: true,
+      assignment: {
+        select: {
+          instructorId: true
         }
       }
-    })
+    }
+  })
 
-    if (submission) {
-      if (!(await canAccessSubmissionFile(user, submission))) {
-        await logUploadAccessDenied(context, fileName, 'SUBMISSION')
-        return result.withStatus(403, { message: 'Access denied' })
-      }
-
-      return sendUploadFile(result, fileName)
+  if (submission) {
+    if (!(await canAccessSubmissionFile(user, submission))) {
+      await logUploadAccessDenied(context, fileName, 'SUBMISSION')
+      return result.withStatus(403, { message: 'Access denied' })
     }
 
-    const material = await prisma.studyMaterial.findFirst({
-      where: { fileUrl: { in: relativePaths } },
-      select: {
-        id: true,
-        subjectId: true,
-        instructorId: true
-      }
-    })
-
-    if (material) {
-      if (!(await canAccessMaterialFile(user, material))) {
-        await logUploadAccessDenied(context, fileName, 'MATERIAL')
-        return result.withStatus(403, { message: 'Access denied' })
-      }
-
-      return sendUploadFile(result, fileName)
-    }
-
-    return result.withStatus(404, { message: 'File not found' })
-  } catch (error) {
-    throw error
+    return sendUploadFile(result, fileName)
   }
+
+  const material = await prisma.studyMaterial.findFirst({
+    where: { fileUrl: { in: relativePaths } },
+    select: {
+      id: true,
+      subjectId: true,
+      instructorId: true
+    }
+  })
+
+  if (material) {
+    if (!(await canAccessMaterialFile(user, material))) {
+      await logUploadAccessDenied(context, fileName, 'MATERIAL')
+      return result.withStatus(403, { message: 'Access denied' })
+    }
+
+    return sendUploadFile(result, fileName)
+  }
+
+  return result.withStatus(404, { message: 'File not found' })
 }
 
 module.exports = {
