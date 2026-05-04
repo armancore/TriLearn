@@ -98,15 +98,24 @@ const revokeAllAccessTokensForUser = async (userId) => {
     const userJtiKey = getUserAccessJtiKey(userId)
     const entries = await redis.sMembers(userJtiKey)
     let revokedCount = 0
+    const pipeline = typeof redis.multi === 'function' ? redis.multi() : null
 
     for (const entry of entries) {
       const [jti, expValue] = String(entry).split(':')
       const ttlSeconds = getRemainingTtlSeconds(Number(expValue))
 
       if (jti && ttlSeconds > 0) {
-        await redis.set(`${REVOKED_JTI_PREFIX}${jti}`, '1', { EX: ttlSeconds })
+        if (pipeline) {
+          pipeline.set(`${REVOKED_JTI_PREFIX}${jti}`, '1', { EX: ttlSeconds })
+        } else {
+          await redis.set(`${REVOKED_JTI_PREFIX}${jti}`, '1', { EX: ttlSeconds })
+        }
         revokedCount += 1
       }
+    }
+
+    if (pipeline && revokedCount > 0) {
+      await pipeline.exec()
     }
 
     if (entries.length > 0) {

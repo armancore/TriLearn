@@ -5,7 +5,7 @@
 - Set `NODE_ENV=production`
 - Provide a production `DATABASE_URL`
 - Run `npm run prisma:migrate:deploy` before starting the app
-- Expose `GET /health` for container and platform health checks
+- Expose `GET /health` for container and platform health checks, and set `HEALTHCHECK_KEY` for public load balancers
 - Configure `FRONTEND_URL` with the exact deployed frontend origin
 - Set upload storage env vars explicitly if you keep local-disk uploads
 - Set `FORCE_HTTPS=true` after confirming the reverse proxy forwards HTTPS metadata
@@ -43,6 +43,17 @@ DATABASE_URL=postgresql://USER:PASSWORD@HOST:5432/trilearn?connection_limit=10&p
 
 - `GET /ping` for a simple liveness probe
 - `GET /health` for a database-backed readiness probe
+
+`GET /health` is intentionally private by default. Requests from non-private
+IP addresses return `404` unless they include the configured health-check key.
+For cloud load balancers that probe from public IP ranges, set:
+
+```env
+HEALTHCHECK_KEY=replace-with-a-random-token
+```
+
+Then configure the probe to send that value as the `x-health-check-key`
+request header.
 
 ## HTTPS reverse proxy
 
@@ -125,23 +136,20 @@ docker run --env-file backend/.env -p 5000:5000 trilearn-backend
 
 ## File storage
 
-This repo now supports configurable upload paths and public URLs:
+This repo supports S3 object storage with a local-disk fallback for development:
 
 ```env
 UPLOAD_DIR=/app/uploads
 UPLOAD_PUBLIC_PATH=/uploads
 UPLOAD_BASE_URL=
+S3_BUCKET=
+S3_REGION=
+S3_ACCESS_KEY=
+S3_SECRET_KEY=
 ```
 
 Important:
 
-Local-disk uploads are still not suitable for stateless production platforms like Railway, Render, or Heroku-style ephemeral filesystems.
-
-Before serious production deployment, move uploads to object storage such as:
-
-- Amazon S3
-- Cloudflare R2
-- Supabase Storage
-- Cloudinary
-
-The current abstraction improves configuration, but it is not a full S3 integration yet.
+When all `S3_*` values are set, uploads are stored in S3. If any are blank,
+the backend falls back to local disk and logs a warning. Local-disk uploads are
+not suitable for stateless production platforms or multi-instance deployments.

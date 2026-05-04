@@ -1,5 +1,6 @@
 const crypto = require('crypto')
 const jwt = require('jsonwebtoken')
+const { isPrivateIpv4, isPrivateIpv6 } = require('./network')
 
 const ACCESS_TOKEN_EXPIRES_IN = process.env.ACCESS_TOKEN_EXPIRES_IN || '15m'
 const REFRESH_TOKEN_EXPIRES_DAYS = parseInt(process.env.REFRESH_TOKEN_EXPIRES_DAYS || '7', 10)
@@ -61,45 +62,11 @@ const getRequestHost = (req) => String(req?.hostname || req?.headers?.host || ''
   .trim()
   .toLowerCase()
 
-const isPrivateIpv4Host = (host) => {
-  if (!/^\d{1,3}(?:\.\d{1,3}){3}$/.test(host)) {
-    return false
-  }
-
-  const octets = host.split('.').map((part) => Number.parseInt(part, 10))
-  if (octets.some((part) => !Number.isInteger(part) || part < 0 || part > 255)) {
-    return false
-  }
-
-  const [first, second] = octets
-  return (
-    first === 10 ||
-    first === 127 ||
-    (first === 192 && second === 168) ||
-    (first === 172 && second >= 16 && second <= 31)
-  )
-}
-
-const isPrivateIpv6Host = (host) => {
-  if (!host.includes(':')) {
-    return false
-  }
-
-  const normalizedHost = host.toLowerCase()
-
-  return (
-    normalizedHost === '::1' ||
-    normalizedHost.startsWith('fc') ||
-    normalizedHost.startsWith('fd') ||
-    normalizedHost.startsWith('fe80:')
-  )
-}
-
 const isLocalHost = (host) => (
   host === 'localhost' ||
   host.endsWith('.local') ||
-  isPrivateIpv4Host(host) ||
-  isPrivateIpv6Host(host)
+  isPrivateIpv4(host) ||
+  isPrivateIpv6(host)
 )
 
 const isSecureRequest = (req) => {
