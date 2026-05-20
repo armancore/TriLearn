@@ -4,6 +4,7 @@ import {
   Bell,
   BookOpenText,
   CalendarDays,
+  ClipboardList,
   FileText,
   LayoutDashboard,
   Percent,
@@ -30,6 +31,8 @@ const AdminLayout = ({ children }) => {
     { path: `${basePath}/applications`, label: 'Admissions', icon: FileText, meta: 'Application review' },
     { path: `${basePath}/departments`, label: 'Departments', icon: ShieldUser, meta: 'Department setup' },
     { path: `${basePath}/subjects`, label: 'Subjects', icon: BookOpenText, meta: 'Academic setup' },
+    { path: `${basePath}/assignments`, label: 'Assignments', icon: ClipboardList, meta: 'Question uploads' },
+    { path: `${basePath}/marks`, label: 'Results', icon: Percent, meta: 'Publish exam results' },
     { path: `${basePath}/student-qr`, label: 'Student QR', icon: Percent, meta: 'Gate scan windows' },
     { path: `${basePath}/profile`, label: 'Profile', icon: UserCircle2, meta: 'My account' }
   ]), [])

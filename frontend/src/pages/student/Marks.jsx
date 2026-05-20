@@ -164,7 +164,7 @@ const StudentMarks = () => {
                 <EmptyState
                   icon={FileText}
                   title="No published result found"
-                  description="Once the coordinator publishes your selected exam result, it will appear here with subject-wise marks and overall GPA."
+                  description="Once an admin publishes your selected exam result, it will appear here with subject-wise marks and overall GPA."
                 />
               </section>
             ) : (

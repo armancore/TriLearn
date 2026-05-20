@@ -696,6 +696,12 @@ const schemas = {
         examType: examTypeEnum.optional()
       })
     },
+    studentResult: {
+      params: z.object({ studentId: z.string().uuid() }),
+      query: z.object({
+        examType: examTypeEnum.optional()
+      })
+    },
     id: { params: uuidParam }
   },
   routines: {

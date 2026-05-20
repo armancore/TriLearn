@@ -4,6 +4,7 @@ const { protect, allowRoles } = require('../middleware/auth.middleware')
 const { attachActorProfiles } = require('../middleware/profile.middleware')
 const { validate } = require('../middleware/validate.middleware')
 const { schemas } = require('../validators/schemas')
+const marksController = require('../controllers/marks.controller')
 const {
   addMarks,
   addMarksBulk,
@@ -16,7 +17,8 @@ const {
   exportMyMarksheetPdf,
   deleteMarks,
   publishMarks
-} = require('../controllers/marks.controller')
+} = marksController
+const getStudentResultForStaff = marksController.getStudentResultForStaff || ((req, res) => res.status(501).json({ message: 'Student result review is not available' }))
 
 router.use(protect)
 router.use(attachActorProfiles)
@@ -44,11 +46,12 @@ router.use(attachActorProfiles)
  *       201:
  *         description: Mark created.
  */
-router.post('/', allowRoles('INSTRUCTOR'), validate(schemas.marks.create), addMarks)
-router.post('/bulk', allowRoles('INSTRUCTOR'), validate(schemas.marks.bulkCreate), addMarksBulk)
-router.put('/:id', allowRoles('INSTRUCTOR'), validate(schemas.marks.update), updateMarks)
-router.post('/publish', allowRoles('ADMIN', 'COORDINATOR'), validate(schemas.marksPublication.publish), publishMarks)
-router.get('/review', allowRoles('ADMIN', 'COORDINATOR'), validate(schemas.marks.review), getMarksReview)
+router.post('/', allowRoles('INSTRUCTOR', 'COORDINATOR'), validate(schemas.marks.create), addMarks)
+router.post('/bulk', allowRoles('INSTRUCTOR', 'COORDINATOR'), validate(schemas.marks.bulkCreate), addMarksBulk)
+router.put('/:id', allowRoles('INSTRUCTOR', 'COORDINATOR'), validate(schemas.marks.update), updateMarks)
+router.post('/publish', allowRoles('ADMIN'), validate(schemas.marksPublication.publish), publishMarks)
+router.get('/review', allowRoles('ADMIN', 'COORDINATOR', 'INSTRUCTOR'), validate(schemas.marks.review), getMarksReview)
+router.get('/students/:studentId/result', allowRoles('ADMIN', 'COORDINATOR', 'INSTRUCTOR'), validate(schemas.marks.studentResult), getStudentResultForStaff)
 
 // Admin + Instructor
 router.get('/subject/:subjectId', allowRoles('ADMIN', 'COORDINATOR', 'INSTRUCTOR'), validate(schemas.marks.bySubject), getMarksBySubject)

@@ -412,7 +412,26 @@ const getManagedSubject = async (subjectId, context) => {
   return { subject }
 }
 
-const buildStaffReviewFilters = ({ context, subjectId, examType }) => {
+const getViewableSubject = async (subjectId) => {
+  const subject = await prisma.subject.findUnique({
+    where: { id: subjectId },
+    include: {
+      instructor: {
+        include: {
+          user: { select: { name: true, email: true } }
+        }
+      }
+    }
+  })
+
+  if (!subject) {
+    return { error: { status: 404, message: 'Subject not found' } }
+  }
+
+  return { subject }
+}
+
+const buildStaffReviewFilters = ({ subjectId, examType }) => {
   const where = {}
 
   if (subjectId) {
@@ -421,21 +440,6 @@ const buildStaffReviewFilters = ({ context, subjectId, examType }) => {
 
   if (examType) {
     where.examType = examType
-  }
-
-  if (context.user.role === 'COORDINATOR') {
-    if (!context.coordinator?.department) {
-      return {
-        error: {
-          status: 403,
-          message: 'Coordinator department is not configured'
-        }
-      }
-    }
-
-    where.subject = {
-      department: context.coordinator.department
-    }
   }
 
   return { where }
@@ -521,6 +525,76 @@ const addMarks = async (context, result = createServiceResponder()) => {
     entityType: 'Mark',
     entityId: mark.id,
     metadata: { subjectId, studentId, examType }
+  })
+}
+
+/**
+ * @param {object} context - The request context passed by controllerAdapter
+ * @param {object} [result] - The serviceResult responder
+ * @returns {Promise<object>} Service result
+ */
+const getStudentResultForStaff = async (context, result = createServiceResponder()) => {
+  const { studentId } = context.params
+  const { examType } = context.query
+
+  const student = await prisma.student.findUnique({
+    where: { id: studentId },
+    include: {
+      user: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          isActive: true,
+          deletedAt: true
+        }
+      }
+    }
+  })
+
+  if (!student || !student.user?.isActive || student.user.deletedAt) {
+    return result.withStatus(404, { message: 'Student not found' })
+  }
+
+  const where = {
+    studentId,
+    ...(examType ? { examType } : {})
+  }
+
+  const marks = await prisma.mark.findMany({
+    where,
+    include: {
+      subject: { select: { id: true, name: true, code: true, semester: true, department: true } },
+      instructor: { include: { user: { select: { name: true, email: true } } } }
+    },
+    orderBy: [
+      { examType: 'asc' },
+      { subject: { code: 'asc' } }
+    ]
+  })
+
+  const decoratedMarks = marks.map(decorateMark)
+  const selectedExamTypes = [...new Set(decoratedMarks.map((mark) => mark.examType))]
+  const resultSheets = selectedExamTypes.reduce((sheets, type) => {
+    sheets[type] = buildStudentResultSheet(decoratedMarks.filter((mark) => mark.examType === type))
+    return sheets
+  }, {})
+
+  result.ok({
+    student: {
+      id: student.id,
+      userId: student.user.id,
+      name: student.user.name,
+      email: student.user.email,
+      rollNumber: student.rollNumber,
+      semester: student.semester,
+      section: student.section,
+      department: student.department
+    },
+    examType: examType || null,
+    availableExamTypes: selectedExamTypes,
+    marks: decoratedMarks,
+    resultSheets
   })
 }
 
@@ -666,7 +740,7 @@ const updateMarks = async (context, result = createServiceResponder()) => {
   })
 
   result.ok({
-    message: 'Marks updated successfully! The result is now unpublished until the coordinator publishes it again.',
+    message: 'Marks updated successfully! The result is now unpublished until an admin publishes it again.',
     mark: decorateMark(updated)
   })
 
@@ -690,7 +764,7 @@ const getMarksBySubject = async (context, result = createServiceResponder()) => 
   const { examType } = context.query
   const { page, limit, skip } = getPagination(context.query)
 
-  const access = await getManagedSubject(subjectId, context)
+  const access = await getViewableSubject(subjectId)
   if (access.error) {
     return result.withStatus(access.error.status, { message: access.error.message })
   }
@@ -749,7 +823,7 @@ const getMarksReview = async (context, result = createServiceResponder()) => {
     const { examType, subjectId } = context.query
   const { page, limit, skip } = getPagination(context.query)
 
-  const filters = buildStaffReviewFilters({ context, subjectId, examType })
+  const filters = buildStaffReviewFilters({ subjectId, examType })
   if (filters.error) {
     return result.withStatus(filters.error.status, { message: filters.error.message })
   }
@@ -935,8 +1009,8 @@ const deleteMarks = async (context, result = createServiceResponder()) => {
 const publishMarks = async (context, result = createServiceResponder()) => {
     const { subjectId, examType } = context.body
 
-  if (!['COORDINATOR', 'ADMIN'].includes(context.user.role)) {
-    return result.withStatus(403, { message: 'Only admins and coordinators can publish exam results' })
+  if (context.user.role !== 'ADMIN') {
+    return result.withStatus(403, { message: 'Only admins can publish exam results' })
   }
 
   if (examType === 'PRACTICAL') {
@@ -1027,6 +1101,7 @@ module.exports = {
   addMarksBulk,
   updateMarks,
   getMarksBySubject,
+  getStudentResultForStaff,
   getMarksReview,
   getEnrolledStudentsBySubject,
   getMyMarks,

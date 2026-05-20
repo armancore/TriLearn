@@ -4975,7 +4975,7 @@ test('getDayRange uses the configured attendance timezone for date boundaries', 
   }
 })
 
-test('publishMarks publishes marks for a coordinator department and returns count', async () => {
+test('publishMarks publishes marks for an admin-selected scope and returns count', async () => {
   const updateManyCalls = []
   const countCalls = []
   const { publishMarks } = loadWithMocks(resolveFromTest('src', 'controllers', 'marks.controller.js'), {
@@ -5017,8 +5017,7 @@ test('publishMarks publishes marks for a coordinator department and returns coun
       subjectId: 'subject-1',
       examType: 'MIDTERM'
     },
-    user: { id: 'coordinator-user-1', role: 'COORDINATOR' },
-    coordinator: { department: 'BCA' }
+    user: { id: 'admin-user-1', role: 'ADMIN' }
   }
   const res = createResponse()
 
@@ -5028,7 +5027,6 @@ test('publishMarks publishes marks for a coordinator department and returns coun
   assert.equal(res.body.count, 2)
   assert.equal(countCalls.length, 1)
   assert.equal(updateManyCalls.length, 1)
-  assert.equal(updateManyCalls[0].where.subject.department, 'BCA')
   assert.equal(updateManyCalls[0].where.subjectId, 'subject-1')
   assert.equal(updateManyCalls[0].where.examType, 'MIDTERM')
 })
@@ -5088,7 +5086,7 @@ test('deleteMarks blocks coordinators from deleting marks outside their departme
   assert.equal(deleteCalls.length, 0)
 })
 
-test('getMarksBySubject blocks coordinators from subjects outside their department', async () => {
+test('getMarksBySubject allows coordinators to view subjects outside their department', async () => {
   const findManyCalls = []
   const { getMarksBySubject } = loadWithMocks(resolveFromTest('src', 'controllers', 'marks.controller.js'), {
     '../utils/prisma': {
@@ -5132,14 +5130,12 @@ test('getMarksBySubject blocks coordinators from subjects outside their departme
 
   await getMarksBySubject(req, res)
 
-  assert.equal(res.statusCode, 403)
-  assert.deepEqual(res.body, {
-    message: 'You can only manage marks for subjects in your department'
-  })
-  assert.equal(findManyCalls.length, 0)
+  assert.equal(res.statusCode, 200)
+  assert.equal(findManyCalls.length, 1)
+  assert.deepEqual(findManyCalls[0].where, { subjectId: 'subject-1' })
 })
 
-test('getMarksBySubject blocks instructors from subjects assigned to a different instructor', async () => {
+test('getMarksBySubject allows instructors to view subjects assigned to a different instructor', async () => {
   const findManyCalls = []
   const { getMarksBySubject } = loadWithMocks(resolveFromTest('src', 'controllers', 'marks.controller.js'), {
     '../utils/prisma': {
@@ -5183,14 +5179,12 @@ test('getMarksBySubject blocks instructors from subjects assigned to a different
 
   await getMarksBySubject(req, res)
 
-  assert.equal(res.statusCode, 403)
-  assert.deepEqual(res.body, {
-    message: 'You can only view marks for your assigned subjects'
-  })
-  assert.equal(findManyCalls.length, 0)
+  assert.equal(res.statusCode, 200)
+  assert.equal(findManyCalls.length, 1)
+  assert.deepEqual(findManyCalls[0].where, { subjectId: 'subject-1' })
 })
 
-test('getMarksReview scopes coordinator queries to their department', async () => {
+test('getMarksReview lets coordinators review marks without department scoping', async () => {
   const findManyCalls = []
   const countCalls = []
   const { getMarksReview } = loadWithMocks(resolveFromTest('src', 'controllers', 'marks.controller.js'), {
@@ -5235,15 +5229,12 @@ test('getMarksReview scopes coordinator queries to their department', async () =
   assert.equal(countCalls.length, 1)
   assert.deepEqual(findManyCalls[0].where, {
     subjectId: 'subject-1',
-    examType: 'FINAL',
-    subject: {
-      department: 'BCA'
-    }
+    examType: 'FINAL'
   })
   assert.deepEqual(countCalls[0].where, findManyCalls[0].where)
 })
 
-test('getMarksReview blocks coordinators without a configured department', async () => {
+test('getMarksReview allows coordinators without a configured department to view results', async () => {
   const findManyCalls = []
   const countCalls = []
   const { getMarksReview } = loadWithMocks(resolveFromTest('src', 'controllers', 'marks.controller.js'), {
@@ -5283,12 +5274,13 @@ test('getMarksReview blocks coordinators without a configured department', async
 
   await getMarksReview(req, res)
 
-  assert.equal(res.statusCode, 403)
-  assert.deepEqual(res.body, {
-    message: 'Coordinator department is not configured'
+  assert.equal(res.statusCode, 200)
+  assert.equal(findManyCalls.length, 1)
+  assert.equal(countCalls.length, 1)
+  assert.deepEqual(findManyCalls[0].where, {
+    subjectId: 'subject-2',
+    examType: 'FINAL'
   })
-  assert.equal(findManyCalls.length, 0)
-  assert.equal(countCalls.length, 0)
 })
 
 test('createRoutine blocks instructor double-booking with a specific error', async () => {

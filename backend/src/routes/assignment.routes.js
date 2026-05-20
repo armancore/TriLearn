@@ -21,11 +21,11 @@ const {
 router.use(protect)
 router.use(attachActorProfiles)
 
-// Instructor routes
-router.post('/', allowRoles('INSTRUCTOR', 'COORDINATOR'), staffUploadLimiter, uploadPdf.single('questionPdf'), validateUploadedPdf, validate(schemas.assignments.create), createAssignment)
-router.put('/:id', allowRoles('INSTRUCTOR', 'COORDINATOR'), staffUploadLimiter, uploadPdf.single('questionPdf'), validateUploadedPdf, validate(schemas.assignments.update), updateAssignment)
-router.delete('/:id', allowRoles('INSTRUCTOR', 'COORDINATOR', 'ADMIN'), validate(schemas.assignments.id), deleteAssignment)
-router.patch('/submissions/:submissionId/grade', allowRoles('INSTRUCTOR', 'COORDINATOR'), validate(schemas.assignments.grade), gradeSubmission)
+// Assignment setup is owned by admins. Staff can review and grade submissions.
+router.post('/', allowRoles('ADMIN'), staffUploadLimiter, uploadPdf.single('questionPdf'), validateUploadedPdf, validate(schemas.assignments.create), createAssignment)
+router.put('/:id', allowRoles('ADMIN'), staffUploadLimiter, uploadPdf.single('questionPdf'), validateUploadedPdf, validate(schemas.assignments.update), updateAssignment)
+router.delete('/:id', allowRoles('ADMIN'), validate(schemas.assignments.id), deleteAssignment)
+router.patch('/submissions/:submissionId/grade', allowRoles('INSTRUCTOR', 'COORDINATOR', 'ADMIN'), validate(schemas.assignments.grade), gradeSubmission)
 router.get('/:id/export', allowRoles('INSTRUCTOR', 'COORDINATOR', 'ADMIN'), validate(schemas.assignments.id), exportAssignmentGrades)
 
 // Student routes

@@ -3,6 +3,7 @@ import { Plus } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
 import Alert from '../../components/Alert'
 import PageHeader from '../../components/PageHeader'
+import AdminLayout from '../../layouts/AdminLayout'
 import InstructorLayout from '../../layouts/InstructorLayout'
 import CoordinatorLayout from '../../layouts/CoordinatorLayout'
 import LoadingSkeleton from '../../components/LoadingSkeleton'
@@ -18,8 +19,10 @@ import logger from '../../utils/logger'
 
 const Assignments = () => {
   const { user } = useAuth()
+  const isAdmin = user?.role === ROLES.ADMIN
   const isCoordinator = user?.role === ROLES.COORDINATOR
-  const Layout = isCoordinator ? CoordinatorLayout : InstructorLayout
+  const Layout = isAdmin ? AdminLayout : isCoordinator ? CoordinatorLayout : InstructorLayout
+  const canCreateAssignment = isAdmin
   const [searchParams, setSearchParams] = useSearchParams()
   const initialSubjectRef = useRef(searchParams.get('subject') || '')
   const assignmentRequestRef = useRef(null)
@@ -197,8 +200,13 @@ const Assignments = () => {
   }, [selectedSubject, subjects, syncSubjectInUrl])
 
   const openAssignmentModal = () => {
+    if (!canCreateAssignment) {
+      setError('Only admins can add assignments.')
+      return
+    }
+
     if (!subjects.length) {
-      setError('No assigned modules found. Ask an admin or coordinator to assign a module to this instructor first.')
+      setError('No modules found. Create a module and assign a subject teacher before adding an assignment.')
       return
     }
 
@@ -337,16 +345,18 @@ const Assignments = () => {
     <Layout>
       <div className={isCoordinator ? 'coordinator-page p-4 md:p-8' : 'p-4 md:p-8'}>
         <PageHeader
-          title={isCoordinator ? 'Department Assignments' : 'Module Assignments'}
-          subtitle={isCoordinator ? 'Create assignments, review submissions, export marks, and send feedback across your department modules.' : 'Upload assignments for a module, review submissions, export marks, and send student feedback.'}
-          breadcrumbs={[isCoordinator ? 'Coordinator' : 'Instructor', 'Modules', 'Assignments']}
-          actions={[{
+          title={isAdmin ? 'Assignment Questions' : isCoordinator ? 'Department Assignments' : 'Module Tasks'}
+          subtitle={isAdmin
+            ? 'Upload assignment question PDFs for modules. Instructors and coordinators can review submissions and enter assignment marks.'
+            : 'Review student assignment submissions, export marks, and send feedback. Assignment question uploads are handled by admins.'}
+          breadcrumbs={[isAdmin ? 'Admin' : isCoordinator ? 'Coordinator' : 'Instructor', 'Modules', 'Assignments']}
+          actions={canCreateAssignment ? [{
             label: 'Add Assignment',
             icon: Plus,
             variant: 'primary',
-            disabled: !isCoordinator && subjects.length === 0,
+            disabled: subjects.length === 0,
             onClick: openAssignmentModal
-          }]}
+          }] : []}
         />
 
         <Alert type="error" message={error || assignmentsError} />
@@ -358,7 +368,7 @@ const Assignments = () => {
             onChange={(event) => handleSubjectChange(event.target.value)}
             className="ui-form-input"
           >
-            <option value="">{isCoordinator ? 'All Modules' : 'Select Module'}</option>
+            <option value="">{isAdmin || isCoordinator ? 'All Modules' : 'Select Module'}</option>
             {subjects.map((subject) => (
               <option key={subject.id} value={subject.id}>
                 {subject.name} - {subject.code}
@@ -367,7 +377,7 @@ const Assignments = () => {
           </select>
         </div>
 
-        {!isCoordinator && subjects.length === 0 ? (
+        {!isAdmin && !isCoordinator && subjects.length === 0 ? (
           <div className="rounded-2xl bg-[--color-bg-card] dark:bg-slate-800 p-10 shadow-sm dark:shadow-slate-900/50">
             <EmptyState
               icon="📝"
@@ -435,14 +445,14 @@ const Assignments = () => {
               <EmptyState
                 icon="📝"
                 title="No assignments yet"
-                description={isCoordinator ? 'Create the first department assignment to start collecting work.' : 'Create the first assignment for one of your modules to start collecting work.'}
+                description={isAdmin ? 'Add the first assignment question PDF to start collecting student answers.' : 'Assignments will appear here after an admin uploads question PDFs.'}
               />
             )}
           </div>
         )}
       </div>
 
-      {showModal && (
+      {showModal && canCreateAssignment && (
         <Modal title="Add Assignment To Module" onClose={() => setShowModal(false)}>
           <Alert type="error" message={error} />
           <form onSubmit={handleSubmit} className="space-y-4">

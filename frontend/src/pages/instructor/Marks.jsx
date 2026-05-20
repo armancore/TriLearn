@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Plus, UploadCloud } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
+import AdminLayout from '../../layouts/AdminLayout'
 import InstructorLayout from '../../layouts/InstructorLayout'
 import CoordinatorLayout from '../../layouts/CoordinatorLayout'
 import api from '../../utils/api'
@@ -30,13 +31,16 @@ const examTypeLabels = {
 const Marks = () => {
   const [searchParams] = useSearchParams()
   const { user } = useAuth()
+  const isAdmin = user?.role === ROLES.ADMIN
   const isCoordinator = user?.role === ROLES.COORDINATOR
-  const Layout = isCoordinator ? CoordinatorLayout : InstructorLayout
+  const Layout = isAdmin ? AdminLayout : isCoordinator ? CoordinatorLayout : InstructorLayout
+  const canAddExamMarks = !isAdmin
+  const canPublishResults = isAdmin
   const { subjects, loadSubjects } = useReferenceData()
   const [marks, setMarks] = useState([])
   const [students, setStudents] = useState([])
   const [selectedSubject, setSelectedSubject] = useState(searchParams.get('subject') || '')
-  const [selectedExamType, setSelectedExamType] = useState(isCoordinator ? 'MIDTERM' : '')
+  const [selectedExamType, setSelectedExamType] = useState(isCoordinator || isAdmin ? 'MIDTERM' : '')
   const [stats, setStats] = useState({
     total: 0,
     published: 0,
@@ -79,7 +83,7 @@ const Marks = () => {
       setLoading(true)
       setError('')
 
-      if (isCoordinator) {
+      if (isCoordinator || isAdmin) {
         const res = await api.get('/marks/review', {
           signal,
           params: {
@@ -122,7 +126,7 @@ const Marks = () => {
         setLoading(false)
       }
     }
-  }, [isCoordinator, limit, page, selectedExamType, selectedSubject])
+  }, [isAdmin, isCoordinator, limit, page, selectedExamType, selectedSubject])
 
   useEffect(() => {
     void loadSubjects().catch((loadError) => {
@@ -137,7 +141,7 @@ const Marks = () => {
   }, [fetchMarks])
 
   useEffect(() => {
-    if (!showModal || isCoordinator) return
+    if (!showModal || !canAddExamMarks) return
 
     const controller = new AbortController()
     if (form.subjectId) {
@@ -147,7 +151,7 @@ const Marks = () => {
     }
 
     return () => controller.abort()
-  }, [fetchStudents, form.subjectId, isCoordinator, showModal])
+  }, [canAddExamMarks, fetchStudents, form.subjectId, showModal])
 
   const handleSubmit = async (event) => {
     event.preventDefault()
@@ -227,13 +231,15 @@ const Marks = () => {
     <Layout>
       <div className={isCoordinator ? 'coordinator-page p-4 md:p-8' : 'p-4 md:p-8'}>
         <PageHeader
-          title={isCoordinator ? 'Exam Result Publishing' : 'Exam Marks'}
-          subtitle={isCoordinator
-            ? 'Publish Mid-Term, Final, or Preboard results for students. Practical marks stay internal for staff only.'
-            : 'Add marks for your own module exams. Practical marks remain visible only to instructors and coordinators.'}
-          breadcrumbs={[isCoordinator ? 'Coordinator' : 'Instructor', 'Exam Results']}
+          title={isAdmin ? 'Exam Result Publishing' : isCoordinator ? 'Department Exam Marks' : 'Exam Marks'}
+          subtitle={isAdmin
+            ? 'Review exam marks across departments and publish Mid-Term, Final, or Preboard results for students.'
+            : isCoordinator
+              ? 'Add or review department exam marks. Result publishing is handled by admins.'
+              : 'Add marks for your own module exams. Practical marks remain visible only to staff.'}
+          breadcrumbs={[isAdmin ? 'Admin' : isCoordinator ? 'Coordinator' : 'Instructor', 'Exam Results']}
           actions={[
-            ...(!isCoordinator ? [{
+            ...(canAddExamMarks ? [{
               label: 'Add Exam Mark',
               icon: Plus,
               variant: 'primary',
@@ -248,7 +254,7 @@ const Marks = () => {
                 setDraftMarks({})
               }
             }] : []),
-            ...(isCoordinator ? [{
+            ...(canPublishResults ? [{
               label: publishing ? 'Publishing...' : `Publish ${examTypeLabels[selectedExamType] || 'Results'}`,
               icon: UploadCloud,
               variant: 'secondary',
@@ -262,7 +268,7 @@ const Marks = () => {
 
         <div className="mb-6 grid gap-4 rounded-2xl bg-[--color-bg-card] dark:bg-slate-800 p-4 shadow-sm dark:shadow-slate-900/50 md:grid-cols-2">
           <div>
-            <label className="mb-2 block text-sm text-[var(--color-text-muted)]">{isCoordinator ? 'Module Filter' : 'Module'}</label>
+            <label className="mb-2 block text-sm text-[var(--color-text-muted)]">{isAdmin || isCoordinator ? 'Module Filter' : 'Module'}</label>
             <select
               value={selectedSubject}
               onChange={(event) => {
@@ -271,7 +277,7 @@ const Marks = () => {
               }}
               className="ui-form-input"
             >
-              <option value="">{isCoordinator ? 'All Department Modules' : 'Select a module'}</option>
+              <option value="">{isAdmin || isCoordinator ? 'All Modules' : 'Select a module'}</option>
               {subjects.map((subject) => (
                 <option key={subject.id} value={subject.id}>
                   {subject.name} - {subject.code}
@@ -353,12 +359,12 @@ const Marks = () => {
                 <div className="flex items-center justify-between border-b border-[var(--color-card-border)] bg-[var(--color-surface-muted)] px-6 py-4">
                   <div>
                     <h2 className="text-lg font-semibold text-[var(--color-heading)]">
-                      {isCoordinator ? 'Department Exam Result Review' : 'Module Exam Mark Ledger'}
+                      {isAdmin ? 'Exam Result Review' : isCoordinator ? 'Department Exam Result Review' : 'Module Exam Mark Ledger'}
                     </h2>
                     <p className="mt-1 text-sm text-[var(--color-text-muted)]">
-                      {isCoordinator
+                      {isAdmin
                         ? 'Review marks by exam result type before publishing them for students.'
-                        : 'Every mark stays internal until a coordinator publishes the matching exam result.'}
+                        : 'Every mark stays internal until an admin publishes the matching exam result.'}
                     </p>
                   </div>
                   <span className="ui-status-badge ui-status-neutral">{total} records</span>
@@ -426,7 +432,7 @@ const Marks = () => {
         )}
       </div>
 
-      {showModal && !isCoordinator && (
+      {showModal && canAddExamMarks && (
         <Modal title="Add Examination Mark" onClose={() => setShowModal(false)}>
           <Alert type="error" message={error} />
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -518,8 +524,8 @@ const Marks = () => {
             ) : null}
             <div className="status-late rounded-lg px-4 py-3 text-sm">
               {form.examType === 'PRACTICAL'
-                ? 'Practical marks will remain visible only to instructors and coordinators.'
-                : 'Students can only view this result after the coordinator publishes the matching exam result.'}
+                ? 'Practical marks will remain visible only to staff.'
+                : 'Students can only view this result after an admin publishes the matching exam result.'}
             </div>
             <div className="flex gap-3 pt-2">
               <button

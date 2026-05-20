@@ -274,12 +274,6 @@ const updateAssignment = async (context, result = createServiceResponder()) => {
     return result.withStatus(400, { message: 'Total marks must be a valid positive number' })
   }
 
-  if (context.user.role === 'INSTRUCTOR') {
-    if (assignment.instructorId !== context.instructor?.id) {
-      return result.withStatus(403, { message: 'You can only update your own assignments' })
-    }
-  }
-
   const sanitizedTitle = sanitizePlainText(title)
   const sanitizedDescription = sanitizePlainText(description)
 
@@ -312,12 +306,6 @@ const deleteAssignment = async (context, result = createServiceResponder()) => {
   const assignment = await prisma.assignment.findUnique({ where: { id } })
   if (!assignment) {
     return result.withStatus(404, { message: 'Assignment not found' })
-  }
-
-  if (context.user.role === 'INSTRUCTOR') {
-    if (assignment.instructorId !== context.instructor?.id) {
-      return result.withStatus(403, { message: 'You can only delete your own assignments' })
-    }
   }
 
   await prisma.assignment.delete({ where: { id } })

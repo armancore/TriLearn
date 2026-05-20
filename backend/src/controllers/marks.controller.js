@@ -4,6 +4,7 @@ const {
   addMarksBulk: addMarksBulkService,
   updateMarks: updateMarksService,
   getMarksBySubject: getMarksBySubjectService,
+  getStudentResultForStaff: getStudentResultForStaffService,
   getMarksReview: getMarksReviewService,
   getEnrolledStudentsBySubject: getEnrolledStudentsBySubjectService,
   getMyMarks: getMyMarksService,
@@ -17,6 +18,7 @@ const addMarks = createController(addMarksService)
 const addMarksBulk = createController(addMarksBulkService)
 const updateMarks = createController(updateMarksService)
 const getMarksBySubject = createController(getMarksBySubjectService)
+const getStudentResultForStaff = createController(getStudentResultForStaffService)
 const getMarksReview = createController(getMarksReviewService)
 const getEnrolledStudentsBySubject = createController(getEnrolledStudentsBySubjectService)
 const getMyMarks = createController(getMyMarksService)
@@ -30,6 +32,7 @@ module.exports = {
   addMarksBulk: addMarksBulk,
   updateMarks: updateMarks,
   getMarksBySubject: getMarksBySubject,
+  getStudentResultForStaff: getStudentResultForStaff,
   getMarksReview: getMarksReview,
   getEnrolledStudentsBySubject: getEnrolledStudentsBySubject,
   getMyMarks: getMyMarks,

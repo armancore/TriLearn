@@ -89,6 +89,8 @@ const AppRoutes = () => {
       <Route path="/admin/applications" element={<ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.COORDINATOR]}><StudentApplications /></ProtectedRoute>} />
       <Route path="/admin/departments" element={<ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.COORDINATOR]}><Departments /></ProtectedRoute>} />
       <Route path="/admin/subjects" element={<ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.COORDINATOR]}><Subjects /></ProtectedRoute>} />
+      <Route path="/admin/assignments" element={<ProtectedRoute allowedRoles={[ROLES.ADMIN]}><Assignments /></ProtectedRoute>} />
+      <Route path="/admin/marks" element={<ProtectedRoute allowedRoles={[ROLES.ADMIN]}><Marks /></ProtectedRoute>} />
       <Route path="/admin/notices" element={<ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.COORDINATOR]}><Notices /></ProtectedRoute>} />
       <Route path="/admin/routine" element={<ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.COORDINATOR]}><AdminRoutine /></ProtectedRoute>} />
       <Route path="/admin/routine/view" element={<ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.COORDINATOR]}><RoutineViewer /></ProtectedRoute>} />

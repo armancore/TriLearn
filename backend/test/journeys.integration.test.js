@@ -369,7 +369,7 @@ test('journey: admin views dashboard stats and creates a student account', async
   assert.equal(createResponse.body.user.email, 'new.student@example.edu')
 })
 
-test('journey: instructor posts an assignment and student submits work', async () => {
+test('journey: admin posts an assignment and student submits work', async () => {
   const assignmentRoutes = loadWithMocks(resolveFromTest('src', 'routes', 'assignment.routes.js'), {
     '../controllers/assignment.controller': {
       createAssignment: async (req, res) => res.status(201).json({
@@ -407,7 +407,7 @@ test('journey: instructor posts an assignment and student submits work', async (
 
   const createResponse = await request(app)
     .post('/api/v1/assignments')
-    .set('Authorization', 'Bearer instructor-token')
+    .set('Authorization', 'Bearer admin-token')
     .send({ title: 'Final Project', subjectId: 'subject-1' })
   const submitResponse = await request(app)
     .post('/api/v1/assignments/assignment-1/submit')
