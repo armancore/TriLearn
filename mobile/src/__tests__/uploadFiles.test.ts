@@ -3,18 +3,29 @@ import type { AuthUser } from '@/src/types/auth';
 import { useAuthStore } from '@/src/store/auth.store';
 import { openAuthenticatedUpload } from '@/src/utils/uploadFiles';
 
-const mockDownloadAsync = jest.fn(async () => ({ status: 200, uri: 'file://download.pdf' }));
-const mockShareAsync = jest.fn(async () => undefined);
+type DownloadOptions = {
+  headers?: Record<string, string>;
+};
+
+type ShareOptions = {
+  mimeType?: string;
+  dialogTitle?: string;
+};
+
+const mockDownloadAsync = jest.fn(
+  async (_url: string, _fileUri: string, _options?: DownloadOptions) => ({ status: 200, uri: 'file://download.pdf' })
+);
+const mockShareAsync = jest.fn(async (_uri: string, _options?: ShareOptions) => undefined);
 
 jest.mock('expo-file-system/legacy', () => ({
   documentDirectory: 'file://documents/',
-  downloadAsync: (...args: unknown[]) => mockDownloadAsync(...args),
+  downloadAsync: (url: string, fileUri: string, options?: DownloadOptions) => mockDownloadAsync(url, fileUri, options),
   deleteAsync: jest.fn(async () => undefined),
 }));
 
 jest.mock('expo-sharing', () => ({
   isAvailableAsync: jest.fn(async () => true),
-  shareAsync: (...args: unknown[]) => mockShareAsync(...args),
+  shareAsync: (uri: string, options?: ShareOptions) => mockShareAsync(uri, options),
 }));
 
 jest.mock('expo-secure-store', () => ({
