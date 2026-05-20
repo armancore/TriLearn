@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { BellRing } from 'lucide-react'
+import { BellRing, CheckCheck } from 'lucide-react'
 import StudentLayout from '../../layouts/StudentLayout'
 import api from '../../utils/api'
 import LoadingSkeleton from '../../components/LoadingSkeleton'
@@ -7,6 +7,7 @@ import PageHeader from '../../components/PageHeader'
 import Pagination from '../../components/Pagination'
 import StatusBadge from '../../components/StatusBadge'
 import EmptyState from '../../components/EmptyState'
+import { useToast } from '../../components/Toast'
 import { isRequestCanceled } from '../../utils/http'
 import logger from '../../utils/logger'
 
@@ -46,7 +47,9 @@ const StudentNotices = () => {
   const [limit] = useState(10)
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
+  const [markingRead, setMarkingRead] = useState(false)
   const [expandedNoticeIds, setExpandedNoticeIds] = useState([])
+  const { showToast } = useToast()
 
   useEffect(() => {
     const controller = new AbortController()
@@ -79,6 +82,19 @@ const StudentNotices = () => {
     ))
   }
 
+  const handleMarkAllRead = async () => {
+    try {
+      setMarkingRead(true)
+      await api.patch('/notifications/read-all')
+      showToast({ title: 'Notices marked as read.' })
+    } catch (error) {
+      logger.error('Failed to mark notices as read', error)
+      showToast({ title: error.response?.data?.message || 'Unable to mark notices as read.' })
+    } finally {
+      setMarkingRead(false)
+    }
+  }
+
   return (
     <StudentLayout>
       <div className="student-page p-8">
@@ -86,6 +102,13 @@ const StudentNotices = () => {
           title="Notices"
           subtitle="Stay updated with school announcements"
           breadcrumbs={['Student', 'Notices']}
+          actions={[{
+            label: markingRead ? 'Marking...' : 'Mark all as read',
+            icon: CheckCheck,
+            variant: 'secondary',
+            disabled: markingRead,
+            onClick: handleMarkAllRead
+          }]}
         />
 
         {loading ? (

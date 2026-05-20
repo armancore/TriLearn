@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Plus } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
 import Alert from '../../components/Alert'
@@ -33,6 +33,8 @@ const Assignments = () => {
   const [form, setForm] = useState({
     title: '',
     description: '',
+    department: '',
+    semester: '',
     subjectId: '',
     dueDate: '',
     totalMarks: 100
@@ -55,7 +57,31 @@ const Assignments = () => {
   const [loading, setLoading] = useState(true)
   const [assignmentsError, setAssignmentsError] = useState('')
   const { showToast } = useToast()
-  const { subjects, loadSubjects } = useReferenceData()
+  const { subjects, departments, loadSubjects, loadDepartments } = useReferenceData()
+
+  const departmentOptions = useMemo(() => {
+    if (departments.length > 0) {
+      return departments.map((department) => department.name)
+    }
+
+    return [...new Set(subjects.map((subject) => subject.department).filter(Boolean))].sort()
+  }, [departments, subjects])
+
+  const semesterOptions = useMemo(() => {
+    const matchingSubjects = form.department
+      ? subjects.filter((subject) => subject.department === form.department)
+      : subjects
+
+    return [...new Set(matchingSubjects.map((subject) => Number(subject.semester)).filter(Boolean))]
+      .sort((left, right) => left - right)
+  }, [form.department, subjects])
+
+  const filteredAssignmentSubjects = useMemo(() => (
+    subjects.filter((subject) => (
+      (!form.department || subject.department === form.department) &&
+      (!form.semester || Number(subject.semester) === Number(form.semester))
+    ))
+  ), [form.department, form.semester, subjects])
 
   const formatForDateTimeInput = (value) => {
     if (!value) return ''
@@ -199,6 +225,23 @@ const Assignments = () => {
   }, [loadSubjects])
 
   useEffect(() => {
+    if (!isAdmin) {
+      return
+    }
+
+    const controller = new AbortController()
+    void loadDepartments({ signal: controller.signal }).catch((loadError) => {
+      if (isRequestCanceled(loadError)) {
+        return
+      }
+
+      logger.error('Failed to load departments for assignments', loadError)
+      setError(loadError.response?.data?.message || 'Unable to load departments right now.')
+    })
+    return () => controller.abort()
+  }, [isAdmin, loadDepartments])
+
+  useEffect(() => {
     if (subjects.length === 0) {
       return
     }
@@ -227,14 +270,20 @@ const Assignments = () => {
       return
     }
 
-    const targetSubjectId = selectedSubject || subjects[0]?.id || ''
+    const targetSubject = subjects.find((subject) => subject.id === selectedSubject) || subjects[0]
+    const targetSubjectId = targetSubject?.id || ''
     handleSubjectChange(targetSubjectId)
     setShowModal(true)
     setError('')
-    setForm((current) => ({
-      ...current,
-      subjectId: targetSubjectId
-    }))
+    setForm({
+      title: '',
+      description: '',
+      department: targetSubject?.department || '',
+      semester: targetSubject?.semester ? String(targetSubject.semester) : '',
+      subjectId: targetSubjectId,
+      dueDate: '',
+      totalMarks: 100
+    })
   }
 
   const handleSubmit = async (event) => {
@@ -243,6 +292,11 @@ const Assignments = () => {
 
     if (!questionPdf) {
       setError('Please upload the question PDF')
+      return
+    }
+
+    if (!form.department || !form.semester || !form.subjectId) {
+      setError('Please select department, semester, and subject before uploading the assignment.')
       return
     }
 
@@ -271,6 +325,8 @@ const Assignments = () => {
       setForm({
         title: '',
         description: '',
+        department: form.department,
+        semester: form.semester,
         subjectId: form.subjectId,
         dueDate: '',
         totalMarks: 100
@@ -539,17 +595,59 @@ const Assignments = () => {
             />
             <select
               required
+              value={form.department}
+              onChange={(event) => setForm({
+                ...form,
+                department: event.target.value,
+                semester: '',
+                subjectId: ''
+              })}
+              className="ui-form-input"
+            >
+              <option value="">Select Department</option>
+              {departmentOptions.map((departmentName) => (
+                <option key={departmentName} value={departmentName}>
+                  {departmentName}
+                </option>
+              ))}
+            </select>
+            <select
+              required
+              value={form.semester}
+              onChange={(event) => setForm({
+                ...form,
+                semester: event.target.value,
+                subjectId: ''
+              })}
+              className="ui-form-input"
+              disabled={!form.department}
+            >
+              <option value="">Select Semester</option>
+              {semesterOptions.map((semester) => (
+                <option key={semester} value={semester}>
+                  Semester {semester}
+                </option>
+              ))}
+            </select>
+            <select
+              required
               value={form.subjectId}
               onChange={(event) => setForm({ ...form, subjectId: event.target.value })}
               className="ui-form-input"
+              disabled={!form.department || !form.semester}
             >
-              <option value="">Select Module</option>
-              {subjects.map((subject) => (
+              <option value="">Select Subject</option>
+              {filteredAssignmentSubjects.map((subject) => (
                 <option key={subject.id} value={subject.id}>
                   {subject.name} - {subject.code}
                 </option>
               ))}
             </select>
+            {form.department && form.semester && filteredAssignmentSubjects.length === 0 && (
+              <p className="rounded-lg border border-dashed border-[var(--color-card-border)] px-3 py-2 text-sm text-[var(--color-text-muted)]">
+                No subjects found for the selected department and semester.
+              </p>
+            )}
             <div className="flex gap-3">
               <input
                 type="datetime-local"
