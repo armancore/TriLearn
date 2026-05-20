@@ -27,6 +27,7 @@ const Assignments = () => {
   const initialSubjectRef = useRef(searchParams.get('subject') || '')
   const assignmentRequestRef = useRef(null)
   const [showModal, setShowModal] = useState(false)
+  const [showEditModal, setShowEditModal] = useState(false)
   const [showSubmissions, setShowSubmissions] = useState(null)
   const [selectedSubject, setSelectedSubject] = useState(initialSubjectRef.current)
   const [form, setForm] = useState({
@@ -34,6 +35,14 @@ const Assignments = () => {
     description: '',
     subjectId: '',
     dueDate: '',
+    totalMarks: 100
+  })
+  const [editForm, setEditForm] = useState({
+    id: '',
+    title: '',
+    description: '',
+    dueDate: '',
+    extendedDueDate: '',
     totalMarks: 100
   })
   const [questionPdf, setQuestionPdf] = useState(null)
@@ -47,6 +56,14 @@ const Assignments = () => {
   const [assignmentsError, setAssignmentsError] = useState('')
   const { showToast } = useToast()
   const { subjects, loadSubjects } = useReferenceData()
+
+  const formatForDateTimeInput = (value) => {
+    if (!value) return ''
+    const date = new Date(value)
+    if (Number.isNaN(date.getTime())) return ''
+    const offsetDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000)
+    return offsetDate.toISOString().slice(0, 16)
+  }
 
   const syncSubjectInUrl = useCallback((nextSubjectId) => {
     const nextParams = new URLSearchParams(searchParams)
@@ -269,6 +286,42 @@ const Assignments = () => {
     }
   }
 
+  const openEditAssignmentModal = (assignment) => {
+    setEditForm({
+      id: assignment.id,
+      title: assignment.title || '',
+      description: assignment.description || '',
+      dueDate: formatForDateTimeInput(assignment.dueDate),
+      extendedDueDate: formatForDateTimeInput(assignment.extendedDueDate),
+      totalMarks: assignment.totalMarks || 100
+    })
+    setError('')
+    setShowEditModal(true)
+  }
+
+  const handleUpdateAssignment = async (event) => {
+    event.preventDefault()
+    setError('')
+
+    try {
+      const payload = new FormData()
+      payload.append('title', editForm.title)
+      payload.append('description', editForm.description)
+      payload.append('dueDate', editForm.dueDate)
+      payload.append('totalMarks', editForm.totalMarks)
+      if (editForm.extendedDueDate) {
+        payload.append('extendedDueDate', editForm.extendedDueDate)
+      }
+
+      await api.put(`/assignments/${editForm.id}`, payload)
+      showToast({ title: 'Assignment deadline updated successfully.' })
+      setShowEditModal(false)
+      await fetchAssignments()
+    } catch (err) {
+      setError(err.response?.data?.message || 'Unable to update assignment deadline right now.')
+    }
+  }
+
   const handleGrade = async (submissionId) => {
     try {
       const marksValue = document.getElementById(`grade-${submissionId}`)?.value
@@ -339,7 +392,8 @@ const Assignments = () => {
     }
   }
 
-  const isOverdue = (dueDate) => new Date() > new Date(dueDate)
+  const getFinalDeadline = (assignment) => assignment.extendedDueDate || assignment.dueDate
+  const isOverdue = (assignment) => new Date() > new Date(getFinalDeadline(assignment))
 
   return (
     <Layout>
@@ -395,7 +449,7 @@ const Assignments = () => {
                   <div className="flex-1">
                     <div className="mb-2 flex items-center gap-3">
                       <h3 className="font-semibold text-[var(--color-heading)]">{assignment.title}</h3>
-                      {isOverdue(assignment.dueDate) && (
+                      {isOverdue(assignment) && (
                         <span className="status-absent rounded-full px-2 py-0.5 text-xs">Overdue</span>
                       )}
                     </div>
@@ -403,6 +457,9 @@ const Assignments = () => {
                     <div className="flex flex-wrap gap-4 text-xs text-[var(--color-text-muted)]">
                       <span>📚 {assignment.subject?.name}</span>
                       <span>📅 Due: {new Date(assignment.dueDate).toLocaleDateString()}</span>
+                      {assignment.extendedDueDate && (
+                        <span>⏱ Extended: {new Date(assignment.extendedDueDate).toLocaleString()}</span>
+                      )}
                       <span>🎯 Total: {assignment.totalMarks} marks</span>
                       <span>📋 {assignment._count?.submissions} submissions</span>
                       {assignment.questionPdfUrl && (
@@ -418,6 +475,14 @@ const Assignments = () => {
                   </div>
 
                   <div className="flex flex-wrap gap-2 lg:w-[220px] lg:flex-col">
+                    {isAdmin && (
+                      <button
+                        onClick={() => openEditAssignmentModal(assignment)}
+                        className="ui-role-fill rounded-lg border px-3 py-2 text-xs"
+                      >
+                        Edit Deadline
+                      </button>
+                    )}
                     <button
                       onClick={() => handleViewSubmissions(assignment.id)}
                       className="status-present rounded-lg border px-3 py-2 text-xs"
@@ -531,6 +596,69 @@ const Assignments = () => {
         </Modal>
       )}
 
+      {showEditModal && isAdmin && (
+        <Modal title="Edit Assignment Deadline" onClose={() => setShowEditModal(false)}>
+          <Alert type="error" message={error} />
+          <form onSubmit={handleUpdateAssignment} className="space-y-4">
+            <input
+              type="text"
+              required
+              value={editForm.title}
+              onChange={(event) => setEditForm({ ...editForm, title: event.target.value })}
+              className="ui-form-input"
+            />
+            <textarea
+              required
+              rows={3}
+              value={editForm.description}
+              onChange={(event) => setEditForm({ ...editForm, description: event.target.value })}
+              className="ui-form-input"
+            />
+            <div>
+              <label className="mb-1 block text-sm text-[var(--color-text-muted)]">Normal deadline</label>
+              <input
+                type="datetime-local"
+                required
+                value={editForm.dueDate}
+                onChange={(event) => setEditForm({ ...editForm, dueDate: event.target.value })}
+                className="ui-form-input"
+              />
+              <p className="mt-1 text-xs text-[var(--color-text-soft)]">Changing this only moves the regular submission deadline.</p>
+            </div>
+            <div>
+              <label className="mb-1 block text-sm text-[var(--color-text-muted)]">Extended submission window</label>
+              <input
+                type="datetime-local"
+                value={editForm.extendedDueDate}
+                onChange={(event) => setEditForm({ ...editForm, extendedDueDate: event.target.value })}
+                className="ui-form-input"
+              />
+              <p className="mt-1 text-xs text-[var(--color-text-soft)]">Submissions after the normal deadline and before this time are marked EXTENDED.</p>
+            </div>
+            <input
+              type="number"
+              min="1"
+              placeholder="Total Marks"
+              value={editForm.totalMarks}
+              onChange={(event) => setEditForm({ ...editForm, totalMarks: parseInt(event.target.value, 10) || 0 })}
+              className="ui-form-input"
+            />
+            <div className="flex gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowEditModal(false)}
+                className="flex-1 rounded-lg border border-[var(--color-card-border)] py-2 text-sm text-[var(--color-text-muted)] hover:bg-[var(--color-surface-muted)]"
+              >
+                Cancel
+              </button>
+              <button type="submit" className="ui-role-fill flex-1 rounded-lg py-2 text-sm font-medium">
+                Save Deadline
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
       {showSubmissions && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
           <div className="bg-[--color-bg-card] dark:bg-slate-800 rounded-2xl p-8 w-full max-w-3xl shadow-xl dark:shadow-slate-900/50 max-h-[80vh] overflow-y-auto">
@@ -573,11 +701,18 @@ const Assignments = () => {
                           ? 'status-present'
                           : submission.status === 'LATE'
                             ? 'status-absent'
-                            : 'grade-merit'
+                            : submission.status === 'EXTENDED'
+                              ? 'status-late'
+                              : 'grade-merit'
                       }`}
                       >
                         {submission.status}
                       </span>
+                      {submission.isExtended && (
+                        <span className="status-late ml-2 mt-1 inline-block rounded-full px-2 py-0.5 text-xs font-medium">
+                          EXTENDED SUBMISSION
+                        </span>
+                      )}
 
                       {submission.feedback && (
                         <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-200">

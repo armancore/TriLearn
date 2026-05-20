@@ -107,7 +107,13 @@ const StudentAssignments = () => {
     }
   }
 
-  const isOverdue = (dueDate) => new Date() > new Date(dueDate)
+  const getFinalDeadline = (assignment) => assignment.extendedDueDate || assignment.dueDate
+  const isOverdue = (assignment) => new Date() > new Date(getFinalDeadline(assignment))
+  const isInExtendedWindow = (assignment) => (
+    assignment.extendedDueDate &&
+    new Date() > new Date(assignment.dueDate) &&
+    new Date() <= new Date(assignment.extendedDueDate)
+  )
 
   return (
     <StudentLayout>
@@ -126,7 +132,8 @@ const StudentAssignments = () => {
           <div className="space-y-4">
             {assignments.map((assignment) => {
               const submission = isSubmitted(assignment.id)
-              const overdue = isOverdue(assignment.dueDate)
+              const overdue = isOverdue(assignment)
+              const extendedWindow = isInExtendedWindow(assignment)
 
               return (
                 <div key={assignment.id} className="bg-[--color-bg-card] dark:bg-slate-800 rounded-2xl shadow-sm dark:shadow-slate-900/50 p-6">
@@ -137,12 +144,17 @@ const StudentAssignments = () => {
                         {overdue && !submission && (
                           <span className="text-xs bg-accent-100 text-accent-700 px-2 py-0.5 rounded-full">Overdue</span>
                         )}
+                        {extendedWindow && !submission && (
+                          <span className="text-xs bg-primary-100 text-primary px-2 py-0.5 rounded-full">Extension open</span>
+                        )}
                         {submission && (
                           <span className={`text-xs px-2 py-0.5 rounded-full font-medium
-                            ${submission.status === 'GRADED' ? 'bg-primary-100 text-primary' :
+                            ${submission.isExtended ? 'bg-amber-100 text-amber-700' :
+                              submission.status === 'GRADED' ? 'bg-primary-100 text-primary' :
                               submission.status === 'LATE' ? 'bg-accent-100 text-accent-700' :
+                              submission.status === 'EXTENDED' ? 'bg-amber-100 text-amber-700' :
                               'bg-primary-100 text-primary'}`}>
-                            {submission.status}
+                            {submission.isExtended ? 'EXTENDED' : submission.status}
                           </span>
                         )}
                       </div>
@@ -150,6 +162,9 @@ const StudentAssignments = () => {
                       <div className="flex flex-wrap gap-4 text-xs text-[--color-text-muted] dark:text-slate-300">
                         <span className="inline-flex items-center gap-1.5"><BookOpenText className="h-3.5 w-3.5" />{assignment.subject?.name}</span>
                         <span className="inline-flex items-center gap-1.5"><CalendarDays className="h-3.5 w-3.5" />Due: {new Date(assignment.dueDate).toLocaleDateString()}</span>
+                        {assignment.extendedDueDate && (
+                          <span className="inline-flex items-center gap-1.5"><CalendarDays className="h-3.5 w-3.5" />Extended: {new Date(assignment.extendedDueDate).toLocaleString()}</span>
+                        )}
                         <span className="inline-flex items-center gap-1.5"><Target className="h-3.5 w-3.5" />Total: {assignment.totalMarks} marks</span>
                         {assignment.questionPdfUrl && (
                           <button
@@ -170,7 +185,7 @@ const StudentAssignments = () => {
                   </div>
 
                   {/* Submit section */}
-                  {!submission && (
+                  {!submission && !overdue && (
                     <div className="mt-4 pt-4 border-t">
                       {submittingId === assignment.id ? (
                         <div className="space-y-3">
@@ -240,6 +255,12 @@ const StudentAssignments = () => {
                           Instructor feedback: {submission.feedback}
                         </div>
                       )}
+                    </div>
+                  )}
+
+                  {!submission && overdue && (
+                    <div className="mt-4 rounded-xl border-t bg-[--color-bg] p-3 text-sm text-[--color-text-muted] dark:bg-slate-900 dark:text-slate-400">
+                      Submission is closed for this assignment.
                     </div>
                   )}
                 </div>

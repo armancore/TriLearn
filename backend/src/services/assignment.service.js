@@ -53,6 +53,28 @@ const sanitizeFilenamePart = (value) => String(value || 'report')
   .replace(/^-|-$/g, '')
   .toLowerCase()
 
+const parseOptionalDate = (value) => {
+  if (!value) return null
+  const parsed = new Date(value)
+  return Number.isNaN(parsed.getTime()) ? null : parsed
+}
+
+const getAssignmentSubmissionStatus = (assignment, now = new Date()) => {
+  const dueDate = new Date(assignment.dueDate)
+  const extendedDueDate = assignment.extendedDueDate ? new Date(assignment.extendedDueDate) : null
+  const finalDeadline = extendedDueDate || dueDate
+
+  if (now > finalDeadline) {
+    return { error: { status: 400, message: 'Assignment submission deadline has passed' } }
+  }
+
+  if (extendedDueDate && now > dueDate && now <= extendedDueDate) {
+    return { status: 'EXTENDED' }
+  }
+
+  return { status: 'SUBMITTED' }
+}
+
 const getSubmissionViewForRole = (submission, role) => {
   if (role === 'STUDENT') {
     return {
@@ -63,6 +85,7 @@ const getSubmissionViewForRole = (submission, role) => {
       note: submission.note,
       feedback: submission.feedback,
       submittedAt: submission.submittedAt,
+      isExtended: submission.isExtended,
       status: submission.status
     }
   }
@@ -95,9 +118,11 @@ const buildAssignmentExportRows = (assignment) => (
  * @returns {Promise<any>|any} Service result.
  */
 const createAssignment = async (context, result = createServiceResponder()) => {
-    const { title, description, subjectId, dueDate, totalMarks } = context.body
+    const { title, description, subjectId, dueDate, extendedDueDate, totalMarks } = context.body
   const questionPdfUrl = buildUploadedFileUrl(context.file)
   const parsedTotalMarks = totalMarks ? parseInt(totalMarks, 10) : 100
+  const parsedDueDate = new Date(dueDate)
+  const parsedExtendedDueDate = parseOptionalDate(extendedDueDate)
 
   if (!questionPdfUrl) {
     return result.withStatus(400, { message: 'Please upload the assignment question PDF' })
@@ -105,6 +130,18 @@ const createAssignment = async (context, result = createServiceResponder()) => {
 
   if (Number.isNaN(parsedTotalMarks) || parsedTotalMarks <= 0) {
     return result.withStatus(400, { message: 'Total marks must be a valid positive number' })
+  }
+
+  if (Number.isNaN(parsedDueDate.getTime())) {
+    return result.withStatus(400, { message: 'Deadline must be a valid date and time' })
+  }
+
+  if (extendedDueDate && !parsedExtendedDueDate) {
+    return result.withStatus(400, { message: 'Extended deadline must be a valid date and time' })
+  }
+
+  if (parsedExtendedDueDate && parsedExtendedDueDate <= parsedDueDate) {
+    return result.withStatus(400, { message: 'Extended deadline must be after the normal deadline' })
   }
 
   const access = await resolveAssignmentManager(context, subjectId)
@@ -122,7 +159,8 @@ const createAssignment = async (context, result = createServiceResponder()) => {
       questionPdfUrl,
       subjectId,
       instructorId: access.instructorId,
-      dueDate: new Date(dueDate),
+      dueDate: parsedDueDate,
+      extendedDueDate: parsedExtendedDueDate,
       totalMarks: parsedTotalMarks
     },
     include: {
@@ -261,9 +299,11 @@ const getAssignmentById = async (context, result = createServiceResponder()) => 
  */
 const updateAssignment = async (context, result = createServiceResponder()) => {
     const { id } = context.params
-  const { title, description, dueDate, totalMarks } = context.body
+  const { title, description, dueDate, extendedDueDate, totalMarks } = context.body
   const questionPdfUrl = buildUploadedFileUrl(context.file)
   const parsedTotalMarks = totalMarks !== undefined ? parseInt(totalMarks, 10) : undefined
+  const parsedDueDate = new Date(dueDate)
+  const parsedExtendedDueDate = parseOptionalDate(extendedDueDate)
 
   const assignment = await prisma.assignment.findUnique({ where: { id } })
   if (!assignment) {
@@ -272,6 +312,18 @@ const updateAssignment = async (context, result = createServiceResponder()) => {
 
   if (parsedTotalMarks !== undefined && (Number.isNaN(parsedTotalMarks) || parsedTotalMarks <= 0)) {
     return result.withStatus(400, { message: 'Total marks must be a valid positive number' })
+  }
+
+  if (Number.isNaN(parsedDueDate.getTime())) {
+    return result.withStatus(400, { message: 'Deadline must be a valid date and time' })
+  }
+
+  if (extendedDueDate && !parsedExtendedDueDate) {
+    return result.withStatus(400, { message: 'Extended deadline must be a valid date and time' })
+  }
+
+  if (parsedExtendedDueDate && parsedExtendedDueDate <= parsedDueDate) {
+    return result.withStatus(400, { message: 'Extended deadline must be after the normal deadline' })
   }
 
   const sanitizedTitle = sanitizePlainText(title)
@@ -283,7 +335,8 @@ const updateAssignment = async (context, result = createServiceResponder()) => {
       title: sanitizedTitle,
       description: sanitizedDescription,
       questionPdfUrl: questionPdfUrl || assignment.questionPdfUrl,
-      dueDate: dueDate ? new Date(dueDate) : undefined,
+      dueDate: parsedDueDate,
+      extendedDueDate: parsedExtendedDueDate,
       totalMarks: parsedTotalMarks
     }
   })
@@ -349,7 +402,10 @@ const submitAssignment = async (context, result = createServiceResponder()) => {
     return result.withStatus(400, { message: 'Please upload your answer PDF' })
   }
 
-  const isLate = new Date() > new Date(assignment.dueDate)
+  const submissionStatus = getAssignmentSubmissionStatus(assignment)
+  if (submissionStatus.error) {
+    return result.withStatus(submissionStatus.error.status, { message: submissionStatus.error.message })
+  }
 
   const sanitizedNote = sanitizePlainText(note)
 
@@ -359,7 +415,8 @@ const submitAssignment = async (context, result = createServiceResponder()) => {
       studentId: student.id,
       note: sanitizedNote,
       fileUrl,
-      status: isLate ? 'LATE' : 'SUBMITTED'
+      isExtended: submissionStatus.status === 'EXTENDED',
+      status: submissionStatus.status
     },
     include: {
       assignment: { select: { title: true, dueDate: true } },
@@ -369,7 +426,7 @@ const submitAssignment = async (context, result = createServiceResponder()) => {
   await attachUploadedFileToEntity(context.file, 'SUBMISSION', submission.id)
 
   result.withStatus(201, {
-    message: isLate ? 'Assignment submitted late!' : 'Assignment submitted successfully!',
+    message: submissionStatus.status === 'EXTENDED' ? 'Assignment submitted during the extended window!' : 'Assignment submitted successfully!',
     submission
   })
 }

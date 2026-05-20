@@ -302,6 +302,7 @@ model Assignment {
   instructorId String
   instructor   Instructor @relation(fields: [instructorId], references: [id], onDelete: Cascade)
   dueDate      DateTime
+  extendedDueDate DateTime?
   totalMarks   Int      @default(100)
   createdAt    DateTime @default(now())
 
@@ -323,6 +324,7 @@ model Submission {
   obtainedMarks Int?
   feedback     String?
   submittedAt  DateTime @default(now())
+  isExtended    Boolean  @default(false)
   status       SubmissionStatus @default(SUBMITTED)
 
   @@index([assignmentId])
@@ -332,6 +334,7 @@ model Submission {
 
 enum SubmissionStatus {
   SUBMITTED
+  EXTENDED
   GRADED
   LATE
 }

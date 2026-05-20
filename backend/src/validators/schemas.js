@@ -412,6 +412,7 @@ const assignmentBody = z.object({
   description: z.string().trim().min(10).max(5000),
   subjectId: z.string().uuid(),
   dueDate: z.string().trim().min(1),
+  extendedDueDate: optionalString(80),
   totalMarks: z.coerce.number().int().positive().max(1000).optional()
 })
 
@@ -419,6 +420,7 @@ const assignmentUpdateBody = z.object({
   title: z.string().trim().min(3).max(150),
   description: z.string().trim().min(10).max(5000),
   dueDate: z.string().trim().min(1),
+  extendedDueDate: optionalString(80),
   totalMarks: z.coerce.number().int().positive().max(1000).optional()
 })
 
