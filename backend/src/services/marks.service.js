@@ -412,7 +412,7 @@ const getManagedSubject = async (subjectId, context) => {
   return { subject }
 }
 
-const getViewableSubject = async (subjectId) => {
+const getViewableSubject = async (subjectId, context) => {
   const subject = await prisma.subject.findUnique({
     where: { id: subjectId },
     include: {
@@ -428,18 +428,65 @@ const getViewableSubject = async (subjectId) => {
     return { error: { status: 404, message: 'Subject not found' } }
   }
 
+  if (context.user.role === 'COORDINATOR') {
+    if (!context.coordinator?.department) {
+      return { error: { status: 403, message: 'Coordinator department is not configured yet' } }
+    }
+
+    if (!subject.department || subject.department !== context.coordinator.department) {
+      return { error: { status: 403, message: 'You can only view marks for subjects in your department' } }
+    }
+  }
+
+  if (context.user.role === 'INSTRUCTOR') {
+    if (!context.instructor) {
+      return { error: { status: 403, message: 'Instructor profile not found' } }
+    }
+
+    if (subject.instructorId !== context.instructor.id) {
+      return { error: { status: 403, message: 'You can only view marks for your assigned subjects' } }
+    }
+  }
+
   return { subject }
 }
 
-const buildStaffReviewFilters = ({ subjectId, examType }) => {
+const buildStaffReviewFilters = async ({ subjectId, examType, context }) => {
   const where = {}
 
+  if (context.user.role === 'COORDINATOR' && !context.coordinator?.department) {
+    return { error: { status: 403, message: 'Coordinator department is not configured yet' } }
+  }
+
+  if (context.user.role === 'INSTRUCTOR' && !context.instructor?.id) {
+    return { error: { status: 403, message: 'Instructor profile not found' } }
+  }
+
   if (subjectId) {
+    const access = await getViewableSubject(subjectId, context)
+    if (access.error) {
+      return { error: access.error }
+    }
+
     where.subjectId = subjectId
   }
 
   if (examType) {
     where.examType = examType
+  }
+
+  if (context.user.role === 'COORDINATOR') {
+    where.subject = {
+      ...(where.subject || {}),
+      department: context.coordinator.department
+    }
+  }
+
+  if (context.user.role === 'INSTRUCTOR') {
+    where.subject = {
+      ...(where.subject || {}),
+      instructorId: context.instructor.id
+    }
   }
 
   return { where }
@@ -764,7 +811,7 @@ const getMarksBySubject = async (context, result = createServiceResponder()) => 
   const { examType } = context.query
   const { page, limit, skip } = getPagination(context.query)
 
-  const access = await getViewableSubject(subjectId)
+  const access = await getViewableSubject(subjectId, context)
   if (access.error) {
     return result.withStatus(access.error.status, { message: access.error.message })
   }
@@ -823,7 +870,7 @@ const getMarksReview = async (context, result = createServiceResponder()) => {
     const { examType, subjectId } = context.query
   const { page, limit, skip } = getPagination(context.query)
 
-  const filters = buildStaffReviewFilters({ subjectId, examType })
+  const filters = await buildStaffReviewFilters({ subjectId, examType, context })
   if (filters.error) {
     return result.withStatus(filters.error.status, { message: filters.error.message })
   }

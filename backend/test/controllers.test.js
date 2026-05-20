@@ -3561,6 +3561,112 @@ test('createAssignment blocks instructors from creating assignments for subjects
   })
 })
 
+test('getAssignmentById blocks instructors from viewing another instructor assignment submissions', async () => {
+  const { getAssignmentById } = loadWithMocks(resolveFromTest('src', 'controllers', 'assignment.controller.js'), {
+    '../utils/prisma': {
+      assignment: {
+        findUnique: async () => ({
+          id: 'assignment-1',
+          subjectId: 'subject-1',
+          instructorId: 'instructor-2',
+          subject: { name: 'Database Systems', code: 'DBS101', department: 'BCA' },
+          instructor: { user: { name: 'Instructor Two' } },
+          submissions: [
+            {
+              id: 'submission-1',
+              studentId: 'student-1',
+              fileUrl: '/api/v1/uploads/private.pdf',
+              student: { user: { name: 'Student One' } }
+            }
+          ]
+        })
+      }
+    },
+    '../utils/fileStorage': {
+      buildUploadedFileUrl: () => null
+    },
+    '../utils/pagination': {
+      getPagination: () => ({ page: 1, limit: 20, skip: 0 })
+    },
+    exceljs: {
+      Workbook: class MockWorkbook {}
+    },
+    pdfkit: class MockPdfDocument {}
+  })
+
+  const req = {
+    params: { id: 'assignment-1' },
+    user: { role: 'INSTRUCTOR' },
+    instructor: { id: 'instructor-1' }
+  }
+  const res = createResponse()
+
+  await getAssignmentById(req, res)
+
+  assert.equal(res.statusCode, 403)
+  assert.deepEqual(res.body, {
+    message: 'You can only view assignments for your assigned subjects'
+  })
+})
+
+test('submitAssignment blocks students who are not enrolled in the assignment subject', async () => {
+  const submissionFindCalls = []
+  const { submitAssignment } = loadWithMocks(resolveFromTest('src', 'controllers', 'assignment.controller.js'), {
+    '../utils/prisma': {
+      assignment: {
+        findUnique: async () => ({
+          id: 'assignment-1',
+          subjectId: 'subject-1',
+          dueDate: new Date(Date.now() + 60_000),
+          extendedDueDate: null
+        })
+      },
+      subjectEnrollment: {
+        findUnique: async () => null
+      },
+      submission: {
+        findFirst: async (payload) => {
+          submissionFindCalls.push(payload)
+          return null
+        },
+        create: async () => {
+          throw new Error('submission.create should not be called')
+        }
+      }
+    },
+    '../utils/fileStorage': {
+      buildUploadedFileUrl: () => '/api/v1/uploads/answer.pdf'
+    },
+    '../utils/uploadRecords': {
+      attachUploadedFileToEntity: async () => {}
+    },
+    '../utils/pagination': {
+      getPagination: () => ({ page: 1, limit: 20, skip: 0 })
+    },
+    exceljs: {
+      Workbook: class MockWorkbook {}
+    },
+    pdfkit: class MockPdfDocument {}
+  })
+
+  const req = {
+    params: { id: 'assignment-1' },
+    body: { note: 'Answer' },
+    file: { filename: 'answer.pdf' },
+    user: { role: 'STUDENT' },
+    student: { id: 'student-1' }
+  }
+  const res = createResponse()
+
+  await submitAssignment(req, res)
+
+  assert.equal(res.statusCode, 403)
+  assert.deepEqual(res.body, {
+    message: 'You can only submit assignments for your enrolled subjects'
+  })
+  assert.equal(submissionFindCalls.length, 0)
+})
+
 test('exportAssignmentGrades neutralizes formula-like cell values in XLSX output', async () => {
   const addedRows = []
   let writeCalled = false
@@ -3575,7 +3681,8 @@ test('exportAssignmentGrades neutralizes formula-like cell values in XLSX output
           totalMarks: 100,
           subject: {
             name: 'Database Systems',
-            code: 'DBS101'
+            code: 'DBS101',
+            department: 'BCA'
           },
           submissions: [
             {
@@ -3625,7 +3732,8 @@ test('exportAssignmentGrades neutralizes formula-like cell values in XLSX output
   const req = {
     params: { id: 'assignment-1' },
     query: { format: 'xlsx' },
-    user: { role: 'COORDINATOR' }
+    user: { role: 'COORDINATOR' },
+    coordinator: { department: 'BCA' }
   }
   const res = createResponse()
   res.end = () => {}
@@ -5086,7 +5194,7 @@ test('deleteMarks blocks coordinators from deleting marks outside their departme
   assert.equal(deleteCalls.length, 0)
 })
 
-test('getMarksBySubject allows coordinators to view subjects outside their department', async () => {
+test('getMarksBySubject blocks coordinators from viewing subjects outside their department', async () => {
   const findManyCalls = []
   const { getMarksBySubject } = loadWithMocks(resolveFromTest('src', 'controllers', 'marks.controller.js'), {
     '../utils/prisma': {
@@ -5130,12 +5238,14 @@ test('getMarksBySubject allows coordinators to view subjects outside their depar
 
   await getMarksBySubject(req, res)
 
-  assert.equal(res.statusCode, 200)
-  assert.equal(findManyCalls.length, 1)
-  assert.deepEqual(findManyCalls[0].where, { subjectId: 'subject-1' })
+  assert.equal(res.statusCode, 403)
+  assert.deepEqual(res.body, {
+    message: 'You can only view marks for subjects in your department'
+  })
+  assert.equal(findManyCalls.length, 0)
 })
 
-test('getMarksBySubject allows instructors to view subjects assigned to a different instructor', async () => {
+test('getMarksBySubject blocks instructors from viewing subjects assigned to a different instructor', async () => {
   const findManyCalls = []
   const { getMarksBySubject } = loadWithMocks(resolveFromTest('src', 'controllers', 'marks.controller.js'), {
     '../utils/prisma': {
@@ -5179,16 +5289,25 @@ test('getMarksBySubject allows instructors to view subjects assigned to a differ
 
   await getMarksBySubject(req, res)
 
-  assert.equal(res.statusCode, 200)
-  assert.equal(findManyCalls.length, 1)
-  assert.deepEqual(findManyCalls[0].where, { subjectId: 'subject-1' })
+  assert.equal(res.statusCode, 403)
+  assert.deepEqual(res.body, {
+    message: 'You can only view marks for your assigned subjects'
+  })
+  assert.equal(findManyCalls.length, 0)
 })
 
-test('getMarksReview lets coordinators review marks without department scoping', async () => {
+test('getMarksReview scopes coordinators to their department', async () => {
   const findManyCalls = []
   const countCalls = []
   const { getMarksReview } = loadWithMocks(resolveFromTest('src', 'controllers', 'marks.controller.js'), {
     '../utils/prisma': {
+      subject: {
+        findUnique: async () => ({
+          id: 'subject-1',
+          department: 'BCA',
+          instructorId: 'instructor-1'
+        })
+      },
       mark: {
         findMany: async (payload) => {
           findManyCalls.push(payload)
@@ -5229,12 +5348,15 @@ test('getMarksReview lets coordinators review marks without department scoping',
   assert.equal(countCalls.length, 1)
   assert.deepEqual(findManyCalls[0].where, {
     subjectId: 'subject-1',
-    examType: 'FINAL'
+    examType: 'FINAL',
+    subject: {
+      department: 'BCA'
+    }
   })
   assert.deepEqual(countCalls[0].where, findManyCalls[0].where)
 })
 
-test('getMarksReview allows coordinators without a configured department to view results', async () => {
+test('getMarksReview blocks coordinators without a configured department', async () => {
   const findManyCalls = []
   const countCalls = []
   const { getMarksReview } = loadWithMocks(resolveFromTest('src', 'controllers', 'marks.controller.js'), {
@@ -5274,13 +5396,12 @@ test('getMarksReview allows coordinators without a configured department to view
 
   await getMarksReview(req, res)
 
-  assert.equal(res.statusCode, 200)
-  assert.equal(findManyCalls.length, 1)
-  assert.equal(countCalls.length, 1)
-  assert.deepEqual(findManyCalls[0].where, {
-    subjectId: 'subject-2',
-    examType: 'FINAL'
+  assert.equal(res.statusCode, 403)
+  assert.deepEqual(res.body, {
+    message: 'Coordinator department is not configured yet'
   })
+  assert.equal(findManyCalls.length, 0)
+  assert.equal(countCalls.length, 0)
 })
 
 test('createRoutine blocks instructor double-booking with a specific error', async () => {

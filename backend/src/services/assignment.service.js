@@ -47,6 +47,35 @@ const resolveAssignmentManager = async (context, subjectId) => {
   return { subject, instructorId: instructor.id }
 }
 
+const ensureAssignmentViewer = (context, assignment, result) => {
+  if (context.user.role === 'ADMIN') {
+    return true
+  }
+
+  if (context.user.role === 'INSTRUCTOR') {
+    if (assignment.instructorId !== context.instructor?.id) {
+      result.withStatus(403, { message: 'You can only view assignments for your assigned subjects' })
+      return false
+    }
+
+    return true
+  }
+
+  if (context.user.role === 'COORDINATOR') {
+    if (!context.coordinator?.department) {
+      result.withStatus(403, { message: 'Coordinator department is not configured yet' })
+      return false
+    }
+
+    if (!assignment.subject?.department || assignment.subject.department !== context.coordinator.department) {
+      result.withStatus(403, { message: 'You can only view assignments for subjects in your department' })
+      return false
+    }
+  }
+
+  return true
+}
+
 const sanitizeFilenamePart = (value) => String(value || 'report')
   .replace(/[^a-z0-9-_]+/gi, '-')
   .replace(/-+/g, '-')
@@ -164,7 +193,7 @@ const createAssignment = async (context, result = createServiceResponder()) => {
       totalMarks: parsedTotalMarks
     },
     include: {
-      subject: { select: { name: true, code: true } },
+      subject: { select: { name: true, code: true, department: true } },
       instructor: { include: { user: { select: { name: true } } } }
     }
   })
@@ -242,7 +271,7 @@ const getAssignmentById = async (context, result = createServiceResponder()) => 
   const assignment = await prisma.assignment.findUnique({
     where: { id },
     include: {
-      subject: { select: { name: true, code: true } },
+      subject: { select: { name: true, code: true, department: true } },
       instructor: { include: { user: { select: { name: true } } } },
       submissions: {
         include: {
@@ -284,6 +313,10 @@ const getAssignmentById = async (context, result = createServiceResponder()) => 
           .map((submission) => getSubmissionViewForRole(submission, 'STUDENT'))
       }
     })
+  }
+
+  if (!ensureAssignmentViewer(context, assignment, result)) {
+    return
   }
 
   result.ok({ assignment })
@@ -390,6 +423,19 @@ const submitAssignment = async (context, result = createServiceResponder()) => {
     return result.withStatus(404, { message: 'Assignment not found' })
   }
 
+  const enrolled = await prisma.subjectEnrollment.findUnique({
+    where: {
+      subjectId_studentId: {
+        subjectId: assignment.subjectId,
+        studentId: student.id
+      }
+    }
+  })
+
+  if (!enrolled) {
+    return result.withStatus(403, { message: 'You can only submit assignments for your enrolled subjects' })
+  }
+
   const existingSubmission = await prisma.submission.findFirst({
     where: { assignmentId: id, studentId: student.id }
   })
@@ -478,7 +524,13 @@ const gradeSubmission = async (context, result = createServiceResponder()) => {
 
   const submission = await prisma.submission.findUnique({
     where: { id: submissionId },
-    include: { assignment: true }
+    include: {
+      assignment: {
+        include: {
+          subject: { select: { department: true } }
+        }
+      }
+    }
   })
 
   if (!submission) {
@@ -488,6 +540,16 @@ const gradeSubmission = async (context, result = createServiceResponder()) => {
   if (context.user.role === 'INSTRUCTOR') {
     if (submission.assignment.instructorId !== context.instructor?.id) {
       return result.withStatus(403, { message: 'You can only grade submissions for your own assignments' })
+    }
+  }
+
+  if (context.user.role === 'COORDINATOR') {
+    if (!context.coordinator?.department) {
+      return result.withStatus(403, { message: 'Coordinator department is not configured yet' })
+    }
+
+    if (!submission.assignment.subject?.department || submission.assignment.subject.department !== context.coordinator.department) {
+      return result.withStatus(403, { message: 'You can only grade submissions for assignments in your department' })
     }
   }
 
@@ -523,7 +585,7 @@ const exportAssignmentGrades = async (context, result = createServiceResponder()
   const assignment = await prisma.assignment.findUnique({
     where: { id },
     include: {
-      subject: { select: { name: true, code: true } },
+      subject: { select: { name: true, code: true, department: true } },
       submissions: {
         include: {
           student: {
@@ -545,6 +607,16 @@ const exportAssignmentGrades = async (context, result = createServiceResponder()
 
   if (context.user.role === 'INSTRUCTOR' && assignment.instructorId !== context.instructor?.id) {
     return result.withStatus(403, { message: 'You can only export grades for your own assignments' })
+  }
+
+  if (context.user.role === 'COORDINATOR') {
+    if (!context.coordinator?.department) {
+      return result.withStatus(403, { message: 'Coordinator department is not configured yet' })
+    }
+
+    if (!assignment.subject?.department || assignment.subject.department !== context.coordinator.department) {
+      return result.withStatus(403, { message: 'You can only export grades for assignments in your department' })
+    }
   }
 
   const rows = buildAssignmentExportRows(assignment)

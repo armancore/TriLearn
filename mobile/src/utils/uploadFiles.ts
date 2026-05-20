@@ -15,6 +15,17 @@ const getUploadUrl = (fileUrl: string) => {
   return `${BACKEND_ORIGIN}${normalizedPath}`;
 };
 
+const isProtectedBackendUploadUrl = (url: string) => {
+  try {
+    const parsedUrl = new URL(url);
+    const backendUrl = new URL(BACKEND_ORIGIN);
+
+    return parsedUrl.origin === backendUrl.origin && /^\/(?:api\/v\d+\/)?uploads\//i.test(parsedUrl.pathname);
+  } catch {
+    return false;
+  }
+};
+
 const getSafeFileName = (fileUrl: string) => {
   const pathPart = fileUrl.split('?')[0] ?? '';
   const name = pathPart.split('/').filter(Boolean).pop() || 'trilearn-file.pdf';
@@ -46,7 +57,7 @@ export const getMimeType = (filename: string): string => {
 export const downloadFile = async (
   url: string,
   filename: string,
-  accessToken: string
+  accessToken?: string
 ): Promise<void> => {
   if (!FileSystem.documentDirectory) {
     throw new Error('Secure document storage is not available on this device.');
@@ -57,11 +68,17 @@ export const downloadFile = async (
   let shouldScheduleCleanup = false;
 
   try {
-    const result = await FileSystem.downloadAsync(url, localUri, {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
-    });
+    const result = await FileSystem.downloadAsync(
+      url,
+      localUri,
+      accessToken
+        ? {
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+            },
+          }
+        : undefined
+    );
 
     if (result.status < 200 || result.status >= 300) {
       throw new Error(`Could not download file. Server returned ${result.status}.`);
@@ -89,12 +106,18 @@ export const downloadFile = async (
 };
 
 export const openAuthenticatedUpload = async (fileUrl: string) => {
+  const targetUrl = getUploadUrl(fileUrl);
+
+  if (!isProtectedBackendUploadUrl(targetUrl)) {
+    await downloadFile(targetUrl, getSafeFileName(fileUrl));
+    return;
+  }
+
   const accessToken = useAuthStore.getState().accessToken;
 
   if (!accessToken) {
     throw new Error('Please log in again to open this file.');
   }
 
-  const targetUrl = getUploadUrl(fileUrl);
   await downloadFile(targetUrl, getSafeFileName(fileUrl), accessToken);
 };
