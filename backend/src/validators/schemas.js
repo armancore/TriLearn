@@ -426,6 +426,19 @@ const submissionBody = z.object({
   note: optionalString(1000)
 })
 
+const taskBody = z.object({
+  title: z.string().trim().min(3).max(150),
+  description: z.string().trim().min(10).max(5000),
+  subjectId: z.string().uuid(),
+  dueDate: z.string().trim().min(1)
+})
+
+const taskUpdateBody = z.object({
+  title: z.string().trim().min(3).max(150),
+  description: z.string().trim().min(10).max(5000),
+  dueDate: z.string().trim().min(1)
+})
+
 const materialBody = z.object({
   title: z.string().trim().min(3).max(150),
   description: optionalString(1000),
@@ -754,6 +767,27 @@ const schemas = {
       body: z.object({
         obtainedMarks: z.coerce.number().int().min(0),
         feedback: optionalString(1000)
+      })
+    }
+  },
+  tasks: {
+    create: { body: taskBody },
+    update: { params: uuidParam, body: taskUpdateBody },
+    id: { params: uuidParam },
+    getAll: {
+      query: z.object({
+        ...paginationQuery,
+        subjectId: z.preprocess(emptyToUndefined, z.string().uuid().optional())
+      })
+    },
+    submit: {
+      params: uuidParam,
+      body: submissionBody
+    },
+    feedback: {
+      params: z.object({ submissionId: z.string().uuid() }),
+      body: z.object({
+        feedback: z.string().trim().min(1).max(1000)
       })
     }
   },

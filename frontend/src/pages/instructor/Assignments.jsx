@@ -345,7 +345,7 @@ const Assignments = () => {
     <Layout>
       <div className={isCoordinator ? 'coordinator-page p-4 md:p-8' : 'p-4 md:p-8'}>
         <PageHeader
-          title={isAdmin ? 'Assignment Questions' : isCoordinator ? 'Department Assignments' : 'Module Tasks'}
+          title={isAdmin ? 'Assignment Questions' : isCoordinator ? 'Department Assignments' : 'Assignment Answers'}
           subtitle={isAdmin
             ? 'Upload assignment question PDFs for modules. Instructors and coordinators can review submissions and enter assignment marks.'
             : 'Review student assignment submissions, export marks, and send feedback. Assignment question uploads are handled by admins.'}

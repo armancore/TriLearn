@@ -92,6 +92,7 @@ model Instructor {
   subjects   Subject[]
   attendances Attendance[]
   assignments Assignment[]
+  tasks      Task[]
   marks      Mark[]
   materials  StudyMaterial[]
   routines     Routine[]
@@ -157,6 +158,7 @@ model Student {
   attendances  Attendance[]
   absenceTickets AbsenceTicket[]
   submissions  Submission[]
+  taskSubmissions TaskSubmission[]
   marks        Mark[]
   subjectEnrollments SubjectEnrollment[]
 
@@ -184,6 +186,7 @@ model Subject {
 
   attendances  Attendance[]
   assignments  Assignment[]
+  tasks        Task[]
   materials    StudyMaterial[]
   marks        Mark[]
   routines     Routine[]
@@ -330,6 +333,55 @@ model Submission {
 enum SubmissionStatus {
   SUBMITTED
   GRADED
+  LATE
+}
+
+// ================================
+// TASKS
+// ================================
+
+model Task {
+  id           String   @id @default(uuid())
+  title        String
+  description  String
+  questionPdfUrl String?
+  subjectId    String
+  subject      Subject  @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  instructorId String
+  instructor   Instructor @relation(fields: [instructorId], references: [id], onDelete: Cascade)
+  dueDate      DateTime
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  submissions  TaskSubmission[]
+
+  @@index([subjectId])
+  @@index([instructorId])
+  @@index([dueDate])
+}
+
+model TaskSubmission {
+  id           String   @id @default(uuid())
+  taskId       String
+  task         Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  studentId    String
+  student      Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  fileUrl      String?
+  note         String?
+  feedback     String?
+  submittedAt  DateTime @default(now())
+  reviewedAt   DateTime?
+  status       TaskSubmissionStatus @default(SUBMITTED)
+
+  @@unique([taskId, studentId])
+  @@index([taskId])
+  @@index([studentId])
+  @@index([status])
+}
+
+enum TaskSubmissionStatus {
+  SUBMITTED
+  REVIEWED
   LATE
 }
 

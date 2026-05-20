@@ -27,7 +27,8 @@ const StudentLayout = ({ children, noticesCount = 0 }) => {
   const sidebarItems = useMemo(() => ([
     { path: '/student', label: 'Dashboard', icon: LayoutDashboard, meta: 'Overview and quick access' },
     { path: '/student/subjects', label: 'Subjects', icon: BookOpenText, meta: 'Enrolled subjects' },
-    { path: '/student/assignments', label: 'Tasks', icon: ClipboardList, meta: 'Assignments and deadlines' },
+    { path: '/student/assignments', label: 'Assignments', icon: ClipboardList, meta: 'Admin assignments and deadlines' },
+    { path: '/student/tasks', label: 'Tasks', icon: FileText, meta: 'Instructor tasks and feedback' },
     { path: '/student/attendance', label: 'Attendance', icon: Percent, meta: 'Attendance records' },
     { path: '/student/requests', label: 'Requests', icon: FileText, meta: 'Absence explanations' },
     { path: '/student/marks', label: 'Results', icon: FileText, meta: 'Exam results' },
@@ -40,7 +41,7 @@ const StudentLayout = ({ children, noticesCount = 0 }) => {
     { path: '/student/routine', label: 'Routine', icon: CalendarDays },
     { path: '/student/notices', label: 'Notices', icon: Bell, badge: noticesCount },
     { path: '/student/requests', label: 'Requests', icon: ClipboardList },
-    { path: '/student/assignments', label: 'Tasks', icon: FileText }
+    { path: '/student/tasks', label: 'Tasks', icon: FileText }
   ]
 
   const handleLogout = () => {

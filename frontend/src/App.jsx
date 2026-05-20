@@ -29,6 +29,7 @@ import InstructorDashboard from './pages/instructor/Dashboard'
 import InstructorSubjects from './pages/instructor/Subjects'
 import Attendance from './pages/instructor/Attendance'
 import Assignments from './pages/instructor/Assignments'
+import InstructorTasks from './pages/instructor/Tasks'
 import Marks from './pages/instructor/Marks'
 import InstructorNotices from './pages/instructor/Notices'
 import InstructorMaterials from './pages/instructor/Materials'
@@ -41,6 +42,7 @@ import StudentSubjects from './pages/student/Subjects'
 import StudentAttendance from './pages/student/Attendance'
 import StudentTickets from './pages/student/Tickets'
 import StudentAssignments from './pages/student/Assignments'
+import StudentTasks from './pages/student/Tasks'
 import StudentMarks from './pages/student/Marks'
 import StudentNotices from './pages/student/Notices'
 import StudentMaterials from './pages/student/Materials'
@@ -123,6 +125,7 @@ const AppRoutes = () => {
       <Route path="/instructor/subjects" element={<ProtectedRoute allowedRoles={[ROLES.INSTRUCTOR]}><InstructorSubjects /></ProtectedRoute>} />
       <Route path="/instructor/attendance" element={<ProtectedRoute allowedRoles={[ROLES.INSTRUCTOR]}><Attendance /></ProtectedRoute>} />
       <Route path="/instructor/assignments" element={<ProtectedRoute allowedRoles={[ROLES.INSTRUCTOR]}><Assignments /></ProtectedRoute>} />
+      <Route path="/instructor/tasks" element={<ProtectedRoute allowedRoles={[ROLES.INSTRUCTOR]}><InstructorTasks /></ProtectedRoute>} />
       <Route path="/instructor/marks" element={<ProtectedRoute allowedRoles={[ROLES.INSTRUCTOR]}><Marks /></ProtectedRoute>} />
       <Route path="/instructor/notices" element={<ProtectedRoute allowedRoles={[ROLES.INSTRUCTOR]}><InstructorNotices /></ProtectedRoute>} />
       <Route path="/instructor/materials" element={<ProtectedRoute allowedRoles={[ROLES.INSTRUCTOR]}><InstructorMaterials /></ProtectedRoute>} />
@@ -140,6 +143,7 @@ const AppRoutes = () => {
       <Route path="/student/requests" element={<ProtectedRoute allowedRoles={[ROLES.STUDENT]}><StudentTickets /></ProtectedRoute>} />
       <Route path="/student/tickets" element={<ProtectedRoute allowedRoles={[ROLES.STUDENT]}><StudentTickets /></ProtectedRoute>} />
       <Route path="/student/assignments" element={<ProtectedRoute allowedRoles={[ROLES.STUDENT]}><StudentAssignments /></ProtectedRoute>} />
+      <Route path="/student/tasks" element={<ProtectedRoute allowedRoles={[ROLES.STUDENT]}><StudentTasks /></ProtectedRoute>} />
       <Route path="/student/marks" element={<ProtectedRoute allowedRoles={[ROLES.STUDENT]}><StudentMarks /></ProtectedRoute>} />
       <Route path="/student/notices" element={<ProtectedRoute allowedRoles={[ROLES.STUDENT]}><StudentNotices /></ProtectedRoute>} />
       <Route path="/student/materials" element={<ProtectedRoute allowedRoles={[ROLES.STUDENT]}><StudentMaterials /></ProtectedRoute>} />

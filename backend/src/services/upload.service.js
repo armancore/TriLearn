@@ -168,6 +168,46 @@ const canAccessSubmissionFile = async (user, submission) => {
   return false
 }
 
+const canAccessTaskFile = async (user, task) => {
+  if (!user) {
+    return false
+  }
+
+  if (['ADMIN', 'COORDINATOR'].includes(user.role)) {
+    return true
+  }
+
+  if (user.role === 'INSTRUCTOR') {
+    return task.instructorId === user.instructor?.id
+  }
+
+  if (user.role === 'STUDENT' && user.student?.id) {
+    return isStudentEnrolledInSubject(user.student.id, task.subjectId)
+  }
+
+  return false
+}
+
+const canAccessTaskSubmissionFile = async (user, submission) => {
+  if (!user) {
+    return false
+  }
+
+  if (['ADMIN', 'COORDINATOR'].includes(user.role)) {
+    return true
+  }
+
+  if (user.role === 'INSTRUCTOR') {
+    return submission.task.instructorId === user.instructor?.id
+  }
+
+  if (user.role === 'STUDENT') {
+    return submission.studentId === user.student?.id
+  }
+
+  return false
+}
+
 const canAccessMaterialFile = async (user, material) => {
   if (!user) {
     return false
@@ -265,6 +305,36 @@ const canAccessUploadedFileEntity = async (user, uploadedFile) => {
     return material ? canAccessMaterialFile(user, material) : false
   }
 
+  if (uploadedFile.entityType === 'TASK') {
+    const task = await prisma.task.findUnique({
+      where: { id: uploadedFile.entityId },
+      select: {
+        id: true,
+        subjectId: true,
+        instructorId: true
+      }
+    })
+
+    return task ? canAccessTaskFile(user, task) : false
+  }
+
+  if (uploadedFile.entityType === 'TASK_SUBMISSION') {
+    const submission = await prisma.taskSubmission.findUnique({
+      where: { id: uploadedFile.entityId },
+      select: {
+        id: true,
+        studentId: true,
+        task: {
+          select: {
+            instructorId: true
+          }
+        }
+      }
+    })
+
+    return submission ? canAccessTaskSubmissionFile(user, submission) : false
+  }
+
   if (uploadedFile.entityType === 'USER_AVATAR') {
     return user?.id === uploadedFile.entityId
   }
@@ -347,6 +417,50 @@ const serveUploadedFile = async (context, result = createServiceResponder()) => 
   if (submission) {
     if (!(await canAccessSubmissionFile(user, submission))) {
       await logUploadAccessDenied(context, fileName, 'SUBMISSION')
+      return result.withStatus(403, { message: 'Access denied' })
+    }
+
+    return sendUploadFile(result, fileName)
+  }
+
+  const task = prisma.task?.findFirst
+    ? await prisma.task.findFirst({
+        where: { questionPdfUrl: { in: relativePaths } },
+        select: {
+          id: true,
+          subjectId: true,
+          instructorId: true
+        }
+      })
+    : null
+
+  if (task) {
+    if (!(await canAccessTaskFile(user, task))) {
+      await logUploadAccessDenied(context, fileName, 'TASK')
+      return result.withStatus(403, { message: 'Access denied' })
+    }
+
+    return sendUploadFile(result, fileName)
+  }
+
+  const taskSubmission = prisma.taskSubmission?.findFirst
+    ? await prisma.taskSubmission.findFirst({
+        where: { fileUrl: { in: relativePaths } },
+        select: {
+          id: true,
+          studentId: true,
+          task: {
+            select: {
+              instructorId: true
+            }
+          }
+        }
+      })
+    : null
+
+  if (taskSubmission) {
+    if (!(await canAccessTaskSubmissionFile(user, taskSubmission))) {
+      await logUploadAccessDenied(context, fileName, 'TASK_SUBMISSION')
       return result.withStatus(403, { message: 'Access denied' })
     }
 
