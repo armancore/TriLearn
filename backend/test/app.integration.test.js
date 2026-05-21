@@ -22,6 +22,7 @@ const { validateMobileClient } = require('../src/middleware/mobileClient.middlew
 const {
   apiLimiter,
   loginLimiter,
+  logoutLimiter,
   studentQrScanLimiter
 } = require('../src/middleware/rateLimit.middleware')
 
@@ -286,7 +287,7 @@ test('csrfProtection allows native mobile bearer requests without browser contex
 test('csrfProtection rejects unsigned unsafe requests without browser origin context', async () => {
   const testApp = express()
   testApp.use(csrfProtection)
-  testApp.post('/api/v1/auth/logout-all', (_req, res) => res.json({ ok: true }))
+  testApp.post('/api/v1/auth/logout-all', logoutLimiter, (_req, res) => res.json({ ok: true }))
 
   const response = await request(testApp)
     .post('/api/v1/auth/logout-all')

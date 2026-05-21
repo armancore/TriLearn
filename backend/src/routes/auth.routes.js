@@ -82,7 +82,7 @@ router.post('/refresh', refreshLimiter, refresh)
  */
 router.post('/refresh/mobile', validateMobileClient, refreshLimiter, refreshMobile)
 router.post('/logout', logoutLimiter, logout)
-router.post('/logout-all', protect, logoutAll)
+router.post('/logout-all', logoutLimiter, protect, logoutAll)
 router.get('/me', protect, getMe)
 router.get('/activity', protect, getActivity)
 router.get('/student-id-qr', protect, allowRoles('STUDENT'), getStudentIdQr)
