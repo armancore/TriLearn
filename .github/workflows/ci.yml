@@ -27,6 +27,11 @@ jobs:
         uses: github/codeql-action/init@v3
         with:
           languages: javascript
+          config: |
+            paths-ignore:
+              - 'backend/test/**'
+              - '**/*.test.js'
+              - '**/*.spec.js'
 
       - name: Perform CodeQL analysis
         uses: github/codeql-action/analyze@v3
