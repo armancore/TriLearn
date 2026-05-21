@@ -5296,6 +5296,136 @@ test('getMarksBySubject blocks instructors from viewing subjects assigned to a d
   assert.equal(findManyCalls.length, 0)
 })
 
+test('getStudentResultForStaff blocks coordinators from viewing students outside their department', async () => {
+  const markFindManyCalls = []
+  const { getStudentResultForStaff } = loadWithMocks(resolveFromTest('src', 'controllers', 'marks.controller.js'), {
+    '../utils/prisma': {
+      student: {
+        findUnique: async () => ({
+          id: 'student-1',
+          rollNumber: '23-001',
+          semester: 3,
+          section: 'A',
+          department: 'BBS',
+          user: {
+            id: 'student-user-1',
+            name: 'Student One',
+            email: 'student@example.com',
+            isActive: true,
+            deletedAt: null
+          }
+        })
+      },
+      subjectEnrollment: {
+        findFirst: async () => {
+          throw new Error('coordinator checks should not query enrollments')
+        }
+      },
+      mark: {
+        findMany: async (payload) => {
+          markFindManyCalls.push(payload)
+          return []
+        }
+      }
+    },
+    '../utils/pagination': {
+      getPagination: () => ({ page: 1, limit: 20, skip: 0 })
+    },
+    '../utils/audit': {
+      recordAuditLog: async () => {}
+    },
+    '../utils/notifications': {
+      createNotifications: async () => {}
+    },
+    pdfkit: class MockPdfDocument {}
+  })
+
+  const req = {
+    params: { studentId: 'student-1' },
+    query: {},
+    user: { id: 'coordinator-user-1', role: 'COORDINATOR' },
+    coordinator: { department: 'BCA' }
+  }
+  const res = createResponse()
+
+  await getStudentResultForStaff(req, res)
+
+  assert.equal(res.statusCode, 403)
+  assert.deepEqual(res.body, {
+    message: 'You can only view marks for students in your department'
+  })
+  assert.equal(markFindManyCalls.length, 0)
+})
+
+test('getStudentResultForStaff blocks instructors from viewing students outside assigned subjects', async () => {
+  const markFindManyCalls = []
+  const enrollmentFindFirstCalls = []
+  const { getStudentResultForStaff } = loadWithMocks(resolveFromTest('src', 'controllers', 'marks.controller.js'), {
+    '../utils/prisma': {
+      student: {
+        findUnique: async () => ({
+          id: 'student-1',
+          rollNumber: '23-001',
+          semester: 3,
+          section: 'A',
+          department: 'BCA',
+          user: {
+            id: 'student-user-1',
+            name: 'Student One',
+            email: 'student@example.com',
+            isActive: true,
+            deletedAt: null
+          }
+        })
+      },
+      subjectEnrollment: {
+        findFirst: async (payload) => {
+          enrollmentFindFirstCalls.push(payload)
+          return null
+        }
+      },
+      mark: {
+        findMany: async (payload) => {
+          markFindManyCalls.push(payload)
+          return []
+        }
+      }
+    },
+    '../utils/pagination': {
+      getPagination: () => ({ page: 1, limit: 20, skip: 0 })
+    },
+    '../utils/audit': {
+      recordAuditLog: async () => {}
+    },
+    '../utils/notifications': {
+      createNotifications: async () => {}
+    },
+    pdfkit: class MockPdfDocument {}
+  })
+
+  const req = {
+    params: { studentId: 'student-1' },
+    query: {},
+    user: { id: 'instructor-user-1', role: 'INSTRUCTOR' },
+    instructor: { id: 'instructor-1' }
+  }
+  const res = createResponse()
+
+  await getStudentResultForStaff(req, res)
+
+  assert.equal(res.statusCode, 403)
+  assert.deepEqual(res.body, {
+    message: 'You can only view marks for students enrolled in your assigned subjects'
+  })
+  assert.equal(markFindManyCalls.length, 0)
+  assert.deepEqual(enrollmentFindFirstCalls[0].where, {
+    studentId: 'student-1',
+    subject: {
+      instructorId: 'instructor-1'
+    }
+  })
+})
+
 test('getMarksReview scopes coordinators to their department', async () => {
   const findManyCalls = []
   const countCalls = []

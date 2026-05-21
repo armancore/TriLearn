@@ -283,6 +283,19 @@ test('csrfProtection allows native mobile bearer requests without browser contex
   assert.deepEqual(response.body, { ok: true })
 })
 
+test('csrfProtection rejects unsigned unsafe requests without browser origin context', async () => {
+  const testApp = express()
+  testApp.use(csrfProtection)
+  testApp.post('/api/v1/auth/logout-all', (_req, res) => res.json({ ok: true }))
+
+  const response = await request(testApp)
+    .post('/api/v1/auth/logout-all')
+    .set('Authorization', 'Bearer access-token')
+
+  assert.equal(response.status, 403)
+  assert.deepEqual(response.body, { message: 'CSRF validation failed' })
+})
+
 test('csrfProtection allows native mobile login requests with Expo origin and no cookies', async () => {
   const testApp = express()
   testApp.use(csrfProtection)

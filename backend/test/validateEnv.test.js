@@ -41,6 +41,7 @@ const baseEnv = {
   LOGIN_CAPTCHA_SECRET: 'c'.repeat(32),
   JWT_REFRESH_SECRET: 'r'.repeat(32),
   QR_SIGNING_SECRET: 'q'.repeat(32),
+  MOBILE_CLIENT_SHARED_SECRET: 'm'.repeat(32),
   FRONTEND_URL: 'http://localhost:5173',
   NODE_ENV: 'development'
 }
@@ -156,6 +157,36 @@ test('validateEnv rejects enabling debug errors in production', async () => {
       () => validateEnv(),
       /FATAL: DEBUG_ERRORS=true exposes internal error details to clients\. This must not be enabled in production\./
     )
+  } finally {
+    restoreEnv(originalEnv)
+  }
+})
+
+test('validateEnv requires MOBILE_CLIENT_SHARED_SECRET in production', async () => {
+  const originalEnv = { ...process.env }
+  Object.assign(process.env, baseEnv, {
+    NODE_ENV: 'production',
+    REDIS_URL: 'redis://localhost:6379',
+    MAIL_FROM: 'TriLearn <no-reply@example.com>',
+    RESEND_SMTP_HOST: 'smtp.resend.com',
+    RESEND_SMTP_PORT: '465',
+    RESEND_SMTP_USER: 'resend',
+    RESEND_SMTP_PASS: 'secret',
+    S3_BUCKET: 'trilearn',
+    S3_REGION: 'auto',
+    S3_ACCESS_KEY: 'access',
+    S3_SECRET_KEY: 'secret'
+  })
+  delete process.env.MOBILE_CLIENT_SHARED_SECRET
+
+  try {
+    await withPatchedLoggerError(async (errorCalls) => {
+      await withPatchedExit(async (exitCalls) => {
+        assert.throws(() => validateEnv(), /process\.exit:1/)
+        assert.deepEqual(exitCalls, [1])
+        assert.match(errorCalls[0], /Missing required production env vars: MOBILE_CLIENT_SHARED_SECRET/)
+      })
+    })
   } finally {
     restoreEnv(originalEnv)
   }

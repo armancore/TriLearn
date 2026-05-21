@@ -1,58 +1,53 @@
-const AUTH_USER_STORAGE_KEY = 'trilearn.auth.user'
-const AUTH_USER_PERSISTED_FIELDS = ['name', 'role', 'mustChangePassword', 'profileCompleted']
+const LEGACY_AUTH_USER_STORAGE_KEY = 'trilearn.auth.user'
+const AUTH_SESSION_HINT_STORAGE_KEY = 'trilearn.auth.session'
 
-const buildStoredUserSnapshot = (user) => {
-  if (!user || typeof user !== 'object') {
-    return null
-  }
-
-  return AUTH_USER_PERSISTED_FIELDS.reduce((snapshot, field) => {
-    if (Object.prototype.hasOwnProperty.call(user, field) && user[field] != null) {
-      snapshot[field] = user[field]
-    }
-
-    return snapshot
-  }, {})
-}
-
-const readStoredUser = () => {
-  if (typeof window === 'undefined') {
-    return null
-  }
-
-  try {
-    const serializedUser = window.localStorage.getItem(AUTH_USER_STORAGE_KEY)
-    return serializedUser ? buildStoredUserSnapshot(JSON.parse(serializedUser)) : null
-  } catch {
-    return null
-  }
-}
-
-const writeStoredUser = (user) => {
+const clearLegacyStoredUser = () => {
   if (typeof window === 'undefined') {
     return
   }
 
   try {
-    if (user) {
-      const storedUserSnapshot = buildStoredUserSnapshot(user)
+    window.localStorage.removeItem(LEGACY_AUTH_USER_STORAGE_KEY)
+  } catch {
+    // Ignore storage failures so auth remains functional in restricted environments.
+  }
+}
 
-      if (storedUserSnapshot && Object.keys(storedUserSnapshot).length > 0) {
-        window.localStorage.setItem(AUTH_USER_STORAGE_KEY, JSON.stringify(storedUserSnapshot))
-      } else {
-        window.localStorage.removeItem(AUTH_USER_STORAGE_KEY)
-      }
+clearLegacyStoredUser()
+
+const readStoredSessionHint = () => {
+  if (typeof window === 'undefined') {
+    return false
+  }
+
+  try {
+    return window.localStorage.getItem(AUTH_SESSION_HINT_STORAGE_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
+const writeStoredSessionHint = (hasSession) => {
+  if (typeof window === 'undefined') {
+    return
+  }
+
+  try {
+    if (hasSession) {
+      window.localStorage.setItem(AUTH_SESSION_HINT_STORAGE_KEY, '1')
     } else {
-      window.localStorage.removeItem(AUTH_USER_STORAGE_KEY)
+      window.localStorage.removeItem(AUTH_SESSION_HINT_STORAGE_KEY)
     }
   } catch {
     // Ignore storage failures so auth remains functional in restricted environments.
   }
 }
 
+let hasStoredSessionHint = readStoredSessionHint()
+
 let authState = {
   token: null,
-  user: readStoredUser()
+  user: null
 }
 
 const authSubscribers = new Set()
@@ -72,12 +67,13 @@ export const subscribeToAuthState = (listener) => {
 }
 
 export const hasSessionHint = () => {
-  return Boolean(authState.token || authState.user)
+  return Boolean(authState.token || authState.user || hasStoredSessionHint)
 }
 
 export const setAuthState = ({ token = null, user = null } = {}) => {
   authState = { token, user }
-  writeStoredUser(user)
+  hasStoredSessionHint = Boolean(token || user)
+  writeStoredSessionHint(hasStoredSessionHint)
   notifyAuthSubscribers()
 }
 

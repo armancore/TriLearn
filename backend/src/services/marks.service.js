@@ -492,6 +492,40 @@ const buildStaffReviewFilters = async ({ subjectId, examType, context }) => {
   return { where }
 }
 
+const getStaffStudentResultAccessError = async (student, context) => {
+  if (context.user.role === 'COORDINATOR') {
+    if (!context.coordinator?.department) {
+      return { status: 403, message: 'Coordinator department is not configured yet' }
+    }
+
+    if (!student.department || student.department !== context.coordinator.department) {
+      return { status: 403, message: 'You can only view marks for students in your department' }
+    }
+  }
+
+  if (context.user.role === 'INSTRUCTOR') {
+    if (!context.instructor?.id) {
+      return { status: 403, message: 'Instructor profile not found' }
+    }
+
+    const enrollment = await prisma.subjectEnrollment.findFirst({
+      where: {
+        studentId: student.id,
+        subject: {
+          instructorId: context.instructor.id
+        }
+      },
+      select: { id: true }
+    })
+
+    if (!enrollment) {
+      return { status: 403, message: 'You can only view marks for students enrolled in your assigned subjects' }
+    }
+  }
+
+  return null
+}
+
 const createMarkPayload = ({ studentId, subjectId, instructorId, examType, totalMarks, obtainedMarks, remarks }) => ({
   ...getGradeSnapshot(obtainedMarks, totalMarks),
   studentId,
@@ -601,6 +635,11 @@ const getStudentResultForStaff = async (context, result = createServiceResponder
 
   if (!student || !student.user?.isActive || student.user.deletedAt) {
     return result.withStatus(404, { message: 'Student not found' })
+  }
+
+  const accessError = await getStaffStudentResultAccessError(student, context)
+  if (accessError) {
+    return result.withStatus(accessError.status, { message: accessError.message })
   }
 
   const where = {

@@ -23,7 +23,7 @@ const s3EnvVars = [
   'S3_ACCESS_KEY',
   'S3_SECRET_KEY'
 ]
-const requiredProductionWarnings = [
+const requiredProductionSecrets = [
   'MOBILE_CLIENT_SHARED_SECRET'
 ]
 const validNodeEnvironments = new Set(['development', 'test', 'production'])
@@ -103,9 +103,10 @@ const validateEnv = () => {
       process.exit(1)
     }
 
-    const missingProductionWarnings = requiredProductionWarnings.filter((key) => !String(process.env[key] || '').trim())
-    if (missingProductionWarnings.length > 0) {
-      logger.warn(`Warning: Missing production env vars: ${missingProductionWarnings.join(', ')}. Mobile client CSRF exemption will remain disabled.`)
+    const missingProductionSecrets = requiredProductionSecrets.filter((key) => !String(process.env[key] || '').trim())
+    if (missingProductionSecrets.length > 0) {
+      logger.error(`Missing required production env vars: ${missingProductionSecrets.join(', ')}`)
+      process.exit(1)
     }
 
     if (!process.env.ATTENDANCE_TIMEZONE) {

@@ -100,14 +100,13 @@ const clearRefreshLock = (owner) => {
 
 /**
  * Security note — access token storage:
- * The access token is held in this module-level variable (JS memory) and a minimal
- * user snapshot is cached in localStorage to survive browser/tab restarts.
+ * The access token and user snapshot are held in module-level JS memory.
  * Trade-off: an XSS attack could exfiltrate the access token from memory.
  * Mitigation: the token is short-lived, logout revokes the current access-token
  * JTI through Redis, the refresh token is in an httpOnly
  * cookie and never accessible to JS, and the CSP blocks inline scripts and unknown origins.
- * Alternative: move the access token to an httpOnly cookie — requires a CSRF double-submit
- * strategy since the refresh cookie is already httpOnly on /api/v1/auth.
+ * Alternative: move the access token to an httpOnly cookie - requires a CSRF
+ * double-submit strategy since the refresh cookie is already httpOnly on /api/v1/auth.
  */
 let unauthorizedHandler = null
 let refreshCooldownUntil = readStoredRefreshCooldownUntil()

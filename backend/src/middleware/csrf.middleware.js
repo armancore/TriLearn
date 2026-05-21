@@ -90,9 +90,8 @@ const csrfProtection = (req, res, next) => {
    * threat model is browser-initiated cross-site requests where an attacker site can
    * cause the browser to send ambient cookies to this API but cannot choose a trusted
    * Origin header for a cross-origin fetch. Native mobile clients that authenticate
-   * with Bearer tokens and send no cookies are exempt because they do not rely on
-   * ambient browser credentials, so the CSRF primitive is absent. This depends on
-   * browsers enforcing the Origin header on cross-origin fetches.
+   * with Bearer tokens and a signed client identity are exempt because they do not
+   * rely on ambient browser credentials, so the CSRF primitive is absent.
    */
   if (SAFE_METHODS.has(req.method)) {
     return next()
@@ -120,9 +119,11 @@ const csrfProtection = (req, res, next) => {
     return next()
   }
 
-  // Bearer-token API clients without ambient browser credentials are not exposed to CSRF.
+  // Unsafe browser-like requests without Origin/Referer fail closed. Sandboxed
+  // browser contexts can omit those headers, so their absence is not a safe CSRF
+  // exemption signal for bearer-authenticated web endpoints.
   if (!hasCookieHeader && !hasBrowserContext) {
-    return next()
+    return res.status(403).json({ message: 'CSRF validation failed' })
   }
 
   const requestOrigin = resolveRequestOrigin(req)

@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import {
   default as api,
   getAuthState,
+  hasSessionHint,
   refreshSession,
   registerUnauthorizedHandler,
   setAuthState,
@@ -40,7 +41,7 @@ export const AuthProvider = ({ children }) => {
     })
 
     if (isPublicAuthRoute) {
-      if (isLoginRoute && !currentAuthState.token && currentAuthState.user) {
+      if (isLoginRoute && !currentAuthState.token && hasSessionHint()) {
         refreshSession()
           .catch(() => {
             clearClientSession()
@@ -83,7 +84,7 @@ export const AuthProvider = ({ children }) => {
       }
     }
 
-    if (!currentAuthState.token && !currentAuthState.user) {
+    if (!currentAuthState.token && !currentAuthState.user && !hasSessionHint()) {
       setLoading(false)
       return () => {
         isMounted = false
