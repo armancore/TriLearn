@@ -49,6 +49,7 @@ model User {
   deviceTokens DeviceToken[]
   refreshTokens RefreshToken[]
   auditLogs  AuditLog[]
+  disciplinaryRecords DisciplinaryRecord[] @relation("RecordedByUser")
   uploadedFiles UploadedFile[] @relation("UploadedFiles")
 
   @@index([role])
@@ -160,6 +161,7 @@ model Student {
   submissions  Submission[]
   taskSubmissions TaskSubmission[]
   marks        Mark[]
+  disciplinaryRecords DisciplinaryRecord[]
   subjectEnrollments SubjectEnrollment[]
 
   @@index([semester])
@@ -286,6 +288,40 @@ enum AbsenceTicketStatus {
   PENDING
   APPROVED
   REJECTED
+}
+
+enum DisciplinaryType {
+  WARNING
+  MISCONDUCT
+  CHEATING
+  ABSENCE_VIOLATION
+  PROPERTY_DAMAGE
+  OTHER
+}
+
+enum Severity {
+  MINOR
+  MODERATE
+  SEVERE
+}
+
+model DisciplinaryRecord {
+  id           String          @id @default(uuid())
+  studentId    String
+  student      Student         @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  recordedById String
+  recordedBy   User            @relation("RecordedByUser", fields: [recordedById], references: [id], onDelete: Cascade)
+  type         DisciplinaryType
+  description  String
+  action       String?
+  severity     Severity        @default(MINOR)
+  date         DateTime
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  @@index([studentId])
+  @@index([recordedById])
+  @@index([studentId, createdAt])
 }
 
 // ================================
