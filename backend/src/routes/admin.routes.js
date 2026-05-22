@@ -36,7 +36,6 @@ const {
   createInstructor
 } = require('../controllers/staff.controller')
 const { importStudents, getStudentImportJob } = require('../controllers/bulkImport.controller')
-const { getStudentProfile } = require('../controllers/studentProfile.controller')
 const {
   createDisciplinaryRecord,
   updateDisciplinaryRecord,
@@ -45,6 +44,7 @@ const {
 
 router.use(protect)
 router.use(attachActorProfiles)
+router.use(allowRoles('ADMIN', 'COORDINATOR'))
 
 router.get('/stats', allowRoles('ADMIN', 'COORDINATOR'), getAdminStats)
 router.get('/users', allowRoles('ADMIN', 'COORDINATOR'), validate(schemas.admin.getAllUsers), getAllUsers)
@@ -87,14 +87,6 @@ router.patch('/users/:id/promote-semester', allowRoles('ADMIN', 'COORDINATOR'), 
 router.patch('/users/:id/toggle-status', allowRoles('ADMIN', 'COORDINATOR'), validate(schemas.admin.userId), toggleUserStatus)
 router.delete('/users/:id', allowRoles('ADMIN', 'COORDINATOR'), validate(schemas.admin.userId), deleteUser)
 
-// Student Profile Panel routes
-router.get(
-  '/students/:studentId/profile',
-  allowRoles('ADMIN', 'COORDINATOR', 'INSTRUCTOR'),
-  validate(schemas.studentProfile.getById),
-  getStudentProfile
-)
-
 router.post(
   '/students/:studentId/disciplinary',
   allowRoles('ADMIN', 'COORDINATOR'),
@@ -111,7 +103,7 @@ router.put(
 
 router.delete(
   '/students/:studentId/disciplinary/:recordId',
-  allowRoles('ADMIN'),
+  allowRoles('ADMIN', 'COORDINATOR'),
   validate(schemas.disciplinary.delete),
   deleteDisciplinaryRecord
 )

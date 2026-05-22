@@ -171,6 +171,39 @@ const getStudentProfile = async (context, result = createServiceResponder()) => 
       select: { id: true }
     })
     instructorSubjectIds = new Set(subjects.map((subject) => subject.id))
+
+    if (instructorSubjectIds.size === 0) {
+      const response = result.ok({
+        student,
+        attendance: [],
+        marks: {},
+        assignments: [],
+        taskSubmissions: [],
+        absenceTickets: [],
+        disciplinary: [],
+        summary: {
+          overallAttendancePct: 0,
+          totalSubjects: 0,
+          totalAssignments: 0,
+          submittedAssignments: 0,
+          avgGradePoint: 0,
+          totalDisciplinaryRecords: 0
+        }
+      })
+
+      await recordAuditLog({
+        actorId: context.user.id,
+        actorRole: role,
+        action: 'STUDENT_PROFILE_VIEWED',
+        entityType: 'Student',
+        entityId: student.id,
+        metadata: {
+          studentUserId: student.user.id
+        }
+      })
+
+      return response
+    }
   }
 
   const instructorSubjectFilter = role === 'INSTRUCTOR'
@@ -212,7 +245,7 @@ const getStudentProfile = async (context, result = createServiceResponder()) => 
     prisma.submission.findMany({
       where: {
         studentId: student.id,
-        ...(role === 'INSTRUCTOR' ? { assignment: { instructorId: context.instructor?.id } } : {})
+        ...(role === 'INSTRUCTOR' ? { assignment: { instructorId: context.instructor.id } } : {})
       },
       include: {
         assignment: {
@@ -229,7 +262,7 @@ const getStudentProfile = async (context, result = createServiceResponder()) => 
     prisma.taskSubmission.findMany({
       where: {
         studentId: student.id,
-        ...(role === 'INSTRUCTOR' ? { task: { instructorId: context.instructor?.id } } : {})
+        ...(role === 'INSTRUCTOR' ? { task: { instructorId: context.instructor.id } } : {})
       },
       include: {
         task: {

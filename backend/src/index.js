@@ -145,6 +145,7 @@ uploadPublicPaths.forEach((publicPath) => {
 // Routes
 const authRoutes = require('./routes/auth.routes')
 const adminRoutes = require('./routes/admin.routes')
+const studentProfileRoutes = require('./routes/studentProfile.routes')
 const subjectRoutes = require('./routes/subject.routes')
 const attendanceRoutes = require('./routes/attendance.routes')
 const assignmentRoutes = require('./routes/assignment.routes')
@@ -163,6 +164,7 @@ apiV1.use('/auth', authRoutes)
 // and should not be coupled to the generic fallback cap used by other domains.
 apiV1.use(apiLimiter)
 apiV1.use('/admin', adminRoutes)
+apiV1.use('/students', studentProfileRoutes)
 apiV1.use('/subjects', subjectRoutes)
 apiV1.use('/attendance', attendanceRoutes)
 apiV1.use('/assignments', assignmentRoutes)

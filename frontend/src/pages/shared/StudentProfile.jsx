@@ -93,7 +93,7 @@ const StudentProfile = () => {
   const [savingRecord, setSavingRecord] = useState(false)
   const [deletingRecordId, setDeletingRecordId] = useState('')
 
-  const profilePath = `/admin/students/${studentId}/profile`
+  const profilePath = `/students/${studentId}/profile`
 
   const loadProfile = useCallback(async (signal) => {
     try {
@@ -283,7 +283,8 @@ const StudentProfile = () => {
             {activeTab === 'disciplinary' && canManageDisciplinary ? (
               <DisciplinaryPanel
                 records={profile.disciplinary || []}
-                isAdmin={isAdmin}
+                canCreate={canManageDisciplinary}
+                canDelete={canManageDisciplinary}
                 showForm={showDisciplinaryForm}
                 setShowForm={setShowDisciplinaryForm}
                 form={disciplinaryForm}
@@ -596,7 +597,8 @@ const TicketsPanel = ({ tickets }) => {
 
 const DisciplinaryPanel = ({
   records,
-  isAdmin,
+  canCreate,
+  canDelete,
   showForm,
   setShowForm,
   form,
@@ -612,16 +614,18 @@ const DisciplinaryPanel = ({
         <h2 className="text-lg font-semibold text-[var(--color-heading)]">Disciplinary records</h2>
         <p className="text-sm text-[var(--color-text-muted)]">Incidents and actions recorded by staff.</p>
       </div>
-      <button
-        type="button"
-        onClick={() => setShowForm((current) => !current)}
-        className="inline-flex items-center justify-center rounded-lg bg-[var(--color-role-accent)] px-4 py-2 text-sm font-medium text-white transition hover:brightness-95"
-      >
-        {showForm ? 'Close form' : 'Add record'}
-      </button>
+      {canCreate ? (
+        <button
+          type="button"
+          onClick={() => setShowForm((current) => !current)}
+          className="inline-flex items-center justify-center rounded-lg bg-[var(--color-role-accent)] px-4 py-2 text-sm font-medium text-white transition hover:brightness-95"
+        >
+          {showForm ? 'Close form' : 'Add record'}
+        </button>
+      ) : null}
     </div>
 
-    {showForm ? (
+    {showForm && canCreate ? (
       <form onSubmit={onSubmit} className="rounded-2xl border border-[var(--color-card-border)] bg-[var(--color-card-surface)] p-5">
         <div className="grid gap-4 md:grid-cols-3">
           <label className="block">
@@ -672,7 +676,7 @@ const DisciplinaryPanel = ({
               <th className="px-5 py-4">Description</th>
               <th className="px-5 py-4">Action taken</th>
               <th className="px-5 py-4">Recorded by</th>
-              {isAdmin ? <th className="px-5 py-4">Delete</th> : null}
+              {canDelete ? <th className="px-5 py-4">Delete</th> : null}
             </tr>
           </thead>
           <tbody>
@@ -687,7 +691,7 @@ const DisciplinaryPanel = ({
                   <p className="font-semibold text-[var(--color-heading)]">{valueOrDash(record.recordedByName)}</p>
                   <p className="text-xs">{valueOrDash(record.recordedByRole)}</p>
                 </td>
-                {isAdmin ? (
+                {canDelete ? (
                   <td className="px-5 py-4">
                     <button
                       type="button"
@@ -704,6 +708,11 @@ const DisciplinaryPanel = ({
             ))}
           </tbody>
         </table>
+        {!canDelete ? (
+          <p className="border-t border-[var(--color-card-border)] px-5 py-3 text-sm text-[var(--color-text-muted)]">
+            Records can only be deleted by an admin.
+          </p>
+        ) : null}
       </TableShell>
     )}
   </section>
