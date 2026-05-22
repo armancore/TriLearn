@@ -246,6 +246,17 @@ const Assignments = () => {
       return
     }
 
+    if (isAdmin || isCoordinator) {
+      const hasSelectedSubject = selectedSubject && subjects.some((subject) => subject.id === selectedSubject)
+
+      if (selectedSubject && !hasSelectedSubject) {
+        setSelectedSubject('')
+        syncSubjectInUrl('')
+      }
+
+      return
+    }
+
     const hasSelectedSubject = subjects.some((subject) => subject.id === selectedSubject)
     const nextSubjectId = hasSelectedSubject ? selectedSubject : subjects[0]?.id || ''
 
@@ -257,7 +268,7 @@ const Assignments = () => {
     if (nextSubjectId) {
       setForm((current) => ({ ...current, subjectId: nextSubjectId }))
     }
-  }, [selectedSubject, subjects, syncSubjectInUrl])
+  }, [isAdmin, isCoordinator, selectedSubject, subjects, syncSubjectInUrl])
 
   const openAssignmentModal = () => {
     if (!canCreateAssignment) {
@@ -924,4 +935,3 @@ const Assignments = () => {
 }
 
 export default Assignments
-
