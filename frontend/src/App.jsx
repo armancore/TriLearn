@@ -50,6 +50,7 @@ import StudentRoutine from './pages/student/Routine'
 import StudentIdCard from './pages/student/IdCard'
 import StudentLearnings from './pages/Learnings'
 import ProfilePage from './pages/shared/ProfilePage'
+import StudentProfile from './pages/shared/StudentProfile'
 import NotFound from './pages/shared/NotFound'
 import { getHomeRouteForUser } from './utils/auth'
 import { ROLES } from './constants/roles'
@@ -88,6 +89,14 @@ const AppRoutes = () => {
       <Route path="/admin" element={<ProtectedRoute allowedRoles={[ROLES.ADMIN]}><AdminDashboard /></ProtectedRoute>} />
       <Route path="/admin/users" element={<ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.COORDINATOR]}><Users /></ProtectedRoute>} />
       <Route path="/admin/students" element={<ProtectedRoute allowedRoles={[ROLES.ADMIN]}><Students /></ProtectedRoute>} />
+      <Route
+        path="/admin/students/:studentId/profile"
+        element={
+          <ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.COORDINATOR]}>
+            <StudentProfile />
+          </ProtectedRoute>
+        }
+      />
       <Route path="/admin/applications" element={<ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.COORDINATOR]}><StudentApplications /></ProtectedRoute>} />
       <Route path="/admin/departments" element={<ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.COORDINATOR]}><Departments /></ProtectedRoute>} />
       <Route path="/admin/subjects" element={<ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.COORDINATOR]}><Subjects /></ProtectedRoute>} />
@@ -102,6 +111,14 @@ const AppRoutes = () => {
       <Route path="/coordinator" element={<ProtectedRoute allowedRoles={[ROLES.COORDINATOR]}><CoordinatorDashboard /></ProtectedRoute>} />
       <Route path="/coordinator/users" element={<ProtectedRoute allowedRoles={[ROLES.COORDINATOR]}><Users /></ProtectedRoute>} />
       <Route path="/coordinator/students" element={<ProtectedRoute allowedRoles={[ROLES.COORDINATOR]}><Students /></ProtectedRoute>} />
+      <Route
+        path="/coordinator/students/:studentId/profile"
+        element={
+          <ProtectedRoute allowedRoles={[ROLES.COORDINATOR]}>
+            <StudentProfile />
+          </ProtectedRoute>
+        }
+      />
       <Route path="/coordinator/applications" element={<ProtectedRoute allowedRoles={[ROLES.COORDINATOR]}><StudentApplications /></ProtectedRoute>} />
       <Route path="/coordinator/departments" element={<ProtectedRoute allowedRoles={[ROLES.COORDINATOR]}><Departments /></ProtectedRoute>} />
       <Route path="/coordinator/subjects" element={<ProtectedRoute allowedRoles={[ROLES.COORDINATOR]}><Subjects /></ProtectedRoute>} />
@@ -132,6 +149,14 @@ const AppRoutes = () => {
       <Route path="/instructor/routine" element={<ProtectedRoute allowedRoles={[ROLES.INSTRUCTOR]}><InstructorRoutine /></ProtectedRoute>} />
       <Route path="/instructor/requests" element={<ProtectedRoute allowedRoles={[ROLES.INSTRUCTOR]}><InstructorRequests /></ProtectedRoute>} />
       <Route path="/instructor/profile" element={<ProtectedRoute allowedRoles={[ROLES.INSTRUCTOR]}><ProfilePage /></ProtectedRoute>} />
+      <Route
+        path="/instructor/students/:studentId/profile"
+        element={
+          <ProtectedRoute allowedRoles={[ROLES.INSTRUCTOR]}>
+            <StudentProfile />
+          </ProtectedRoute>
+        }
+      />
 
       {/* Student Routes */}
       <Route path="/student" element={<ProtectedRoute allowedRoles={[ROLES.STUDENT]}><StudentDashboard /></ProtectedRoute>} />

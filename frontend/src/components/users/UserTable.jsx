@@ -1,5 +1,7 @@
-import { ArrowUpCircle, PencilLine, Power, Trash2, UserPlus } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { ArrowUpCircle, PencilLine, Power, Search, Trash2, UserPlus } from 'lucide-react'
 import { ROLES } from '../../constants/roles'
+import { useAuth } from '../../context/AuthContext'
 import EmptyState from '../EmptyState'
 import LoadingSkeleton from '../LoadingSkeleton'
 import Pagination from '../Pagination'
@@ -42,8 +44,12 @@ const UserTable = ({
   handleToggleStatus,
   currentUser,
   setUserToDelete
-}) => (
-  <div className="overflow-hidden rounded-2xl bg-[var(--color-card-surface)] shadow-sm dark:shadow-slate-900/50">
+}) => {
+  const { user: currentUserAuth } = useAuth()
+  const role = currentUserAuth?.role
+
+  return (
+    <div className="overflow-hidden rounded-2xl bg-[var(--color-card-surface)] shadow-sm dark:shadow-slate-900/50">
     {loading ? (
       <div className="p-6">
         <LoadingSkeleton rows={6} itemClassName="h-16" />
@@ -139,6 +145,19 @@ const UserTable = ({
                 </td>
                 <td className="px-6 py-4">
                   <div className="flex gap-2">
+                    {user.role === ROLES.STUDENT && (
+                      <Link
+                        to={
+                          role === 'ADMIN'
+                            ? `/admin/students/${user.student?.id}/profile`
+                            : `/coordinator/students/${user.student?.id}/profile`
+                        }
+                        className="inline-flex items-center justify-center rounded-lg p-1.5 text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-surface-muted)] hover:text-[var(--color-heading)]"
+                        title="View student profile"
+                      >
+                        <Search className="h-4 w-4" />
+                      </Link>
+                    )}
                     {user.student ? (
                       <button
                         type="button"
@@ -198,6 +217,7 @@ const UserTable = ({
       </>
     )}
   </div>
-)
+  )
+}
 
 export default UserTable
