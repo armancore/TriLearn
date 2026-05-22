@@ -825,6 +825,37 @@ const schemas = {
         token: z.string().trim().min(10).max(4096)
       })
     }
+
+  },
+  studentProfile: {
+    getById: {
+      params: z.object({ studentId: z.string().uuid() })
+    }
+  },
+  disciplinary: {
+    create: {
+      params: z.object({ studentId: z.string().uuid() }),
+      body: z.object({
+        type: z.enum(['WARNING', 'MISCONDUCT', 'CHEATING', 'ABSENCE_VIOLATION', 'PROPERTY_DAMAGE', 'OTHER']),
+        severity: z.enum(['MINOR', 'MODERATE', 'SEVERE']).optional().default('MINOR'),
+        description: z.string().trim().min(10).max(1000),
+        action: z.string().trim().max(500).optional(),
+        date: z.string().trim().min(1)
+      })
+    },
+    update: {
+      params: z.object({ studentId: z.string().uuid(), recordId: z.string().uuid() }),
+      body: z.object({
+        type: z.enum(['WARNING', 'MISCONDUCT', 'CHEATING', 'ABSENCE_VIOLATION', 'PROPERTY_DAMAGE', 'OTHER']).optional(),
+        severity: z.enum(['MINOR', 'MODERATE', 'SEVERE']).optional(),
+        description: z.string().trim().min(10).max(1000).optional(),
+        action: z.string().trim().max(500).optional(),
+        date: z.string().trim().min(1).optional()
+      })
+    },
+    delete: {
+      params: z.object({ studentId: z.string().uuid(), recordId: z.string().uuid() })
+    }
   }
 }
 
