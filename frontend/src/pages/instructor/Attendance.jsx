@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { RefreshCw } from 'lucide-react'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import InstructorLayout from '../../layouts/InstructorLayout'
 import CoordinatorLayout from '../../layouts/CoordinatorLayout'
 import Alert from '../../components/Alert'
@@ -812,7 +812,14 @@ const Attendance = () => {
                             {filteredCoordinatorRecords.map((record) => (
                               <tr key={record.id} className="border-t border-[var(--color-card-border)] transition-colors hover:bg-[var(--color-surface-muted)]/70">
                                 <td className="px-4 py-4">
-                                  <p className="font-semibold text-[var(--color-heading)]">{record.student.name}</p>
+                                  <p className="font-semibold text-[var(--color-heading)]">
+                                    <Link
+                                      to={`/instructor/students/${record.student.id}/profile`}
+                                      className="font-medium text-[var(--color-role-accent)] hover:underline"
+                                    >
+                                      {record.student.name}
+                                    </Link>
+                                  </p>
                                   <p className="mt-1 text-xs text-[var(--color-text-muted)]">{record.student.email}</p>
                                 </td>
                                 <td className="px-4 py-4 text-sm text-[var(--color-text-muted)]">{record.student.rollNumber}</td>
@@ -855,7 +862,14 @@ const Attendance = () => {
                       {attendance.map((record) => (
                         <tr key={record.id} className="border-t border-[var(--color-card-border)] transition-colors hover:bg-[var(--color-surface-muted)]/70">
                           <td className="px-6 py-4">
-                            <p className="font-semibold text-[var(--color-heading)]">{record.student?.user?.name}</p>
+                            <p className="font-semibold text-[var(--color-heading)]">
+                              <Link
+                                to={`/instructor/students/${record.student?.id}/profile`}
+                                className="font-medium text-[var(--color-role-accent)] hover:underline"
+                              >
+                                {record.student?.user?.name}
+                              </Link>
+                            </p>
                             <p className="mt-1 text-xs text-[var(--color-text-muted)]">{record.student?.rollNumber}</p>
                           </td>
                           <td className="px-6 py-4 text-sm text-[var(--color-text-muted)]">{record.student?.user?.email}</td>

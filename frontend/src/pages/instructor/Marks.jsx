@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Plus, UploadCloud } from 'lucide-react'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import AdminLayout from '../../layouts/AdminLayout'
 import InstructorLayout from '../../layouts/InstructorLayout'
 import CoordinatorLayout from '../../layouts/CoordinatorLayout'
@@ -387,7 +387,14 @@ const Marks = () => {
                       {marks.map((mark) => (
                         <tr key={mark.id} className="border-t border-[var(--color-card-border)] transition-colors hover:bg-[var(--color-surface-muted)]/70">
                           <td className="px-6 py-4">
-                            <p className="font-semibold text-[var(--color-heading)]">{mark.student?.user?.name}</p>
+                            <p className="font-semibold text-[var(--color-heading)]">
+                              <Link
+                                to={`/instructor/students/${mark.student?.id}/profile`}
+                                className="font-medium text-[var(--color-role-accent)] hover:underline"
+                              >
+                                {mark.student?.user?.name}
+                              </Link>
+                            </p>
                             <p className="mt-1 text-xs text-[var(--color-text-muted)]">{mark.student?.rollNumber || mark.student?.user?.email}</p>
                           </td>
                           <td className="px-6 py-4">

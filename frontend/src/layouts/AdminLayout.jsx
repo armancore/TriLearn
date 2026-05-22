@@ -27,7 +27,7 @@ const AdminLayout = ({ children }) => {
   const sidebarItems = useMemo(() => ([
     { path: `${basePath}`, label: 'Dashboard', icon: LayoutDashboard, meta: 'Overview' },
     { path: `${basePath}/users`, label: 'Users', icon: Users, meta: 'People and roles' },
-    { path: `${basePath}/students`, label: 'Students', icon: Users, meta: 'Roster and IDs' },
+    { path: `${basePath}/students`, label: 'Student Stats', icon: Users, meta: 'Student details' },
     { path: `${basePath}/applications`, label: 'Admissions', icon: FileText, meta: 'Application review' },
     { path: `${basePath}/departments`, label: 'Departments', icon: ShieldUser, meta: 'Department setup' },
     { path: `${basePath}/subjects`, label: 'Subjects', icon: BookOpenText, meta: 'Academic setup' },

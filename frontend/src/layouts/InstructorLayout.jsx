@@ -8,6 +8,7 @@ import {
   FileText,
   LayoutDashboard,
   Percent,
+  Users,
   UserCircle2
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
@@ -25,6 +26,7 @@ const InstructorLayout = ({ children }) => {
   const sidebarItems = useMemo(() => ([
     { path: `${basePath}`, label: 'Dashboard', icon: LayoutDashboard, meta: 'Overview' },
     { path: `${basePath}/subjects`, label: 'Modules', icon: BookOpenText, meta: 'Assigned modules' },
+    { path: `${basePath}/students`, label: 'Student Stats', icon: Users, meta: 'Student details' },
     { path: `${basePath}/assignments`, label: 'Assignments', icon: ClipboardList, meta: 'Admin question uploads' },
     { path: `${basePath}/tasks`, label: 'Tasks', icon: FileText, meta: 'Subject tasks and feedback' },
     { path: `${basePath}/attendance`, label: 'Attendance', icon: Percent, meta: 'Subject attendance' },

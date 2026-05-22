@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Plus } from 'lucide-react'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import Alert from '../../components/Alert'
 import PageHeader from '../../components/PageHeader'
 import AdminLayout from '../../layouts/AdminLayout'
@@ -780,7 +780,14 @@ const Assignments = () => {
                 >
                   <div className="flex flex-col gap-4 lg:flex-row lg:justify-between">
                     <div className="flex-1">
-                      <p className="font-medium text-[var(--color-heading)]">{submission.student?.user?.name}</p>
+                      <p className="font-medium text-[var(--color-heading)]">
+                        <Link
+                          to={`/instructor/students/${submission.student?.id}/profile`}
+                          className="font-medium text-[var(--color-role-accent)] hover:underline"
+                        >
+                          {submission.student?.user?.name}
+                        </Link>
+                      </p>
                       <p className="mt-1 text-sm text-[var(--color-text-muted)]">{submission.note || 'No note'}</p>
                       {submission.fileUrl && (
                         <button

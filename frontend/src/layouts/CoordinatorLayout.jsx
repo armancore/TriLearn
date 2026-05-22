@@ -26,7 +26,7 @@ const CoordinatorLayout = ({ children }) => {
   const sidebarItems = useMemo(() => ([
     { path: `${basePath}`, label: 'Dashboard', icon: LayoutDashboard, meta: 'Overview' },
     { path: `${basePath}/users`, label: 'People', icon: Users, meta: 'Campus user management' },
-    { path: `${basePath}/students`, label: 'Students', icon: Users, meta: 'Roster and IDs' },
+    { path: `${basePath}/students`, label: 'Student Stats', icon: Users, meta: 'Student details' },
     { path: `${basePath}/applications`, label: 'Admissions', icon: FileText, meta: 'Applications' },
     { path: `${basePath}/departments`, label: 'Departments', icon: ShieldUser, meta: 'Department setup' },
     { path: `${basePath}/subjects`, label: 'Subjects', icon: BookOpenText, meta: 'Academic setup' },
