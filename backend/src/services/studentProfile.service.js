@@ -181,6 +181,7 @@ const getStudentProfile = async (context, result = createServiceResponder()) => 
     attendanceRecords,
     markRecords,
     submissionRecords,
+    taskSubmissionRecords,
     absenceTicketRecords,
     disciplinaryRecords
   ] = await Promise.all([
@@ -225,6 +226,22 @@ const getStudentProfile = async (context, result = createServiceResponder()) => 
       },
       orderBy: { submittedAt: 'desc' }
     }),
+    prisma.taskSubmission.findMany({
+      where: {
+        studentId: student.id,
+        ...(role === 'INSTRUCTOR' ? { task: { instructorId: context.instructor?.id } } : {})
+      },
+      include: {
+        task: {
+          select: {
+            title: true,
+            dueDate: true,
+            subject: { select: { name: true, code: true } }
+          }
+        }
+      },
+      orderBy: { submittedAt: 'desc' }
+    }),
     prisma.absenceTicket.findMany({
       where: { studentId: student.id },
       include: {
@@ -250,6 +267,8 @@ const getStudentProfile = async (context, result = createServiceResponder()) => 
   const attendance = buildAttendanceSummary(attendanceRecords)
   const marks = buildMarksByExamType(markRecords)
   const assignments = submissionRecords.map((submission) => ({
+    id: submission.id,
+    kind: 'ASSIGNMENT',
     assignmentTitle: submission.assignment?.title || null,
     subjectName: submission.assignment?.subject?.name || null,
     subjectCode: submission.assignment?.subject?.code || null,
@@ -259,7 +278,24 @@ const getStudentProfile = async (context, result = createServiceResponder()) => 
     totalMarks: submission.assignment?.totalMarks || null,
     status: submission.status,
     feedback: submission.feedback,
-    note: submission.note
+    note: submission.note,
+    fileUrl: submission.fileUrl
+  }))
+  const taskSubmissions = taskSubmissionRecords.map((submission) => ({
+    id: submission.id,
+    kind: 'TASK',
+    assignmentTitle: submission.task?.title || null,
+    subjectName: submission.task?.subject?.name || null,
+    subjectCode: submission.task?.subject?.code || null,
+    dueDate: submission.task?.dueDate || null,
+    submittedAt: submission.submittedAt,
+    obtainedMarks: null,
+    totalMarks: null,
+    status: submission.status,
+    feedback: submission.feedback,
+    note: submission.note,
+    fileUrl: submission.fileUrl,
+    reviewedAt: submission.reviewedAt
   }))
   const absenceTickets = absenceTicketRecords.map((ticket) => ({
     id: ticket.id,
@@ -295,13 +331,14 @@ const getStudentProfile = async (context, result = createServiceResponder()) => 
     attendance,
     marks,
     assignments,
+    taskSubmissions,
     absenceTickets,
     disciplinary,
     summary: {
       overallAttendancePct: averageAttendance,
       totalSubjects: new Set(attendanceRecords.map((attendanceRecord) => attendanceRecord.subjectId)).size,
-      totalAssignments: submissionRecords.length,
-      submittedAssignments: submissionRecords.filter((submission) => submission.status !== null).length,
+      totalAssignments: submissionRecords.length + taskSubmissionRecords.length,
+      submittedAssignments: submissionRecords.filter((submission) => submission.status !== null).length + taskSubmissionRecords.filter((submission) => submission.status !== null).length,
       avgGradePoint: averageGradePoint,
       totalDisciplinaryRecords: disciplinary.length
     }

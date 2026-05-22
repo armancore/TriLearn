@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useState } from 'react'
+import { Fragment, useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { Trash2 } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { ROLES } from '../../constants/roles'
-import api from '../../utils/api'
+import api, { openFileUrl } from '../../utils/api'
 import AdminLayout from '../../layouts/AdminLayout'
 import CoordinatorLayout from '../../layouts/CoordinatorLayout'
 import InstructorLayout from '../../layouts/InstructorLayout'
@@ -172,6 +172,15 @@ const StudentProfile = () => {
     }
   }
 
+  const openSubmissionFile = async (fileUrl) => {
+    try {
+      setError('')
+      await openFileUrl(fileUrl)
+    } catch (requestError) {
+      setError(getFriendlyErrorMessage(requestError, 'Unable to open the submitted file right now.'))
+    }
+  }
+
   const student = profile?.student
   const studentUser = student?.user
   const tabs = canManageDisciplinary ? [...tabsBase, 'disciplinary'] : tabsBase
@@ -262,7 +271,14 @@ const StudentProfile = () => {
                 setActiveExamType={setActiveMarkExamType}
               />
             ) : null}
-            {activeTab === 'assignments' ? <AssignmentsPanel assignments={profile.assignments || []} /> : null}
+            {activeTab === 'assignments' ? (
+              <AssignmentsPanel
+                assignments={[...(profile.assignments || []), ...(profile.taskSubmissions || [])].sort((left, right) => (
+                  new Date(right.submittedAt || 0) - new Date(left.submittedAt || 0)
+                ))}
+                onOpenSubmissionFile={openSubmissionFile}
+              />
+            ) : null}
             {activeTab === 'tickets' ? <TicketsPanel tickets={profile.absenceTickets || []} /> : null}
             {activeTab === 'disciplinary' && canManageDisciplinary ? (
               <DisciplinaryPanel
@@ -447,40 +463,93 @@ const MarksPanel = ({ marks, examTypes, activeExamType, setActiveExamType }) => 
   )
 }
 
-const AssignmentsPanel = ({ assignments }) => {
+const AssignmentsPanel = ({ assignments, onOpenSubmissionFile }) => {
+  const [selectedSubmissionId, setSelectedSubmissionId] = useState('')
+
   if (assignments.length === 0) {
     return <EmptyState title="No assignments found" description="Assignment submissions for this student will appear here." />
   }
 
   return (
     <TableShell>
-      <table className="w-full min-w-[860px]">
+      <table className="w-full min-w-[980px]">
         <thead className="bg-[var(--color-surface-muted)]">
           <tr className="text-left text-xs font-semibold uppercase tracking-[0.14em] text-[var(--color-text-muted)]">
+            <th className="px-5 py-4">Type</th>
             <th className="px-5 py-4">Assignment</th>
             <th className="px-5 py-4">Subject</th>
             <th className="px-5 py-4">Due date</th>
             <th className="px-5 py-4">Submitted</th>
             <th className="px-5 py-4">Marks</th>
             <th className="px-5 py-4">Status</th>
+            <th className="px-5 py-4">Submission</th>
           </tr>
         </thead>
         <tbody>
-          {assignments.map((assignment, index) => (
-            <tr key={`${assignment.assignmentTitle}-${index}`} className="border-t border-[var(--color-card-border)]">
-              <td className="px-5 py-4 text-sm font-semibold text-[var(--color-heading)]">{valueOrDash(assignment.assignmentTitle)}</td>
-              <td className="px-5 py-4 text-sm text-[var(--color-text-muted)]">
-                <p>{valueOrDash(assignment.subjectName)}</p>
-                <p className="text-xs">{valueOrDash(assignment.subjectCode)}</p>
-              </td>
-              <td className="px-5 py-4 text-sm text-[var(--color-text-muted)]">{formatDate(assignment.dueDate)}</td>
-              <td className="px-5 py-4 text-sm text-[var(--color-text-muted)]">{formatDateTime(assignment.submittedAt)}</td>
-              <td className="px-5 py-4 text-sm text-[var(--color-text-muted)]">{valueOrDash(assignment.obtainedMarks)}/{valueOrDash(assignment.totalMarks)}</td>
-              <td className="px-5 py-4">
-                <span className={statusClass(assignment.status, assignmentStatusClasses)}>{assignment.status || 'NOT SUBMITTED'}</span>
-              </td>
-            </tr>
-          ))}
+          {assignments.map((assignment, index) => {
+            const isSelected = selectedSubmissionId === assignment.id
+            return (
+              <Fragment key={`${assignment.id || assignment.assignmentTitle}-${index}`}>
+                <tr className="border-t border-[var(--color-card-border)]">
+                  <td className="px-5 py-4">
+                    <span className="ui-status-badge ui-status-neutral">{assignment.kind === 'TASK' ? 'Task' : 'Assignment'}</span>
+                  </td>
+                  <td className="px-5 py-4 text-sm font-semibold text-[var(--color-heading)]">{valueOrDash(assignment.assignmentTitle)}</td>
+                  <td className="px-5 py-4 text-sm text-[var(--color-text-muted)]">
+                    <p>{valueOrDash(assignment.subjectName)}</p>
+                    <p className="text-xs">{valueOrDash(assignment.subjectCode)}</p>
+                  </td>
+                  <td className="px-5 py-4 text-sm text-[var(--color-text-muted)]">{formatDate(assignment.dueDate)}</td>
+                  <td className="px-5 py-4 text-sm text-[var(--color-text-muted)]">{formatDateTime(assignment.submittedAt)}</td>
+                  <td className="px-5 py-4 text-sm text-[var(--color-text-muted)]">
+                    {assignment.kind === 'TASK' ? '-' : `${valueOrDash(assignment.obtainedMarks)}/${valueOrDash(assignment.totalMarks)}`}
+                  </td>
+                  <td className="px-5 py-4">
+                    <span className={statusClass(assignment.status, assignmentStatusClasses)}>{assignment.status || 'NOT SUBMITTED'}</span>
+                  </td>
+                  <td className="px-5 py-4">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedSubmissionId(isSelected ? '' : assignment.id)}
+                      className="rounded-lg border border-[var(--color-card-border)] px-3 py-2 text-sm font-medium text-[var(--color-role-accent)] transition hover:bg-[var(--color-surface-muted)]"
+                    >
+                      {isSelected ? 'Hide submission' : 'View submission'}
+                    </button>
+                  </td>
+                </tr>
+                {isSelected ? (
+                  <tr className="border-t border-[var(--color-card-border)] bg-[var(--color-surface-muted)]/60">
+                    <td colSpan={8} className="px-5 py-5">
+                      <div className="grid gap-4 md:grid-cols-3">
+                        <div>
+                          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--color-text-soft)]">Submitted note</p>
+                          <p className="mt-2 text-sm text-[var(--color-text-muted)]">{valueOrDash(assignment.note)}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--color-text-soft)]">Feedback</p>
+                          <p className="mt-2 text-sm text-[var(--color-text-muted)]">{valueOrDash(assignment.feedback)}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--color-text-soft)]">Answer file</p>
+                          {assignment.fileUrl ? (
+                            <button
+                              type="button"
+                              onClick={() => onOpenSubmissionFile(assignment.fileUrl)}
+                              className="mt-2 rounded-lg bg-[var(--color-role-accent)] px-4 py-2 text-sm font-medium text-white transition hover:brightness-95"
+                            >
+                              Open submitted file
+                            </button>
+                          ) : (
+                            <p className="mt-2 text-sm text-[var(--color-text-muted)]">No file attached</p>
+                          )}
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                ) : null}
+              </Fragment>
+            )
+          })}
         </tbody>
       </table>
     </TableShell>
