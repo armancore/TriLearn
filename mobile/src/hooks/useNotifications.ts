@@ -10,6 +10,11 @@ import { useNotificationsStore } from '@/src/store/notifications.store';
 import { isPushUnsupportedRuntime } from '@/src/services/pushNotifications';
 import type { NotificationsResponse } from '@/src/types/notification';
 
+const devicePlatform = Platform.select({
+  android: 'ANDROID',
+  ios: 'IOS',
+} as const);
+
 export const useNotifications = () => {
   const { isAuthenticated } = useAuth();
   const storedPushToken = useAuthStore((state) => state.pushToken);
@@ -36,7 +41,7 @@ export const useNotifications = () => {
   }, [query.data, setNotifications]);
 
   useEffect(() => {
-    if (!isAuthenticated || isPushUnsupportedRuntime) {
+    if (!isAuthenticated || isPushUnsupportedRuntime || !devicePlatform) {
       return undefined;
     }
 
@@ -53,8 +58,8 @@ export const useNotifications = () => {
         return;
       }
 
-      const tokenResponse = await Notifications.getExpoPushTokenAsync();
-      const token = tokenResponse.data;
+      const tokenResponse = await Notifications.getDevicePushTokenAsync();
+      const token = String(tokenResponse.data || '');
 
       if (!token || token === storedPushToken) {
         return;
@@ -62,7 +67,7 @@ export const useNotifications = () => {
 
       await api.post('/notifications/device-token', {
         token,
-        platform: Platform.OS,
+        platform: devicePlatform,
       });
 
       if (isMounted) {

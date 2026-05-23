@@ -3,6 +3,7 @@ import type { Notification, NotificationResponse } from 'expo-notifications';
 import { router, type Href } from 'expo-router';
 import { Platform } from 'react-native';
 
+import { api } from '@/src/services/api';
 import { queryClient } from '@/src/services/queryClient';
 import { useNotificationsStore } from '@/src/store/notifications.store';
 import type { NotificationItem } from '@/src/types/notification';
@@ -66,12 +67,14 @@ export const handleReceivedPushNotification = (notification: Notification): void
 export const handlePushNotificationResponse = (response: NotificationResponse): void => {
   const notification = notificationFromExpo(response.notification);
   const route = routeForNotification(notification);
+  const notificationId = notification.id;
 
   useNotificationsStore.getState().addNotification(notification);
+  useNotificationsStore.getState().markAsRead(notificationId);
   void queryClient.invalidateQueries({ queryKey: ['notifications'] });
+  void api.patch(`/notifications/${notificationId}/read`).catch(() => {});
 
   if (route) {
     router.push(route);
   }
 };
-

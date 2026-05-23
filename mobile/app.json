@@ -32,7 +32,8 @@
       "expo-secure-store",
       "expo-web-browser",
       "expo-font",
-      "expo-sharing"
+      "expo-sharing",
+      "expo-notifications"
     ],
     "experiments": {
       "typedRoutes": true

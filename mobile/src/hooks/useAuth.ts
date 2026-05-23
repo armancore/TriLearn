@@ -12,6 +12,7 @@ export const useAuth = () => {
   const accessToken = useAuthStore((state) => state.accessToken);
   const refreshToken = useAuthStore((state) => state.refreshToken);
   const isHydrated = useAuthStore((state) => state.isHydrated);
+  const pushToken = useAuthStore((state) => state.pushToken);
   const setSession = useAuthStore((state) => state.setSession);
   const updateUser = useAuthStore((state) => state.updateUser);
   const clearSession = useAuthStore((state) => state.logout);
@@ -39,12 +40,15 @@ export const useAuth = () => {
   );
 
   const logout = useCallback(() => {
+    if (pushToken) {
+      void api.delete('/notifications/device-token', { data: { token: pushToken } }).catch(() => {});
+    }
     void api.post('/auth/logout').catch(() => {});
     clearSession();
     resetRefreshState();
     resetNotifications();
     disconnectSocket();
-  }, [clearSession, resetNotifications]);
+  }, [clearSession, pushToken, resetNotifications]);
 
   return {
     user,
