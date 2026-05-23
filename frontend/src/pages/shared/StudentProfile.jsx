@@ -489,10 +489,10 @@ const AssignmentsPanel = ({ assignments, onOpenSubmissionFile }) => {
           </tr>
         </thead>
         <tbody>
-          {assignments.map((assignment, index) => {
+          {assignments.map((assignment) => {
             const isSelected = selectedSubmissionId === assignment.id
             return (
-              <Fragment key={`${assignment.id || assignment.assignmentTitle}-${index}`}>
+              <Fragment key={assignment.id}>
                 <tr className="border-t border-[var(--color-card-border)]">
                   <td className="px-5 py-4">
                     <span className="ui-status-badge ui-status-neutral">{assignment.kind === 'TASK' ? 'Task' : 'Assignment'}</span>

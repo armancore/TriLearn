@@ -1,19 +1,11 @@
 const { createServiceResponder } = require('../utils/serviceResult')
 const prisma = require('../utils/prisma')
 const { recordAuditLog } = require('../utils/audit')
+const { normalizeDepartment, departmentsMatch } = require('../utils/departments')
 const usersService = require('../services/users.service')
 
 const getCoordinatorDepartments = usersService.getCoordinatorDepartments
 const getManagedUserDepartments = usersService.getManagedUserDepartments
-
-const normalizeDepartment = (department) => String(department || '').trim().toLowerCase()
-
-const departmentsMatch = (coordinatorDepartment, studentDepartment) => {
-  const normalizedCoordinatorDepartment = normalizeDepartment(coordinatorDepartment)
-  const normalizedStudentDepartment = normalizeDepartment(studentDepartment)
-
-  return Boolean(normalizedCoordinatorDepartment && normalizedStudentDepartment && normalizedCoordinatorDepartment === normalizedStudentDepartment)
-}
 
 const coordinatorCanViewStudent = (context, student) => {
   if (typeof getCoordinatorDepartments === 'function' && typeof getManagedUserDepartments === 'function') {
@@ -355,8 +347,9 @@ const getStudentProfile = async (context, result = createServiceResponder()) => 
   const averageAttendance = attendance.length > 0
     ? roundTo(attendance.reduce((total, subject) => total + subject.percentage, 0) / attendance.length, 1)
     : 0
-  const averageGradePoint = markRecords.length > 0
-    ? roundTo(markRecords.reduce((total, mark) => total + mark.gradePoint, 0) / markRecords.length, 2)
+  const gradedMarks = markRecords.filter((mark) => mark.gradePoint != null)
+  const averageGradePoint = gradedMarks.length > 0
+    ? roundTo(gradedMarks.reduce((total, mark) => total + mark.gradePoint, 0) / gradedMarks.length, 2)
     : 0
 
   const response = result.ok({

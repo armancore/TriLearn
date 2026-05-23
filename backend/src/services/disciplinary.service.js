@@ -2,13 +2,10 @@ const { createServiceResponder } = require('../utils/serviceResult')
 const prisma = require('../utils/prisma')
 const { recordAuditLog } = require('../utils/audit')
 const { sanitizePlainText } = require('../utils/sanitize')
+const { departmentsMatch } = require('../utils/departments')
 
 const isAdmin = (context) => context.user?.role === 'ADMIN'
 const isCoordinator = (context) => context.user?.role === 'COORDINATOR'
-
-const departmentsMatch = (left, right) => (
-  String(left || '').trim().toLowerCase() === String(right || '').trim().toLowerCase()
-)
 
 const parseRecordDate = (date) => {
   const parsedDate = new Date(date)
