@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Users } from 'lucide-react'
 import InstructorLayout from '../../layouts/InstructorLayout'
@@ -21,22 +21,9 @@ const StudentStats = () => {
       setLoading(true)
       setError('')
 
-      const subjectsResponse = await api.get('/subjects', { signal })
-      const nextSubjects = subjectsResponse.data.subjects || []
-      setSubjects(nextSubjects)
-
-      const studentResponses = await Promise.all(
-        nextSubjects.map((subject) => api.get(`/marks/subject/${subject.id}/students`, { signal }))
-      )
-
-      setSubjectStudents(studentResponses.flatMap((response) => (
-        (response.data.students || []).map((student) => ({
-          ...student,
-          subjectId: response.data.subject?.id,
-          subjectName: response.data.subject?.name,
-          subjectCode: response.data.subject?.code
-        }))
-      )))
+      const response = await api.get('/instructor/students', { signal })
+      setSubjects(response.data.subjects || [])
+      setSubjectStudents(response.data.students || [])
     } catch (requestError) {
       if (isRequestCanceled(requestError)) return
       setError(getFriendlyErrorMessage(requestError, 'Unable to load student stats right now.'))
@@ -53,28 +40,7 @@ const StudentStats = () => {
     return () => controller.abort()
   }, [loadStudentStats])
 
-  const students = useMemo(() => {
-    const byStudent = new Map()
-
-    subjectStudents.forEach((entry) => {
-      if (!byStudent.has(entry.id)) {
-        byStudent.set(entry.id, {
-          ...entry,
-          subjects: []
-        })
-      }
-
-      byStudent.get(entry.id).subjects.push({
-        id: entry.subjectId,
-        name: entry.subjectName,
-        code: entry.subjectCode
-      })
-    })
-
-    return Array.from(byStudent.values()).sort((left, right) => (
-      String(left.rollNumber || '').localeCompare(String(right.rollNumber || ''))
-    ))
-  }, [subjectStudents])
+  const students = subjectStudents
 
   return (
     <InstructorLayout>

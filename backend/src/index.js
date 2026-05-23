@@ -156,6 +156,7 @@ const studyMaterialRoutes = require('./routes/studyMaterial.routes')
 const routineRoutes = require('./routes/routine.routes')
 const departmentRoutes = require('./routes/department.routes')
 const notificationRoutes = require('./routes/notification.routes')
+const instructorRoutes = require('./routes/instructor.routes')
 const apiV1 = express.Router()
 
 apiV1.use('/auth', authRoutes)
@@ -175,6 +176,7 @@ apiV1.use('/materials', studyMaterialRoutes)
 apiV1.use('/routines', routineRoutes)
 apiV1.use('/departments', departmentRoutes)
 apiV1.use('/notifications', notificationRoutes)
+apiV1.use('/instructor', instructorRoutes)
 
 app.use('/api/v1', apiV1)
 

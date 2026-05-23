@@ -10,6 +10,7 @@
 - Configure `SENTRY_DSN` or an equivalent external error alerting service
 - Configure `FRONTEND_URL` with the exact deployed frontend origin
 - Configure `TRUST_PROXY` for the deployment proxy chain
+- On Render, set `ATTENDANCE_TIMEZONE=Asia/Kathmandu` and `FORCE_HTTPS=true`
 - Set upload storage env vars explicitly if you keep local-disk uploads
 - Set `FORCE_HTTPS=true` after confirming the reverse proxy forwards HTTPS metadata
 
@@ -52,6 +53,9 @@ Recommended Render env values:
 
 ```env
 DATABASE_URL=postgresql://postgres.PROJECT_REF:PASSWORD@POOLER_HOST:5432/postgres?sslmode=require
+ATTENDANCE_TIMEZONE=Asia/Kathmandu
+FORCE_HTTPS=true
+TRUST_PROXY=1
 PGPOOL_MAX=5
 PGPOOL_MIN=0
 PGPOOL_IDLE_TIMEOUT_MS=10000
@@ -82,10 +86,16 @@ For the initial college deployment, single-instance is recommended.
 
 ## Timezone configuration
 
-Set `ATTENDANCE_TIMEZONE` to your institution's IANA timezone, for example
-`America/New_York`. Attendance day boundaries, month ranges, gate windows, and
-absence sync all use this timezone. If it is missing or wrong, attendance can be
-recorded under the wrong local day.
+Set `ATTENDANCE_TIMEZONE` to your institution's IANA timezone. For the Nepal
+deployment, set:
+
+```env
+ATTENDANCE_TIMEZONE=Asia/Kathmandu
+```
+
+Attendance day boundaries, month ranges, gate windows, and absence sync all use
+this timezone. If it is missing or wrong, attendance can be recorded under the
+wrong local day. The backend logs a startup warning when this value is missing.
 
 ## Health checks
 
@@ -240,6 +250,10 @@ FORCE_HTTPS=true
 If `NODE_ENV=production` and `FORCE_HTTPS` is not set to `true`, the backend
 logs a startup warning so the deployment team explicitly acknowledges HTTPS and
 proxy forwarding have been configured.
+
+For Render, TLS is terminated by the platform and `X-Forwarded-Proto` is
+forwarded to the service, so set `FORCE_HTTPS=true` to keep startup logs clean
+after confirming the service is only exposed through Render HTTPS.
 
 ## Reverse proxy / trust proxy
 

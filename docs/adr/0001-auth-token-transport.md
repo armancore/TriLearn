@@ -24,4 +24,6 @@ The production reverse proxy must preserve secure-request detection. It should f
 
 If the proxy omits `X-Forwarded-Proto: https`, refresh-cookie behavior can be misclassified. Depending on host detection, this can either break cross-origin refresh or apply development-oriented cookie settings to a production-like path.
 
+For split-host deployments such as a Vercel frontend and Render API on different eTLD+1 domains, the browser refresh cookie must remain `SameSite=None; Secure` for cross-origin refresh. The stricter `__Host-` cookie prefix is not used because the current refresh cookie is intentionally scoped to `/api/v1/auth`; this cross-domain cookie tradeoff is accepted for the deployment.
+
 Access tokens remain easy for clients to attach to API requests, but frontend code must continue to avoid storing refresh tokens in JavaScript-accessible storage.
