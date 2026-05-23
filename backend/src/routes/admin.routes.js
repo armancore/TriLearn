@@ -103,7 +103,7 @@ router.put(
 
 router.delete(
   '/students/:studentId/disciplinary/:recordId',
-  allowRoles('ADMIN', 'COORDINATOR'),
+  allowRoles('ADMIN'),
   validate(schemas.disciplinary.delete),
   deleteDisciplinaryRecord
 )

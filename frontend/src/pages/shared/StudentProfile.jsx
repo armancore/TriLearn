@@ -94,6 +94,7 @@ const StudentProfile = () => {
   const [deletingRecordId, setDeletingRecordId] = useState('')
 
   const profilePath = `/students/${studentId}/profile`
+  const disciplinaryBase = `/admin/students/${studentId}/disciplinary`
 
   const loadProfile = useCallback(async (signal) => {
     try {
@@ -130,9 +131,10 @@ const StudentProfile = () => {
     }
   }, [activeMarkExamType, markExamTypes])
 
-  const refreshProfile = async () => {
-    await loadProfile()
-  }
+  const refreshProfile = useCallback(async () => {
+    const controller = new AbortController()
+    await loadProfile(controller.signal)
+  }, [loadProfile])
 
   const createRecord = async (event) => {
     event.preventDefault()
@@ -140,7 +142,7 @@ const StudentProfile = () => {
     try {
       setSavingRecord(true)
       setError('')
-      await api.post(`/admin/students/${studentId}/disciplinary`, {
+      await api.post(disciplinaryBase, {
         type: disciplinaryForm.type,
         severity: disciplinaryForm.severity,
         date: disciplinaryForm.date,
@@ -162,7 +164,7 @@ const StudentProfile = () => {
     try {
       setDeletingRecordId(recordId)
       setError('')
-      await api.delete(`/admin/students/${studentId}/disciplinary/${recordId}`)
+      await api.delete(`${disciplinaryBase}/${recordId}`)
       showToast({ title: 'Disciplinary record deleted.' })
       await refreshProfile()
     } catch (requestError) {
@@ -284,7 +286,7 @@ const StudentProfile = () => {
               <DisciplinaryPanel
                 records={profile.disciplinary || []}
                 canCreate={canManageDisciplinary}
-                canDelete={canManageDisciplinary}
+                canDelete={isAdmin}
                 showForm={showDisciplinaryForm}
                 setShowForm={setShowDisciplinaryForm}
                 form={disciplinaryForm}
