@@ -3,7 +3,7 @@ import type { LoginRequest, LoginResponse, RefreshTokenResponse } from '@/src/ty
 import { API_BASE_URL } from '@/src/constants/config';
 import axios from 'axios';
 import Constants from 'expo-constants';
-import { APP_PLATFORM, buildMobileClientSignature, CLIENT_TYPE } from '@/src/services/mobileClientSignature';
+import { APP_PLATFORM, CLIENT_TYPE } from '@/src/services/mobileClientSignature';
 import { useAuthStore } from '@/src/store/auth.store';
 
 const APP_VERSION = Constants.expoConfig?.version ?? '1.0.0';
@@ -20,9 +20,7 @@ const authClient = axios.create({
   },
 });
 
-authClient.interceptors.request.use(async (config) => {
-  const clientSignature = await buildMobileClientSignature(APP_VERSION);
-
+authClient.interceptors.request.use((config) => {
   config.headers = config.headers ?? {};
   delete (config.headers as Record<string, string>).Cookie;
   delete (config.headers as Record<string, string>).cookie;
@@ -30,10 +28,6 @@ authClient.interceptors.request.use(async (config) => {
   (config.headers as Record<string, string>)['X-Client-Version'] = APP_VERSION;
   (config.headers as Record<string, string>)['X-App-Version'] = APP_VERSION;
   (config.headers as Record<string, string>)['X-App-Platform'] = APP_PLATFORM;
-
-  if (clientSignature) {
-    (config.headers as Record<string, string>)['X-Client-Signature'] = clientSignature;
-  }
 
   return config;
 });

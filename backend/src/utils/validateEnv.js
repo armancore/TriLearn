@@ -23,9 +23,6 @@ const s3EnvVars = [
   'S3_ACCESS_KEY',
   'S3_SECRET_KEY'
 ]
-const requiredProductionSecrets = [
-  'MOBILE_CLIENT_SHARED_SECRET'
-]
 const validNodeEnvironments = new Set(['development', 'test', 'production'])
 const validBooleanFlagValues = new Set(['true', 'false'])
 const KNOWN_PLACEHOLDER_SUBSTRINGS = [
@@ -100,12 +97,6 @@ const validateEnv = () => {
 
     if (missingProductionMail.length > 0) {
       logger.error(`Missing required production mail env vars: ${missingProductionMail.join(', ')}`)
-      process.exit(1)
-    }
-
-    const missingProductionSecrets = requiredProductionSecrets.filter((key) => !String(process.env[key] || '').trim())
-    if (missingProductionSecrets.length > 0) {
-      logger.error(`Missing required production env vars: ${missingProductionSecrets.join(', ')}`)
       process.exit(1)
     }
 

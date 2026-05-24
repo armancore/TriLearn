@@ -1,5 +1,5 @@
 const { URL } = require('url')
-const { hasValidMobileClientHeaders } = require('./mobileClient.middleware')
+const { hasMobileClientHeaders } = require('./mobileClient.middleware')
 
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS'])
 
@@ -9,6 +9,10 @@ const isLocalDevelopmentOrigin = (origin) => {
   try {
     const parsed = new URL(origin)
     const hostname = parsed.hostname
+
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      return false
+    }
 
     if (hostname === 'localhost' || hostname === '127.0.0.1') {
       return true
@@ -69,6 +73,19 @@ const resolveRequestOrigin = (req) => {
   }
 }
 
+const isNativeAppOrigin = (origin) => {
+  if (!origin) {
+    return false
+  }
+
+  try {
+    const parsed = new URL(origin)
+    return parsed.protocol === 'exp:'
+  } catch {
+    return false
+  }
+}
+
 const isMobileAuthRequest = (req) => {
   const path = req.originalUrl || req.url || ''
   return (
@@ -89,9 +106,9 @@ const csrfProtection = (req, res, next) => {
    * origin signal that can be checked against the configured frontend origins. The
    * threat model is browser-initiated cross-site requests where an attacker site can
    * cause the browser to send ambient cookies to this API but cannot choose a trusted
-   * Origin header for a cross-origin fetch. Native mobile clients that authenticate
-   * with Bearer tokens and a signed client identity are exempt because they do not
-   * rely on ambient browser credentials, so the CSRF primitive is absent.
+   * Origin header for a cross-origin fetch. Native mobile clients are exempt only
+   * when ambient browser credentials are absent; mobile headers are client metadata,
+   * not proof of identity.
    */
   if (SAFE_METHODS.has(req.method)) {
     return next()
@@ -100,22 +117,22 @@ const csrfProtection = (req, res, next) => {
   const hasCookieHeader = Boolean(req.headers.cookie)
   const hasBrowserContext = Boolean(req.headers.origin || req.headers.referer)
   const hasBearerToken = req.headers.authorization?.startsWith('Bearer ') === true
-  const isMobileClient = String(req.get('x-client-type') || '').trim().toLowerCase() === 'mobile'
-  const hasSignedMobileClient = hasValidMobileClientHeaders(req)
+  const requestOrigin = resolveRequestOrigin(req)
+  const isMobileClient = hasMobileClientHeaders(req)
+  const hasNativeAppOrigin = isNativeAppOrigin(requestOrigin)
 
-  if (hasSignedMobileClient && isMobileClient && isMobileAuthRequest(req)) {
+  if (isMobileClient && isMobileAuthRequest(req) && !hasCookieHeader) {
     return next()
   }
 
-  // Signed native mobile bearer requests use explicit tokens, but never skip CSRF
-  // when browser cookies or Origin/Referer headers are present.
-  if (hasSignedMobileClient && hasBearerToken && !hasCookieHeader && !hasBrowserContext) {
-    return next()
-  }
-
-  // Native mobile clients do not use ambient browser cookies, so there is no
-  // browser CSRF primitive even if Expo supplies an Origin-like header.
-  if (hasSignedMobileClient && isMobileClient && !hasCookieHeader) {
+  // Native/API bearer requests use explicit tokens. They skip CSRF only when
+  // ambient browser cookies are absent and the request has no browser origin
+  // signal, or when Expo supplies its native exp:// origin.
+  if (
+    hasBearerToken &&
+    !hasCookieHeader &&
+    (!hasBrowserContext || (isMobileClient && hasNativeAppOrigin))
+  ) {
     return next()
   }
 
@@ -126,7 +143,6 @@ const csrfProtection = (req, res, next) => {
     return res.status(403).json({ message: 'CSRF validation failed' })
   }
 
-  const requestOrigin = resolveRequestOrigin(req)
   if (!requestOrigin || !isTrustedOrigin(requestOrigin)) {
     return res.status(403).json({ message: 'CSRF validation failed' })
   }

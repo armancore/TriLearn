@@ -3,7 +3,7 @@ import Constants from 'expo-constants';
 
 import { API_BASE_URL } from '@/src/constants/config';
 import { refreshAccessToken } from '@/src/services/auth.service';
-import { APP_PLATFORM, buildMobileClientSignature, CLIENT_TYPE } from '@/src/services/mobileClientSignature';
+import { APP_PLATFORM, CLIENT_TYPE } from '@/src/services/mobileClientSignature';
 import { updateSocketToken } from '@/src/services/socket.service';
 import { useAuthStore } from '@/src/store/auth.store';
 import type { RefreshTokenResponse } from '@/src/types/auth';
@@ -33,9 +33,8 @@ export const api = axios.create({
   },
 });
 
-api.interceptors.request.use(async (config) => {
+api.interceptors.request.use((config) => {
   const token = useAuthStore.getState().accessToken;
-  const clientSignature = await buildMobileClientSignature(APP_VERSION);
 
   if (token) {
     config.headers = config.headers ?? {};
@@ -49,10 +48,6 @@ api.interceptors.request.use(async (config) => {
   (config.headers as Record<string, string>)['X-Client-Version'] = APP_VERSION;
   (config.headers as Record<string, string>)['X-App-Version'] = APP_VERSION;
   (config.headers as Record<string, string>)['X-App-Platform'] = APP_PLATFORM;
-
-  if (clientSignature) {
-    (config.headers as Record<string, string>)['X-Client-Signature'] = clientSignature;
-  }
 
   return config;
 });

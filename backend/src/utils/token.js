@@ -84,6 +84,10 @@ const getRefreshCookieOptions = (req) => {
   return {
     httpOnly: true,
     secure,
+    // ADR 0001: Render API + Vercel frontend are cross-site, so secure
+    // production refresh cookies intentionally use SameSite=None. Mitigations:
+    // HttpOnly, Secure, /api/v1/auth path scoping, and csrfProtection
+    // Origin/Referer checks on unsafe browser requests.
     sameSite: secure ? 'none' : 'lax',
     path: '/api/v1/auth',
     expires: getRefreshTokenExpiry()

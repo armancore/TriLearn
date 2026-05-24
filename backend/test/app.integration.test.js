@@ -1,6 +1,5 @@
 const test = require('node:test')
 const assert = require('node:assert/strict')
-const crypto = require('node:crypto')
 const path = require('node:path')
 const { createRequire } = require('node:module')
 const express = require('express')
@@ -27,21 +26,6 @@ const {
 } = require('../src/middleware/rateLimit.middleware')
 
 const resolveFromTest = (...segments) => path.resolve(__dirname, '..', ...segments)
-
-const signMobileTestRequest = ({
-  secret = 'test-mobile-client-secret',
-  clientType = 'mobile',
-  clientVersion = '1.2.3',
-  appPlatform = 'ios',
-  timestampWindow = Math.floor(Date.now() / 30000)
-} = {}) => {
-  process.env.MOBILE_CLIENT_SHARED_SECRET = secret
-
-  return crypto
-    .createHmac('sha256', secret)
-    .update(`${clientType}:${clientVersion}:${appPlatform}:${timestampWindow}`)
-    .digest('hex')
-}
 
 const loadWithMocks = (targetPath, mocks) => {
   const modulePath = path.resolve(targetPath)
@@ -177,7 +161,7 @@ test('enforceHttps exempts health and docs routes in production', async () => {
   }
 })
 
-test('validateMobileClient rejects mobile endpoints without signed client headers', async () => {
+test('validateMobileClient rejects mobile endpoints without version headers', async () => {
   const testApp = express()
   testApp.use(validateMobileClient)
   testApp.post('/auth/refresh/mobile', (_req, res) => res.json({ ok: true }))
@@ -248,12 +232,11 @@ test('csrfProtection rejects spoofed mobile bearer requests when browser cookies
   testApp.use(csrfProtection)
   testApp.post('/api/v1/subjects', apiLimiter, (_req, res) => res.json({ ok: true }))
 
-  const signature = signMobileTestRequest()
   const response = await request(testApp)
     .post('/api/v1/subjects')
     .set('Authorization', 'Bearer access-token')
     .set('X-Client-Type', 'mobile')
-    .set('X-Client-Signature', signature)
+    .set('X-Client-Signature', 'a'.repeat(64))
     .set('X-App-Version', '1.2.3')
     .set('X-Client-Version', '1.2.3')
     .set('X-App-Platform', 'ios')
@@ -270,12 +253,10 @@ test('csrfProtection allows native mobile bearer requests without browser contex
   testApp.use(csrfProtection)
   testApp.post('/api/v1/subjects', apiLimiter, (_req, res) => res.json({ ok: true }))
 
-  const signature = signMobileTestRequest()
   const response = await request(testApp)
     .post('/api/v1/subjects')
     .set('Authorization', 'Bearer access-token')
     .set('X-Client-Type', 'mobile')
-    .set('X-Client-Signature', signature)
     .set('X-App-Version', '1.2.3')
     .set('X-Client-Version', '1.2.3')
     .set('X-App-Platform', 'ios')
@@ -284,14 +265,13 @@ test('csrfProtection allows native mobile bearer requests without browser contex
   assert.deepEqual(response.body, { ok: true })
 })
 
-test('csrfProtection rejects unsigned unsafe requests without browser origin context', async () => {
+test('csrfProtection rejects unsafe requests without browser origin context or bearer token', async () => {
   const testApp = express()
   testApp.use(csrfProtection)
   testApp.post('/api/v1/auth/logout-all', logoutLimiter, (_req, res) => res.json({ ok: true }))
 
   const response = await request(testApp)
     .post('/api/v1/auth/logout-all')
-    .set('Authorization', 'Bearer access-token')
 
   assert.equal(response.status, 403)
   assert.deepEqual(response.body, { message: 'CSRF validation failed' })
@@ -302,11 +282,9 @@ test('csrfProtection allows native mobile login requests with Expo origin and no
   testApp.use(csrfProtection)
   testApp.post('/api/v1/auth/login', loginLimiter, (_req, res) => res.json({ ok: true }))
 
-  const signature = signMobileTestRequest()
   const response = await request(testApp)
     .post('/api/v1/auth/login')
     .set('X-Client-Type', 'mobile')
-    .set('X-Client-Signature', signature)
     .set('X-App-Version', '1.2.3')
     .set('X-Client-Version', '1.2.3')
     .set('X-App-Platform', 'ios')
@@ -317,16 +295,14 @@ test('csrfProtection allows native mobile login requests with Expo origin and no
   assert.deepEqual(response.body, { ok: true })
 })
 
-test('csrfProtection allows native mobile login requests with stale Expo cookies', async () => {
+test('csrfProtection rejects mobile login requests with stale cookies', async () => {
   const testApp = express()
   testApp.use(csrfProtection)
   testApp.post('/api/v1/auth/login', loginLimiter, (_req, res) => res.json({ ok: true }))
 
-  const signature = signMobileTestRequest()
   const response = await request(testApp)
     .post('/api/v1/auth/login')
     .set('X-Client-Type', 'mobile')
-    .set('X-Client-Signature', signature)
     .set('X-App-Version', '1.2.3')
     .set('X-Client-Version', '1.2.3')
     .set('X-App-Platform', 'ios')
@@ -334,21 +310,19 @@ test('csrfProtection allows native mobile login requests with stale Expo cookies
     .set('Cookie', ['refreshToken=stale-web-refresh-token'])
     .send({ email: 'student@example.com', password: 'Password123' })
 
-  assert.equal(response.status, 200)
-  assert.deepEqual(response.body, { ok: true })
+  assert.equal(response.status, 403)
+  assert.deepEqual(response.body, { message: 'CSRF validation failed' })
 })
 
-test('csrfProtection allows native mobile API requests with stale cookies when browser fetch metadata is absent', async () => {
+test('csrfProtection rejects mobile API requests with stale cookies even when mobile headers are present', async () => {
   const testApp = express()
   testApp.use(csrfProtection)
   testApp.post('/api/v1/attendance/scan-qr', studentQrScanLimiter, (_req, res) => res.json({ ok: true }))
 
-  const signature = signMobileTestRequest()
   const response = await request(testApp)
     .post('/api/v1/attendance/scan-qr')
     .set('Authorization', 'Bearer access-token')
     .set('X-Client-Type', 'mobile')
-    .set('X-Client-Signature', signature)
     .set('X-App-Version', '1.2.3')
     .set('X-Client-Version', '1.2.3')
     .set('X-App-Platform', 'ios')
@@ -356,8 +330,8 @@ test('csrfProtection allows native mobile API requests with stale cookies when b
     .set('Cookie', ['refreshToken=stale-web-refresh-token'])
     .send({ qrData: 'qr-payload' })
 
-  assert.equal(response.status, 200)
-  assert.deepEqual(response.body, { ok: true })
+  assert.equal(response.status, 403)
+  assert.deepEqual(response.body, { message: 'CSRF validation failed' })
 })
 
 test('csrfProtection rejects unsigned mobile API requests with stale cookies', async () => {

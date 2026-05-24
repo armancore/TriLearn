@@ -19,15 +19,10 @@ rand_hex() {
   openssl rand -hex 64
 }
 
-rand_hex_32() {
-  openssl rand -hex 32
-}
-
 JWT_ACCESS_SECRET=$(rand_hex)
 JWT_REFRESH_SECRET=$(rand_hex)
 LOGIN_CAPTCHA_SECRET=$(rand_hex)
 QR_SIGNING_SECRET=$(rand_hex)
-MOBILE_CLIENT_SHARED_SECRET=$(rand_hex_32)
 DB_PASSWORD=${DB_PASSWORD:-$(rand_hex)}
 REDIS_PASSWORD=${REDIS_PASSWORD:-$(rand_hex)}
 
@@ -60,7 +55,6 @@ ATTENDANCE_TIMEZONE=Asia/Kathmandu
 TZ=Asia/Kathmandu
 QR_SIGNING_SECRET_KEYS=
 QR_SIGNING_ACTIVE_KID=
-MOBILE_CLIENT_SHARED_SECRET=${MOBILE_CLIENT_SHARED_SECRET}
 MIN_MOBILE_VERSION=
 FCM_SERVER_KEY=
 RESEND_SMTP_HOST=smtp.resend.com
