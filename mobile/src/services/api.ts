@@ -33,9 +33,9 @@ export const api = axios.create({
   },
 });
 
-api.interceptors.request.use((config) => {
+api.interceptors.request.use(async (config) => {
   const token = useAuthStore.getState().accessToken;
-  const clientSignature = buildMobileClientSignature(APP_VERSION);
+  const clientSignature = await buildMobileClientSignature(APP_VERSION);
 
   if (token) {
     config.headers = config.headers ?? {};

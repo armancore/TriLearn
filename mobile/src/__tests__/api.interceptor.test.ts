@@ -1,8 +1,10 @@
 import type { InternalAxiosRequestConfig } from 'axios';
 import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
+import { createHash } from 'crypto';
 import type { AuthUser } from '@/src/types/auth';
 import { useAuthStore } from '@/src/store/auth.store';
 
+const mockCreateHash = createHash;
 const mockRequestUse = jest.fn();
 const mockResponseUse = jest.fn();
 const mockApiClient = Object.assign(jest.fn(), {
@@ -25,6 +27,16 @@ jest.mock('axios', () => ({
 jest.mock('expo-constants', () => ({
   expoConfig: { version: '1.0.0' },
 }));
+
+jest.mock('expo-crypto', () => {
+  return {
+    CryptoDigestAlgorithm: { SHA256: 'SHA-256' },
+    digest: jest.fn(async (_algorithm, data) => {
+      const digest = mockCreateHash('sha256').update(Buffer.from(data as Uint8Array)).digest();
+      return digest.buffer.slice(digest.byteOffset, digest.byteOffset + digest.byteLength);
+    }),
+  };
+});
 
 jest.mock('expo-secure-store', () => ({
   getItemAsync: jest.fn(async () => null),
@@ -57,7 +69,9 @@ const testUser: AuthUser = {
 require('@/src/services/api');
 
 const getRequestInterceptor = () => {
-  return mockRequestUse.mock.calls[0][0] as (config: InternalAxiosRequestConfig) => InternalAxiosRequestConfig;
+  return mockRequestUse.mock.calls[0][0] as (
+    config: InternalAxiosRequestConfig,
+  ) => Promise<InternalAxiosRequestConfig>;
 };
 
 describe('api request interceptor', () => {
@@ -77,7 +91,7 @@ describe('api request interceptor', () => {
     delete process.env.EXPO_PUBLIC_MOBILE_CLIENT_SECRET;
   });
 
-  it('attaches the Authorization header when accessToken is present in the store', () => {
+  it('attaches the Authorization header when accessToken is present in the store', async () => {
     useAuthStore.getState().setSession({
       user: testUser,
       accessToken: 'access-token',
@@ -85,21 +99,21 @@ describe('api request interceptor', () => {
     });
 
     const interceptor = getRequestInterceptor();
-    const config = interceptor({ headers: {} } as InternalAxiosRequestConfig);
+    const config = await interceptor({ headers: {} } as InternalAxiosRequestConfig);
 
     expect((config.headers as Record<string, string>).Authorization).toBe('Bearer access-token');
   });
 
-  it('omits the Authorization header when accessToken is null', () => {
+  it('omits the Authorization header when accessToken is null', async () => {
     const interceptor = getRequestInterceptor();
-    const config = interceptor({ headers: {} } as InternalAxiosRequestConfig);
+    const config = await interceptor({ headers: {} } as InternalAxiosRequestConfig);
 
     expect((config.headers as Record<string, string>).Authorization).toBeUndefined();
   });
 
-  it('attaches signed mobile client headers', () => {
+  it('attaches signed mobile client headers', async () => {
     const interceptor = getRequestInterceptor();
-    const config = interceptor({ headers: {} } as InternalAxiosRequestConfig);
+    const config = await interceptor({ headers: {} } as InternalAxiosRequestConfig);
     const headers = config.headers as Record<string, string>;
     const expectedSignatures: Record<string, string> = {
       android: 'e21f89aa4044359f63fdbbc51a0d0347d789462d67dfb43366d9ad87a969c5ac',

@@ -20,8 +20,8 @@ const authClient = axios.create({
   },
 });
 
-authClient.interceptors.request.use((config) => {
-  const clientSignature = buildMobileClientSignature(APP_VERSION);
+authClient.interceptors.request.use(async (config) => {
+  const clientSignature = await buildMobileClientSignature(APP_VERSION);
 
   config.headers = config.headers ?? {};
   delete (config.headers as Record<string, string>).Cookie;
