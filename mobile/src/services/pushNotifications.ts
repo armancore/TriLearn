@@ -27,6 +27,8 @@ const notificationRouteMap: Record<string, Href> = {
   tickets: '/(student)/tickets',
 };
 
+const allowedNotificationRoutes = new Set<string>(Object.values(notificationRouteMap) as string[]);
+
 export const isPushUnsupportedRuntime = Constants.appOwnership === 'expo' && Platform.OS === 'android';
 
 const notificationRouteForType = (type: string): Href | undefined =>
@@ -38,7 +40,7 @@ const routeFromLink = (link: string | null): Href | undefined => {
   }
 
   const normalizedLink = link.replace(/^\/(student|instructor|coordinator|admin|gatekeeper)\//, '/($1)/');
-  return normalizedLink as Href;
+  return allowedNotificationRoutes.has(normalizedLink) ? (normalizedLink as Href) : undefined;
 };
 
 export const notificationFromExpo = (notification: Notification): NotificationItem => {

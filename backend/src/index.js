@@ -180,11 +180,6 @@ apiV1.use('/instructor', instructorRoutes)
 
 app.use('/api/v1', apiV1)
 
-// REDIS-SAVE: this lightweight ping route stays outside Redis-backed middleware
-app.get('/ping', (_req, res) => {
-  res.json({ status: 'ok' })
-})
-
 app.use((req, res) => {
   res.status(404).json({ message: 'Route not found' })
 })

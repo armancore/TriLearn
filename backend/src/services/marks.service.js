@@ -101,6 +101,9 @@ const getRankingSummary = async ({ student, examType }) => {
     ? Prisma.sql`AND s."section" = ${student.section}`
     : Prisma.empty
 
+  // Prisma's ORM API cannot express the ROW_NUMBER/COUNT window functions used
+  // for cohort ranking. Keep this as a tagged $queryRaw template so every dynamic
+  // value below remains parameterized instead of string-concatenated SQL.
   const rankedRows = await prisma.$queryRaw`
     WITH ranked AS (
       SELECT

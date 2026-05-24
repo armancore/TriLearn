@@ -17,6 +17,8 @@ const enforceHttps = (req, res, next) => {
     return next()
   }
 
+  // API clients should receive a deterministic JSON failure instead of a 301/308
+  // that could replay unsafe methods or hide reverse-proxy HTTPS misconfiguration.
   return res.status(400).json({ message: 'HTTPS is required' })
 }
 

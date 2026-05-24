@@ -62,26 +62,6 @@ const loadWithMocks = (targetPath, mocks) => {
   }
 }
 
-test('GET /ping returns an ok response', async () => {
-  const response = await request(app)
-    .get('/ping')
-    .set('Origin', trustedOrigin)
-
-  assert.equal(response.status, 200)
-  assert.deepEqual(response.body, { status: 'ok' })
-  assert.match(response.headers['content-security-policy'] || '', /default-src 'self'/)
-  assert.match(response.headers['content-security-policy'] || '', /script-src 'self'/)
-  assert.equal(
-    response.headers['permissions-policy'],
-    'camera=(), microphone=(), geolocation=()'
-  )
-  assert.equal(
-    response.headers['strict-transport-security'],
-    'max-age=63072000; includeSubDomains; preload'
-  )
-  assert.equal(response.headers['cross-origin-resource-policy'], 'same-site')
-})
-
 test('GET /health returns only a minimal public status payload', async () => {
   const response = await request(app)
     .get('/health')
@@ -99,6 +79,15 @@ test('GET /health remains public for external uptime checks without a health che
 
   assert.equal(response.status, 200)
   assert.deepEqual(response.body, { status: 'ok' })
+})
+
+test('GET /ping is not exposed as a second unauthenticated health endpoint', async () => {
+  const response = await request(app)
+    .get('/ping')
+    .set('Origin', trustedOrigin)
+
+  assert.equal(response.status, 404)
+  assert.deepEqual(response.body, { message: 'Route not found' })
 })
 
 test('enforceHttps blocks insecure production requests', async () => {

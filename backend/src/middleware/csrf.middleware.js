@@ -99,6 +99,21 @@ const isMobileAuthRequest = (req) => {
   )
 }
 
+const isCookieFreeMobileAuthRequest = (context) => (
+  context.isMobileClient &&
+  context.isMobileAuthRequest &&
+  !context.hasCookieHeader
+)
+
+const isCookieFreeExplicitBearerRequest = (context) => (
+  context.hasBearerToken &&
+  !context.hasCookieHeader &&
+  (
+    !context.hasBrowserContext ||
+    (context.isMobileClient && context.hasNativeAppOrigin)
+  )
+)
+
 const csrfProtection = (req, res, next) => {
   /*
    * This API uses Origin/Referer validation instead of a synchronizer token because
@@ -118,21 +133,25 @@ const csrfProtection = (req, res, next) => {
   const hasBrowserContext = Boolean(req.headers.origin || req.headers.referer)
   const hasBearerToken = req.headers.authorization?.startsWith('Bearer ') === true
   const requestOrigin = resolveRequestOrigin(req)
-  const isMobileClient = hasMobileClientHeaders(req)
-  const hasNativeAppOrigin = isNativeAppOrigin(requestOrigin)
+  const context = {
+    hasCookieHeader,
+    hasBrowserContext,
+    hasBearerToken,
+    isMobileAuthRequest: isMobileAuthRequest(req),
+    isMobileClient: hasMobileClientHeaders(req),
+    hasNativeAppOrigin: isNativeAppOrigin(requestOrigin)
+  }
 
-  if (isMobileClient && isMobileAuthRequest(req) && !hasCookieHeader) {
+  // Login and mobile-refresh do not rely on ambient browser cookies. Keep this
+  // guard scoped to the auth endpoints so mobile metadata cannot exempt other routes.
+  if (isCookieFreeMobileAuthRequest(context)) {
     return next()
   }
 
   // Native/API bearer requests use explicit tokens. They skip CSRF only when
   // ambient browser cookies are absent and the request has no browser origin
   // signal, or when Expo supplies its native exp:// origin.
-  if (
-    hasBearerToken &&
-    !hasCookieHeader &&
-    (!hasBrowserContext || (isMobileClient && hasNativeAppOrigin))
-  ) {
+  if (isCookieFreeExplicitBearerRequest(context)) {
     return next()
   }
 
