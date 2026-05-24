@@ -258,8 +258,8 @@ const sendWelcomeEmailWithRetry = async ({ row, subject, html, text }) => {
 
 /**
  * Handles import students business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * @param {any} context - Service context.
+ * @returns {Promise<any>} Service result.
  */
 const processStudentImportFile = async (context, result = createServiceResponder()) => {
   const uploadedFilePath = context.file?.path

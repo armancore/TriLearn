@@ -55,9 +55,10 @@ const queuePasswordResetEmail = async ({ user, subject, html, text }) => {
 // FORGOT PASSWORD
 // ================================
 /**
- * Handles forgot password business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * Starts the password reset flow without disclosing whether the email exists.
+ * @param {Record<string, any> & { body?: { email?: string } }} context - Forgot-password request context.
+ * @param {import('../utils/serviceResult').ServiceResponder} [result] - Service result responder.
+ * @returns {Promise<import('../utils/serviceResult').ServiceResult | void>} Service result.
  */
 const forgotPassword = async (context, result = createServiceResponder()) => {
   const startedAt = Date.now()
@@ -109,8 +110,8 @@ const forgotPassword = async (context, result = createServiceResponder()) => {
 
 /**
  * Handles verify email business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * @param {any} context - Service context.
+ * @returns {Promise<any>} Service result.
  */
 const verifyEmail = async (context, result = createServiceResponder()) => {
   const token = String(context.params?.token || '').trim()
@@ -153,8 +154,8 @@ const verifyEmail = async (context, result = createServiceResponder()) => {
 
 /**
  * Handles resend verification business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * @param {any} context - Service context.
+ * @returns {Promise<any>} Service result.
  */
 const resendVerification = async (context, result = createServiceResponder()) => {
   const email = normalizeEmail(context.body?.email)
@@ -196,9 +197,10 @@ const resendVerification = async (context, result = createServiceResponder()) =>
 // RESET PASSWORD
 // ================================
 /**
- * Handles reset password business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * Consumes a password reset token, updates the password, and revokes sessions.
+ * @param {Record<string, any> & { body: { token: string, password: string } }} context - Reset-password request context.
+ * @param {import('../utils/serviceResult').ServiceResponder} [result] - Service result responder.
+ * @returns {Promise<import('../utils/serviceResult').ServiceResult | void>} Service result.
  */
 const resetPassword = async (context, result = createServiceResponder()) => {
   if (!isPasswordResetEnabled()) {

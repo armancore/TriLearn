@@ -122,8 +122,8 @@ const getCoordinatorDepartments = (context) => {
 }
 /**
  * Handles get student applications business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * @param {any} context - Service context.
+ * @returns {Promise<any>} Service result.
  */
 const getStudentApplications = async (context, result = createServiceResponder()) => {
     const { status } = context.query
@@ -154,8 +154,8 @@ const getStudentApplications = async (context, result = createServiceResponder()
 
 /**
  * Handles get student application business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * @param {any} context - Service context.
+ * @returns {Promise<any>} Service result.
  */
 const getStudentApplication = async (context, result = createServiceResponder()) => {
     const { id } = context.params
@@ -180,8 +180,8 @@ const getStudentApplication = async (context, result = createServiceResponder())
 
 /**
  * Handles update student application status business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * @param {any} context - Service context.
+ * @returns {Promise<any>} Service result.
  */
 const updateStudentApplicationStatus = async (context, result = createServiceResponder()) => {
     const { id } = context.params
@@ -226,8 +226,8 @@ const updateStudentApplicationStatus = async (context, result = createServiceRes
 
 /**
  * Handles create student from application business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * @param {any} context - Service context.
+ * @returns {Promise<any>} Service result.
  */
 const createStudentFromApplication = async (context, result = createServiceResponder()) => {
     const { id } = context.params
@@ -399,8 +399,8 @@ const createStudentFromApplication = async (context, result = createServiceRespo
 
 /**
  * Handles delete student application business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * @param {any} context - Service context.
+ * @returns {Promise<any>} Service result.
  */
 const deleteStudentApplication = async (context, result = createServiceResponder()) => {
     const { id } = context.params

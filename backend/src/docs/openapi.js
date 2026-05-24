@@ -195,6 +195,10 @@ const StudentApplicationRequest = registry.register(
   })
 )
 
+/**
+ * @param {any} schema
+ * @returns {{ content: { 'application/json': { schema: any } } }}
+ */
 const jsonBody = (schema) => ({
   content: {
     'application/json': {
@@ -203,6 +207,11 @@ const jsonBody = (schema) => ({
   }
 })
 
+/**
+ * @param {string} description
+ * @param {any} [schema]
+ * @returns {{ description: string, content: { 'application/json': { schema: any } } }}
+ */
 const jsonResponse = (description, schema = MessageResponse) => ({
   description,
   content: {
@@ -220,6 +229,20 @@ const errorResponses = {
   500: jsonResponse('Internal server error')
 }
 
+/**
+ * @param {{
+ *   method: any,
+ *   path: string,
+ *   tags: string[],
+ *   summary: string,
+ *   description?: string,
+ *   schema?: any,
+ *   request?: Record<string, any>,
+ *   responses?: Record<string, any>,
+ *   security?: any[]
+ * }} route
+ * @returns {void}
+ */
 const registerRoute = ({
   method,
   path,

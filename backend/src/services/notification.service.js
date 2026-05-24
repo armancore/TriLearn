@@ -7,8 +7,8 @@ const {
 
 /**
  * Handles list notifications business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * @param {any} context - Service context.
+ * @returns {Promise<any>} Service result.
  */
 const listNotifications = async (context, result = createServiceResponder()) => {
     const limit = Math.min(Math.max(Number.parseInt(context.query.limit, 10) || 10, 1), 50)
@@ -42,8 +42,8 @@ const listNotifications = async (context, result = createServiceResponder()) => 
 
 /**
  * Handles get unread notification count business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * @param {any} context - Service context.
+ * @returns {Promise<any>} Service result.
  */
 const getUnreadNotificationCount = async (context, result = createServiceResponder()) => {
     const unreadCount = await prisma.notification.count({
@@ -58,8 +58,8 @@ const getUnreadNotificationCount = async (context, result = createServiceRespond
 
 /**
  * Handles mark notification read business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * @param {any} context - Service context.
+ * @returns {Promise<any>} Service result.
  */
 const markNotificationRead = async (context, result = createServiceResponder()) => {
     const notification = await prisma.notification.findFirst({
@@ -95,8 +95,8 @@ const markNotificationRead = async (context, result = createServiceResponder()) 
 
 /**
  * Handles mark all notifications read business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * @param {any} context - Service context.
+ * @returns {Promise<any>} Service result.
  */
 const markAllNotificationsRead = async (context, result = createServiceResponder()) => {
     const updateResult = await prisma.notification.updateMany({
@@ -120,8 +120,8 @@ const markAllNotificationsRead = async (context, result = createServiceResponder
 
 /**
  * Handles register device token business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * @param {any} context - Service context.
+ * @returns {Promise<any>} Service result.
  */
 const registerDeviceToken = async (context, result = createServiceResponder()) => {
     const { token, platform } = context.body
@@ -144,8 +144,8 @@ const registerDeviceToken = async (context, result = createServiceResponder()) =
 
 /**
  * Handles unregister device token business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * @param {any} context - Service context.
+ * @returns {Promise<any>} Service result.
  */
 const unregisterDeviceToken = async (context, result = createServiceResponder()) => {
     const { token } = context.body

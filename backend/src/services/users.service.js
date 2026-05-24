@@ -1497,9 +1497,11 @@ const updateUser = async (context, result = createServiceResponder()) => {
 // TOGGLE USER STATUS (enable/disable)
 // ================================
 /**
- * @param {object} context - The request context passed by controllerAdapter
- * @param {object} [result] - The serviceResult responder
- * @returns {Promise<object>} Service result
+ * Enables or disables a managed user after scope checks and revokes access
+ * tokens when disabling the account.
+ * @param {Record<string, any> & { params: { id: string }, user: { id: string, role: string } }} context - Toggle-status request context.
+ * @param {import('../utils/serviceResult').ServiceResponder} [result] - Service result responder.
+ * @returns {Promise<import('../utils/serviceResult').ServiceResult | void>} Service result.
  */
 const toggleUserStatus = async (context, result = createServiceResponder()) => {
     const { id } = context.params

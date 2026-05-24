@@ -8,7 +8,18 @@ The format follows the spirit of [Keep a Changelog](https://keepachangelog.com/e
 
 ### Added
 
-- Placeholder for changes after `v1.0.0`.
+- Expanded backend integration coverage for marks, manual attendance, assignment grading, QR attendance, bulk import, and app route flows.
+
+### Changed
+
+- Enabled strict backend JavaScript type checking in `tsconfig.json` to surface nullability and implicit type gaps during migration.
+- Documented critical backend service signatures for auth sessions, password reset, QR attendance, assignment submission/grading, and user status changes.
+
+### Security
+
+- Removed spoofable client-side shared-secret checks from mobile request handling.
+- Restricted mobile push notification routes to the authenticated mobile client surface.
+- Tightened the CSRF mobile-auth exemption so spoofed mobile headers from untrusted browser origins no longer bypass origin validation.
 
 ## [1.0.0] - 2026-05-08
 

@@ -344,8 +344,8 @@ const canAccessUploadedFileEntity = async (user, uploadedFile) => {
 
 /**
  * Handles serve uploaded file business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * @param {any} context - Service context.
+ * @returns {Promise<any>} Service result.
  */
 const serveUploadedFile = async (context, result = createServiceResponder()) => {
     const fileName = path.basename(String(context.params.filename || ''))

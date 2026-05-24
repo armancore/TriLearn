@@ -15,8 +15,8 @@ const activeStudentWhere = {
 
 /**
  * Handles ensure department exists business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * @param {any} context - Service context.
+ * @returns {Promise<any>} Service result.
  */
 const ensureDepartmentExists = async (departmentName) => {
   const normalized = normalizeDepartment(departmentName)
@@ -30,6 +30,23 @@ const ensureDepartmentExists = async (departmentName) => {
   })
 
   return department
+}
+
+/**
+ * Validates that a department exists for controller-adapted callers.
+ * @param {Record<string, any> & { body?: { department?: string, name?: string }, params?: { department?: string, name?: string } }} context - Request context.
+ * @param {import('../utils/serviceResult').ServiceResponder} [result] - Service result responder.
+ * @returns {Promise<import('../utils/serviceResult').ServiceResult>} Service result.
+ */
+const ensureDepartmentExistsService = async (context, result = createServiceResponder()) => {
+  const departmentName = context.body?.department || context.body?.name || context.params?.department || context.params?.name
+  const department = await ensureDepartmentExists(departmentName)
+
+  if (!department) {
+    return result.withStatus(404, { message: 'Department not found' })
+  }
+
+  return result.ok({ department })
 }
 
 const getCoordinatorDepartments = (context) => (
@@ -74,8 +91,8 @@ const buildDepartmentSectionSummary = (sections = []) => {
 
 /**
  * Handles create department business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * @param {any} context - Service context.
+ * @returns {Promise<any>} Service result.
  */
 const createDepartment = async (context, result = createServiceResponder()) => {
     const name = normalizeDepartment(context.body.name)
@@ -98,8 +115,8 @@ const createDepartment = async (context, result = createServiceResponder()) => {
 
 /**
  * Handles get all departments business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * @param {any} context - Service context.
+ * @returns {Promise<any>} Service result.
  */
 const getAllDepartments = async (context, result = createServiceResponder()) => {
     const departments = await prisma.department.findMany({
@@ -176,8 +193,8 @@ const getAllDepartments = async (context, result = createServiceResponder()) => 
 
 /**
  * Handles get public departments business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * @param {any} context - Service context.
+ * @returns {Promise<any>} Service result.
  */
 const getPublicDepartments = async (_req, result) => {
     const departments = await prisma.department.findMany({
@@ -194,8 +211,8 @@ const getPublicDepartments = async (_req, result) => {
 
 /**
  * Handles update department business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * @param {any} context - Service context.
+ * @returns {Promise<any>} Service result.
  */
 const updateDepartment = async (context, result = createServiceResponder()) => {
     const { id } = context.params
@@ -225,8 +242,8 @@ const updateDepartment = async (context, result = createServiceResponder()) => {
 
 /**
  * Handles delete department business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * @param {any} context - Service context.
+ * @returns {Promise<any>} Service result.
  */
 const deleteDepartment = async (context, result = createServiceResponder()) => {
     const { id } = context.params
@@ -271,8 +288,8 @@ const deleteDepartment = async (context, result = createServiceResponder()) => {
 
 /**
  * Handles get department sections business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * @param {any} context - Service context.
+ * @returns {Promise<any>} Service result.
  */
 const getDepartmentSections = async (context, result = createServiceResponder()) => {
     const { id } = context.params
@@ -312,8 +329,8 @@ const getDepartmentSections = async (context, result = createServiceResponder())
 
 /**
  * Handles create department section business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * @param {any} context - Service context.
+ * @returns {Promise<any>} Service result.
  */
 const createDepartmentSection = async (context, result = createServiceResponder()) => {
   try {
@@ -364,8 +381,8 @@ const createDepartmentSection = async (context, result = createServiceResponder(
 
 /**
  * Handles delete department section business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * @param {any} context - Service context.
+ * @returns {Promise<any>} Service result.
  */
 const deleteDepartmentSection = async (context, result = createServiceResponder()) => {
     const { id, sectionId } = context.params
@@ -403,7 +420,8 @@ module.exports = {
   deleteDepartmentSection,
   updateDepartment,
   deleteDepartment,
-  ensureDepartmentExists
+  ensureDepartmentExists,
+  ensureDepartmentExistsService
 }
 
 

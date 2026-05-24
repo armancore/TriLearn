@@ -23,8 +23,8 @@ const respondGenericEligibility = async (result, startedAt) => {
 // ================================
 /**
  * Handles register business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * @param {any} context - Service context.
+ * @returns {Promise<any>} Service result.
  */
 const register = (_req, result) => result.withStatus(403, {
   message: 'Self-registration is disabled. Please apply through the student intake form.'
@@ -32,8 +32,8 @@ const register = (_req, result) => result.withStatus(403, {
 
 /**
  * Handles submit student intake business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * @param {any} context - Service context.
+ * @returns {Promise<any>} Service result.
  */
 const submitStudentIntake = async (context, result = createServiceResponder()) => {
   const startedAt = Date.now()
@@ -130,8 +130,8 @@ const submitStudentIntake = async (context, result = createServiceResponder()) =
 // ================================
 /**
  * Handles change password business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * @param {any} context - Service context.
+ * @returns {Promise<any>} Service result.
  */
 const changePassword = async (context, result = createServiceResponder()) => {
   try {
@@ -188,8 +188,8 @@ const changePassword = async (context, result = createServiceResponder()) => {
 
 /**
  * Handles get activity business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * @param {any} context - Service context.
+ * @returns {Promise<any>} Service result.
  */
 const getActivity = async (context, result = createServiceResponder()) => {
   const currentRefreshToken = context.cookies?.refreshToken

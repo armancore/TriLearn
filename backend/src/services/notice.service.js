@@ -194,8 +194,8 @@ const canManageNotice = (context, notice) => (
 // ================================
 /**
  * Handles create notice business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * @param {any} context - Service context.
+ * @returns {Promise<any>} Service result.
  */
 const createNotice = async (context, result = createServiceResponder()) => {
     const { title, content, type, audience, targetDepartment, targetSemester } = context.body
@@ -254,8 +254,8 @@ const createNotice = async (context, result = createServiceResponder()) => {
 // ================================
 /**
  * Handles get all notices business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * @param {any} context - Service context.
+ * @returns {Promise<any>} Service result.
  */
 const getAllNotices = async (context, result = createServiceResponder()) => {
     const { type, audience, search } = context.query
@@ -298,8 +298,8 @@ const getAllNotices = async (context, result = createServiceResponder()) => {
 // ================================
 /**
  * Handles get notice by id business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * @param {any} context - Service context.
+ * @returns {Promise<any>} Service result.
  */
 const getNoticeById = async (context, result = createServiceResponder()) => {
     const { id } = context.params
@@ -327,8 +327,8 @@ const getNoticeById = async (context, result = createServiceResponder()) => {
 // ================================
 /**
  * Handles update notice business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * @param {any} context - Service context.
+ * @returns {Promise<any>} Service result.
  */
 const updateNotice = async (context, result = createServiceResponder()) => {
     const { id } = context.params
@@ -402,8 +402,8 @@ const updateNotice = async (context, result = createServiceResponder()) => {
 // ================================
 /**
  * Handles delete notice business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * @param {any} context - Service context.
+ * @returns {Promise<any>} Service result.
  */
 const deleteNotice = async (context, result = createServiceResponder()) => {
     const { id } = context.params

@@ -43,8 +43,8 @@ const resolveMaterialManager = async (context, subjectId) => {
 // ================================
 /**
  * Handles create material business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * @param {any} context - Service context.
+ * @returns {Promise<any>} Service result.
  */
 const createMaterial = async (context, result = createServiceResponder()) => {
     const { title, description, fileUrl, subjectId } = context.body
@@ -89,8 +89,8 @@ const createMaterial = async (context, result = createServiceResponder()) => {
 // ================================
 /**
  * Handles get materials by subject business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * @param {any} context - Service context.
+ * @returns {Promise<any>} Service result.
  */
 const getMaterialsBySubject = async (context, result = createServiceResponder()) => {
     const { subjectId } = context.params
@@ -132,8 +132,8 @@ const getMaterialsBySubject = async (context, result = createServiceResponder())
 // ================================
 /**
  * Handles get all materials business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * @param {any} context - Service context.
+ * @returns {Promise<any>} Service result.
  */
 const getAllMaterials = async (context, result = createServiceResponder()) => {
     const { page, limit, skip } = getPagination(context.query)
@@ -180,8 +180,8 @@ const getAllMaterials = async (context, result = createServiceResponder()) => {
 // ================================
 /**
  * Handles delete material business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * @param {any} context - Service context.
+ * @returns {Promise<any>} Service result.
  */
 const deleteMaterial = async (context, result = createServiceResponder()) => {
     const { id } = context.params

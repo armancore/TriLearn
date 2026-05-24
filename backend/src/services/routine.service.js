@@ -210,8 +210,8 @@ const respondToRoutineConflict = ({ result, conflict, room, instructorId }) => {
 
 /**
  * Handles create routine business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * @param {any} context - Service context.
+ * @returns {Promise<any>} Service result.
  */
 const createRoutine = async (context, result = createServiceResponder()) => {
   try {
@@ -267,8 +267,8 @@ const createRoutine = async (context, result = createServiceResponder()) => {
 
 /**
  * Handles get all routines business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * @param {any} context - Service context.
+ * @returns {Promise<any>} Service result.
  */
 const getAllRoutines = async (context, result = createServiceResponder()) => {
     const filters = await buildRoutineFilters(context)
@@ -287,8 +287,8 @@ const getAllRoutines = async (context, result = createServiceResponder()) => {
 
 /**
  * Handles get routine by id business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * @param {any} context - Service context.
+ * @returns {Promise<any>} Service result.
  */
 const getRoutineById = async (context, result = createServiceResponder()) => {
     const { id } = context.params
@@ -308,8 +308,8 @@ const getRoutineById = async (context, result = createServiceResponder()) => {
 
 /**
  * Handles update routine business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * @param {any} context - Service context.
+ * @returns {Promise<any>} Service result.
  */
 const updateRoutine = async (context, result = createServiceResponder()) => {
   try {
@@ -393,8 +393,8 @@ const updateRoutine = async (context, result = createServiceResponder()) => {
 
 /**
  * Handles delete routine business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * @param {any} context - Service context.
+ * @returns {Promise<any>} Service result.
  */
 const deleteRoutine = async (context, result = createServiceResponder()) => {
     const { id } = context.params

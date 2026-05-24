@@ -184,8 +184,8 @@ const exportCoordinatorDepartmentReportWorkbook = async ({ result, report }) => 
 
 /**
  * Handles export coordinator department attendance report business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * @param {any} context - Service context.
+ * @returns {Promise<any>} Service result.
  */
 const exportCoordinatorDepartmentAttendanceReport = async (context, result = createServiceResponder()) => {
     const { month, semester, section, format = 'xlsx' } = context.query
@@ -210,8 +210,8 @@ const exportCoordinatorDepartmentAttendanceReport = async (context, result = cre
 
 /**
  * Handles export attendance by subject business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * @param {any} context - Service context.
+ * @returns {Promise<any>} Service result.
  */
 const exportAttendanceBySubject = async (context, result = createServiceResponder()) => {
     const { subjectId } = context.params

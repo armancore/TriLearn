@@ -9,8 +9,8 @@ const { getPagination } = require('../../utils/pagination')
 
 /**
  * Handles get my absence tickets business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * @param {any} context - Service context.
+ * @returns {Promise<any>} Service result.
  */
 const getMyAbsenceTickets = async (context, result = createServiceResponder()) => {
     const student = context.student
@@ -54,8 +54,8 @@ const getMyAbsenceTickets = async (context, result = createServiceResponder()) =
 
 /**
  * Handles create absence ticket business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * @param {any} context - Service context.
+ * @returns {Promise<any>} Service result.
  */
 const createAbsenceTicket = async (context, result = createServiceResponder()) => {
     const student = context.student
@@ -105,8 +105,8 @@ const createAbsenceTicket = async (context, result = createServiceResponder()) =
 
 /**
  * Handles get absence tickets for staff business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * @param {any} context - Service context.
+ * @returns {Promise<any>} Service result.
  */
 const getAbsenceTicketsForStaff = async (context, result = createServiceResponder()) => {
     if (!hasAbsenceTicketDelegate()) {
@@ -144,8 +144,8 @@ const getAbsenceTicketsForStaff = async (context, result = createServiceResponde
 
 /**
  * Handles review absence ticket business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * @param {any} context - Service context.
+ * @returns {Promise<any>} Service result.
  */
 const reviewAbsenceTicket = async (context, result = createServiceResponder()) => {
     if (!hasAbsenceTicketDelegate()) {

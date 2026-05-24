@@ -8,8 +8,8 @@ const {
 
 /**
  * Handles get admin stats business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * @param {any} context - Service context.
+ * @returns {Promise<any>} Service result.
  */
 const getAdminStats = async (context, result = createServiceResponder()) => {
     const sharedStats = await readSharedStatsCache()
@@ -38,6 +38,17 @@ const getAdminStats = async (context, result = createServiceResponder()) => {
   await writeSharedStatsCache(stats)
 
   result.ok({ stats })
+}
+
+/**
+ * Clears cached admin dashboard statistics.
+ * @param {Record<string, any>} _context - Request context.
+ * @param {import('../utils/serviceResult').ServiceResponder} [result] - Service result responder.
+ * @returns {import('../utils/serviceResult').ServiceResult} Service result.
+ */
+const clearStatsCacheService = (_context, result = createServiceResponder()) => {
+  clearStatsCache()
+  return result.ok({ message: 'Stats cache cleared' })
 }
 
 const {
@@ -70,6 +81,7 @@ const {
 
 module.exports = {
   clearStatsCache,
+  clearStatsCacheService,
   getAdminStats,
   getAllUsers,
   getUsers,

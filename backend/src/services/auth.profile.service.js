@@ -17,8 +17,8 @@ const { getProfileSelect } = require('./auth.shared.service')
 // ================================
 /**
  * Handles get me business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * @param {any} context - Service context.
+ * @returns {Promise<any>} Service result.
  */
 const getMe = async (context, result = createServiceResponder()) => {
   const user = await prisma.user.findUnique({
@@ -31,8 +31,8 @@ const getMe = async (context, result = createServiceResponder()) => {
 
 /**
  * Handles get student id qr business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * @param {any} context - Service context.
+ * @returns {Promise<any>} Service result.
  */
 const getStudentIdQr = async (context, result = createServiceResponder()) => {
   if (context.user.role !== 'STUDENT') {
@@ -77,8 +77,8 @@ const getStudentIdQr = async (context, result = createServiceResponder()) => {
 
 /**
  * Handles update profile business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * @param {any} context - Service context.
+ * @returns {Promise<any>} Service result.
  */
 const updateProfile = async (context, result = createServiceResponder()) => {
   try {
@@ -177,8 +177,8 @@ const updateProfile = async (context, result = createServiceResponder()) => {
 
 /**
  * Handles upload avatar business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * @param {any} context - Service context.
+ * @returns {Promise<any>} Service result.
  */
 const uploadAvatar = async (context, result = createServiceResponder()) => {
   try {
@@ -226,8 +226,8 @@ const uploadAvatar = async (context, result = createServiceResponder()) => {
 // ================================
 /**
  * Handles complete profile business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * @param {any} context - Service context.
+ * @returns {Promise<any>} Service result.
  */
 const completeProfile = async (context, result = createServiceResponder()) => {
   try {

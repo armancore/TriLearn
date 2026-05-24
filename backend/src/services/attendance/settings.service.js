@@ -14,8 +14,8 @@ const findConflictingGateWindow = async ({ id, dayOfWeek, startTime, endTime, al
 
 /**
  * Handles get gate attendance settings business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * @param {any} context - Service context.
+ * @returns {Promise<any>} Service result.
  */
 const getGateAttendanceSettings = async (context, result = createServiceResponder()) => {
     const { dayOfWeek } = context.query
@@ -46,8 +46,8 @@ const getGateAttendanceSettings = async (context, result = createServiceResponde
 
 /**
  * Handles create gate scan window business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * @param {any} context - Service context.
+ * @returns {Promise<any>} Service result.
  */
 const createGateScanWindow = async (context, result = createServiceResponder()) => {
     const { title, dayOfWeek, startTime, endTime, allowedSemesters, isActive = true } = context.body
@@ -67,8 +67,8 @@ const createGateScanWindow = async (context, result = createServiceResponder()) 
 
 /**
  * Handles update gate scan window business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * @param {any} context - Service context.
+ * @returns {Promise<any>} Service result.
  */
 const updateGateScanWindow = async (context, result = createServiceResponder()) => {
     const { id } = context.params
@@ -96,8 +96,8 @@ const updateGateScanWindow = async (context, result = createServiceResponder()) 
 
 /**
  * Handles delete gate scan window business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * @param {any} context - Service context.
+ * @returns {Promise<any>} Service result.
  */
 const deleteGateScanWindow = async (context, result = createServiceResponder()) => {
     const { id } = context.params
@@ -109,8 +109,8 @@ const deleteGateScanWindow = async (context, result = createServiceResponder()) 
 
 /**
  * Handles create attendance holiday business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * @param {any} context - Service context.
+ * @returns {Promise<any>} Service result.
  */
 const createAttendanceHoliday = async (context, result = createServiceResponder()) => {
     const { date, title, description, isActive = true } = context.body
@@ -131,8 +131,8 @@ const createAttendanceHoliday = async (context, result = createServiceResponder(
 
 /**
  * Handles delete attendance holiday business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * @param {any} context - Service context.
+ * @returns {Promise<any>} Service result.
  */
 const deleteAttendanceHoliday = async (context, result = createServiceResponder()) => {
     const { id } = context.params

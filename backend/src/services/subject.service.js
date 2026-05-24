@@ -156,8 +156,8 @@ const getEnrollmentTargetStudents = async (subject) => prisma.student.findMany({
 // ================================
 /**
  * Handles create subject business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * @param {any} context - Service context.
+ * @returns {Promise<any>} Service result.
  */
 const createSubject = async (context, result = createServiceResponder()) => {
     const { name, code, description, semester, department, instructorId } = context.body
@@ -218,8 +218,8 @@ const createSubject = async (context, result = createServiceResponder()) => {
 // ================================
 /**
  * Handles get all subjects business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * @param {any} context - Service context.
+ * @returns {Promise<any>} Service result.
  */
 const getAllSubjects = async (context, result = createServiceResponder()) => {
     const { semester, department, search } = context.query
@@ -260,8 +260,8 @@ const getAllSubjects = async (context, result = createServiceResponder()) => {
 // ================================
 /**
  * Handles get subject by id business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * @param {any} context - Service context.
+ * @returns {Promise<any>} Service result.
  */
 const getSubjectById = async (context, result = createServiceResponder()) => {
     const { id } = context.params
@@ -319,8 +319,8 @@ const getSubjectById = async (context, result = createServiceResponder()) => {
 // ================================
 /**
  * Handles update subject business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * @param {any} context - Service context.
+ * @returns {Promise<any>} Service result.
  */
 const updateSubject = async (context, result = createServiceResponder()) => {
     const { id } = context.params
@@ -380,8 +380,8 @@ const updateSubject = async (context, result = createServiceResponder()) => {
 // ================================
 /**
  * Handles delete subject business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * @param {any} context - Service context.
+ * @returns {Promise<any>} Service result.
  */
 const deleteSubject = async (context, result = createServiceResponder()) => {
     const { id } = context.params
@@ -441,8 +441,8 @@ const deleteSubject = async (context, result = createServiceResponder()) => {
 // ================================
 /**
  * Handles assign instructor business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * @param {any} context - Service context.
+ * @returns {Promise<any>} Service result.
  */
 const assignInstructor = async (context, result = createServiceResponder()) => {
     const { id } = context.params
@@ -488,8 +488,8 @@ const assignInstructor = async (context, result = createServiceResponder()) => {
 // ================================
 /**
  * Handles get subject enrollments business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * @param {any} context - Service context.
+ * @returns {Promise<any>} Service result.
  */
 const getSubjectEnrollments = async (context, result = createServiceResponder()) => {
     const { id } = context.params
@@ -593,8 +593,8 @@ const getSubjectEnrollments = async (context, result = createServiceResponder())
 // ================================
 /**
  * Handles update subject enrollments business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * @param {any} context - Service context.
+ * @returns {Promise<any>} Service result.
  */
 const updateSubjectEnrollments = async (context, result = createServiceResponder()) => {
     const { id } = context.params

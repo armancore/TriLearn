@@ -143,8 +143,8 @@ const buildAssignmentExportRows = (assignment) => (
 // ================================
 /**
  * Handles create assignment business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * @param {any} context - Service context.
+ * @returns {Promise<any>} Service result.
  */
 const createAssignment = async (context, result = createServiceResponder()) => {
     const { title, description, subjectId, dueDate, extendedDueDate, totalMarks } = context.body
@@ -210,8 +210,8 @@ const createAssignment = async (context, result = createServiceResponder()) => {
 // ================================
 /**
  * Handles get all assignments business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * @param {any} context - Service context.
+ * @returns {Promise<any>} Service result.
  */
 const getAllAssignments = async (context, result = createServiceResponder()) => {
     const { subjectId } = context.query
@@ -262,8 +262,8 @@ const getAllAssignments = async (context, result = createServiceResponder()) => 
 // ================================
 /**
  * Handles get assignment by id business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * @param {any} context - Service context.
+ * @returns {Promise<any>} Service result.
  */
 const getAssignmentById = async (context, result = createServiceResponder()) => {
     const { id } = context.params
@@ -327,8 +327,8 @@ const getAssignmentById = async (context, result = createServiceResponder()) => 
 // ================================
 /**
  * Handles update assignment business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * @param {any} context - Service context.
+ * @returns {Promise<any>} Service result.
  */
 const updateAssignment = async (context, result = createServiceResponder()) => {
     const { id } = context.params
@@ -383,8 +383,8 @@ const updateAssignment = async (context, result = createServiceResponder()) => {
 // ================================
 /**
  * Handles delete assignment business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * @param {any} context - Service context.
+ * @returns {Promise<any>} Service result.
  */
 const deleteAssignment = async (context, result = createServiceResponder()) => {
     const { id } = context.params
@@ -403,9 +403,11 @@ const deleteAssignment = async (context, result = createServiceResponder()) => {
 // SUBMIT ASSIGNMENT
 // ================================
 /**
- * Handles submit assignment business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * Creates a student's assignment submission after enrollment, deadline, and
+ * upload checks.
+ * @param {Record<string, any> & { params: { id: string }, body: { note?: string }, student?: { id: string }, file?: unknown }} context - Submission request context.
+ * @param {import('../utils/serviceResult').ServiceResponder} [result] - Service result responder.
+ * @returns {Promise<import('../utils/serviceResult').ServiceResult | void>} Service result.
  */
 const submitAssignment = async (context, result = createServiceResponder()) => {
     const { id } = context.params
@@ -482,8 +484,8 @@ const submitAssignment = async (context, result = createServiceResponder()) => {
 // ================================
 /**
  * Handles get my submissions business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * @param {any} context - Service context.
+ * @returns {Promise<any>} Service result.
  */
 const getMySubmissions = async (context, result = createServiceResponder()) => {
     const student = context.student
@@ -514,9 +516,10 @@ const getMySubmissions = async (context, result = createServiceResponder()) => {
 // GRADE SUBMISSION
 // ================================
 /**
- * Handles grade submission business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * Grades a submission after verifying the actor can manage the assignment.
+ * @param {Record<string, any> & { params: { submissionId: string }, body: { obtainedMarks: number, feedback?: string }, user: { role: string }, instructor?: { id: string }, coordinator?: { department?: string } }} context - Grade request context.
+ * @param {import('../utils/serviceResult').ServiceResponder} [result] - Service result responder.
+ * @returns {Promise<import('../utils/serviceResult').ServiceResult | void>} Service result.
  */
 const gradeSubmission = async (context, result = createServiceResponder()) => {
     const { submissionId } = context.params
@@ -575,8 +578,8 @@ const gradeSubmission = async (context, result = createServiceResponder()) => {
 
 /**
  * Handles export assignment grades business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * @param {any} context - Service context.
+ * @returns {Promise<any>} Service result.
  */
 const exportAssignmentGrades = async (context, result = createServiceResponder()) => {
     const { id } = context.params

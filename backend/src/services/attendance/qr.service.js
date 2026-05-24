@@ -58,8 +58,8 @@ const reserveStudentIdQrScan = async ({ student, qrData, parsedQr }) => {
 
 /**
  * Handles generate q r business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * @param {any} context - Service context.
+ * @returns {Promise<any>} Service result.
  */
 const generateQR = async (context, result = createServiceResponder()) => {
     const { subjectId, date, validMinutes } = context.body
@@ -103,9 +103,10 @@ const generateQR = async (context, result = createServiceResponder()) => {
 }
 
 /**
- * Handles mark attendance q r business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * Marks subject attendance from a signed QR payload for the authenticated student.
+ * @param {Record<string, any> & { body: { qrData: string }, student?: { id: string }, user: { id: string, role: string } }} context - QR attendance request context.
+ * @param {import('../../utils/serviceResult').ServiceResponder} [result] - Service result responder.
+ * @returns {Promise<import('../../utils/serviceResult').ServiceResult | void>} Service result.
  */
 const markAttendanceQR = async (context, result = createServiceResponder()) => {
     const { qrData } = context.body
@@ -199,8 +200,8 @@ const markAttendanceQR = async (context, result = createServiceResponder()) => {
 
 /**
  * Handles mark daily attendance q r business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * @param {any} context - Service context.
+ * @returns {Promise<any>} Service result.
  */
 const markDailyAttendanceQR = async (context, result = createServiceResponder()) => {
     const { qrData } = context.body
@@ -329,8 +330,8 @@ const getLiveGateAttendanceQrPayload = async (context) => {
 
 /**
  * Handles get live gate attendance qr business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * @param {any} context - Service context.
+ * @returns {Promise<any>} Service result.
  */
 const getLiveGateAttendanceQr = async (context, result = createServiceResponder()) => {
     const payload = await getLiveGateAttendanceQrPayload(context)
@@ -339,8 +340,8 @@ const getLiveGateAttendanceQr = async (context, result = createServiceResponder(
 
 /**
  * Handles generate daily attendance q r business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * @param {any} context - Service context.
+ * @returns {Promise<any>} Service result.
  */
 const generateDailyAttendanceQR = async (context, result = createServiceResponder()) => {
     const payload = await getLiveGateAttendanceQrPayload(context)
@@ -369,8 +370,8 @@ const generateDailyAttendanceQR = async (context, result = createServiceResponde
 
 /**
  * Handles scan student id attendance business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * @param {any} context - Service context.
+ * @returns {Promise<any>} Service result.
  */
 const scanStudentIdAttendance = async (context, result = createServiceResponder()) => {
     const { qrData, rollNumber, subjectId, attendanceDate } = context.body

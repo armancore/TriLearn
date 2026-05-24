@@ -59,9 +59,11 @@ const getLoginLockoutExpiry = () => {
 // LOGIN
 // ================================
 /**
- * Handles login business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * Authenticates a user, enforces lockout/captcha checks, creates a refresh
+ * session, and returns the access token payload.
+ * @param {Record<string, any> & { body: { email: string, password: string, captchaToken?: string, captchaAnswer?: string }, get: (name: string) => string | undefined }} context - Login request context.
+ * @param {import('../utils/serviceResult').ServiceResponder} [result] - Service result responder.
+ * @returns {Promise<import('../utils/serviceResult').ServiceResult | void>} Service result.
  */
 const login = async (context, result = createServiceResponder()) => {
   const startedAt = Date.now()
@@ -274,9 +276,10 @@ const refreshSession = async (context, result, refreshToken, { includeRefreshTok
 }
 
 /**
- * Handles refresh business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * Rotates a web refresh-token cookie and returns a new access token.
+ * @param {Record<string, any> & { cookies?: { refreshToken?: string }, get: (name: string) => string | undefined }} context - Refresh request context.
+ * @param {import('../utils/serviceResult').ServiceResponder} [result] - Service result responder.
+ * @returns {Promise<import('../utils/serviceResult').ServiceResult | void>} Service result.
  */
 const refresh = async (context, result = createServiceResponder()) => {
   if (isMobileClient(context)) {
@@ -288,8 +291,8 @@ const refresh = async (context, result = createServiceResponder()) => {
 
 /**
  * Handles refresh mobile business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * @param {any} context - Service context.
+ * @returns {Promise<any>} Service result.
  */
 const refreshMobile = async (context, result) => refreshSession(
   context,
@@ -300,8 +303,8 @@ const refreshMobile = async (context, result) => refreshSession(
 
 /**
  * Handles logout business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * @param {any} context - Service context.
+ * @returns {Promise<any>} Service result.
  */
 const logout = async (context, result = createServiceResponder()) => {
   const startedAt = Date.now()
@@ -365,8 +368,8 @@ const logout = async (context, result = createServiceResponder()) => {
 
 /**
  * Handles logout all business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * @param {any} context - Service context.
+ * @returns {Promise<any>} Service result.
  */
 const logoutAll = async (context, result = createServiceResponder()) => {
   await revokeAccessTokenFromRequest(context)

@@ -157,8 +157,8 @@ const getMonthRange = (monthValue) => {
 
 /**
  * Handles get owned subject business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * @param {any} context - Service context.
+ * @returns {Promise<any>} Service result.
  */
 const getOwnedSubject = async (subjectId, context) => {
   const { user, instructor } = context
@@ -212,8 +212,8 @@ const getOwnedSubject = async (subjectId, context) => {
 
 /**
  * Handles get subject students business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * @param {any} context - Service context.
+ * @returns {Promise<any>} Service result.
  */
 const getSubjectStudents = async (subject, filters = {}) => {
   const normalizedSemester = filters.semester ? parseInt(filters.semester, 10) : null
@@ -345,8 +345,8 @@ const getHolidayForDate = async (referenceDate = new Date()) => {
 
 /**
  * Handles get daily gate windows business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * @param {any} context - Service context.
+ * @returns {Promise<any>} Service result.
  */
 const getDailyGateWindows = async (referenceDate = new Date()) => {
   const dayRange = getDayRange(referenceDate)
@@ -420,8 +420,8 @@ const dedupeRoutinesBySubject = (routines) => {
 
 /**
  * Handles get student scheduled routines for day business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * @param {any} context - Service context.
+ * @returns {Promise<any>} Service result.
  */
 const getStudentScheduledRoutinesForDay = async ({ studentId, dayOfWeek }) => {
   const student = await prisma.student.findUnique({
@@ -500,8 +500,8 @@ const hashQrPayload = (qrData) => (typeof qrData === 'string' && qrData.trim() ?
 
 /**
  * Handles get student by id card qr business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * @param {any} context - Service context.
+ * @returns {Promise<any>} Service result.
  */
 const getStudentByIdCardQr = async (qrData) => {
   const parsedQr = parseQrPayload(qrData)
@@ -543,8 +543,8 @@ const getStudentByIdCardQr = async (qrData) => {
 
 /**
  * Handles get student by roll number business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * @param {any} context - Service context.
+ * @returns {Promise<any>} Service result.
  */
 const getStudentByRollNumber = async (rollNumber) => {
   const normalizedRollNumber = String(rollNumber || '').trim()
@@ -575,8 +575,8 @@ const getStudentByRollNumber = async (rollNumber) => {
 
 /**
  * Handles upsert present attendance for routines business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * @param {any} context - Service context.
+ * @returns {Promise<any>} Service result.
  */
 const upsertPresentAttendanceForRoutines = async ({ student, routines, attendanceDate, qrData, actorRole, actorId }) => {
   const qrCodeHash = hashQrPayload(qrData)
@@ -648,8 +648,8 @@ const upsertPresentAttendanceForRoutines = async ({ student, routines, attendanc
 
 /**
  * Handles get eligible gate attendance for student business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * @param {any} context - Service context.
+ * @returns {Promise<any>} Service result.
  */
 const getEligibleGateAttendanceForStudent = async (student, referenceDate = new Date()) => {
   const gateDay = await getDailyGateWindows(referenceDate)
@@ -678,8 +678,8 @@ const getEligibleGateAttendanceForStudent = async (student, referenceDate = new 
 
 /**
  * Handles sync closed routine absences business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * @param {any} context - Service context.
+ * @returns {Promise<any>} Service result.
  */
 const syncClosedRoutineAbsences = async (referenceDate = new Date()) => {
   const gateDay = await getDailyGateWindows(referenceDate)
@@ -802,8 +802,8 @@ const formatMonthLabel = (monthValue) => {
 
 /**
  * Handles get attendance export payload business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * @param {any} context - Service context.
+ * @returns {Promise<any>} Service result.
  */
 const getAttendanceExportPayload = async ({ subjectId, date, month, context }) => {
   const access = await getOwnedSubject(subjectId, context)
@@ -866,8 +866,8 @@ const getAttendanceExportPayload = async ({ subjectId, date, month, context }) =
 
 /**
  * Handles get coordinator department report payload business logic.
- * @param {...any} args - Service arguments.
- * @returns {Promise<any>|any} Service result.
+ * @param {any} context - Service context.
+ * @returns {Promise<any>} Service result.
  */
 const getCoordinatorDepartmentReportPayload = async ({ coordinator, month, semester, section }) => {
   if (!coordinator || !coordinator.department) {
