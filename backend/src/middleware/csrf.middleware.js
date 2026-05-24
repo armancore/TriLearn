@@ -99,8 +99,10 @@ const isMobileAuthRequest = (req) => {
   )
 }
 
+const hasMobileClientType = (req) => String(req.get('x-client-type') || '').trim().toLowerCase() === 'mobile'
+
 const isCookieFreeMobileAuthRequest = (context) => (
-  context.isMobileClient &&
+  context.hasMobileClientType &&
   context.isMobileAuthRequest &&
   !context.hasCookieHeader
 )
@@ -137,6 +139,7 @@ const csrfProtection = (req, res, next) => {
     hasCookieHeader,
     hasBrowserContext,
     hasBearerToken,
+    hasMobileClientType: hasMobileClientType(req),
     isMobileAuthRequest: isMobileAuthRequest(req),
     isMobileClient: hasMobileClientHeaders(req),
     hasNativeAppOrigin: isNativeAppOrigin(requestOrigin)

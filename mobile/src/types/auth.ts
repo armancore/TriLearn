@@ -25,6 +25,8 @@ export interface AuthTokens {
 export interface LoginRequest {
   email: string;
   password: string;
+  captchaToken?: string;
+  captchaAnswer?: string;
 }
 
 export interface LoginResponse extends AuthTokens {

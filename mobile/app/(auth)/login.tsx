@@ -14,18 +14,38 @@ import type { LoginRequest } from '@/src/types/auth';
 
 interface ApiErrorResponse {
   message?: string;
+  requiresCaptcha?: boolean;
+  captchaChallenge?: {
+    prompt: string;
+    token: string;
+  };
 }
 
 export default function LoginScreen() {
   const router = useRouter();
   const { login } = useAuth();
   const [form, setForm] = useState<LoginRequest>({ email: '', password: '' });
+  const [captchaPrompt, setCaptchaPrompt] = useState<string | null>(null);
 
   const mutation = useMutation({
     mutationFn: login,
     onSuccess: (result) => {
+      setCaptchaPrompt(null);
       const destination = ROLE_HOME_MAP[result.user.role];
       router.replace(destination);
+    },
+    onError: (error) => {
+      const apiError = error as AxiosError<ApiErrorResponse>;
+      const challenge = apiError.response?.data?.captchaChallenge;
+
+      if (apiError.response?.data?.requiresCaptcha && challenge?.token) {
+        setCaptchaPrompt(challenge.prompt);
+        setForm((prev) => ({
+          ...prev,
+          captchaToken: challenge.token,
+          captchaAnswer: '',
+        }));
+      }
     },
   });
 
@@ -35,14 +55,27 @@ export default function LoginScreen() {
     }
 
     const apiError = mutation.error as AxiosError<ApiErrorResponse>;
+    if (!apiError.response) {
+      return 'Could not reach the TriLearn server. Check your network and API URL.';
+    }
+
     return apiError.response?.data?.message ?? 'Invalid credentials. Please try again.';
   }, [mutation.error]);
 
   const onSubmit = () => {
-    mutation.mutate(form);
+    mutation.mutate({
+      email: form.email.trim(),
+      password: form.password,
+      captchaToken: form.captchaToken,
+      captchaAnswer: form.captchaAnswer?.trim(),
+    });
   };
 
-  const isDisabled = !form.email.trim() || !form.password.trim() || mutation.isPending;
+  const isDisabled =
+    !form.email.trim() ||
+    !form.password.trim() ||
+    Boolean(form.captchaToken && !form.captchaAnswer?.trim()) ||
+    mutation.isPending;
 
   return (
     <SafeAreaView className="flex-1" style={{ backgroundColor: COLORS.background }}>
@@ -57,7 +90,15 @@ export default function LoginScreen() {
               autoComplete="email"
               keyboardType="email-address"
               label="Email"
-              onChangeText={(value) => setForm((prev) => ({ ...prev, email: value }))}
+              onChangeText={(value) => {
+                setCaptchaPrompt(null);
+                setForm((prev) => ({
+                  ...prev,
+                  email: value,
+                  captchaToken: undefined,
+                  captchaAnswer: undefined,
+                }));
+              }}
               placeholder="student@trilearn.edu"
               value={form.email}
             />
@@ -68,6 +109,17 @@ export default function LoginScreen() {
               secureTextEntry
               value={form.password}
             />
+
+            {captchaPrompt ? (
+              <AppInput
+                autoCapitalize="none"
+                keyboardType="number-pad"
+                label={captchaPrompt}
+                onChangeText={(value) => setForm((prev) => ({ ...prev, captchaAnswer: value }))}
+                placeholder="Enter answer"
+                value={form.captchaAnswer ?? ''}
+              />
+            ) : null}
 
             {errorMessage ? <Text className="mb-4 text-sm text-red-700">{errorMessage}</Text> : null}
 
