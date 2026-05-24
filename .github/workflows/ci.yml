@@ -158,7 +158,7 @@ jobs:
         working-directory: backend
 
       - name: Run integration tests
-        run: node --test test/db.real.js test/qr.integration.test.js test/app.integration.test.js
+        run: node --test test/db.real.js test/*.integration.test.js
         working-directory: backend
 
   frontend:

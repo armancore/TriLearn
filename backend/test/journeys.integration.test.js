@@ -193,7 +193,10 @@ test('journey: student signs in and loads their profile', async () => {
 test('journey: instructor creates an attendance QR and student scan records attendance', async () => {
   const attendanceRoutes = loadWithMocks(resolveFromTest('src', 'routes', 'attendance.routes.js'), {
     '../controllers/attendance/attendance.controller': {
-      markAttendanceManual: async (_req, res) => res.status(501).json({ message: 'unused' }),
+      markAttendanceManual: async (req, res) => res.status(200).json({
+        message: 'Attendance records saved',
+        count: req.body.attendanceList.length
+      }),
       getAttendanceBySubject: async (_req, res) => res.status(501).json({ message: 'unused' }),
       getBulkAttendanceSummary: async (_req, res) => res.status(501).json({ message: 'unused' }),
       getMyAttendance: async (_req, res) => res.status(501).json({ message: 'unused' }),
@@ -255,10 +258,24 @@ test('journey: instructor creates an attendance QR and student scan records atte
     .post('/api/v1/attendance/scan-qr')
     .set('Authorization', 'Bearer student-token')
     .send({ qrToken: qrResponse.body.qrToken })
+  const manualResponse = await request(app)
+    .post('/api/v1/attendance/manual')
+    .set('Authorization', 'Bearer instructor-token')
+    .send({
+      subjectId: 'subject-1',
+      attendanceDate: '2026-05-07',
+      semester: 3,
+      section: 'A',
+      attendanceList: [
+        { studentId: 'student-1', status: 'PRESENT' }
+      ]
+    })
 
   assert.equal(qrResponse.status, 201)
   assert.equal(scanResponse.status, 201)
   assert.equal(scanResponse.body.attendance.studentId, 'student-1')
+  assert.equal(manualResponse.status, 200)
+  assert.equal(manualResponse.body.count, 1)
 })
 
 test('journey: instructor records marks and student views published summary', async () => {
@@ -369,7 +386,7 @@ test('journey: admin views dashboard stats and creates a student account', async
   assert.equal(createResponse.body.user.email, 'new.student@example.edu')
 })
 
-test('journey: admin posts an assignment and student submits work', async () => {
+test('journey: admin posts an assignment, student submits work, and staff grades it', async () => {
   const assignmentRoutes = loadWithMocks(resolveFromTest('src', 'routes', 'assignment.routes.js'), {
     '../controllers/assignment.controller': {
       createAssignment: async (req, res) => res.status(201).json({
@@ -393,7 +410,14 @@ test('journey: admin posts an assignment and student submits work', async () => 
         }
       }),
       getMySubmissions: async (_req, res) => res.status(501).json({ message: 'unused' }),
-      gradeSubmission: async (_req, res) => res.status(501).json({ message: 'unused' }),
+      gradeSubmission: async (req, res) => res.status(200).json({
+        message: 'Submission graded',
+        submission: {
+          id: req.params.submissionId,
+          marks: req.body.marks,
+          feedback: req.body.feedback
+        }
+      }),
       exportAssignmentGrades: async (_req, res) => res.status(501).json({ message: 'unused' })
     },
     '../middleware/auth.middleware': authMiddleware,
@@ -413,9 +437,15 @@ test('journey: admin posts an assignment and student submits work', async () => 
     .post('/api/v1/assignments/assignment-1/submit')
     .set('Authorization', 'Bearer student-token')
     .send({ note: 'Submitted' })
+  const gradeResponse = await request(app)
+    .patch('/api/v1/assignments/submissions/submission-1/grade')
+    .set('Authorization', 'Bearer instructor-token')
+    .send({ marks: 92, feedback: 'Strong work' })
 
   assert.equal(createResponse.status, 201)
   assert.equal(createResponse.body.assignment.questionPdfUrl, '/api/v1/uploads/questionPdf.pdf')
   assert.equal(submitResponse.status, 201)
   assert.equal(submitResponse.body.submission.assignmentId, 'assignment-1')
+  assert.equal(gradeResponse.status, 200)
+  assert.equal(gradeResponse.body.submission.marks, 92)
 })

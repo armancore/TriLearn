@@ -284,6 +284,23 @@ test('csrfProtection allows native mobile login requests with Expo origin and no
   assert.deepEqual(response.body, { ok: true })
 })
 
+test('csrfProtection rejects spoofed mobile login requests from untrusted browser origins', async () => {
+  const testApp = express()
+  testApp.use(csrfProtection)
+  testApp.post('/api/v1/auth/login', loginLimiter, (_req, res) => res.json({ ok: true }))
+
+  const response = await request(testApp)
+    .post('/api/v1/auth/login')
+    .set('X-Client-Type', 'mobile')
+    .set('X-App-Version', '1.2.3')
+    .set('X-Client-Version', '1.2.3')
+    .set('Origin', 'https://evil.example')
+    .send({ email: 'student@example.com', password: 'Password123' })
+
+  assert.equal(response.status, 403)
+  assert.deepEqual(response.body, { message: 'CSRF validation failed' })
+})
+
 test('csrfProtection allows mobile login before version metadata validation', async () => {
   const testApp = express()
   testApp.use(csrfProtection)

@@ -104,7 +104,11 @@ const hasMobileClientType = (req) => String(req.get('x-client-type') || '').trim
 const isCookieFreeMobileAuthRequest = (context) => (
   context.hasMobileClientType &&
   context.isMobileAuthRequest &&
-  !context.hasCookieHeader
+  !context.hasCookieHeader &&
+  (
+    !context.hasBrowserContext ||
+    context.hasNativeAppOrigin
+  )
 )
 
 const isCookieFreeExplicitBearerRequest = (context) => (
