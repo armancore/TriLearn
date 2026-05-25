@@ -3,7 +3,7 @@
 if (typeof jest === 'undefined') {
   const { test } = require('node:test')
 
-  test('auth.service Jest suite requires Jest', { skip: true }, () => {})
+  test('auth service module Jest suite requires Jest', { skip: true }, () => {})
 } else {
   process.env.JWT_ACCESS_SECRET = process.env.JWT_ACCESS_SECRET || 'test-access-secret'
   process.env.JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || 'test-refresh-secret'
@@ -69,7 +69,8 @@ if (typeof jest === 'undefined') {
   const bcrypt = require('bcryptjs')
   const prisma = require('../src/utils/prisma')
   const { revokeAccessTokenFromRequest } = require('../src/utils/accessTokenRevocation')
-  const authService = require('../src/services/auth.service')
+  const authAccountService = require('../src/services/auth.account.service')
+  const authSessionService = require('../src/services/auth.session.service')
 
   const callService = async (serviceFn, context) => {
     const result = require('../src/utils/serviceResult').createServiceResponder()
@@ -112,7 +113,7 @@ if (typeof jest === 'undefined') {
     prisma.user.update.mockImplementation(async ({ data }) => baseUser(data))
   })
 
-  describe('auth.service login', () => {
+  describe('auth session service login', () => {
     test('valid credentials returns accessToken and user', async () => {
       const user = baseUser()
       prisma.user.findUnique
@@ -120,7 +121,7 @@ if (typeof jest === 'undefined') {
         .mockResolvedValueOnce({ ...user, student: { id: 'student-1' } })
       bcrypt.compare.mockResolvedValueOnce(true)
 
-      const result = await callService(authService.login, createContext({
+      const result = await callService(authSessionService.login, createContext({
         body: { email: user.email, password: 'correct-password' }
       }))
 
@@ -140,7 +141,7 @@ if (typeof jest === 'undefined') {
       prisma.user.findUnique.mockResolvedValueOnce(user)
       bcrypt.compare.mockResolvedValueOnce(false)
 
-      const result = await callService(authService.login, createContext({
+      const result = await callService(authSessionService.login, createContext({
         body: { email: user.email, password: 'wrong-password' }
       }))
 
@@ -160,7 +161,7 @@ if (typeof jest === 'undefined') {
       prisma.user.findUnique.mockResolvedValueOnce(baseUser({ lockedUntil }))
       bcrypt.compare.mockResolvedValueOnce(true)
 
-      const result = await callService(authService.login, createContext({
+      const result = await callService(authSessionService.login, createContext({
         body: { email: 'student@example.com', password: 'correct-password' }
       }))
 
@@ -176,7 +177,7 @@ if (typeof jest === 'undefined') {
       prisma.user.findUnique.mockResolvedValueOnce(user)
       bcrypt.compare.mockResolvedValueOnce(false)
 
-      const result = await callService(authService.login, createContext({
+      const result = await callService(authSessionService.login, createContext({
         body: { email: user.email, password: 'wrong-password' }
       }))
 
@@ -189,14 +190,14 @@ if (typeof jest === 'undefined') {
     })
   })
 
-  describe('auth.service changePassword', () => {
+  describe('auth account service changePassword', () => {
     test('same password reuse returns 400', async () => {
       prisma.user.findUnique.mockResolvedValueOnce(baseUser())
       bcrypt.compare
         .mockResolvedValueOnce(true)
         .mockResolvedValueOnce(true)
 
-      const result = await callService(authService.changePassword, createContext({
+      const result = await callService(authAccountService.changePassword, createContext({
         body: {
           currentPassword: 'CurrentPassword1!',
           newPassword: 'CurrentPassword1!'
@@ -213,7 +214,7 @@ if (typeof jest === 'undefined') {
       prisma.user.findUnique.mockResolvedValueOnce(baseUser())
       bcrypt.compare.mockResolvedValueOnce(false)
 
-      const result = await callService(authService.changePassword, createContext({
+      const result = await callService(authAccountService.changePassword, createContext({
         body: {
           currentPassword: 'WrongPassword1!',
           newPassword: 'NewPassword1!'
@@ -233,7 +234,7 @@ if (typeof jest === 'undefined') {
       user: baseUser()
     })
 
-    const result = await callService(authService.refresh, createContext({
+    const result = await callService(authSessionService.refresh, createContext({
       cookies: { refreshToken: 'old-refresh-token' }
     }))
 
@@ -249,7 +250,7 @@ if (typeof jest === 'undefined') {
   })
 
   test('logout valid session revokes access token and refresh token', async () => {
-    const result = await callService(authService.logout, createContext({
+    const result = await callService(authSessionService.logout, createContext({
       cookies: { refreshToken: 'valid-refresh-token' }
     }))
 

@@ -110,8 +110,6 @@ const refreshRateLimitKey = (req) => {
 }
 
 const apiLimiter = createLimiter({
-  // REDIS-SAVE: switched to MemoryStore for non-sensitive routes
-  useRedisStore: false,
   prefixSuffix: 'api',
   max: 300,
   message: 'Too many requests, please try again later'
