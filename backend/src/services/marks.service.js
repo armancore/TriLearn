@@ -650,6 +650,12 @@ const getStudentResultForStaff = async (context, result = createServiceResponder
     ...(examType ? { examType } : {})
   }
 
+  if (context.user.role === 'INSTRUCTOR') {
+    where.subject = {
+      instructorId: context.instructor.id
+    }
+  }
+
   const marks = await prisma.mark.findMany({
     where,
     include: {

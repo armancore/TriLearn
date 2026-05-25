@@ -263,6 +263,7 @@ test('serveUploadedFile allows direct uploaded file access to the owner', async 
 })
 
 test('serveUploadedFile allows uploaded assignment file access through parent entity enrollment', async () => {
+  const legacyLookupCalls = []
   const { serveUploadedFile } = loadWithMocks(resolveFromTest('src', 'controllers', 'upload.controller.js'), {
     '../utils/prisma': {
       uploadedFile: {
@@ -279,19 +280,37 @@ test('serveUploadedFile allows uploaded assignment file access through parent en
           subjectId: 'subject-1',
           instructorId: 'instructor-1'
         }),
-        findFirst: async () => null
+        findFirst: async () => {
+          legacyLookupCalls.push('assignment.findFirst')
+          return null
+        }
       },
       subjectEnrollment: {
         findUnique: async (payload) => (
           payload.where.subjectId_studentId.subjectId === 'subject-1' &&
           payload.where.subjectId_studentId.studentId === 'student-1'
             ? { id: 'enrollment-1' }
-            : null
+          : null
         )
       },
-      user: { findFirst: async () => null },
-      submission: { findFirst: async () => null },
-      studyMaterial: { findFirst: async () => null }
+      user: {
+        findFirst: async () => {
+          legacyLookupCalls.push('user.findFirst')
+          return null
+        }
+      },
+      submission: {
+        findFirst: async () => {
+          legacyLookupCalls.push('submission.findFirst')
+          return null
+        }
+      },
+      studyMaterial: {
+        findFirst: async () => {
+          legacyLookupCalls.push('studyMaterial.findFirst')
+          return null
+        }
+      }
     },
     '../utils/fileStorage': {
       uploadPath: 'C:\\uploads',
@@ -319,6 +338,7 @@ test('serveUploadedFile allows uploaded assignment file access through parent en
 
   assert.equal(res.statusCode, 200)
   assert.match(res.sentFile.filePath, /assignment\.pdf$/i)
+  assert.deepEqual(legacyLookupCalls, [])
 })
 
 test('validateUploadedPdf writes a valid PDF to disk only after in-memory validation', async () => {

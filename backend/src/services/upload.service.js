@@ -348,7 +348,7 @@ const canAccessUploadedFileEntity = async (user, uploadedFile) => {
  * @returns {Promise<any>} Service result.
  */
 const serveUploadedFile = async (context, result = createServiceResponder()) => {
-    const fileName = path.basename(String(context.params.filename || ''))
+  const fileName = path.basename(String(context.params.filename || ''))
   if (!fileName) {
     return result.withStatus(404, { message: 'File not found' })
   }
@@ -368,6 +368,15 @@ const serveUploadedFile = async (context, result = createServiceResponder()) => 
         }
       })
     : null
+
+  if (uploadedFile?.entityType && uploadedFile?.entityId) {
+    if (!(await canAccessUploadedFileEntity(user, uploadedFile))) {
+      await logUploadAccessDenied(context, fileName, uploadedFile.entityType)
+      return result.withStatus(403, { message: 'Access denied' })
+    }
+
+    return sendUploadFile(result, fileName)
+  }
 
   const avatar = await prisma.user.findFirst({
     where: { avatar: { in: relativePaths } },
