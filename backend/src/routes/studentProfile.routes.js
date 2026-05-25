@@ -11,6 +11,8 @@ router.use(attachActorProfiles)
 
 router.get(
   '/:studentId/profile',
+  // Intentional: student self-service profile data comes from /auth/me and
+  // /student/profile. This endpoint is only for staff viewing student records.
   allowRoles('ADMIN', 'COORDINATOR', 'INSTRUCTOR'),
   validate(schemas.studentProfile.getById),
   getStudentProfile
