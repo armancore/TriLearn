@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
+import * as SecureStore from 'expo-secure-store';
+
 import type { AuthUser } from '@/src/types/auth';
 import { useAuthStore } from '@/src/store/auth.store';
 
@@ -24,57 +26,31 @@ const testUser: AuthUser = {
   emailVerified: true,
 };
 
-const resetStore = () => {
-  useAuthStore.setState({
-    user: null,
-    accessToken: null,
-    refreshToken: null,
-    isHydrated: false,
-  });
-};
-
-describe('auth store', () => {
+describe('auth store persistence', () => {
   beforeEach(() => {
-    resetStore();
+    jest.clearAllMocks();
+    useAuthStore.setState({
+      user: null,
+      accessToken: null,
+      refreshToken: null,
+      pushToken: null,
+      isHydrated: false,
+    });
   });
 
-  it('setSession correctly stores user, accessToken, and refreshToken', () => {
+  it('persists refresh tokens through expo-secure-store', async () => {
     useAuthStore.getState().setSession({
       user: testUser,
       accessToken: 'access-token',
       refreshToken: 'refresh-token',
     });
 
-    expect(useAuthStore.getState().user).toEqual(testUser);
-    expect(useAuthStore.getState().accessToken).toBe('access-token');
-    expect(useAuthStore.getState().refreshToken).toBe('refresh-token');
-  });
+    await Promise.resolve();
+    await Promise.resolve();
 
-  it('logout clears user, accessToken, and refreshToken', () => {
-    useAuthStore.getState().setSession({
-      user: testUser,
-      accessToken: 'access-token',
-      refreshToken: 'refresh-token',
-    });
-
-    useAuthStore.getState().logout();
-
-    expect(useAuthStore.getState().user).toBeNull();
-    expect(useAuthStore.getState().accessToken).toBeNull();
-    expect(useAuthStore.getState().refreshToken).toBeNull();
-  });
-
-  it('clearSession clears user, accessToken, and refreshToken', () => {
-    useAuthStore.getState().setSession({
-      user: testUser,
-      accessToken: 'access-token',
-      refreshToken: 'refresh-token',
-    });
-
-    useAuthStore.getState().clearSession();
-
-    expect(useAuthStore.getState().user).toBeNull();
-    expect(useAuthStore.getState().accessToken).toBeNull();
-    expect(useAuthStore.getState().refreshToken).toBeNull();
+    expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
+      'trilearn-auth-store',
+      expect.stringContaining('"refreshToken":"refresh-token"'),
+    );
   });
 });

@@ -34,6 +34,10 @@ const parseConfiguredKeys = () => {
 }
 
 let _cachedKeys = null
+const clearQrSigningKeyCache = () => {
+  _cachedKeys = null
+}
+
 const getQrSigningKeys = () => {
   if (!_cachedKeys) {
     _cachedKeys = parseConfiguredKeys()
@@ -114,6 +118,7 @@ const verifyQrPayload = (qrData) => {
 
 module.exports = {
   LEGACY_QR_KID,
+  clearQrSigningKeyCache,
   getQrSigningKeys,
   getActiveQrSigningKey,
   signQrPayload,

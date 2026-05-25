@@ -1,12 +1,11 @@
 const test = require('node:test')
 const assert = require('node:assert/strict')
-
-const modulePath = require.resolve('../src/utils/qrSigning')
-
-const loadQrSigningUtils = () => {
-  delete require.cache[modulePath]
-  return require(modulePath)
-}
+const {
+  clearQrSigningKeyCache,
+  getActiveQrSigningKey,
+  signQrPayload,
+  verifyQrPayload
+} = require('../src/utils/qrSigning')
 
 test('signQrPayload includes the configured active kid and verifyQrPayload accepts it', () => {
   const previousKeys = process.env.QR_SIGNING_SECRET_KEYS
@@ -16,9 +15,9 @@ test('signQrPayload includes the configured active kid and verifyQrPayload accep
   process.env.QR_SIGNING_SECRET = 'legacy-secret'
   process.env.QR_SIGNING_SECRET_KEYS = 'current:current-secret,previous:previous-secret'
   process.env.QR_SIGNING_ACTIVE_KID = 'current'
+  clearQrSigningKeyCache()
 
   try {
-    const { signQrPayload, verifyQrPayload } = loadQrSigningUtils()
     const signed = signQrPayload({ type: 'ATTENDANCE', subjectId: 'subject-1' })
     const parsed = JSON.parse(signed)
     const verified = verifyQrPayload(signed)
@@ -37,6 +36,8 @@ test('signQrPayload includes the configured active kid and verifyQrPayload accep
 
     if (previousLegacySecret === undefined) delete process.env.QR_SIGNING_SECRET
     else process.env.QR_SIGNING_SECRET = previousLegacySecret
+
+    clearQrSigningKeyCache()
   }
 })
 
@@ -48,10 +49,10 @@ test('verifyQrPayload accepts legacy QR payloads without a kid during rotation',
   process.env.QR_SIGNING_SECRET = 'legacy-secret'
   process.env.QR_SIGNING_SECRET_KEYS = 'current:current-secret'
   process.env.QR_SIGNING_ACTIVE_KID = 'current'
+  clearQrSigningKeyCache()
 
   try {
     const crypto = require('node:crypto')
-    const { verifyQrPayload } = loadQrSigningUtils()
     const payload = {
       type: 'STUDENT_ID_CARD',
       studentId: 'student-1',
@@ -77,5 +78,46 @@ test('verifyQrPayload accepts legacy QR payloads without a kid during rotation',
 
     if (previousLegacySecret === undefined) delete process.env.QR_SIGNING_SECRET
     else process.env.QR_SIGNING_SECRET = previousLegacySecret
+
+    clearQrSigningKeyCache()
+  }
+})
+
+test('clearQrSigningKeyCache refreshes keys after environment changes', () => {
+  const previousKeys = process.env.QR_SIGNING_SECRET_KEYS
+  const previousActiveKid = process.env.QR_SIGNING_ACTIVE_KID
+  const previousLegacySecret = process.env.QR_SIGNING_SECRET
+
+  process.env.QR_SIGNING_SECRET = 'legacy-secret'
+  delete process.env.QR_SIGNING_SECRET_KEYS
+  delete process.env.QR_SIGNING_ACTIVE_KID
+  clearQrSigningKeyCache()
+
+  try {
+    assert.deepEqual(getActiveQrSigningKey(), {
+      kid: 'legacy',
+      secret: 'legacy-secret'
+    })
+
+    process.env.QR_SIGNING_SECRET = 'new-legacy-secret'
+    process.env.QR_SIGNING_SECRET_KEYS = 'current:new-current-secret'
+    process.env.QR_SIGNING_ACTIVE_KID = 'current'
+    clearQrSigningKeyCache()
+
+    assert.deepEqual(getActiveQrSigningKey(), {
+      kid: 'current',
+      secret: 'new-current-secret'
+    })
+  } finally {
+    if (previousKeys === undefined) delete process.env.QR_SIGNING_SECRET_KEYS
+    else process.env.QR_SIGNING_SECRET_KEYS = previousKeys
+
+    if (previousActiveKid === undefined) delete process.env.QR_SIGNING_ACTIVE_KID
+    else process.env.QR_SIGNING_ACTIVE_KID = previousActiveKid
+
+    if (previousLegacySecret === undefined) delete process.env.QR_SIGNING_SECRET
+    else process.env.QR_SIGNING_SECRET = previousLegacySecret
+
+    clearQrSigningKeyCache()
   }
 })
