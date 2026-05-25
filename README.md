@@ -13,6 +13,26 @@
 TriLearn is a self-hosted college management system for semester-based institutions.
 It combines admissions, role-based academic operations, QR attendance, marks publishing, assignments, notices, real-time notifications, and a student-focused mobile app in one deployable platform.
 
+## Live demo
+
+Live app: [trilearn-arman.vercel.app](https://trilearn-arman.vercel.app/)
+
+Portfolio: [armankhan.com.np](https://www.armankhan.com.np)
+
+TriLearn uses production auth with JWT rotation, Redis-backed rate limiting, and RBAC across admin, coordinator, instructor, gatekeeper, and student workflows.
+
+![TriLearn live web screenshot](https://image.thum.io/get/width/1400/crop/900/https://trilearn-arman.vercel.app/)
+
+![TriLearn responsive screenshot](https://image.thum.io/get/width/430/crop/900/https://trilearn-arman.vercel.app/)
+
+```mermaid
+flowchart LR
+    Vercel[Vercel frontend] --> Render[Render API]
+    Render --> Supabase[Supabase PostgreSQL]
+    Render --> Redis[Redis: rate limits, token JTI revocation, queues, realtime adapter]
+    Redis --> Render
+```
+
 ## Overview
 
 | Area | Highlights |
