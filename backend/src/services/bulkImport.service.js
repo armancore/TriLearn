@@ -31,6 +31,10 @@ const WELCOME_EMAIL_SEND_DELAY_MS = 1200
 const WELCOME_EMAIL_RATE_LIMIT_RETRY_DELAY_MS = 2500
 const WELCOME_EMAIL_MAX_ATTEMPTS = 3
 const sanitizeImportedSpreadsheetText = (value) => sanitizeXlsxCell(sanitizePlainText(value))
+const sanitizeImportedOptionalText = (value) => {
+  const sanitized = sanitizeImportedSpreadsheetText(value)
+  return sanitized || null
+}
 
 
 const normalizeImportHeader = (value) => String(value || '')
@@ -311,15 +315,20 @@ const processStudentImportFile = async (context, result = createServiceResponder
     const failures = []
 
     importedRows.forEach((row) => {
-      const normalizedEmail = row.email.trim().toLowerCase()
-      const normalizedStudentId = row.studentId.trim().toUpperCase()
-      const normalizedDepartmentKey = normalizeDepartmentValue(row.department).toLowerCase()
+      const importedName = sanitizeImportedSpreadsheetText(row.name)
+      const importedEmail = sanitizeImportedSpreadsheetText(row.email)
+      const importedStudentId = sanitizeImportedSpreadsheetText(row.studentId)
+      const importedDepartment = sanitizeImportedSpreadsheetText(row.department)
+      const importedSection = sanitizeImportedSpreadsheetText(row.section)
+      const normalizedEmail = importedEmail.trim().toLowerCase()
+      const normalizedStudentId = importedStudentId.trim().toUpperCase()
+      const normalizedDepartmentKey = normalizeDepartmentValue(importedDepartment).toLowerCase()
       const resolvedDepartment = departmentLookup[normalizedDepartmentKey] || null
       const semester = Number.parseInt(row.semester, 10)
-      const sanitizedName = sanitizePlainText(row.name)
-      const sanitizedPhone = sanitizeOptionalPlainText(row.phone) || null
-      const sanitizedAddress = sanitizeOptionalPlainText(row.address) || null
-      const sanitizedSection = normalizeSectionValue(row.section)
+      const sanitizedName = importedName
+      const sanitizedPhone = sanitizeImportedOptionalText(row.phone)
+      const sanitizedAddress = sanitizeImportedOptionalText(row.address)
+      const sanitizedSection = normalizeSectionValue(importedSection)
 
       if (!sanitizedName || sanitizedName.length < 2) {
         failures.push(buildStudentImportError(row.rowNumber, 'Name must be at least 2 characters long', row))

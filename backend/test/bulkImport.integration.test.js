@@ -337,6 +337,35 @@ test('valid CSV upload queues a job, tracks status, and creates students when pr
   assert.equal(statusRes.body.result.summary.created, 2)
 })
 
+test('student import neutralizes formula-like string fields before storing', async () => {
+  const { prisma, createdUsers, createdStudents } = createPrismaMock()
+  const { queueModule } = createNotificationQueueMock()
+  const { processStudentImportJob } = loadWithMocks(resolveFromTest('src', 'services', 'bulkImport.service.js'), {
+    ...createServiceMocks(prisma, queueModule)
+  })
+  const csv = [
+    'name,email,rollNumber,phone,address,department,semester,section',
+    'Asha Sharma,asha-formula@example.edu,"=HYPERLINK(""http://evil.test"",""click"")",=1+1,+SUM(1+1),CS,1,A'
+  ].join('\n')
+  const filePath = await writeTempCsv('formula-fields.csv', csv)
+
+  const result = await processStudentImportJob({
+    file: {
+      path: filePath,
+      originalname: 'formula-fields.csv',
+      filename: 'formula-fields.csv',
+      mimetype: 'text/csv',
+      size: csv.length
+    },
+    user: { id: 'admin-1', role: 'ADMIN' }
+  })
+
+  assert.equal(result.summary.created, 1)
+  assert.equal(createdStudents[0].rollNumber, '\'=HYPERLINK("HTTP://EVIL.TEST","CLICK")')
+  assert.equal(createdUsers[0].phone, "'=1+1")
+  assert.equal(createdUsers[0].address, "'+SUM(1+1)")
+})
+
 test('malformed spreadsheet upload is rejected before processing', async () => {
   const uploadCalls = []
   const { validateUploadedSpreadsheet } = loadWithMocks(resolveFromTest('src', 'middleware', 'upload.middleware.js'), {
