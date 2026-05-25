@@ -767,6 +767,9 @@ test('validateUploadedImage writes a valid image to disk only after in-memory va
     },
     sharp: (input) => ({
       rotate: () => ({
+        png() {
+          return this
+        },
         toFile: async (filePath) => {
           toFileCalls.push({
             input: Buffer.from(input),
@@ -804,6 +807,76 @@ test('validateUploadedImage writes a valid image to disk only after in-memory va
   assert.equal(req.file.filename.endsWith('-avatar.png'), true)
   assert.equal(req.file.originalname, 'avatar.png')
   assert.match(String(req.file.path), /avatar\.png$/i)
+  assert.equal(req.file.mimetype, 'image/png')
+})
+
+test('validateUploadedImage re-encodes GIF uploads to PNG before object storage', async () => {
+  const uploadCalls = []
+  const upsertCalls = []
+  const reencodedPng = Buffer.from('reencoded-png')
+  const { validateUploadedImage } = loadWithMocks(resolveFromTest('src', 'middleware', 'upload.middleware.js'), {
+    fs: {
+      promises: {
+        unlink: async () => {}
+      }
+    },
+    sharp: (input) => ({
+      rotate: () => ({
+        png() {
+          return this
+        },
+        toBuffer: async () => {
+          assert.equal(Buffer.from(input).subarray(0, 6).toString('ascii'), 'GIF89a')
+          return reencodedPng
+        }
+      })
+    }),
+    '../utils/logger': {
+      error: () => {}
+    },
+    '../utils/prisma': {
+      uploadedFile: {
+        upsert: async (payload) => {
+          upsertCalls.push(payload)
+        }
+      }
+    },
+    '../utils/fileStorage': {
+      uploadPath: 'C:\\uploads',
+      isS3Configured: () => true,
+      uploadFile: async (buffer, fileName, mimeType) => {
+        uploadCalls.push({ buffer, fileName, mimeType })
+        return { url: `https://storage.test/${fileName}` }
+      }
+    }
+  })
+
+  const req = {
+    user: { id: 'uploader-1' },
+    file: {
+      originalname: 'avatar.gif',
+      mimetype: 'image/gif',
+      buffer: Buffer.concat([
+        Buffer.from('GIF89a'),
+        Buffer.from('<html><script>alert(1)</script>')
+      ])
+    }
+  }
+  const res = createResponse()
+  let nextCalled = false
+
+  await validateUploadedImage(req, res, () => {
+    nextCalled = true
+  })
+
+  assert.equal(nextCalled, true)
+  assert.equal(uploadCalls.length, 1)
+  assert.equal(uploadCalls[0].buffer, reencodedPng)
+  assert.equal(uploadCalls[0].mimeType, 'image/png')
+  assert.equal(uploadCalls[0].fileName.endsWith('-avatar.png'), true)
+  assert.equal(req.file.filename.endsWith('-avatar.png'), true)
+  assert.equal(req.file.mimetype, 'image/png')
+  assert.equal(upsertCalls[0].create.mimeType, 'image/png')
 })
 
 test('validateUploadedImage rejects invalid image content before any disk write', async () => {

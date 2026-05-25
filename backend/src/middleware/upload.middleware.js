@@ -53,6 +53,12 @@ const generateUploadedFileName = (originalname) => {
   return `${crypto.randomUUID()}-${safeName}`
 }
 
+const generateReencodedImageFileName = (originalname) => {
+  const baseName = sanitizeUploadedOriginalName(originalname, 'upload-image')
+    .replace(/\.[^.]*$/, '')
+  return `${crypto.randomUUID()}-${baseName || 'upload-image'}.png`
+}
+
 const storeValidatedUpload = async (buffer, fileName, mimeType) => {
   const localPath = path.join(uploadPath, fileName)
   if (typeof uploadFile !== 'function') {
@@ -446,11 +452,11 @@ const validateUploadedImage = async (req, res, next) => {
       return res.status(400).json({ message: 'Uploaded file content is not a valid image' })
     }
 
-    const fileName = generateUploadedFileName(req.file.originalname)
+    const fileName = generateReencodedImageFileName(req.file.originalname)
     let processedBuffer
 
     try {
-      const processor = sharp(req.file.buffer).rotate()
+      const processor = sharp(req.file.buffer).rotate().png()
       if (typeof uploadFile === 'function') {
         processedBuffer = await processor.toBuffer()
       } else {
@@ -462,12 +468,13 @@ const validateUploadedImage = async (req, res, next) => {
     }
 
     const storedFile = typeof uploadFile === 'function'
-      ? await storeValidatedUpload(processedBuffer, fileName, req.file.mimetype)
+      ? await storeValidatedUpload(processedBuffer, fileName, 'image/png')
       : { path: path.join(uploadPath, fileName), url: path.join(uploadPath, fileName) }
 
     req.file.filename = fileName
     req.file.path = storedFile.path
     req.file.url = storedFile.url
+    req.file.mimetype = 'image/png'
     await registerUploadedFile(req)
 
     next()

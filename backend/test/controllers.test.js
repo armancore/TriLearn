@@ -891,7 +891,7 @@ test('changePassword rejects using the same current password', async () => {
       }
     },
     'bcryptjs': {
-      compare: async (submittedValue) => submittedValue === 'RiverCobaltLantern42',
+      compare: async (submittedValue) => submittedValue === 'Testpass1234',
       hash: async () => 'hashed'
     }
   }))
@@ -902,8 +902,8 @@ test('changePassword rejects using the same current password', async () => {
       role: 'STUDENT'
     },
     body: {
-      currentPassword: 'RiverCobaltLantern42',
-      newPassword: 'RiverCobaltLantern42'
+      currentPassword: 'Testpass1234',
+      newPassword: 'Testpass1234'
     }
   }
   const res = createResponse()
