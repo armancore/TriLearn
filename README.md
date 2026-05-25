@@ -21,9 +21,6 @@ Portfolio: [armankhan.com.np](https://www.armankhan.com.np)
 
 TriLearn uses production auth with JWT rotation, Redis-backed rate limiting, and RBAC across admin, coordinator, instructor, gatekeeper, and student workflows.
 
-![TriLearn live web screenshot](https://image.thum.io/get/width/1400/crop/900/https://trilearn-arman.vercel.app/)
-
-![TriLearn responsive screenshot](https://image.thum.io/get/width/430/crop/900/https://trilearn-arman.vercel.app/)
 
 ```mermaid
 flowchart LR
