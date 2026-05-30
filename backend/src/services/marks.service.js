@@ -94,6 +94,8 @@ const getPublishedStudentMarks = async ({ studentId, examType, skip, take }) => 
 }
 
 const getRankingSummary = async ({ student, examType }) => {
+  // These fragments are interpolated into raw SQL below; keep them as
+  // Prisma.sql/Prisma.empty values and never build them with string concat.
   const departmentCondition = student.department
     ? Prisma.sql`AND s."department" = ${student.department}`
     : Prisma.empty
