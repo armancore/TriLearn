@@ -499,74 +499,17 @@ TriLearn/
 │   ├── .env.example
 │   ├── app.json
 │   └── package.json
+├── docs/
+│   ├── adr/
+│   ├── DEPLOYMENT.md
+│   └── DEVELOPMENT.md
 ├── docker-compose.yml
-├── DEPLOYMENT.md
 └── README.md
 ```
 
-## Getting started
+## Getting Started
 
-TriLearn requires Node.js 20 or newer, PostgreSQL 16, and Redis 7.
-Use PostgreSQL for the Prisma database and Redis for revocation, queues, rate limits, and real-time coordination.
-For local development, each layer can run in its own terminal.
-Start the backend first so the frontend and mobile clients have an API to call.
-Then start the web client or Expo app depending on the interface being developed.
-When using a physical phone, replace localhost mobile URLs with the development machine's LAN address.
-
-### Backend setup
-
-```bash
-git clone <repo-url>
-cd TriLearn/backend
-cp .env.example .env
-npm install
-npm run prisma:migrate:dev
-npm run dev
-```
-
-The backend command starts the Express API and Socket.IO server.
-Prisma migrations create the local schema expected by the application.
-Redis should be available before exercising refresh token revocation, rate limiting, notification queues, or multi-process real-time behavior.
-
-### Frontend setup
-
-```bash
-cd TriLearn/frontend
-cp .env.example .env
-npm install
-npm run dev
-```
-
-The frontend Vite server reads VITE_API_URL from frontend/.env.
-Use the API path form, such as http://localhost:5000/api/v1, so the frontend API helper can route requests consistently.
-The same backend origin is also used for live notification connections.
-
-### Mobile setup
-
-```bash
-cd TriLearn/mobile
-cp .env.example .env
-npm install
-npx expo start
-```
-
-The Expo app reads public runtime configuration from mobile/.env.
-For Android emulators, the API host may need to be http://10.0.2.2:5000 instead of localhost.
-For physical devices, use the LAN IP of the machine running the backend.
-
-### Docker Compose shortcut
-
-```bash
-cd TriLearn
-cp .env.example .env
-cp backend/.env.example backend/.env
-docker compose up
-```
-
-The Compose file starts PostgreSQL, Redis, and the backend service.
-It does not replace the separate frontend and mobile development servers.
-Use it when you want the core backend dependencies and API to start together on a single development machine.
-For production Docker Compose deployments, use `docker compose -f docker-compose.prod.yml up -d --build`.
+See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for Docker setup and local dev.
 
 ## Environment variables
 
@@ -645,27 +588,7 @@ When a change crosses layers, run the relevant tests in each affected directory.
 
 ## Deployment
 
-Production deployments should set NODE_ENV=production and use strong secrets for every signing and password-related setting.
-Run prisma migrate deploy before starting the backend so the database schema matches the application code.
-When the API is behind a reverse proxy, set FORCE_HTTPS=true and configure the proxy to forward the expected HTTPS and host headers.
-
-Redis is required in production.
-It backs distributed rate limits, the Socket.IO adapter, BullMQ notification jobs, and refresh-token JTI revocation.
-Running without Redis should be treated as a local development fallback only.
-
-Use S3-compatible storage for uploads when running more than one backend instance.
-Local disk upload storage is acceptable for development and simple single-server deployments, but it does not give multiple application instances a shared file backend.
-Docker Compose can run PostgreSQL, Redis, and the backend for a single-server deployment path.
-
-A production reverse proxy should terminate TLS, forward the original protocol and host headers, and only expose the ports that are meant to be public.
-The backend should receive trusted proxy configuration that matches the actual deployment topology.
-Do not rely on development defaults for cookies, rate limits, or error output in production.
-
-Backups should include PostgreSQL and any configured upload storage.
-Redis contains important live coordination and revocation state, but PostgreSQL and uploads are the durable institutional records.
-Plan restore procedures before the system is used for real academic data.
-
-See [DEPLOYMENT.md](DEPLOYMENT.md) for full deployment details.
+See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for production checklist and Railway/Render notes.
 
 ## Author
 
