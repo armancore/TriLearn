@@ -99,8 +99,7 @@ wrong local day. The backend logs a startup warning when this value is missing.
 
 ## Health checks
 
-- `GET /ping` for a simple liveness probe
-- `GET /health` for a database-backed readiness probe
+- `GET /health` for the deployment readiness probe
 
 `GET /health` is intentionally private by default. Requests from non-private
 IP addresses return `404` unless they include the configured health-check key.
@@ -113,17 +112,16 @@ HEALTHCHECK_KEY=replace-with-a-random-token
 Then configure the probe to send that value as the `x-health-check-key`
 request header.
 
-For external uptime monitoring, create two checks:
+For external uptime monitoring, configure:
 
 ```text
-GET https://api.example.com/ping
 GET https://api.example.com/health
 ```
 
 If the monitor reaches the API from a public IP, add the
-`x-health-check-key: <HEALTHCHECK_KEY>` header to both checks. `/ping` confirms
-the process is reachable; `/health` is the readiness endpoint to use for
-deployment and database-backed availability alerts.
+`x-health-check-key: <HEALTHCHECK_KEY>` header. `/health` checks the process,
+PostgreSQL, and Redis when Redis is configured, and returns `503` when a
+required dependency is unavailable.
 
 ## Error alerting
 

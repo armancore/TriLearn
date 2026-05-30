@@ -26,6 +26,7 @@ const { initRealtime, closeRealtime } = require('./utils/realtime')
 const { warmRedisConnection } = require('./utils/redis')
 const { startNotificationWorker, closeNotificationWorker } = require('./jobs/notificationWorker')
 const { notificationQueue } = require('./jobs/notificationQueue')
+const { healthCheckHandler } = require('./utils/healthCheck')
 
 validateEnv()
 initMonitoring()
@@ -36,10 +37,7 @@ let server = null
 let maintenance = null
 let isShuttingDown = false
 
-// REDIS-SAVE: Uptime Robot pings this — must be Redis-free
-app.get('/health', (_req, res) => {
-  res.json({ status: 'ok' })
-})
+app.get('/health', healthCheckHandler)
 
 const ENABLE_API_DOCS = process.env.ENABLE_API_DOCS === 'true'
 if (ENABLE_API_DOCS && process.env.NODE_ENV !== 'production') {

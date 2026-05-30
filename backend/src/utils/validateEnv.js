@@ -121,6 +121,10 @@ const validateEnv = () => {
     throw new Error('FATAL: REDIS_URL is required in production. Rate limiting and session scaling depend on Redis.')
   }
 
+  if (process.env.NODE_ENV === 'production' && !String(process.env.HEALTHCHECK_KEY || '').trim()) {
+    throw new Error('FATAL: HEALTHCHECK_KEY is required in production. Generate with: openssl rand -hex 32')
+  }
+
   if (process.env.NODE_ENV === 'production' && process.env.DISABLE_RATE_LIMITS === 'true') {
     throw new Error('FATAL: DISABLE_RATE_LIMITS=true is not permitted in production. Remove this variable or set it to false.')
   }

@@ -45,6 +45,17 @@ const baseEnv = {
   NODE_ENV: 'development'
 }
 
+const productionEnv = {
+  NODE_ENV: 'production',
+  REDIS_URL: 'redis://localhost:6379',
+  HEALTHCHECK_KEY: 'h'.repeat(32),
+  MAIL_FROM: 'TriLearn <no-reply@example.com>',
+  RESEND_SMTP_HOST: 'smtp.resend.com',
+  RESEND_SMTP_PORT: '465',
+  RESEND_SMTP_USER: 'resend',
+  RESEND_SMTP_PASS: 'secret'
+}
+
 const restoreEnv = (snapshot) => {
   Object.keys(process.env).forEach((key) => {
     if (!(key in snapshot)) {
@@ -118,13 +129,7 @@ test('validateEnv requires LOGIN_CAPTCHA_SECRET', () => {
 test('validateEnv rejects disabling rate limits in production', () => {
   const originalEnv = { ...process.env }
   Object.assign(process.env, baseEnv, {
-    NODE_ENV: 'production',
-    REDIS_URL: 'redis://localhost:6379',
-    MAIL_FROM: 'TriLearn <no-reply@example.com>',
-    RESEND_SMTP_HOST: 'smtp.resend.com',
-    RESEND_SMTP_PORT: '465',
-    RESEND_SMTP_USER: 'resend',
-    RESEND_SMTP_PASS: 'secret',
+    ...productionEnv,
     DISABLE_RATE_LIMITS: 'true'
   })
 
@@ -141,13 +146,7 @@ test('validateEnv rejects disabling rate limits in production', () => {
 test('validateEnv rejects enabling debug errors in production', async () => {
   const originalEnv = { ...process.env }
   Object.assign(process.env, baseEnv, {
-    NODE_ENV: 'production',
-    REDIS_URL: 'redis://localhost:6379',
-    MAIL_FROM: 'TriLearn <no-reply@example.com>',
-    RESEND_SMTP_HOST: 'smtp.resend.com',
-    RESEND_SMTP_PORT: '465',
-    RESEND_SMTP_USER: 'resend',
-    RESEND_SMTP_PASS: 'secret',
+    ...productionEnv,
     DEBUG_ERRORS: 'true'
   })
 
@@ -215,13 +214,7 @@ test('validateEnv rejects invalid ALLOW_SOCKET_NO_ORIGIN values', async () => {
 test('validateEnv rejects ALLOW_SOCKET_NO_ORIGIN=true in production', async () => {
   const originalEnv = { ...process.env }
   Object.assign(process.env, baseEnv, {
-    NODE_ENV: 'production',
-    REDIS_URL: 'redis://localhost:6379',
-    MAIL_FROM: 'TriLearn <no-reply@example.com>',
-    RESEND_SMTP_HOST: 'smtp.resend.com',
-    RESEND_SMTP_PORT: '465',
-    RESEND_SMTP_USER: 'resend',
-    RESEND_SMTP_PASS: 'secret',
+    ...productionEnv,
     ALLOW_SOCKET_NO_ORIGIN: 'true'
   })
 
@@ -241,13 +234,7 @@ test('validateEnv rejects ALLOW_SOCKET_NO_ORIGIN=true in production', async () =
 test('validateEnv rejects TRUST_PROXY=true in production', () => {
   const originalEnv = { ...process.env }
   Object.assign(process.env, baseEnv, {
-    NODE_ENV: 'production',
-    REDIS_URL: 'redis://localhost:6379',
-    MAIL_FROM: 'TriLearn <no-reply@example.com>',
-    RESEND_SMTP_HOST: 'smtp.resend.com',
-    RESEND_SMTP_PORT: '465',
-    RESEND_SMTP_USER: 'resend',
-    RESEND_SMTP_PASS: 'secret',
+    ...productionEnv,
     TRUST_PROXY: 'true'
   })
 
@@ -261,16 +248,27 @@ test('validateEnv rejects TRUST_PROXY=true in production', () => {
   }
 })
 
+test('validateEnv requires HEALTHCHECK_KEY in production', () => {
+  const originalEnv = { ...process.env }
+  Object.assign(process.env, baseEnv, {
+    ...productionEnv
+  })
+  delete process.env.HEALTHCHECK_KEY
+
+  try {
+    assert.throws(
+      () => validateEnv(),
+      /FATAL: HEALTHCHECK_KEY is required in production\. Generate with: openssl rand -hex 32/
+    )
+  } finally {
+    restoreEnv(originalEnv)
+  }
+})
+
 test('validateEnv requires private S3-compatible storage in production', () => {
   const originalEnv = { ...process.env }
   Object.assign(process.env, baseEnv, {
-    NODE_ENV: 'production',
-    REDIS_URL: 'redis://localhost:6379',
-    MAIL_FROM: 'TriLearn <no-reply@example.com>',
-    RESEND_SMTP_HOST: 'smtp.resend.com',
-    RESEND_SMTP_PORT: '465',
-    RESEND_SMTP_USER: 'resend',
-    RESEND_SMTP_PASS: 'secret'
+    ...productionEnv
   })
   delete process.env.S3_BUCKET
   delete process.env.S3_REGION
@@ -290,13 +288,7 @@ test('validateEnv requires private S3-compatible storage in production', () => {
 test('validateEnv rejects known secret placeholders in production by throwing', () => {
   const originalEnv = { ...process.env }
   Object.assign(process.env, baseEnv, {
-    NODE_ENV: 'production',
-    REDIS_URL: 'redis://localhost:6379',
-    MAIL_FROM: 'TriLearn <no-reply@example.com>',
-    RESEND_SMTP_HOST: 'smtp.resend.com',
-    RESEND_SMTP_PORT: '465',
-    RESEND_SMTP_USER: 'resend',
-    RESEND_SMTP_PASS: 'secret',
+    ...productionEnv,
     JWT_ACCESS_SECRET: 'REPLACE_WITH_OUTPUT_OF__openssl_rand_hex_64'
   })
 
