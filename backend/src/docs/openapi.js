@@ -368,6 +368,50 @@ const routeGroups = {
     ['post', '/attendance/tickets', 'Create absence ticket', schemas.attendance.createTicket, { 201: jsonResponse('Ticket created') }],
     ['get', '/attendance/tickets', 'List absence tickets for staff'],
     ['patch', '/attendance/tickets/{id}', 'Review absence ticket', schemas.attendance.reviewTicket]
+  ],
+  Departments: [
+    ['get', '/departments/public', 'List public department options', null, {}, []],
+    ['get', '/departments', 'List departments'],
+    ['post', '/departments', 'Create department', schemas.departments.create, { 201: jsonResponse('Department created') }],
+    ['put', '/departments/{id}', 'Update department', schemas.departments.update],
+    ['delete', '/departments/{id}', 'Delete department', schemas.departments.id],
+    ['get', '/departments/{id}/sections', 'List department sections', schemas.departments.getSections],
+    ['post', '/departments/{id}/sections', 'Create department section', schemas.departments.createSection, { 201: jsonResponse('Section created') }],
+    ['delete', '/departments/{id}/sections/{sectionId}', 'Delete department section', schemas.departments.sectionId]
+  ],
+  Routines: [
+    ['get', '/routines', 'List class routines', schemas.routines.getAll],
+    ['get', '/routines/{id}', 'Get routine by id', schemas.routines.id],
+    ['post', '/routines', 'Create class routine', schemas.routines.create, { 201: jsonResponse('Routine created') }],
+    ['put', '/routines/{id}', 'Update class routine', schemas.routines.update],
+    ['delete', '/routines/{id}', 'Delete class routine', schemas.routines.id]
+  ],
+  Materials: [
+    ['get', '/materials', 'List study materials'],
+    ['get', '/materials/subject/{subjectId}', 'List study materials by subject', schemas.materials.bySubject],
+    ['post', '/materials', 'Upload study material', schemas.materials.create, { 201: jsonResponse('Material created') }],
+    ['delete', '/materials/{id}', 'Delete study material', schemas.materials.id]
+  ],
+  Tasks: [
+    ['get', '/tasks', 'List tasks', schemas.tasks.getAll],
+    ['get', '/tasks/{id}', 'Get task by id', schemas.tasks.id],
+    ['post', '/tasks', 'Create task', schemas.tasks.create, { 201: jsonResponse('Task created') }],
+    ['put', '/tasks/{id}', 'Update task', schemas.tasks.update],
+    ['delete', '/tasks/{id}', 'Delete task', schemas.tasks.id],
+    ['post', '/tasks/{id}/submit', 'Submit task answer', schemas.tasks.submit],
+    ['get', '/tasks/my-submissions', 'Get current student task submissions'],
+    ['patch', '/tasks/submissions/{submissionId}/feedback', 'Review task submission', schemas.tasks.feedback]
+  ],
+  Notifications: [
+    ['get', '/notifications', 'List notifications', schemas.notifications.list],
+    ['get', '/notifications/unread-count', 'Get unread notification count'],
+    ['post', '/notifications/device-token', 'Register push device token', schemas.notifications.registerDeviceToken],
+    ['delete', '/notifications/device-token', 'Unregister push device token', schemas.notifications.unregisterDeviceToken],
+    ['patch', '/notifications/read-all', 'Mark all notifications read'],
+    ['patch', '/notifications/{id}/read', 'Mark notification read', { params: z.object({ id: z.string().uuid() }) }]
+  ],
+  Instructor: [
+    ['get', '/instructor/students', 'List students taught by the current instructor']
   ]
 }
 
