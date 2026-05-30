@@ -1,5 +1,6 @@
 const { Queue } = require('bullmq')
 const { isRedisConfigured } = require('../utils/redis')
+const logger = require('../utils/logger')
 
 const NOTIFICATION_QUEUE_NAME = 'notifications'
 const CREATE_NOTIFICATIONS_JOB = 'create-notifications'
@@ -28,7 +29,7 @@ const getNotificationQueueConnection = () => {
   if (!isRedisConfigured()) {
     if (!redisWarningShown) {
       redisWarningShown = true
-      console.warn('Warning: REDIS_URL not set - notification jobs are not queued')
+      logger.warn('REDIS_URL not set - notification jobs are not queued')
     }
 
     return null
