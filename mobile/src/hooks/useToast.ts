@@ -1,9 +1,9 @@
 import { useCallback } from 'react';
-import axios from 'axios';
+import { isAxiosError } from 'axios';
 import Toast from 'react-native-toast-message';
 
 const getErrorMessage = (error: unknown, fallback: string) => {
-  if (axios.isAxiosError<{ message?: string }>(error)) {
+  if (isAxiosError<{ message?: string }>(error)) {
     return error.response?.data?.message || error.message || fallback;
   }
 

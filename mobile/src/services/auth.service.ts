@@ -1,7 +1,7 @@
 import type { LoginRequest, LoginResponse, RefreshTokenResponse } from '@/src/types/auth';
 
 import { API_BASE_URL } from '@/src/constants/config';
-import axios from 'axios';
+import axios, { isAxiosError } from 'axios';
 import Constants from 'expo-constants';
 import { APP_PLATFORM, CLIENT_TYPE } from '@/src/services/mobileClientSignature';
 import { useAuthStore } from '@/src/store/auth.store';
@@ -35,7 +35,7 @@ authClient.interceptors.request.use((config) => {
 authClient.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (axios.isAxiosError(error) && error.response?.status === 426) {
+    if (isAxiosError(error) && error.response?.status === 426) {
       useAuthStore.getState().clearSession();
     }
 

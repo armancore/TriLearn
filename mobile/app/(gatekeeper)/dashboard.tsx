@@ -18,13 +18,13 @@ interface LiveGateQrResponse {
   expiresAt?: string;
   refreshInSeconds?: number;
   allowedSemesters?: number[];
-  periods?: Array<{
+  periods?: {
     id: string;
     title: string;
     startTime: string;
     endTime: string;
     allowedSemesters: number[];
-  }>;
+  }[];
   nextWindow?: {
     title?: string;
     startTime: string;

@@ -6,7 +6,7 @@ import { FlatList, Modal, Pressable, RefreshControl, Text, TextInput, View } fro
 import { COLORS } from '@/src/constants/colors';
 import { useToast } from '@/src/hooks/useToast';
 import { api } from '@/src/services/api';
-import type { BulkMarksPayload, EnrolledStudent, InstructorMark, SubjectMarksResponse, SubjectStudentsResponse } from '@/src/types/instructorOps';
+import type { BulkMarksPayload, EnrolledStudent, SubjectMarksResponse, SubjectStudentsResponse } from '@/src/types/instructorOps';
 import type { ExamType } from '@/src/types/marks';
 import type { Subject, SubjectsResponse } from '@/src/types/subject';
 
@@ -111,7 +111,7 @@ export default function InstructorMarksScreen() {
       if (!selectedSubject) return;
 
       const newEntries: BulkMarksPayload['entries'] = [];
-      const updateRequests: Array<Promise<unknown>> = [];
+      const updateRequests: Promise<unknown>[] = [];
 
       for (const student of studentsQuery.data?.students ?? []) {
         const rawValue = marksByStudent[student.id];

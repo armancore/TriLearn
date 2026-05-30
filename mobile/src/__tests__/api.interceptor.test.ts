@@ -1,5 +1,5 @@
 import type { InternalAxiosRequestConfig } from 'axios';
-import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, jest } from '@jest/globals';
 import type { AuthUser } from '@/src/types/auth';
 import { useAuthStore } from '@/src/store/auth.store';
 
@@ -54,7 +54,9 @@ const testUser: AuthUser = {
   mustChangePassword: false,
 };
 
-require('@/src/services/api');
+beforeAll(() => {
+  jest.requireActual('@/src/services/api');
+});
 
 const getRequestInterceptor = () => {
   return mockRequestUse.mock.calls[0][0] as (config: InternalAxiosRequestConfig) => InternalAxiosRequestConfig;

@@ -4,6 +4,7 @@ import React from 'react';
 import type { Mock } from 'jest-mock';
 
 import { api } from '@/src/services/api';
+import StudentScannerScreen from '../../app/(student)/scanner';
 
 type CameraViewProps = { onBarcodeScanned?: (event: { data: string }) => void };
 type UseMutationOptions = { mutationFn: (value: string) => Promise<string> };
@@ -27,13 +28,12 @@ jest.mock('expo-haptics', () => ({
 }));
 
 jest.mock('react-native-reanimated', () => {
-  const React = require('react');
-  const { View } = require('react-native');
+  const { View } = jest.requireActual('react-native') as { View: unknown };
 
   return {
     __esModule: true,
     default: {
-      View: ({ children, ...props }: { children?: React.ReactNode }) => React.createElement(View, props, children),
+      View,
     },
     FadeIn: { duration: jest.fn(() => ({})) },
     FadeOut: { duration: jest.fn(() => ({})) },
@@ -56,8 +56,6 @@ jest.mock('@/src/services/api', () => ({
     post: jest.fn(),
   },
 }));
-
-const StudentScannerScreen = require('../../app/(student)/scanner').default;
 
 describe('student QR scanner flow', () => {
   beforeEach(() => {

@@ -8,7 +8,7 @@ import { api } from '@/src/services/api';
 import type { AdminUser, AdminUsersResponse } from '@/src/types/admin';
 import type { UserRole } from '@/src/types/auth';
 
-const roles: Array<'ALL' | UserRole> = ['ALL', 'STUDENT', 'INSTRUCTOR', 'COORDINATOR', 'GATEKEEPER', 'ADMIN'];
+const roles: ('ALL' | UserRole)[] = ['ALL', 'STUDENT', 'INSTRUCTOR', 'COORDINATOR', 'GATEKEEPER', 'ADMIN'];
 
 export default function AdminUsersScreen() {
   const [role, setRole] = useState<'ALL' | UserRole>('ALL');

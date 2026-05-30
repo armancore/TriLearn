@@ -12,7 +12,7 @@ export interface AdminStats {
 
 export interface DepartmentsResponse {
   total: number;
-  departments: Array<{ id: string; name: string }>;
+  departments: { id: string; name: string }[];
 }
 
 export interface AdminStatsResponse {
@@ -87,7 +87,7 @@ export interface CoordinatorDepartmentReport {
     total: number;
     percentage?: number;
   };
-  records: Array<{
+  records: {
     id: string;
     date: string;
     status: 'PRESENT' | 'ABSENT' | 'LATE';
@@ -102,8 +102,8 @@ export interface CoordinatorDepartmentReport {
       rollNumber: string;
       section?: string | null;
     };
-  }>;
-  students: Array<{
+  }[];
+  students: {
     id: string;
     name: string;
     email: string;
@@ -115,7 +115,7 @@ export interface CoordinatorDepartmentReport {
     late: number;
     totalRecords: number;
     monthlyAverage: string;
-  }>;
+  }[];
 }
 
 export interface NoticeCreatePayload {

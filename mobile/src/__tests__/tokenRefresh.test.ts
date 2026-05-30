@@ -1,5 +1,5 @@
 import type { AxiosError, InternalAxiosRequestConfig } from 'axios';
-import { beforeEach, describe, expect, it, jest } from '@jest/globals';
+import { beforeAll, beforeEach, describe, expect, it, jest } from '@jest/globals';
 import type { Mock } from 'jest-mock';
 
 import type { AuthUser, RefreshTokenResponse } from '@/src/types/auth';
@@ -60,7 +60,9 @@ const testUser: AuthUser = {
   emailVerified: true,
 };
 
-require('@/src/services/api');
+beforeAll(() => {
+  jest.requireActual('@/src/services/api');
+});
 
 const getRejectedResponseInterceptor = () => {
   return mockResponseUse.mock.calls[0][1] as (error: AxiosError) => Promise<unknown>;

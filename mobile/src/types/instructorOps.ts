@@ -64,10 +64,10 @@ export interface ManualAttendancePayload {
   attendanceDate: string;
   semester?: number;
   section?: string | null;
-  attendanceList: Array<{
+  attendanceList: {
     studentId: string;
     status: AttendanceStatus;
-  }>;
+  }[];
 }
 
 export interface GenerateQrResponse {
@@ -103,9 +103,9 @@ export interface BulkMarksPayload {
   subjectId: string;
   examType: ExamType;
   totalMarks: number;
-  entries: Array<{
+  entries: {
     studentId: string;
     obtainedMarks: number;
     remarks?: string;
-  }>;
+  }[];
 }
