@@ -30,6 +30,9 @@ yarn-error.*
 .DS_Store
 *.pem
 
+# editor settings
+.vscode/
+
 # local env files
 .env
 .env.*
