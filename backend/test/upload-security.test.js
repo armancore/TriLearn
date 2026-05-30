@@ -1429,6 +1429,12 @@ test('importStudents sanitizes spreadsheet row values before reporting validatio
     '../utils/instructorDepartments': {
       normalizeDepartmentList: (values) => values.filter(Boolean)
     },
+    '../jobs/notificationQueue': {
+      BULK_STUDENT_IMPORT_JOB: 'bulk-student-import',
+      notificationQueue: {
+        add: async () => null
+      }
+    },
     exceljs: {
       Workbook: class MockWorkbook {
         constructor() {
