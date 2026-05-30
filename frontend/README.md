@@ -1,16 +1,80 @@
-# React + Vite
+# TriLearn Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+The frontend is the React web app for TriLearn's administrative, coordinator, instructor, gatekeeper, and student workflows. It is built with React 19, Vite, React Router, Tailwind CSS, Axios, Framer Motion, and Vitest.
 
-Currently, two official plugins are available:
+## Local Setup
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+Install dependencies from this directory:
 
-## React Compiler
+```bash
+npm ci
+```
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+Create a local environment file from the example:
 
-## Expanding the ESLint configuration
+```bash
+cp .env.example .env
+```
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+Set `VITE_API_URL` to the backend API base URL. For local development this is usually:
+
+```env
+VITE_API_URL=http://localhost:5000/api/v1
+```
+
+Start the development server:
+
+```bash
+npm run dev
+```
+
+## Scripts
+
+| Command | Purpose |
+| --- | --- |
+| `npm run dev` | Start the Vite development server. |
+| `npm run lint` | Run ESLint across the frontend source and tests. |
+| `npm test` | Run the Vitest test suite once. |
+| `npm run build` | Create a production build. |
+| `npm run preview` | Preview the production build locally. |
+
+## Project Layout
+
+```text
+frontend/
+├── public/              Static browser assets
+├── src/
+│   ├── components/      Shared UI components
+│   ├── constants/       Role and app constants
+│   ├── context/         Auth, theme, and reference data providers
+│   ├── hooks/           Shared React hooks
+│   ├── layouts/         Role-specific layout shells
+│   ├── pages/           Route-level screens
+│   ├── styles/          Shared styling assets
+│   ├── test/            Source-level test helpers
+│   └── utils/           API, auth, logging, and utility code
+├── test/                Vitest and Testing Library tests
+├── index.html
+├── vite.config.js
+└── package.json
+```
+
+## Testing
+
+Tests live in `frontend/test` and use Vitest with the `jsdom` environment plus Testing Library helpers. Add or update tests when changing authentication, route protection, API client behavior, dashboard rendering, attendance, marks, or role-specific workflows.
+
+Run the same checks as CI before opening a pull request:
+
+```bash
+npm run lint
+npm test
+npm run build
+```
+
+## Routing And Access
+
+Routes are declared in `src/App.jsx` and protected with `ProtectedRoute`. Role names come from `src/constants/roles`. When adding a new page, wire it through the route table and check that unauthorized roles are redirected or blocked consistently.
+
+## API Integration
+
+Frontend API calls should go through the shared API utilities instead of constructing ad hoc clients. Keep request and response assumptions aligned with the backend `/api/v1` contract, and avoid storing access tokens outside the existing auth context.

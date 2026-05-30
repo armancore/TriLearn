@@ -6,6 +6,7 @@ import { AuthProvider, useAuth } from '../src/context/AuthContext'
 const getAuthStateMock = vi.fn()
 const setAuthStateMock = vi.fn()
 const refreshSessionMock = vi.fn()
+const hasSessionHintMock = vi.fn()
 const subscribeToAuthStateMock = vi.fn(() => () => {})
 const registerUnauthorizedHandlerMock = vi.fn(() => () => {})
 const apiPostMock = vi.fn()
@@ -15,6 +16,7 @@ vi.mock('../src/utils/api', () => ({
     post: (...args) => apiPostMock(...args)
   },
   getAuthState: () => getAuthStateMock(),
+  hasSessionHint: () => hasSessionHintMock(),
   refreshSession: (...args) => refreshSessionMock(...args),
   registerUnauthorizedHandler: (...args) => registerUnauthorizedHandlerMock(...args),
   setAuthState: (...args) => setAuthStateMock(...args),
@@ -38,6 +40,8 @@ const Consumer = () => {
 describe('AuthContext', () => {
   beforeEach(() => {
     getAuthStateMock.mockReturnValue({ user: null, token: null })
+    hasSessionHintMock.mockReset()
+    hasSessionHintMock.mockReturnValue(false)
     refreshSessionMock.mockReset()
     refreshSessionMock.mockResolvedValue({ token: 'fresh-token', user: { name: 'Refreshed', role: 'ADMIN' } })
     setAuthStateMock.mockReset()

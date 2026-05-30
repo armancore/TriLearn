@@ -36,10 +36,11 @@ describe('api auth persistence', () => {
     })
     window.sessionStorage.clear()
     window.localStorage.removeItem('trilearn.auth.user')
+    window.localStorage.removeItem('trilearn.auth.session')
     window.localStorage.removeItem('trilearn.auth.refresh.cooldownUntil')
   })
 
-  it('stores only a minimal auth snapshot while keeping the full user and token in memory', async () => {
+  it('stores only a session hint while keeping the full user and token in memory', async () => {
     const apiClient = createAxiosClient()
     const refreshClient = createAxiosClient()
 
@@ -84,12 +85,8 @@ describe('api auth persistence', () => {
       }
     })
 
-    expect(JSON.parse(window.localStorage.getItem('trilearn.auth.user'))).toEqual({
-      name: 'Taylor',
-      role: 'STUDENT',
-      mustChangePassword: false,
-      profileCompleted: true
-    })
+    expect(window.localStorage.getItem('trilearn.auth.user')).toBeNull()
+    expect(window.localStorage.getItem('trilearn.auth.session')).toBe('1')
   })
 
   it('hydrates the full user from the refresh response without an extra /auth/me request', async () => {
@@ -137,12 +134,8 @@ describe('api auth persistence', () => {
       email: 'admin@example.com',
       coordinator: { department: 'BCA' }
     })
-    expect(JSON.parse(window.localStorage.getItem('trilearn.auth.user'))).toEqual({
-      name: 'Jordan',
-      role: 'ADMIN',
-      mustChangePassword: false,
-      profileCompleted: true
-    })
+    expect(window.localStorage.getItem('trilearn.auth.user')).toBeNull()
+    expect(window.localStorage.getItem('trilearn.auth.session')).toBe('1')
   })
 
   it('logs only sanitized axios metadata in response interceptor errors', async () => {
