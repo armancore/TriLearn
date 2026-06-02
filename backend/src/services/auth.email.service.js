@@ -25,13 +25,14 @@ const getResetTokenExpiry = () => {
   return expiresAt
 }
 
-const queuePasswordResetEmail = async ({ user, subject, html, text }) => {
+const queuePasswordResetEmail = async ({ user, subject, html, text, requestId = null }) => {
   const job = await notificationQueue.add(PASSWORD_RESET_EMAIL_JOB, {
     userId: user.id,
     to: user.email,
     subject,
     html,
-    text
+    text,
+    requestId
   }, {
     jobId: `password-reset:${user.id}:${Date.now()}`
   })
@@ -40,7 +41,8 @@ const queuePasswordResetEmail = async ({ user, subject, html, text }) => {
     logger.info('Password reset email queued', {
       userId: user.id,
       email: user.email,
-      jobId: job.id
+      jobId: job.id,
+      requestId
     })
     return
   }
@@ -48,7 +50,8 @@ const queuePasswordResetEmail = async ({ user, subject, html, text }) => {
   await sendMail({ to: user.email, subject, html, text })
   logger.info('Password reset email sent without queue', {
     userId: user.id,
-    email: user.email
+    email: user.email,
+    requestId
   })
 }
 // ================================
@@ -99,7 +102,7 @@ const forgotPassword = async (context, result = createServiceResponder()) => {
       resetUrl
     })
 
-    await queuePasswordResetEmail({ user, subject, html, text })
+    await queuePasswordResetEmail({ user, subject, html, text, requestId: context.requestId })
   }
 
   await waitForMinimumDuration(startedAt, FORGOT_PASSWORD_MIN_RESPONSE_MS)

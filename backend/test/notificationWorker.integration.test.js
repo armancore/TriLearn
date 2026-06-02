@@ -115,7 +115,7 @@ test('notification worker sends FCM pushes and removes stale device tokens', asy
     }
   })
 
-  const result = await createNotificationRecords(notifications)
+  const result = await createNotificationRecords(notifications, 'request-123')
 
   assert.equal(result.count, 1)
   assert.equal(emitted.length, 1)
@@ -197,11 +197,12 @@ test('notification worker keeps in-app delivery when FCM push fails', async () =
     }
   })
 
-  const result = await createNotificationRecords(notifications)
+  const result = await createNotificationRecords(notifications, 'request-123')
 
   assert.equal(result.count, 1)
   assert.equal(emitted.length, 1)
   assert.equal(emitted[0].userId, 'user-2')
   assert.equal(loggedErrors.length, 1)
   assert.equal(loggedErrors[0].message, 'FCM push delivery failed without failing notification job')
+  assert.equal(loggedErrors[0].meta.requestId, 'request-123')
 })

@@ -11,6 +11,7 @@ const buildServiceContext = (request) => ({
   files: request.files || null,
   cookies: request.cookies || {},
   headers: request.headers || {},
+  requestId: request.id || null,
   ip: request.ip || null,
   socket: {
     remoteAddress: request.socket?.remoteAddress || null

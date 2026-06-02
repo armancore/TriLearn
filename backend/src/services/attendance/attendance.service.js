@@ -47,6 +47,20 @@ const markAttendanceManual = async (context, result = createServiceResponder()) 
   const invalidEntry = attendanceList.find(({ studentId, status }) => !studentId || !allowedStudentIds.has(studentId) || !ATTENDANCE_STATUSES.includes(status))
   if (invalidEntry) return result.withStatus(400, { message: 'Attendance list contains invalid student or status values' })
 
+  const existingAttendance = await prisma.attendance.findMany({
+    where: {
+      subjectId,
+      studentId: { in: attendanceList.map(({ studentId }) => studentId) },
+      date: { gte: dayRange.start, lt: dayRange.end }
+    },
+    select: {
+      id: true,
+      studentId: true,
+      status: true
+    }
+  })
+  const existingByStudentId = new Map(existingAttendance.map((record) => [record.studentId, record]))
+
   const records = await prisma.$transaction(
     attendanceList.map(({ studentId, status }) => prisma.attendance.upsert({
       where: { studentId_subjectId_date: { studentId, subjectId, date: dayRange.start } },
@@ -63,7 +77,21 @@ const markAttendanceManual = async (context, result = createServiceResponder()) 
     action: 'ATTENDANCE_MARKED_MANUALLY',
     entityType: 'Attendance',
     entityId: subjectId,
-    metadata: { subjectId, attendanceDate: dayRange.start, totalRecords: records.length }
+    metadata: {
+      subjectId,
+      attendanceDate: dayRange.start,
+      totalRecords: records.length,
+      changes: records.map((record) => {
+        const previous = existingByStudentId.get(record.studentId)
+        return {
+          attendanceId: record.id,
+          studentId: record.studentId,
+          previousStatus: previous?.status || null,
+          newStatus: record.status,
+          operation: previous ? 'update' : 'create'
+        }
+      })
+    }
   })
 }
 

@@ -106,7 +106,8 @@ const createNotifications = async ({
   message,
   link = null,
   metadata = null,
-  dedupeKeyFactory = null
+  dedupeKeyFactory = null,
+  requestId = null
 }) => {
   const recipients = uniqueUserIds(userIds)
 
@@ -127,7 +128,8 @@ const createNotifications = async ({
   }))
 
   const job = await notificationQueue.add(CREATE_NOTIFICATIONS_JOB, {
-    notifications
+    notifications,
+    requestId
   })
 
   if (!job) {

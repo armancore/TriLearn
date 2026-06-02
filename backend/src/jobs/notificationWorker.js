@@ -152,21 +152,22 @@ const deliverPushNotifications = async (notifications = []) => {
   }
 }
 
-const deliverPushNotificationsSafely = async (notifications) => {
+const deliverPushNotificationsSafely = async (notifications, requestId = null) => {
   try {
     return await deliverPushNotifications(notifications)
   } catch (error) {
     logger.error('FCM push delivery failed without failing notification job', {
       message: error.message,
-      stack: error.stack
+      stack: error.stack,
+      requestId
     })
-    captureException(error, { tags: { job: 'deliverPushNotifications' } })
+    captureException(error, { tags: { job: 'deliverPushNotifications', requestId } })
 
     return { attempted: 0, staleRemoved: 0, failed: true }
   }
 }
 
-const createNotificationRecords = async (notifications = []) => {
+const createNotificationRecords = async (notifications = [], requestId = null) => {
   const records = normalizeNotificationRecords(notifications)
   if (!records.length) {
     return { count: 0 }
@@ -178,7 +179,7 @@ const createNotificationRecords = async (notifications = []) => {
   })
 
   const createdNotifications = await emitCreatedNotifications(records)
-  await deliverPushNotificationsSafely(createdNotifications)
+  await deliverPushNotificationsSafely(createdNotifications, requestId)
   return { count: result.count }
 }
 
@@ -188,7 +189,7 @@ const processNotificationJob = async (job) => {
   }
 
   if (job.name === CREATE_NOTIFICATIONS_JOB) {
-    return createNotificationRecords(job.data.notifications)
+    return createNotificationRecords(job.data.notifications, job.data.requestId)
   }
 
   if (job.name === ROUTINE_NOTIFICATION_JOB) {
@@ -201,7 +202,8 @@ const processNotificationJob = async (job) => {
     await sendMail({ to, subject, html, text })
     logger.info('Password reset email sent', {
       jobId: job.id,
-      userId: job.data.userId
+      userId: job.data.userId,
+      requestId: job.data.requestId || null
     })
     return { sent: true }
   }
@@ -233,13 +235,15 @@ const startNotificationWorker = () => {
     logger.error('Notification job failed', {
       jobId: job?.id,
       jobName: job?.name,
+      requestId: job?.data?.requestId || null,
       message: error.message,
       stack: error.stack
     })
     captureException(error, {
       tags: {
         jobId: job?.id,
-        jobName: job?.name
+        jobName: job?.name,
+        requestId: job?.data?.requestId || null
       }
     })
   })

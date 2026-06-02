@@ -847,7 +847,29 @@ const updateMarks = async (context, result = createServiceResponder()) => {
     action: 'MARK_UPDATED',
     entityType: 'Mark',
     entityId: updated.id,
-    metadata: { obtainedMarks: updated.obtainedMarks }
+    metadata: {
+      studentId: mark.studentId,
+      subjectId: mark.subjectId,
+      examType: mark.examType,
+      previous: {
+        obtainedMarks: mark.obtainedMarks,
+        remarks: mark.remarks,
+        grade: mark.grade,
+        gradePoint: mark.gradePoint,
+        isPublished: mark.isPublished,
+        publishedAt: mark.publishedAt,
+        publishedBy: mark.publishedBy
+      },
+      next: {
+        obtainedMarks: updated.obtainedMarks,
+        remarks: updated.remarks,
+        grade: updated.grade,
+        gradePoint: updated.gradePoint,
+        isPublished: updated.isPublished,
+        publishedAt: updated.publishedAt,
+        publishedBy: updated.publishedBy
+      }
+    }
   })
 }
 
@@ -1176,7 +1198,8 @@ const publishMarks = async (context, result = createServiceResponder()) => {
       subjectId: subjectId || null,
       audience: context.user.role
     },
-    dedupeKeyFactory: (userId) => `marks-published:${userId}:${examType}:${subjectId || context.user.role}`
+    dedupeKeyFactory: (userId) => `marks-published:${userId}:${examType}:${subjectId || context.user.role}`,
+    requestId: context.requestId
   })
 
   await recordAuditLog({
