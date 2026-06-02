@@ -68,6 +68,12 @@ you need IPv4 compatibility. Use the direct database URL only from environments
 that can reach Supabase over IPv6, or when your Supabase project has the IPv4
 add-on enabled.
 
+`PGSSL_REJECT_UNAUTHORIZED=false` disables TLS certificate validation. Keep this
+only for managed-provider connection modes that require it, such as some
+Supabase pooler deployments. Do not carry it into a self-hosted or custom
+Postgres deployment unless you have explicitly accepted that TLS trust tradeoff;
+prefer a valid CA chain and certificate verification.
+
 If the database password contains reserved URL characters such as `@`, `#`, `?`,
 `&`, `/`, or `%`, percent-encode the password before putting it in
 `DATABASE_URL`.
