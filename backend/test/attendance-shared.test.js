@@ -12,7 +12,19 @@ const loadSharedWithPrisma = (prisma) => {
   const localRequire = createRequire(modulePath)
   const prismaPath = localRequire.resolve('../../utils/prisma')
   const previousPrisma = require.cache[prismaPath]
-  const previousShared = require.cache[modulePath]
+  const attendanceModulePaths = [
+    modulePath,
+    localRequire.resolve('./time.helpers'),
+    localRequire.resolve('./subject.helpers'),
+    localRequire.resolve('./gate-window.service'),
+    localRequire.resolve('./qr-payload.helpers'),
+    localRequire.resolve('./student-lookup.service'),
+    localRequire.resolve('./attendance-write.service'),
+    localRequire.resolve('./report-payload.service')
+  ]
+  const previousAttendanceModules = new Map(
+    attendanceModulePaths.map((attendanceModulePath) => [attendanceModulePath, require.cache[attendanceModulePath]])
+  )
 
   require.cache[prismaPath] = {
     id: prismaPath,
@@ -20,7 +32,9 @@ const loadSharedWithPrisma = (prisma) => {
     loaded: true,
     exports: prisma
   }
-  delete require.cache[modulePath]
+  attendanceModulePaths.forEach((attendanceModulePath) => {
+    delete require.cache[attendanceModulePath]
+  })
 
   try {
     return require(modulePath)
@@ -31,11 +45,13 @@ const loadSharedWithPrisma = (prisma) => {
       delete require.cache[prismaPath]
     }
 
-    if (previousShared) {
-      require.cache[modulePath] = previousShared
-    } else {
-      delete require.cache[modulePath]
-    }
+    previousAttendanceModules.forEach((previousModule, attendanceModulePath) => {
+      if (previousModule) {
+        require.cache[attendanceModulePath] = previousModule
+      } else {
+        delete require.cache[attendanceModulePath]
+      }
+    })
   }
 }
 

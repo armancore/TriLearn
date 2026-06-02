@@ -464,11 +464,13 @@ That keeps backend permissions consistent across devices and makes mobile behavi
 
 ## API versioning
 
-- The API is versioned at the URL level: `/api/v1/...`
+- The API is currently versioned at the URL level: `/api/v1/...`
+- The backend does not perform header-based or router-level version negotiation. This is acceptable while TriLearn clients are first-party web and mobile apps that can be coordinated with backend releases.
 - Breaking changes (removed fields, changed response shapes, auth changes) require a bump to `/api/v2`. Non-breaking additions do not.
 - The mobile app sends `X-Client-Version` and `X-App-Version` headers on every request. When a version is too old, the backend returns HTTP `426 Upgrade Required` and the mobile app clears the session and prompts the user to update.
 - v1 will be supported for a minimum of 12 months after v2 is released.
 - Internal-only changes (new endpoints, added optional fields) do not require a version bump.
+- If third-party integrations are introduced, formalize a public API lifecycle policy before exposing them. That policy should cover supported versions, deprecation windows, compatibility guarantees, and whether version negotiation remains URL-only or adds explicit negotiation headers.
 
 ## Project structure
 
