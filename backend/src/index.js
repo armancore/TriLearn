@@ -105,6 +105,9 @@ app.use((_req, res, next) => {
 app.use(cors({
   origin: (origin, callback) => {
     // Programmatic clients (curl, Postman, native mobile apps) may omit Origin.
+    // Accepting no-origin requests is an intentional residual risk: CORS will
+    // not block a third-party server-side SSRF from reaching the API, so routes
+    // must continue to rely on auth, CSRF checks, and route-level authorization.
     // Browser sandboxed/opaque origins send the literal string "null", which must
     // stay rejected to avoid allowing sandboxed iframe attacks.
     if (!origin) return callback(null, true)

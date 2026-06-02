@@ -44,3 +44,13 @@ files, and academic workflows. Security-sensitive changes should preserve:
 - Secure password hashing and token handling
 - Upload validation and safe file serving
 - Secret scanning and dependency vulnerability checks in CI
+
+## Accepted Residual Risks
+
+The backend intentionally allows CORS requests with a missing `Origin` header so
+programmatic clients such as curl, Postman, and native mobile apps can call the
+API. Browser opaque origins that send the literal `Origin: null` remain rejected.
+
+This means CORS is not expected to block a third-party server-side SSRF from
+reaching the API. Sensitive routes must continue to rely on authentication, CSRF
+protection, and route-level authorization rather than CORS alone.
