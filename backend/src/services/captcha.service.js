@@ -1,10 +1,12 @@
 const crypto = require('crypto')
 const logger = require('../utils/logger')
 const { normalizeEmail } = require('../utils/adminHelpers')
+const { getReadyRedisClient } = require('../utils/redis')
 const { hashToken } = require('../utils/token')
 
 const LOGIN_CAPTCHA_THRESHOLD = 3
 const LOGIN_CAPTCHA_TTL_MS = 5 * 60 * 1000
+const LOGIN_CAPTCHA_USED_NONCE_PREFIX = 'login-captcha:used:'
 
 const getLoginCaptchaSecret = () => {
   const captchaSecret = String(process.env.LOGIN_CAPTCHA_SECRET || '').trim()
@@ -56,7 +58,32 @@ const createLoginCaptchaChallenge = (email) => {
   }
 }
 
-const validateLoginCaptcha = ({ email, captchaToken, captchaAnswer }) => {
+const consumeLoginCaptchaNonce = async (nonce) => {
+  if (!nonce) {
+    return false
+  }
+
+  try {
+    const redis = await getReadyRedisClient({ context: 'login captcha nonce consumption' })
+    if (!redis) {
+      logger.warn('Login captcha validation failed because Redis is unavailable')
+      return false
+    }
+
+    const result = await redis.set(
+      `${LOGIN_CAPTCHA_USED_NONCE_PREFIX}${nonce}`,
+      '1',
+      { NX: true, PX: LOGIN_CAPTCHA_TTL_MS }
+    )
+
+    return result === 'OK'
+  } catch (error) {
+    logger.warn('Failed to consume login captcha nonce in Redis', { message: error.message })
+    return false
+  }
+}
+
+const validateLoginCaptcha = async ({ email, captchaToken, captchaAnswer }) => {
   const captchaSecret = getLoginCaptchaSecret()
   if (!captchaSecret) {
     return false
@@ -96,7 +123,11 @@ const validateLoginCaptcha = ({ email, captchaToken, captchaAnswer }) => {
   }
 
   const submittedAnswer = String(captchaAnswer).trim()
-  return hashToken(`${payload.nonce}:${submittedAnswer}`) === payload.answerHash
+  if (hashToken(`${payload.nonce}:${submittedAnswer}`) !== payload.answerHash) {
+    return false
+  }
+
+  return consumeLoginCaptchaNonce(payload.nonce)
 }
 
 const shouldRequireLoginCaptcha = (user) => (user?.failedLoginAttempts || 0) >= LOGIN_CAPTCHA_THRESHOLD
@@ -139,5 +170,6 @@ module.exports = {
   shouldRequireLoginCaptcha,
   buildLoginCaptchaResponse,
   LOGIN_CAPTCHA_TTL_MS,
-  LOGIN_CAPTCHA_THRESHOLD
+  LOGIN_CAPTCHA_THRESHOLD,
+  LOGIN_CAPTCHA_USED_NONCE_PREFIX
 }

@@ -101,7 +101,7 @@ const login = async (context, result = createServiceResponder()) => {
   const requiresLoginCaptcha = shouldRequireLoginCaptcha(user)
   const hasValidLoginCaptcha = !requiresLoginCaptcha || (
     getLoginCaptchaSecret() !== null &&
-    validateLoginCaptcha({ email, captchaToken, captchaAnswer })
+    await validateLoginCaptcha({ email, captchaToken, captchaAnswer })
   )
 
   // Always enforce captcha once threshold is reached to avoid password-oracle responses.
