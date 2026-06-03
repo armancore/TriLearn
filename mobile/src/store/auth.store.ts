@@ -1,4 +1,5 @@
 import * as SecureStore from 'expo-secure-store';
+import { Platform } from 'react-native';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
@@ -20,15 +21,65 @@ interface AuthState {
   setHydrated: (value: boolean) => void;
 }
 
-const secureStorage = {
-  getItem: async (name: string): Promise<string | null> => SecureStore.getItemAsync(name),
+const getWebStorage = (): Storage | null => {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  return window.localStorage ?? null;
+};
+
+const nativeSecureStorage = {
+  getItem: async (name: string): Promise<string | null> => {
+    try {
+      return await SecureStore.getItemAsync(name);
+    } catch (error) {
+      console.warn('Failed to read auth session from SecureStore', error);
+      return null;
+    }
+  },
   setItem: async (name: string, value: string): Promise<void> => {
-    await SecureStore.setItemAsync(name, value);
+    try {
+      await SecureStore.setItemAsync(name, value);
+    } catch (error) {
+      console.warn('Failed to persist auth session to SecureStore', error);
+    }
   },
   removeItem: async (name: string): Promise<void> => {
-    await SecureStore.deleteItemAsync(name);
+    try {
+      await SecureStore.deleteItemAsync(name);
+    } catch (error) {
+      console.warn('Failed to remove auth session from SecureStore', error);
+    }
   },
 };
+
+const webLocalStorage = {
+  getItem: async (name: string): Promise<string | null> => {
+    try {
+      return getWebStorage()?.getItem(name) ?? null;
+    } catch (error) {
+      console.warn('Failed to read auth session from localStorage', error);
+      return null;
+    }
+  },
+  setItem: async (name: string, value: string): Promise<void> => {
+    try {
+      getWebStorage()?.setItem(name, value);
+    } catch (error) {
+      console.warn('Failed to persist auth session to localStorage', error);
+    }
+  },
+  removeItem: async (name: string): Promise<void> => {
+    try {
+      getWebStorage()?.removeItem(name);
+    } catch (error) {
+      console.warn('Failed to remove auth session from localStorage', error);
+    }
+  },
+};
+
+const authStorage = Platform.OS === 'web' ? webLocalStorage : nativeSecureStorage;
 
 export const useAuthStore = create<AuthState>()(
   persist(
@@ -64,14 +115,17 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: 'trilearn-auth-store',
-      storage: createJSONStorage(() => secureStorage),
+      storage: createJSONStorage(() => authStorage),
       partialize: (state) => ({
         user: state.user,
         accessToken: state.accessToken,
         refreshToken: state.refreshToken,
         pushToken: state.pushToken,
       }),
-      onRehydrateStorage: () => (state) => {
+      onRehydrateStorage: () => (state, error) => {
+        if (error) {
+          console.warn('Failed to hydrate auth session', error);
+        }
         state?.setHydrated(true);
       },
     },
