@@ -29,7 +29,7 @@ const notificationRouteMap: Record<string, Href> = {
 
 const allowedNotificationRoutes = new Set<string>(Object.values(notificationRouteMap) as string[]);
 
-export const isPushUnsupportedRuntime = Constants.appOwnership === 'expo' && Platform.OS === 'android';
+export const isPushUnsupportedRuntime = Platform.OS === 'web' || (Constants.appOwnership === 'expo' && Platform.OS === 'android');
 
 const notificationRouteForType = (type: string): Href | undefined =>
   notificationRouteMap[type] ?? notificationRouteMap[type.toLowerCase()];
