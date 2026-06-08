@@ -115,7 +115,7 @@ const isCookieFreeExplicitBearerRequest = (context) => (
   context.hasBearerToken &&
   !context.hasCookieHeader &&
   (
-    !context.hasBrowserContext ||
+    (!context.hasBrowserContext && context.isMobileClient) ||
     (context.isMobileClient && context.hasNativeAppOrigin)
   )
 )
