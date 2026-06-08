@@ -51,8 +51,8 @@ const hashToken = (token) => crypto
   .update(token)
   .digest('hex')
 
-const getRefreshTokenExpiry = () => {
-  const expiresAt = new Date()
+const getRefreshTokenExpiry = (from = new Date()) => {
+  const expiresAt = new Date(from)
   expiresAt.setDate(expiresAt.getDate() + REFRESH_TOKEN_EXPIRES_DAYS)
   return expiresAt
 }
@@ -78,7 +78,7 @@ const isSecureRequest = (req) => {
   return req?.secure === true || forwardedProto === 'https'
 }
 
-const getRefreshCookieOptions = (req) => {
+const getRefreshCookieOptions = (req, expiresAt = getRefreshTokenExpiry()) => {
   const secure = isSecureRequest(req) || !isLocalHost(getRequestHost(req))
 
   return {
@@ -90,7 +90,7 @@ const getRefreshCookieOptions = (req) => {
     // Origin/Referer checks on unsafe browser requests.
     sameSite: secure ? 'none' : 'lax',
     path: '/api/v1/auth',
-    expires: getRefreshTokenExpiry()
+    expires: expiresAt
   }
 }
 

@@ -8,6 +8,9 @@ const {
 
 const REVOKED_JTI_CACHE_TTL_MS = 60 * 1000
 const REVOKED_JTI_CACHE_CLEANUP_MS = 5 * 60 * 1000
+// Process-local optimization only: Redis remains the authoritative revocation
+// store. In multi-process or multi-replica deployments, a JTI cached in one
+// worker is not visible to another until that worker checks Redis.
 const revokedJtiCache = new Map()
 
 // REDIS-SAVE: in-memory negative cache avoids Redis EXISTS on every protected request

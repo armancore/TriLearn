@@ -42,6 +42,7 @@ const getRequestIpAddress = (req) => {
 const issueAuthSession = async (user, res, req, previousRefreshToken, { setRefreshCookie = true } = {}) => {
   const accessToken = signAccessToken(user)
   const refreshToken = signRefreshToken(user)
+  const refreshTokenExpiresAt = getRefreshTokenExpiry()
   const requestMeta = {
     ipAddress: getRequestIpAddress(req),
     userAgent: getRequestUserAgent(req),
@@ -63,21 +64,22 @@ const issueAuthSession = async (user, res, req, previousRefreshToken, { setRefre
       data: {
         userId: user.id,
         tokenHash: hashToken(refreshToken),
-        expiresAt: getRefreshTokenExpiry(),
+        expiresAt: refreshTokenExpiresAt,
         ...requestMeta
       }
     })
   })
 
   if (setRefreshCookie) {
-    res.setCookie('refreshToken', refreshToken, getRefreshCookieOptions(req))
+    res.setCookie('refreshToken', refreshToken, getRefreshCookieOptions(req, refreshTokenExpiresAt))
   }
 
   await trackAccessToken(accessToken)
 
   return {
     accessToken,
-    refreshToken
+    refreshToken,
+    expiresAt: refreshTokenExpiresAt
   }
 }
 

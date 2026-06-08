@@ -125,3 +125,18 @@ test('getRefreshCookieOptions respects forwarded https when behind a proxy', () 
   assert.equal(cookieOptions.secure, true)
   assert.equal(cookieOptions.sameSite, 'none')
 })
+
+test('getRefreshCookieOptions uses a caller-provided refresh expiry', () => {
+  const { getRefreshCookieOptions } = loadTokenUtils()
+  const expiresAt = new Date('2030-01-02T03:04:05.000Z')
+
+  const cookieOptions = getRefreshCookieOptions({
+    secure: false,
+    hostname: 'school.edu',
+    headers: {
+      host: 'school.edu'
+    }
+  }, expiresAt)
+
+  assert.equal(cookieOptions.expires, expiresAt)
+})

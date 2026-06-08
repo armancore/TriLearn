@@ -4,6 +4,7 @@ const logger = require('../utils/logger')
 const { captureException } = require('../utils/monitoring')
 const { sendMail } = require('../utils/mailer')
 const { sendPushNotification } = require('../utils/fcm')
+const { deleteFile } = require('../utils/fileStorage')
 const { emitNotificationCreated } = require('../utils/realtime')
 const { createNoticeNotifications } = require('../utils/noticeNotifications')
 const {
@@ -216,6 +217,36 @@ const processNotificationJob = async (job) => {
   throw new Error(`Unknown notification job: ${job.name}`)
 }
 
+const cleanupFailedBulkStudentImportUpload = async (job) => {
+  if (job?.name !== BULK_STUDENT_IMPORT_JOB) {
+    return
+  }
+
+  const filePath = job.data?.file?.path
+  const fileName = job.data?.file?.filename
+
+  try {
+    await deleteFile(filePath || fileName)
+
+    if (fileName && prisma.uploadedFile?.deleteMany) {
+      await prisma.uploadedFile.deleteMany({
+        where: { fileName }
+      })
+    }
+
+    logger.info('Cleaned up failed student import upload', {
+      jobId: job.id,
+      fileName: fileName || null
+    })
+  } catch (cleanupError) {
+    logger.warn('Failed to clean up student import upload after job failure', {
+      jobId: job?.id,
+      fileName: fileName || null,
+      message: cleanupError.message
+    })
+  }
+}
+
 const startNotificationWorker = () => {
   if (notificationWorker) {
     return notificationWorker
@@ -232,6 +263,8 @@ const startNotificationWorker = () => {
   })
 
   notificationWorker.on('failed', (job, error) => {
+    void cleanupFailedBulkStudentImportUpload(job)
+
     logger.error('Notification job failed', {
       jobId: job?.id,
       jobName: job?.name,
@@ -271,6 +304,7 @@ const closeNotificationWorker = async () => {
 module.exports = {
   createNotificationRecords,
   deliverPushNotifications,
+  cleanupFailedBulkStudentImportUpload,
   startNotificationWorker,
   closeNotificationWorker
 }

@@ -135,6 +135,10 @@ const optionalDateOfBirthSchema = z.preprocess(
 const uuidParam = z.object({
   id: z.string().uuid()
 })
+const emptyBodySchema = z.preprocess(
+  (value) => value === undefined ? {} : value,
+  z.object({}).strict()
+)
 
 const paginationQuery = {
   page: z.coerce.number().int().min(1).optional(),
@@ -512,6 +516,10 @@ const schemas = {
       })
     },
     userId: { params: uuidParam },
+    emptyUserMutation: {
+      params: uuidParam,
+      body: emptyBodySchema
+    },
     createCoordinator: {
       body: userBaseSchema.extend({
         department: optionalString(100)

@@ -2,6 +2,7 @@ const test = require('node:test')
 const assert = require('node:assert/strict')
 const { isKnownWeakPassword } = require('../src/utils/security')
 const { strongPasswordSchema } = require('../src/validators/schemas')
+const { schemas } = require('../src/validators/schemas')
 
 test('isKnownWeakPassword blocks expanded common password list entries', () => {
   const weakPasswords = [
@@ -30,5 +31,13 @@ test('strongPasswordSchema rejects common passwords that otherwise meet format r
   assert.equal(
     result.error.issues.some((issue) => issue.message === 'Password is too common. Please choose a stronger password'),
     true
+  )
+})
+
+test('admin empty mutation schemas reject unexpected body fields', () => {
+  assert.deepEqual(schemas.admin.emptyUserMutation.body.parse(undefined), {})
+  assert.throws(
+    () => schemas.admin.emptyUserMutation.body.parse({ isActive: false }),
+    /Unrecognized key/
   )
 })

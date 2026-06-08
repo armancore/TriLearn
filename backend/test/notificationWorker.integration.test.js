@@ -206,3 +206,63 @@ test('notification worker keeps in-app delivery when FCM push fails', async () =
   assert.equal(loggedErrors[0].message, 'FCM push delivery failed without failing notification job')
   assert.equal(loggedErrors[0].meta.requestId, 'request-123')
 })
+
+test('notification worker cleans up failed bulk import uploads', async () => {
+  const deletedFiles = []
+  const deletedRecords = []
+  const { cleanupFailedBulkStudentImportUpload } = loadWithMocks(resolveFromTest('src', 'jobs', 'notificationWorker.js'), {
+    '../utils/prisma': {
+      uploadedFile: {
+        deleteMany: async (payload) => {
+          deletedRecords.push(payload)
+          return { count: 1 }
+        }
+      }
+    },
+    '../utils/logger': {
+      info: () => {},
+      warn: () => {},
+      error: () => {}
+    },
+    '../utils/mailer': {
+      sendMail: async () => {}
+    },
+    '../utils/fcm': {
+      sendPushNotification: async () => []
+    },
+    '../utils/fileStorage': {
+      deleteFile: async (filePath) => {
+        deletedFiles.push(filePath)
+      }
+    },
+    '../utils/realtime': {
+      emitNotificationCreated: () => {}
+    },
+    './notificationQueue': {
+      NOTIFICATION_QUEUE_NAME: 'notifications',
+      CREATE_NOTIFICATIONS_JOB: 'create-notifications',
+      NOTICE_POSTED_JOB: 'notice-posted',
+      PASSWORD_RESET_EMAIL_JOB: 'password-reset-email',
+      BULK_STUDENT_IMPORT_JOB: 'bulk-student-import',
+      ROUTINE_NOTIFICATION_JOB: 'routine-notification',
+      getNotificationQueueConnection: () => null
+    },
+    bullmq: {
+      Worker: class MockWorker {}
+    }
+  })
+
+  await cleanupFailedBulkStudentImportUpload({
+    id: 'job-1',
+    name: 'bulk-student-import',
+    data: {
+      file: {
+        path: 'https://storage.example/imports/students.xlsx',
+        filename: 'students.xlsx'
+      }
+    }
+  })
+
+  assert.deepEqual(deletedFiles, ['https://storage.example/imports/students.xlsx'])
+  assert.deepEqual(deletedRecords, [{ where: { fileName: 'students.xlsx' } }])
+})

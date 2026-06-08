@@ -90,6 +90,102 @@ test('GET /ping is not exposed as a second unauthenticated health endpoint', asy
   assert.deepEqual(response.body, { message: 'Route not found' })
 })
 
+test('serveUploadedFile route enforces uploaded file authorization matrix', async () => {
+  const auditCalls = []
+  const buildTestApp = (user, prismaOverrides) => {
+    delete require.cache[require.resolve('../src/services/upload.service.js')]
+    const { serveUploadedFile } = loadWithMocks(resolveFromTest('src', 'controllers', 'upload.controller.js'), {
+      '../utils/prisma': {
+        uploadedFile: { findUnique: async () => null },
+        user: { findFirst: async () => null },
+        assignment: { findFirst: async () => null },
+        submission: { findFirst: async () => null },
+        studyMaterial: { findFirst: async () => null },
+        ...prismaOverrides
+      },
+      '../utils/fileStorage': {
+        uploadPath: path.resolve('test-uploads'),
+        uploadPublicPath: '/api/v1/uploads'
+      },
+      '../utils/audit': {
+        recordAuditLog: async (payload) => {
+          auditCalls.push(payload)
+        }
+      },
+      '../middleware/csrf.middleware': {
+        getTrustedOrigins: () => []
+      }
+    })
+
+    const testApp = express()
+    testApp.use((req, res, next) => {
+      req.user = user
+      res.sendFile = (filePath, options) => res.status(200).json({
+        filePath,
+        contentType: options.headers['Content-Type']
+      })
+      next()
+    })
+    testApp.get('/api/v1/uploads/:filename', serveUploadedFile)
+    return testApp
+  }
+
+  const ownerResponse = await request(buildTestApp(
+    { id: 'owner-user-1', role: 'STUDENT' },
+    {
+      uploadedFile: {
+        findUnique: async () => ({ id: 'file-1', uploadedById: 'owner-user-1' })
+      }
+    }
+  )).get('/api/v1/uploads/private.pdf')
+
+  assert.equal(ownerResponse.status, 200)
+  assert.match(ownerResponse.body.filePath, /private\.pdf$/)
+
+  const deniedResponse = await request(buildTestApp(
+    { id: 'other-user-1', role: 'STUDENT' },
+    {
+      uploadedFile: {
+        findUnique: async () => ({ id: 'file-1', uploadedById: 'owner-user-1' })
+      }
+    }
+  )).get('/api/v1/uploads/private.pdf')
+
+  assert.equal(deniedResponse.status, 403)
+  assert.deepEqual(deniedResponse.body, { message: 'Access denied' })
+
+  const adminResponse = await request(buildTestApp(
+    { id: 'admin-user-1', role: 'ADMIN' },
+    {
+      uploadedFile: {
+        findUnique: async () => ({ id: 'file-1', uploadedById: 'owner-user-1' })
+      }
+    }
+  )).get('/api/v1/uploads/private.pdf')
+
+  assert.equal(adminResponse.status, 200)
+
+  const fallbackResponse = await request(buildTestApp(
+    { id: 'student-user-1', role: 'STUDENT', student: { id: 'student-1' } },
+    {
+      assignment: {
+        findFirst: async () => ({
+          id: 'assignment-1',
+          subjectId: 'subject-1',
+          instructorId: 'instructor-1'
+        })
+      },
+      subjectEnrollment: {
+        findUnique: async () => ({ id: 'enrollment-1' })
+      }
+    }
+  )).get('/api/v1/uploads/assignment.pdf')
+
+  assert.equal(fallbackResponse.status, 200)
+  assert.equal(fallbackResponse.body.contentType, 'application/pdf')
+  assert.equal(auditCalls.some((entry) => entry.action === 'UPLOAD_FILE_ACCESS_DENIED'), true)
+})
+
 test('enforceHttps blocks insecure production requests', async () => {
   const originalNodeEnv = process.env.NODE_ENV
   process.env.NODE_ENV = 'production'

@@ -83,8 +83,8 @@ router.post('/users/student-import', allowRoles('ADMIN', 'COORDINATOR'), staffUp
 router.get('/users/student-import/:jobId', allowRoles('ADMIN', 'COORDINATOR'), getStudentImportJob)
 router.patch('/users/students/assign-section', allowRoles('ADMIN', 'COORDINATOR'), validate(schemas.admin.bulkAssignStudentSection), bulkAssignStudentSection)
 router.put('/users/:id', allowRoles('ADMIN', 'COORDINATOR'), validate(schemas.admin.updateUser), updateUser)
-router.patch('/users/:id/promote-semester', allowRoles('ADMIN', 'COORDINATOR'), validate(schemas.admin.userId), promoteStudentSemester)
-router.patch('/users/:id/toggle-status', allowRoles('ADMIN', 'COORDINATOR'), validate(schemas.admin.userId), toggleUserStatus)
+router.patch('/users/:id/promote-semester', allowRoles('ADMIN', 'COORDINATOR'), validate(schemas.admin.emptyUserMutation), promoteStudentSemester)
+router.patch('/users/:id/toggle-status', allowRoles('ADMIN', 'COORDINATOR'), validate(schemas.admin.emptyUserMutation), toggleUserStatus)
 router.delete('/users/:id', allowRoles('ADMIN', 'COORDINATOR'), validate(schemas.admin.userId), deleteUser)
 
 router.post(
