@@ -58,19 +58,28 @@ const buildStudentIdPrefix = (department, date = new Date()) => {
 
 const generateStudentId = async (department) => {
   const prefix = buildStudentIdPrefix(department)
+  const prefixWithSeparator = `${prefix}-`
   const existingStudents = await prisma.student.findMany({
     where: {
       rollNumber: {
-        startsWith: `${prefix}-`
+        startsWith: prefixWithSeparator
       }
     },
     select: { rollNumber: true }
   })
 
   const highestSequence = existingStudents.reduce((highest, student) => {
-    const match = new RegExp(`^${prefix}-(\\d+)$`).exec(student.rollNumber)
-    if (!match) return highest
-    return Math.max(highest, Number.parseInt(match[1], 10) || 0)
+    const rollNumber = String(student.rollNumber || '')
+    if (!rollNumber.startsWith(prefixWithSeparator)) {
+      return highest
+    }
+
+    const suffix = rollNumber.slice(prefixWithSeparator.length)
+    if (!/^\d+$/.test(suffix)) {
+      return highest
+    }
+
+    return Math.max(highest, Number.parseInt(suffix, 10) || 0)
   }, 0)
 
   return `${prefix}-${String(highestSequence + 1).padStart(3, '0')}`
@@ -451,5 +460,7 @@ module.exports = {
   updateStudentApplicationStatus,
   convertStudentApplication,
   createStudentFromApplication,
-  deleteStudentApplication
+  deleteStudentApplication,
+  buildStudentIdPrefix,
+  generateStudentId
 }
