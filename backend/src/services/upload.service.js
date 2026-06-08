@@ -55,17 +55,29 @@ const getSafeContentType = (fileName) => {
 
 const getSafeDownloadFileName = (filePath) => path.basename(filePath).replace(/[^\w\s.-]/g, '_')
 
+const resolveUploadFilePath = (basePath, fileName) => {
+  const uploadDir = path.resolve(basePath)
+  const absolutePath = path.resolve(uploadDir, fileName)
+
+  if (!absolutePath.startsWith(uploadDir + path.sep)) {
+    throw new Error('Path traversal blocked')
+  }
+
+  return absolutePath
+}
+
 const resolveExistingUploadFilePath = (fileName) => {
   const candidatePaths = [uploadPath, ...(Array.isArray(legacyUploadPaths) ? legacyUploadPaths : [])]
+    .filter(Boolean)
 
   for (const basePath of candidatePaths) {
-    const absolutePath = path.join(basePath, fileName)
+    const absolutePath = resolveUploadFilePath(basePath, fileName)
     if (fs.existsSync(absolutePath)) {
       return absolutePath
     }
   }
 
-  return path.join(uploadPath, fileName)
+  return resolveUploadFilePath(uploadPath, fileName)
 }
 
 const sendUploadFile = async (result, fileName) => {
@@ -507,5 +519,6 @@ const serveUploadedFile = async (context, result = createServiceResponder()) => 
 }
 
 module.exports = {
-  serveUploadedFile
+  serveUploadedFile,
+  resolveExistingUploadFilePath
 }

@@ -262,6 +262,50 @@ test('serveUploadedFile allows direct uploaded file access to the owner', async 
   assert.match(res.headers['Content-Disposition'], /^attachment; filename="private\.pdf"$/i)
 })
 
+test('resolveExistingUploadFilePath blocks paths outside uploadPath', () => {
+  const uploadDir = path.resolve('test-uploads')
+  const { resolveExistingUploadFilePath } = loadWithMocks(resolveFromTest('src', 'services', 'upload.service.js'), {
+    '../utils/prisma': {},
+    '../utils/fileStorage': {
+      uploadPath: uploadDir,
+      uploadPublicPath: '/api/v1/uploads'
+    },
+    '../utils/audit': {
+      recordAuditLog: async () => {}
+    },
+    '../middleware/csrf.middleware': {
+      getTrustedOrigins: () => []
+    }
+  })
+
+  assert.throws(
+    () => resolveExistingUploadFilePath('../../../etc/passwd'),
+    /Path traversal blocked/
+  )
+})
+
+test('resolveExistingUploadFilePath returns only paths inside uploadPath', () => {
+  const uploadDir = path.resolve('test-uploads')
+  const { resolveExistingUploadFilePath } = loadWithMocks(resolveFromTest('src', 'services', 'upload.service.js'), {
+    '../utils/prisma': {},
+    '../utils/fileStorage': {
+      uploadPath: uploadDir,
+      uploadPublicPath: '/api/v1/uploads'
+    },
+    '../utils/audit': {
+      recordAuditLog: async () => {}
+    },
+    '../middleware/csrf.middleware': {
+      getTrustedOrigins: () => []
+    }
+  })
+
+  const resolvedPath = resolveExistingUploadFilePath('private.pdf')
+
+  assert.equal(resolvedPath, path.resolve(uploadDir, 'private.pdf'))
+  assert.equal(resolvedPath.startsWith(uploadDir + path.sep), true)
+})
+
 test('serveUploadedFile allows uploaded assignment file access through parent entity enrollment', async () => {
   const legacyLookupCalls = []
   const { serveUploadedFile } = loadWithMocks(resolveFromTest('src', 'controllers', 'upload.controller.js'), {
