@@ -70,6 +70,10 @@ const validateEnv = () => {
     logger.warn('Warning: RESEND_SMTP_PASS not set - emails disabled')
   }
 
+  if (process.env.FCM_SERVER_KEY) {
+    logger.warn('Warning: FCM_SERVER_KEY is ignored. Configure FCM_SERVICE_ACCOUNT_JSON for Firebase Cloud Messaging HTTP v1.')
+  }
+
   if (String(process.env.RESEND_SMTP_PORT || '').trim() === '465') {
     logger.warn('Warning: RESEND_SMTP_PORT=465 uses SSL instead of STARTTLS. Prefer port 587 with STARTTLS unless legacy SSL is required.')
   }

@@ -542,7 +542,7 @@ See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for Docker setup and local dev.
 | ENABLE_PASSWORD_RESET | Optional | Enables password reset email flow when SMTP settings are present. |
 | FORCE_HTTPS | Production | Requires HTTPS-aware behavior when the API is deployed behind a reverse proxy. |
 | UPLOAD_DIR | Optional | Local upload directory used when S3 storage is not configured. |
-| FCM_SERVER_KEY | Optional | Firebase Cloud Messaging server key for mobile push notifications. |
+| FCM_SERVICE_ACCOUNT_JSON | Optional | Single-line Firebase service account JSON for Firebase Cloud Messaging HTTP v1 push notifications. |
 
 Use port 587 with STARTTLS (RESEND_SMTP_SECURE=false). Use port 465 only for legacy SSL.
 

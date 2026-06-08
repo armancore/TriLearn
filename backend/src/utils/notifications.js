@@ -1,5 +1,6 @@
 const prisma = require('./prisma')
 const { emitNotificationCreated } = require('./realtime')
+const { hasFcmServiceAccount } = require('./fcm')
 const {
   CREATE_NOTIFICATIONS_JOB,
   notificationQueue
@@ -27,7 +28,7 @@ const loadPushTargets = async (userIds = []) => {
 }
 
 const dispatchPushNotifications = async ({ userIds }) => {
-  if (!process.env.FCM_SERVER_KEY) return { count: 0 }
+  if (!hasFcmServiceAccount()) return { count: 0 }
 
   // Push delivery is intentionally scaffolded but not yet connected to FCM.
   // For now we count eligible device tokens so the rest of the notification

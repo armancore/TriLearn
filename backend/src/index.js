@@ -205,8 +205,8 @@ const startServer = async () => {
     logger.warn('FORCE_HTTPS is not set to true in production. Confirm the reverse proxy forwards X-Forwarded-Proto: https before accepting traffic.')
   }
 
-  if (process.env.NODE_ENV === 'production' && !process.env.FCM_SERVER_KEY) {
-    logger.warn('FCM_SERVER_KEY is not set in production. Mobile push notifications will be disabled.')
+  if (process.env.NODE_ENV === 'production' && !process.env.FCM_SERVICE_ACCOUNT_JSON) {
+    logger.warn('FCM_SERVICE_ACCOUNT_JSON is not set in production. Mobile push notifications will be disabled.')
   }
 
   void warmRedisConnection({ context: 'startup warmup' })
