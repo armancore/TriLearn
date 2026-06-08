@@ -1,4 +1,5 @@
 const crypto = require('crypto')
+const { setTimeout: sleep } = require('node:timers/promises')
 const logger = require('../utils/logger')
 const { normalizeEmail } = require('../utils/adminHelpers')
 const { getReadyRedisClient } = require('../utils/redis')
@@ -7,6 +8,8 @@ const { hashToken } = require('../utils/token')
 const LOGIN_CAPTCHA_THRESHOLD = 3
 const LOGIN_CAPTCHA_TTL_MS = 5 * 60 * 1000
 const LOGIN_CAPTCHA_USED_NONCE_PREFIX = 'login-captcha:used:'
+const LOGIN_CAPTCHA_REDIS_ATTEMPTS = 2
+const LOGIN_CAPTCHA_REDIS_RETRY_DELAY_MS = 50
 
 const getLoginCaptchaSecret = () => {
   const captchaSecret = String(process.env.LOGIN_CAPTCHA_SECRET || '').trim()
@@ -63,24 +66,30 @@ const consumeLoginCaptchaNonce = async (nonce) => {
     return false
   }
 
-  try {
-    const redis = await getReadyRedisClient({ context: 'login captcha nonce consumption' })
-    if (!redis) {
-      logger.warn('Login captcha validation failed because Redis is unavailable')
-      return false
+  for (let attempt = 1; attempt <= LOGIN_CAPTCHA_REDIS_ATTEMPTS; attempt += 1) {
+    try {
+      const redis = await getReadyRedisClient({ context: 'login captcha nonce consumption' })
+      if (!redis) {
+        logger.warn('Login captcha validation failed because Redis is unavailable', { attempt })
+      } else {
+        const result = await redis.set(
+          `${LOGIN_CAPTCHA_USED_NONCE_PREFIX}${nonce}`,
+          '1',
+          { NX: true, PX: LOGIN_CAPTCHA_TTL_MS }
+        )
+
+        return result === 'OK'
+      }
+    } catch (error) {
+      logger.warn('Failed to consume login captcha nonce in Redis', { message: error.message, attempt })
     }
 
-    const result = await redis.set(
-      `${LOGIN_CAPTCHA_USED_NONCE_PREFIX}${nonce}`,
-      '1',
-      { NX: true, PX: LOGIN_CAPTCHA_TTL_MS }
-    )
-
-    return result === 'OK'
-  } catch (error) {
-    logger.warn('Failed to consume login captcha nonce in Redis', { message: error.message })
-    return false
+    if (attempt < LOGIN_CAPTCHA_REDIS_ATTEMPTS) {
+      await sleep(LOGIN_CAPTCHA_REDIS_RETRY_DELAY_MS)
+    }
   }
+
+  return false
 }
 
 const validateLoginCaptcha = async ({ email, captchaToken, captchaAnswer }) => {
@@ -171,5 +180,7 @@ module.exports = {
   buildLoginCaptchaResponse,
   LOGIN_CAPTCHA_TTL_MS,
   LOGIN_CAPTCHA_THRESHOLD,
-  LOGIN_CAPTCHA_USED_NONCE_PREFIX
+  LOGIN_CAPTCHA_USED_NONCE_PREFIX,
+  LOGIN_CAPTCHA_REDIS_ATTEMPTS,
+  LOGIN_CAPTCHA_REDIS_RETRY_DELAY_MS
 }

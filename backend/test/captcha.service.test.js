@@ -69,6 +69,38 @@ test('validateLoginCaptcha consumes nonce and rejects replay', async () => {
   })
 })
 
+test('validateLoginCaptcha allows only one concurrent use of the same token', async () => {
+  const consumedKeys = new Set()
+  const redisClient = {
+    set: async (key) => {
+      if (consumedKeys.has(key)) {
+        return null
+      }
+
+      consumedKeys.add(key)
+      await new Promise((resolve) => setTimeout(resolve, 10))
+      return 'OK'
+    }
+  }
+  const captchaService = loadCaptchaService(redisClient)
+  const token = buildToken(captchaService)
+
+  const results = await Promise.all([
+    captchaService.validateLoginCaptcha({
+      email: 'student@example.com',
+      captchaToken: token,
+      captchaAnswer: '7'
+    }),
+    captchaService.validateLoginCaptcha({
+      email: 'student@example.com',
+      captchaToken: token,
+      captchaAnswer: '7'
+    })
+  ])
+
+  assert.equal(results.filter(Boolean).length, 1)
+})
+
 test('validateLoginCaptcha does not consume nonce for wrong answer', async () => {
   const setCalls = []
   const redisClient = {
@@ -101,4 +133,67 @@ test('validateLoginCaptcha fails closed when Redis is unavailable', async () => 
   })
 
   assert.equal(isValid, false)
+})
+
+test('validateLoginCaptcha retries a transient Redis outage before failing', async () => {
+  let attempts = 0
+  const consumedKeys = new Set()
+  delete require.cache[captchaServicePath]
+  require.cache[redisPath] = {
+    id: redisPath,
+    filename: redisPath,
+    loaded: true,
+    exports: {
+      getReadyRedisClient: async () => {
+        attempts += 1
+        if (attempts === 1) {
+          return null
+        }
+
+        return {
+          set: async (key) => {
+            if (consumedKeys.has(key)) {
+              return null
+            }
+
+            consumedKeys.add(key)
+            return 'OK'
+          }
+        }
+      }
+    }
+  }
+
+  const captchaService = require(captchaServicePath)
+  const token = buildToken(captchaService)
+
+  const isValid = await captchaService.validateLoginCaptcha({
+    email: 'student@example.com',
+    captchaToken: token,
+    captchaAnswer: '7'
+  })
+
+  assert.equal(isValid, true)
+  assert.equal(attempts, 2)
+})
+
+test('validateLoginCaptcha fails closed after repeated Redis errors', async () => {
+  let attempts = 0
+  const redisClient = {
+    set: async () => {
+      attempts += 1
+      throw new Error('redis unavailable')
+    }
+  }
+  const captchaService = loadCaptchaService(redisClient)
+  const token = buildToken(captchaService)
+
+  const isValid = await captchaService.validateLoginCaptcha({
+    email: 'student@example.com',
+    captchaToken: token,
+    captchaAnswer: '7'
+  })
+
+  assert.equal(isValid, false)
+  assert.equal(attempts, captchaService.LOGIN_CAPTCHA_REDIS_ATTEMPTS)
 })
