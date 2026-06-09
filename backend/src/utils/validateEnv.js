@@ -137,6 +137,37 @@ const validateEnv = () => {
     throw new Error('FATAL: DEBUG_ERRORS=true exposes internal error details to clients. This must not be enabled in production.')
   }
 
+  if (process.env.PGSSL_REJECT_UNAUTHORIZED !== undefined) {
+    const pgSslRejectUnauthorized = String(process.env.PGSSL_REJECT_UNAUTHORIZED).trim().toLowerCase()
+
+    if (!validBooleanFlagValues.has(pgSslRejectUnauthorized)) {
+      logger.error('Invalid configuration: PGSSL_REJECT_UNAUTHORIZED must be set to "true" or "false" when provided.')
+      process.exit(1)
+    }
+
+    if (process.env.NODE_ENV === 'production' && pgSslRejectUnauthorized === 'false') {
+      throw new Error('FATAL: PGSSL_REJECT_UNAUTHORIZED=false disables PostgreSQL TLS certificate validation and is not permitted in production.')
+    }
+  }
+
+  if (process.env.NODE_ENV === 'production') {
+    try {
+      const databaseUrl = new URL(process.env.DATABASE_URL)
+      const sslMode = String(databaseUrl.searchParams.get('sslmode') || '').trim().toLowerCase()
+
+      if (sslMode === 'no-verify') {
+        throw new Error('FATAL: DATABASE_URL sslmode=no-verify disables PostgreSQL TLS certificate validation and is not permitted in production.')
+      }
+    } catch (error) {
+      if (error instanceof TypeError) {
+        logger.error('Invalid configuration: DATABASE_URL must be a valid PostgreSQL connection URL.')
+        process.exit(1)
+      }
+
+      throw error
+    }
+  }
+
   if (process.env.NODE_ENV === 'production' && process.env.ENABLE_API_DOCS === 'true') {
     logger.warn('Warning: ENABLE_API_DOCS=true is ignored in production. API docs will not be mounted.')
   }

@@ -160,6 +160,59 @@ test('validateEnv rejects enabling debug errors in production', async () => {
   }
 })
 
+test('validateEnv rejects invalid PGSSL_REJECT_UNAUTHORIZED values', async () => {
+  const originalEnv = { ...process.env }
+  Object.assign(process.env, baseEnv, {
+    PGSSL_REJECT_UNAUTHORIZED: 'yes'
+  })
+
+  try {
+    await withPatchedLoggerError(async (errorCalls) => {
+      await withPatchedExit(async (exitCalls) => {
+        assert.throws(() => validateEnv(), /process\.exit:1/)
+        assert.deepEqual(exitCalls, [1])
+        assert.match(errorCalls[0], /PGSSL_REJECT_UNAUTHORIZED must be set to "true" or "false"/)
+      })
+    })
+  } finally {
+    restoreEnv(originalEnv)
+  }
+})
+
+test('validateEnv rejects disabling PostgreSQL TLS certificate validation in production', () => {
+  const originalEnv = { ...process.env }
+  Object.assign(process.env, baseEnv, {
+    ...productionEnv,
+    PGSSL_REJECT_UNAUTHORIZED: 'false'
+  })
+
+  try {
+    assert.throws(
+      () => validateEnv(),
+      /FATAL: PGSSL_REJECT_UNAUTHORIZED=false disables PostgreSQL TLS certificate validation/
+    )
+  } finally {
+    restoreEnv(originalEnv)
+  }
+})
+
+test('validateEnv rejects PostgreSQL sslmode=no-verify in production', () => {
+  const originalEnv = { ...process.env }
+  Object.assign(process.env, baseEnv, {
+    ...productionEnv,
+    DATABASE_URL: 'postgresql://user:pass@db.example.com:5432/trilearn?sslmode=no-verify'
+  })
+
+  try {
+    assert.throws(
+      () => validateEnv(),
+      /FATAL: DATABASE_URL sslmode=no-verify disables PostgreSQL TLS certificate validation/
+    )
+  } finally {
+    restoreEnv(originalEnv)
+  }
+})
+
 test('validateEnv rejects invalid ENABLE_PASSWORD_RESET values', async () => {
   const originalEnv = { ...process.env }
   Object.assign(process.env, baseEnv, {

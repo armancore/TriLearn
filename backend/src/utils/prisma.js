@@ -33,13 +33,15 @@ const buildConnectionOptions = (connectionString) => {
       parsedUrl.searchParams.delete('sslmode')
       options.connectionString = parsedUrl.toString()
       options.ssl = {
-        rejectUnauthorized: parseBoolean(process.env.PGSSL_REJECT_UNAUTHORIZED, false)
+        rejectUnauthorized: sslMode === 'no-verify'
+          ? parseBoolean(process.env.PGSSL_REJECT_UNAUTHORIZED, false)
+          : parseBoolean(process.env.PGSSL_REJECT_UNAUTHORIZED, true)
       }
     }
   } catch {
     if (process.env.PGSSL_REJECT_UNAUTHORIZED !== undefined) {
       options.ssl = {
-        rejectUnauthorized: parseBoolean(process.env.PGSSL_REJECT_UNAUTHORIZED, false)
+        rejectUnauthorized: parseBoolean(process.env.PGSSL_REJECT_UNAUTHORIZED, true)
       }
     }
   }
