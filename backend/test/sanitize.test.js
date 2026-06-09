@@ -1,7 +1,13 @@
 const test = require('node:test')
 const assert = require('node:assert/strict')
 
-const { sanitizePlainText, sanitizeXlsxCell } = require('../src/utils/sanitize')
+const { PLAIN_TEXT_SANITIZE_POLICY, sanitizePlainText, sanitizeXlsxCell } = require('../src/utils/sanitize')
+
+test('plain text sanitization policy is centralized and strips all markup', () => {
+  assert.deepEqual(PLAIN_TEXT_SANITIZE_POLICY.ALLOWED_TAGS, [])
+  assert.deepEqual(PLAIN_TEXT_SANITIZE_POLICY.ALLOWED_ATTR, [])
+  assert.equal(PLAIN_TEXT_SANITIZE_POLICY.KEEP_CONTENT, true)
+})
 
 test('sanitizePlainText strips html and control characters', () => {
   const input = '<p>Hello&nbsp;<strong>World</strong></p>\u0007'

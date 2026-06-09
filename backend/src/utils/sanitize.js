@@ -9,6 +9,12 @@ const HTML_ENTITY_MAP = {
   quot: '"'
 }
 
+const PLAIN_TEXT_SANITIZE_POLICY = Object.freeze({
+  ALLOWED_TAGS: Object.freeze([]),
+  ALLOWED_ATTR: Object.freeze([]),
+  KEEP_CONTENT: true
+})
+
 const decodeHtmlEntities = (value) => value.replace(/&(#x?[0-9a-f]+|[a-z]+);/gi, (match, entity) => {
   const normalizedEntity = String(entity).toLowerCase()
 
@@ -34,11 +40,7 @@ const sanitizePlainText = (value) => {
     return ''
   }
 
-  const sanitized = DOMPurify.sanitize(value, {
-    ALLOWED_TAGS: [],
-    ALLOWED_ATTR: [],
-    KEEP_CONTENT: true
-  })
+  const sanitized = DOMPurify.sanitize(value, PLAIN_TEXT_SANITIZE_POLICY)
 
   return decodeHtmlEntities(sanitized)
     .replace(/\r\n/g, '\n')
@@ -58,6 +60,7 @@ const sanitizeXlsxCell = (value) => {
 }
 
 module.exports = {
+  PLAIN_TEXT_SANITIZE_POLICY,
   sanitizePlainText,
   sanitizeXlsxCell
 }

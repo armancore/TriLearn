@@ -103,37 +103,12 @@ const getRankingSummary = async ({ student, examType }) => {
     ? Prisma.sql`AND s."section" = ${student.section}`
     : Prisma.empty
 
-  // Prisma's ORM API cannot express the ROW_NUMBER/COUNT window functions used
-  // for cohort ranking. Keep this as a tagged $queryRaw template so every dynamic
-  // value below remains parameterized instead of string-concatenated SQL.
-  const rankedRows = await prisma.$queryRaw`
-    WITH ranked AS (
-      SELECT
-        s.id AS "studentId",
-        ROW_NUMBER() OVER (
-          ORDER BY
-            COALESCE(AVG(m."gradePoint"), 0) DESC,
-            COALESCE((SUM(m."obtainedMarks")::decimal / NULLIF(SUM(m."totalMarks"), 0)) * 100, 0) DESC,
-            u.name ASC
-        )::int AS rank,
-        COUNT(*) OVER ()::int AS "cohortSize"
-      FROM "Student" s
-      INNER JOIN "User" u
-        ON u.id = s."userId"
-       AND u."isActive" = true
-      LEFT JOIN "Mark" m
-        ON m."studentId" = s.id
-       AND m."isPublished" = true
-       AND m."examType" = ${examType}
-      WHERE s.semester = ${student.semester}
-      ${departmentCondition}
-      ${sectionCondition}
-      GROUP BY s.id, u.name
-    )
-    SELECT "studentId", rank, "cohortSize"
-    FROM ranked
-    WHERE "studentId" = ${student.id}
-  `
+  const rankedRows = await prisma.$queryRaw(buildCohortRankingQuery({
+    student,
+    examType,
+    departmentCondition,
+    sectionCondition
+  }))
 
   const rankingRow = rankedRows[0]
   if (!rankingRow) {
@@ -287,6 +262,38 @@ const getStudentMarksheetPayload = async ({ student, examType }) => {
     weakestSubject
   }
 }
+
+// Prisma's ORM API cannot express the ROW_NUMBER/COUNT window functions used
+// for cohort ranking. Keep this query centralized and return Prisma.sql only;
+// callers must not pass string-built SQL fragments.
+const buildCohortRankingQuery = ({ student, examType, departmentCondition, sectionCondition }) => Prisma.sql`
+  WITH ranked AS (
+    SELECT
+      s.id AS "studentId",
+      ROW_NUMBER() OVER (
+        ORDER BY
+          COALESCE(AVG(m."gradePoint"), 0) DESC,
+          COALESCE((SUM(m."obtainedMarks")::decimal / NULLIF(SUM(m."totalMarks"), 0)) * 100, 0) DESC,
+          u.name ASC
+      )::int AS rank,
+      COUNT(*) OVER ()::int AS "cohortSize"
+    FROM "Student" s
+    INNER JOIN "User" u
+      ON u.id = s."userId"
+     AND u."isActive" = true
+    LEFT JOIN "Mark" m
+      ON m."studentId" = s.id
+     AND m."isPublished" = true
+     AND m."examType" = ${examType}
+    WHERE s.semester = ${student.semester}
+    ${departmentCondition}
+    ${sectionCondition}
+    GROUP BY s.id, u.name
+  )
+  SELECT "studentId", rank, "cohortSize"
+  FROM ranked
+  WHERE "studentId" = ${student.id}
+`
 
 /**
  * @param {object} context - The request context passed by controllerAdapter
@@ -1230,6 +1237,7 @@ module.exports = {
   deleteMarks,
   publishMarks,
   __testing: {
+    buildCohortRankingQuery,
     getGradeSnapshot,
     getPercentage,
     buildStudentResultSheet

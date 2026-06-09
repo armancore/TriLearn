@@ -21,14 +21,6 @@ interface AuthState {
   setHydrated: (value: boolean) => void;
 }
 
-const getWebStorage = (): Storage | null => {
-  if (typeof window === 'undefined') {
-    return null;
-  }
-
-  return window.localStorage ?? null;
-};
-
 const nativeSecureStorage = {
   getItem: async (name: string): Promise<string | null> => {
     try {
@@ -54,32 +46,23 @@ const nativeSecureStorage = {
   },
 };
 
-const webLocalStorage = {
-  getItem: async (name: string): Promise<string | null> => {
-    try {
-      return getWebStorage()?.getItem(name) ?? null;
-    } catch (error) {
-      console.warn('Failed to read auth session from localStorage', error);
-      return null;
-    }
-  },
-  setItem: async (name: string, value: string): Promise<void> => {
-    try {
-      getWebStorage()?.setItem(name, value);
-    } catch (error) {
-      console.warn('Failed to persist auth session to localStorage', error);
-    }
-  },
-  removeItem: async (name: string): Promise<void> => {
-    try {
-      getWebStorage()?.removeItem(name);
-    } catch (error) {
-      console.warn('Failed to remove auth session from localStorage', error);
-    }
-  },
-};
+const webMemoryStorage = (() => {
+  const values = new Map<string, string>();
 
-const authStorage = Platform.OS === 'web' ? webLocalStorage : nativeSecureStorage;
+  return {
+    getItem: async (name: string): Promise<string | null> => {
+      return values.get(name) ?? null;
+    },
+    setItem: async (name: string, value: string): Promise<void> => {
+      values.set(name, value);
+    },
+    removeItem: async (name: string): Promise<void> => {
+      values.delete(name);
+    },
+  };
+})();
+
+const authStorage = Platform.OS === 'web' ? webMemoryStorage : nativeSecureStorage;
 
 export const useAuthStore = create<AuthState>()(
   persist(

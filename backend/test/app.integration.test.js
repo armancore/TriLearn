@@ -90,6 +90,19 @@ test('GET /ping is not exposed as a second unauthenticated health endpoint', asy
   assert.deepEqual(response.body, { message: 'Route not found' })
 })
 
+test('oversized JSON requests return a user-friendly 413 response', async () => {
+  const response = await request(app)
+    .post('/api/v1/auth/login')
+    .set('Origin', trustedOrigin)
+    .set('Content-Type', 'application/json')
+    .send(JSON.stringify({ email: 'student@example.com', password: 'x'.repeat(1_100_000) }))
+
+  assert.equal(response.status, 413)
+  assert.deepEqual(response.body, {
+    message: 'Request body is too large. Upload large student datasets as a spreadsheet file.'
+  })
+})
+
 test('serveUploadedFile route enforces uploaded file authorization matrix', async () => {
   const auditCalls = []
   const buildTestApp = (user, prismaOverrides) => {

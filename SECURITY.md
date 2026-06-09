@@ -62,3 +62,10 @@ cache is not shared between workers. A revoked token can therefore remain
 accepted by a worker that has not yet checked Redis, bounded by the normal Redis
 lookup path and the access-token lifetime. Production deployments should keep
 Redis highly available and keep access-token lifetimes short.
+
+The production refresh-token cookie intentionally uses `SameSite=None` when the
+frontend and API are on different sites. This cross-site cookie design depends
+on the backend CSRF middleware rejecting unsafe browser requests whose
+`Origin`/`Referer` is not a configured trusted frontend origin. Any change to
+refresh-token cookie scope, trusted origins, CORS, or CSRF handling should be
+reviewed as an authentication change.
