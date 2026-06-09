@@ -54,3 +54,11 @@ API. Browser opaque origins that send the literal `Origin: null` remain rejected
 This means CORS is not expected to block a third-party server-side SSRF from
 reaching the API. Sensitive routes must continue to rely on authentication, CSRF
 protection, and route-level authorization rather than CORS alone.
+
+Access-token JTI revocation uses Redis as the authoritative shared store, with a
+short process-local cache used only to avoid repeated Redis reads for recently
+seen revoked JTIs. In multi-process or multi-replica deployments, that local
+cache is not shared between workers. A revoked token can therefore remain
+accepted by a worker that has not yet checked Redis, bounded by the normal Redis
+lookup path and the access-token lifetime. Production deployments should keep
+Redis highly available and keep access-token lifetimes short.

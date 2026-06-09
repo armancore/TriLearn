@@ -397,6 +397,9 @@ The refresh cookie is protected by browser cookie controls and is not used as th
 Redis JTI state gives the backend a practical way to revoke token instances without waiting for natural expiry.
 That is useful during logout, password changes, suspicious reuse detection, and administrative account intervention.
 In production, losing Redis means losing part of the session safety model, so Redis should not be treated as optional.
+The in-process JTI cache is only an optimization for tokens already observed as revoked by that worker.
+It is not shared across replicas.
+Multi-replica deployments must rely on Redis as the authoritative revocation store and should keep access tokens short-lived because a worker can have a brief stale window until it checks Redis for a JTI it has not seen before.
 
 ### File uploads
 
