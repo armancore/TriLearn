@@ -109,6 +109,37 @@ test('healthCheckHandler verifies Postgres and Redis before reporting healthy', 
   })
 })
 
+test('healthCheckHandler caches successful dependency checks briefly', async () => {
+  const calls = []
+  const { healthCheckHandler } = loadWithMocks(resolveFromTest('src', 'utils', 'healthCheck.js'), {
+    './prisma': {
+      $queryRaw: async () => {
+        calls.push('postgres')
+      }
+    },
+    './redis': {
+      isRedisConfigured: () => false,
+      getReadyRedisClient: async () => null
+    }
+  })
+
+  await withEnv({
+    NODE_ENV: 'production',
+    HEALTHCHECK_KEY: 'health-secret',
+    HEALTHCHECK_CACHE_TTL_MS: '60000'
+  }, async () => {
+    const first = createResponse()
+    const second = createResponse()
+
+    await healthCheckHandler(createRequest({ healthKey: 'health-secret' }), first)
+    await healthCheckHandler(createRequest({ healthKey: 'health-secret' }), second)
+
+    assert.equal(first.statusCode, 200)
+    assert.equal(second.statusCode, 200)
+    assert.deepEqual(calls, ['postgres'])
+  })
+})
+
 test('healthCheckHandler returns 503 when a dependency check fails', async () => {
   const { healthCheckHandler } = loadWithMocks(resolveFromTest('src', 'utils', 'healthCheck.js'), {
     './prisma': {
@@ -134,6 +165,38 @@ test('healthCheckHandler returns 503 when a dependency check fails', async () =>
 
     assert.equal(res.statusCode, 503)
     assert.deepEqual(res.body, { status: 'unhealthy' })
+  })
+})
+
+test('healthCheckHandler caches failed dependency checks briefly', async () => {
+  let attempts = 0
+  const { healthCheckHandler } = loadWithMocks(resolveFromTest('src', 'utils', 'healthCheck.js'), {
+    './prisma': {
+      $queryRaw: async () => {
+        attempts += 1
+        throw new Error('database unavailable')
+      }
+    },
+    './redis': {
+      isRedisConfigured: () => false,
+      getReadyRedisClient: async () => null
+    }
+  })
+
+  await withEnv({
+    NODE_ENV: 'production',
+    HEALTHCHECK_KEY: 'health-secret',
+    HEALTHCHECK_CACHE_TTL_MS: '60000'
+  }, async () => {
+    const first = createResponse()
+    const second = createResponse()
+
+    await healthCheckHandler(createRequest({ healthKey: 'health-secret' }), first)
+    await healthCheckHandler(createRequest({ healthKey: 'health-secret' }), second)
+
+    assert.equal(first.statusCode, 503)
+    assert.equal(second.statusCode, 503)
+    assert.equal(attempts, 1)
   })
 })
 

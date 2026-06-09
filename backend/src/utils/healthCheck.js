@@ -3,6 +3,17 @@ const { getReadyRedisClient, isRedisConfigured } = require('./redis')
 const { isPrivateIpv4, isPrivateIpv6, normalizeIpAddress } = require('./network')
 
 const HEALTHCHECK_KEY_HEADER = 'x-health-check-key'
+const DEFAULT_HEALTHCHECK_CACHE_TTL_MS = 60_000
+let cachedHealthCheck = null
+
+const parseCacheTtlMs = () => {
+  const configured = Number.parseInt(process.env.HEALTHCHECK_CACHE_TTL_MS || '', 10)
+  if (Number.isFinite(configured) && configured >= 0) {
+    return configured
+  }
+
+  return DEFAULT_HEALTHCHECK_CACHE_TTL_MS
+}
 
 const isPrivateHealthCheckRequest = (req) => {
   const ip = normalizeIpAddress(req.ip || req.socket?.remoteAddress)
@@ -54,8 +65,38 @@ const runHealthChecks = async () => {
     return
   }
 
-  await checkPostgres()
-  await checkRedis()
+  const cacheTtlMs = parseCacheTtlMs()
+  const now = Date.now()
+  if (
+    cacheTtlMs > 0 &&
+    cachedHealthCheck &&
+    cachedHealthCheck.expiresAt > now
+  ) {
+    if (cachedHealthCheck.error) {
+      throw cachedHealthCheck.error
+    }
+    return
+  }
+
+  try {
+    await checkPostgres()
+    await checkRedis()
+
+    if (cacheTtlMs > 0) {
+      cachedHealthCheck = {
+        expiresAt: now + cacheTtlMs,
+        error: null
+      }
+    }
+  } catch (error) {
+    if (cacheTtlMs > 0) {
+      cachedHealthCheck = {
+        expiresAt: now + cacheTtlMs,
+        error
+      }
+    }
+    throw error
+  }
 }
 
 const healthCheckHandler = async (req, res) => {
@@ -72,6 +113,7 @@ const healthCheckHandler = async (req, res) => {
 }
 
 module.exports = {
+  DEFAULT_HEALTHCHECK_CACHE_TTL_MS,
   HEALTHCHECK_KEY_HEADER,
   hasValidHealthCheckKey,
   isHealthCheckRequestAllowed,
