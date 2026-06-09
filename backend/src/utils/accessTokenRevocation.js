@@ -63,7 +63,12 @@ const getRemainingTtlSeconds = (exp) => {
   return Math.max(0, exp - Math.floor(Date.now() / 1000))
 }
 
-const revokeAccessTokenPayload = async (payload) => {
+const createRevocationUnavailableError = () => Object.assign(
+  new Error('Access token revocation store is unavailable'),
+  { code: 'ACCESS_TOKEN_REVOCATION_UNAVAILABLE' }
+)
+
+const revokeAccessTokenPayload = async (payload, { throwOnFailure = false } = {}) => {
   const jti = payload?.jti
   const ttlSeconds = getRemainingTtlSeconds(payload?.exp)
 
@@ -74,6 +79,9 @@ const revokeAccessTokenPayload = async (payload) => {
   try {
     const redis = await getReadyRedisClient({ context: 'access token revocation' })
     if (!redis) {
+      if (throwOnFailure) {
+        throw createRevocationUnavailableError()
+      }
       return false
     }
 
@@ -82,25 +90,28 @@ const revokeAccessTokenPayload = async (payload) => {
     return true
   } catch (error) {
     logger.warn('Failed to revoke access token jti in Redis', { message: error.message })
+    if (throwOnFailure) {
+      throw error
+    }
     return false
   }
 }
 
-const revokeAccessToken = async (token) => {
+const revokeAccessToken = async (token, options) => {
   if (!token) {
     return false
   }
 
   const payload = jwt.decode(token)
-  return revokeAccessTokenPayload(payload)
+  return revokeAccessTokenPayload(payload, options)
 }
 
-const revokeAccessTokenFromRequest = async (req) => {
+const revokeAccessTokenFromRequest = async (req, options) => {
   if (req?.accessTokenPayload) {
-    return revokeAccessTokenPayload(req.accessTokenPayload)
+    return revokeAccessTokenPayload(req.accessTokenPayload, options)
   }
 
-  return revokeAccessToken(getBearerToken(req))
+  return revokeAccessToken(getBearerToken(req), options)
 }
 
 const getUserAccessJtiKey = (userId) => `${USER_ACCESS_JTI_PREFIX}${userId}`
@@ -137,6 +148,9 @@ const revokeAllAccessTokensForUser = async (userId, { throwOnFailure = false } =
   try {
     const redis = await getReadyRedisClient({ context: 'access token revocation' })
     if (!redis) {
+      if (throwOnFailure) {
+        throw createRevocationUnavailableError()
+      }
       return 0
     }
 

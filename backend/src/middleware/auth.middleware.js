@@ -100,7 +100,7 @@ const protect = async (req, res, next) => {
 
     if (decoded?.iat && user.passwordChangedAt) {
       const changedAt = Math.floor(user.passwordChangedAt.getTime() / 1000)
-      if (decoded.iat < changedAt) {
+      if (decoded.iat <= changedAt) {
         return res.status(401).json({ message: 'Password was changed. Please log in again.' })
       }
     }

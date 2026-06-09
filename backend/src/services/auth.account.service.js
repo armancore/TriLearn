@@ -13,6 +13,9 @@ const { waitForMinimumDuration } = require('./auth.shared.service')
 
 const STUDENT_INTAKE_MIN_RESPONSE_MS = 75
 const GENERIC_ELIGIBILITY_MESSAGE = 'If this email is eligible, you will receive further instructions.'
+const REVOCATION_UNAVAILABLE_RESPONSE = {
+  message: 'Unable to complete this security-sensitive action right now. Please try again.'
+}
 
 const respondGenericEligibility = async (result, startedAt) => {
   await waitForMinimumDuration(startedAt, STUDENT_INTAKE_MIN_RESPONSE_MS)
@@ -167,7 +170,11 @@ const changePassword = async (context, result = createServiceResponder()) => {
         passwordChangedAt: new Date()
       }
     })
-    await revokeAccessTokenFromRequest(context)
+    try {
+      await revokeAccessTokenFromRequest(context, { throwOnFailure: true })
+    } catch {
+      return result.withStatus(503, REVOCATION_UNAVAILABLE_RESPONSE)
+    }
 
     result.ok({
       message: 'Password changed successfully!',

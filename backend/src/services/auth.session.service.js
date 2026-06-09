@@ -36,6 +36,9 @@ const DUMMY_PASSWORD_HASH = typeof bcrypt.hashSync === 'function'
   ? bcrypt.hashSync(DUMMY_PASSWORD_INPUT, DUMMY_PASSWORD_BCRYPT_ROUNDS)
   : DUMMY_PASSWORD_TEST_DOUBLE_HASH
 const refreshUserSelect = getUserSelect()
+const REVOCATION_UNAVAILABLE_RESPONSE = {
+  message: 'Unable to complete this security-sensitive action right now. Please try again.'
+}
 const loginUserSelect = {
   id: true,
   email: true,
@@ -310,7 +313,16 @@ const logout = async (context, result = createServiceResponder()) => {
   const startedAt = Date.now()
 
   const refreshToken = context.cookies?.refreshToken
-  await revokeAccessTokenFromRequest(context)
+  try {
+    await revokeAccessTokenFromRequest(context, { throwOnFailure: true })
+  } catch (error) {
+    logger.warn('Logout blocked because access token revocation failed', {
+      message: error.message,
+      userId: context.user?.id
+    })
+    await waitForMinimumDuration(startedAt, LOGOUT_MIN_RESPONSE_MS)
+    return result.withStatus(503, REVOCATION_UNAVAILABLE_RESPONSE)
+  }
 
   if (!refreshToken) {
     result.expireCookie('refreshToken', {
@@ -372,8 +384,16 @@ const logout = async (context, result = createServiceResponder()) => {
  * @returns {Promise<any>} Service result.
  */
 const logoutAll = async (context, result = createServiceResponder()) => {
-  await revokeAccessTokenFromRequest(context)
-  await revokeAllAccessTokensForUser(context.user.id)
+  try {
+    await revokeAccessTokenFromRequest(context, { throwOnFailure: true })
+    await revokeAllAccessTokensForUser(context.user.id, { throwOnFailure: true })
+  } catch (error) {
+    logger.warn('Logout-all blocked because access token revocation failed', {
+      message: error.message,
+      userId: context.user?.id
+    })
+    return result.withStatus(503, REVOCATION_UNAVAILABLE_RESPONSE)
+  }
 
   await prisma.refreshToken.updateMany({
     where: {

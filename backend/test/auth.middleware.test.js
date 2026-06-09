@@ -156,6 +156,55 @@ test('protect allows access tokens issued after passwordChangedAt', async () => 
   assert.equal(req.user.id, 'user-1')
 })
 
+test('protect rejects access tokens issued in the same second as passwordChangedAt', async () => {
+  const { protect } = loadWithMocks(resolveFromTest('src', 'middleware', 'auth.middleware.js'), {
+    'jsonwebtoken': {
+      verify: () => ({
+        id: 'user-1',
+        type: 'access',
+        iat: 1_710_000_000
+      })
+    },
+    '../utils/prisma': {
+      user: {
+        findUnique: async () => ({
+          id: 'user-1',
+          role: 'STUDENT',
+          isActive: true,
+          passwordChangedAt: new Date(1_710_000_000 * 1000),
+          student: null,
+          instructor: null,
+          coordinator: null
+        })
+      }
+    },
+    '../utils/logger': {
+      error: () => {}
+    },
+    '../utils/redis': {
+      getReadyRedisClient: async () => null
+    }
+  })
+
+  const req = {
+    headers: {
+      authorization: 'Bearer same-second-token'
+    }
+  }
+  const res = createResponse()
+  let nextCalled = false
+
+  await protect(req, res, () => {
+    nextCalled = true
+  })
+
+  assert.equal(nextCalled, false)
+  assert.equal(res.statusCode, 401)
+  assert.deepEqual(res.body, {
+    message: 'Password was changed. Please log in again.'
+  })
+})
+
 test('protect rejects access tokens with a revoked jti', async () => {
   const { protect } = loadWithMocks(resolveFromTest('src', 'middleware', 'auth.middleware.js'), {
     'jsonwebtoken': {
