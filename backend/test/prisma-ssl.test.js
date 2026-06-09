@@ -20,6 +20,7 @@ const restoreEnv = (snapshot) => {
 const loadPrismaWithPoolCapture = (envPatch) => {
   const originalEnv = { ...process.env }
   delete process.env.PGSSL_REJECT_UNAUTHORIZED
+  delete process.env.PGSSL_CA_CERT
   Object.assign(process.env, {
     NODE_ENV: 'production',
     DATABASE_URL: 'postgresql://user:pass@localhost:5432/trilearn'
@@ -110,4 +111,20 @@ test('Prisma Postgres pool treats sslmode=no-verify as an explicit opt-out', () 
 
   assert.equal(options.ssl.rejectUnauthorized, false)
   assert.equal(new URL(options.connectionString).searchParams.has('sslmode'), false)
+})
+
+test('Prisma Postgres pool trusts configured CA certificate for Supabase TLS verification', () => {
+  const ca = [
+    '-----BEGIN CERTIFICATE-----',
+    'test-ca',
+    '-----END CERTIFICATE-----'
+  ].join('\\n')
+
+  const options = loadPrismaWithPoolCapture({
+    DATABASE_URL: 'postgresql://user:pass@aws-0-us-east-1.pooler.supabase.com:5432/postgres?sslmode=require',
+    PGSSL_CA_CERT: ca
+  })
+
+  assert.equal(options.ssl.rejectUnauthorized, true)
+  assert.equal(options.ssl.ca, ca.replace(/\\n/g, '\n'))
 })

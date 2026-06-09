@@ -20,6 +20,17 @@ const parseBoolean = (value, fallback) => {
   return String(value).trim().toLowerCase() === 'true'
 }
 
+const normalizeCertificate = (value) => String(value || '').replace(/\\n/g, '\n').trim()
+
+const applyPgSslCaCertificate = (sslOptions) => {
+  const ca = normalizeCertificate(process.env.PGSSL_CA_CERT)
+  if (ca) {
+    sslOptions.ca = ca
+  }
+
+  return sslOptions
+}
+
 const buildConnectionOptions = (connectionString) => {
   const options = {
     connectionString
@@ -32,17 +43,17 @@ const buildConnectionOptions = (connectionString) => {
     if (sslMode === 'require' || sslMode === 'no-verify') {
       parsedUrl.searchParams.delete('sslmode')
       options.connectionString = parsedUrl.toString()
-      options.ssl = {
+      options.ssl = applyPgSslCaCertificate({
         rejectUnauthorized: sslMode === 'no-verify'
           ? parseBoolean(process.env.PGSSL_REJECT_UNAUTHORIZED, false)
           : parseBoolean(process.env.PGSSL_REJECT_UNAUTHORIZED, true)
-      }
+      })
     }
   } catch {
-    if (process.env.PGSSL_REJECT_UNAUTHORIZED !== undefined) {
-      options.ssl = {
+    if (process.env.PGSSL_REJECT_UNAUTHORIZED !== undefined || process.env.PGSSL_CA_CERT) {
+      options.ssl = applyPgSslCaCertificate({
         rejectUnauthorized: parseBoolean(process.env.PGSSL_REJECT_UNAUTHORIZED, true)
-      }
+      })
     }
   }
 
