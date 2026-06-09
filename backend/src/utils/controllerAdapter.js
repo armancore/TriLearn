@@ -62,6 +62,13 @@ const applyServiceResult = (response, result) => {
 }
 
 const handleControllerError = (response, error, fallbackMessage) => {
+  if (error?.code === 'P2024') {
+    response.setHeader('Retry-After', '5')
+    return response.status(503).json({
+      message: 'Database is busy. Please try again shortly.'
+    })
+  }
+
   if (error?.status) {
     const payload = { message: error.message }
     if (error.details !== undefined) {

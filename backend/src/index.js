@@ -195,6 +195,13 @@ app.use((req, res) => {
 })
 
 app.use((error, req, res, _next) => {
+  if (error?.code === 'P2024') {
+    res.setHeader('Retry-After', '5')
+    return res.status(503).json({
+      message: 'Database is busy. Please try again shortly.'
+    })
+  }
+
   const errorMessage = error instanceof Error ? error.message : String(error)
   ;(req.logger || logger).error(errorMessage, { stack: error?.stack })
   captureRequestException(error, req)
