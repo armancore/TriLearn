@@ -89,12 +89,7 @@ const runHealthChecks = async () => {
       }
     }
   } catch (error) {
-    if (cacheTtlMs > 0) {
-      cachedHealthCheck = {
-        expiresAt: now + cacheTtlMs,
-        error
-      }
-    }
+    cachedHealthCheck = null
     throw error
   }
 }

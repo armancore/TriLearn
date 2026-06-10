@@ -168,7 +168,7 @@ test('healthCheckHandler returns 503 when a dependency check fails', async () =>
   })
 })
 
-test('healthCheckHandler caches failed dependency checks briefly', async () => {
+test('healthCheckHandler retries failed dependency checks instead of caching them', async () => {
   let attempts = 0
   const { healthCheckHandler } = loadWithMocks(resolveFromTest('src', 'utils', 'healthCheck.js'), {
     './prisma': {
@@ -196,7 +196,7 @@ test('healthCheckHandler caches failed dependency checks briefly', async () => {
 
     assert.equal(first.statusCode, 503)
     assert.equal(second.statusCode, 503)
-    assert.equal(attempts, 1)
+    assert.equal(attempts, 2)
   })
 })
 
