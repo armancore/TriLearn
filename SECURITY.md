@@ -69,3 +69,12 @@ on the backend CSRF middleware rejecting unsafe browser requests whose
 `Origin`/`Referer` is not a configured trusted frontend origin. Any change to
 refresh-token cookie scope, trusted origins, CORS, or CSRF handling should be
 reviewed as an authentication change.
+
+Login captcha enforcement is intentionally threshold-based to avoid adding a
+captcha to every normal login. The backend requires a login captcha after 3
+failed login attempts for the user account. Once that threshold is reached,
+`LOGIN_CAPTCHA_SECRET` must be configured so the backend can sign and validate
+captcha challenges; if the secret is missing, captcha-protected login attempts
+fail closed with a temporary-unavailable response instead of bypassing the
+challenge. The captcha secret is not used before the failed-attempt threshold is
+met.
