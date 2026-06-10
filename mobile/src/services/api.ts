@@ -42,8 +42,6 @@ api.interceptors.request.use((config) => {
   }
 
   config.headers = config.headers ?? {};
-  delete (config.headers as Record<string, string>).Cookie;
-  delete (config.headers as Record<string, string>).cookie;
   (config.headers as Record<string, string>)['X-Client-Type'] = CLIENT_TYPE;
   (config.headers as Record<string, string>)['X-Client-Version'] = APP_VERSION;
   (config.headers as Record<string, string>)['X-App-Version'] = APP_VERSION;
