@@ -353,6 +353,11 @@ const refreshClient = axios.create({
   withCredentials: true,
 })
 
+const csrfClient = axios.create({
+  baseURL: API_BASE_URL,
+  withCredentials: true,
+})
+
 let refreshPromise = null
 let csrfPromise = null
 const RETRYABLE_METHODS = new Set(['get', 'head', 'options'])
@@ -422,10 +427,8 @@ const ensureCsrfToken = async () => {
   }
 
   if (!csrfPromise) {
-    csrfPromise = axios.get('/auth/csrf', {
-      baseURL: API_BASE_URL,
-      withCredentials: true
-    }).then((response) => response.data?.csrfToken || readCookie(CSRF_COOKIE_NAME))
+    csrfPromise = csrfClient.get('/auth/csrf')
+      .then((response) => response.data?.csrfToken || readCookie(CSRF_COOKIE_NAME))
       .finally(() => {
         csrfPromise = null
       })

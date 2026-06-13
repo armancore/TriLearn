@@ -43,12 +43,14 @@ describe('api auth persistence', () => {
   it('stores only a session hint while keeping the full user and token in memory', async () => {
     const apiClient = createAxiosClient()
     const refreshClient = createAxiosClient()
+    const csrfClient = createAxiosClient()
 
     vi.doMock('axios', () => ({
       default: {
         create: vi.fn()
           .mockReturnValueOnce(apiClient)
           .mockReturnValueOnce(refreshClient)
+          .mockReturnValueOnce(csrfClient)
       }
     }))
 
@@ -92,6 +94,11 @@ describe('api auth persistence', () => {
   it('hydrates the full user from the refresh response without an extra /auth/me request', async () => {
     const apiClient = createAxiosClient()
     const refreshClient = createAxiosClient()
+    const csrfClient = createAxiosClient()
+
+    csrfClient.get.mockResolvedValue({
+      data: { csrfToken: 'csrf-token-1' }
+    })
 
     refreshClient.post.mockResolvedValue({
       data: {
@@ -115,6 +122,7 @@ describe('api auth persistence', () => {
         create: vi.fn()
           .mockReturnValueOnce(apiClient)
           .mockReturnValueOnce(refreshClient)
+          .mockReturnValueOnce(csrfClient)
       }
     }))
 
@@ -122,7 +130,13 @@ describe('api auth persistence', () => {
 
     const result = await refreshSession()
 
-    expect(refreshClient.post).toHaveBeenCalledWith('/auth/refresh')
+    expect(csrfClient.get).toHaveBeenCalledWith('/auth/csrf')
+    expect(refreshClient.post).toHaveBeenCalledWith('/auth/refresh', undefined, {
+      method: 'post',
+      headers: {
+        'X-CSRF-Token': 'csrf-token-1'
+      }
+    })
     expect(refreshClient.get).not.toHaveBeenCalled()
     expect(result.user).toMatchObject({
       id: 'user-7',
@@ -141,6 +155,7 @@ describe('api auth persistence', () => {
   it('logs only sanitized axios metadata in response interceptor errors', async () => {
     const apiClient = createAxiosClient()
     const refreshClient = createAxiosClient()
+    const csrfClient = createAxiosClient()
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
 
     vi.doMock('axios', () => ({
@@ -148,6 +163,7 @@ describe('api auth persistence', () => {
         create: vi.fn()
           .mockReturnValueOnce(apiClient)
           .mockReturnValueOnce(refreshClient)
+          .mockReturnValueOnce(csrfClient)
       }
     }))
 
@@ -187,6 +203,7 @@ describe('api auth persistence', () => {
   it('does not log canceled requests in response interceptor errors', async () => {
     const apiClient = createAxiosClient()
     const refreshClient = createAxiosClient()
+    const csrfClient = createAxiosClient()
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
 
     vi.doMock('axios', () => ({
@@ -194,6 +211,7 @@ describe('api auth persistence', () => {
         create: vi.fn()
           .mockReturnValueOnce(apiClient)
           .mockReturnValueOnce(refreshClient)
+          .mockReturnValueOnce(csrfClient)
       }
     }))
 
@@ -217,6 +235,7 @@ describe('api auth persistence', () => {
   it('does not log protected-route 401 errors when there is no session hint', async () => {
     const apiClient = createAxiosClient()
     const refreshClient = createAxiosClient()
+    const csrfClient = createAxiosClient()
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
 
     vi.doMock('axios', () => ({
@@ -224,6 +243,7 @@ describe('api auth persistence', () => {
         create: vi.fn()
           .mockReturnValueOnce(apiClient)
           .mockReturnValueOnce(refreshClient)
+          .mockReturnValueOnce(csrfClient)
       }
     }))
 
@@ -249,6 +269,7 @@ describe('api auth persistence', () => {
   it('does not send protected requests without a token when session refresh fails', async () => {
     const apiClient = createAxiosClient()
     const refreshClient = createAxiosClient()
+    const csrfClient = createAxiosClient()
     const refreshError = {
       response: {
         status: 401,
@@ -256,6 +277,9 @@ describe('api auth persistence', () => {
       }
     }
 
+    csrfClient.get.mockResolvedValue({
+      data: { csrfToken: 'csrf-token-2' }
+    })
     refreshClient.post.mockRejectedValue(refreshError)
 
     vi.doMock('axios', () => ({
@@ -263,6 +287,7 @@ describe('api auth persistence', () => {
         create: vi.fn()
           .mockReturnValueOnce(apiClient)
           .mockReturnValueOnce(refreshClient)
+          .mockReturnValueOnce(csrfClient)
       }
     }))
 
