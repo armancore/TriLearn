@@ -117,6 +117,7 @@ app.use(cors({
   },
   credentials: true
 }))
+// lgtm[js/missing-token-validation] Signed double-submit CSRF tokens are enforced by csrfProtection below.
 app.use(cookieParser())
 app.use(express.json({ limit: '1mb' }))
 app.use((error, _req, res, next) => {
@@ -146,7 +147,6 @@ app.use((req, res, next) => {
 
   next()
 })
-// lgtm[js/missing-token-validation] CSRF is enforced by Origin/Referer checks in csrfProtection.
 app.use(csrfProtection)
 uploadPublicPaths.forEach((publicPath) => {
   app.get(`${publicPath}/:filename`, apiLimiter, protect, serveUploadedFile)
