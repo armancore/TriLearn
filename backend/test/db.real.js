@@ -43,6 +43,21 @@ const cleanupStudentIntakeRecords = async (email) => {
   await prisma.user.deleteMany({ where: { email } })
 }
 
+const createCsrfAgent = async () => {
+  const agent = request.agent(app)
+  const csrfResponse = await agent
+    .get('/api/v1/auth/csrf')
+    .set('Origin', trustedOrigin)
+
+  assert.equal(csrfResponse.status, 200)
+  assert.match(csrfResponse.body.csrfToken, /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/)
+
+  return {
+    agent,
+    csrfToken: csrfResponse.body.csrfToken
+  }
+}
+
 test.after(async () => {
   await prisma.$disconnect()
 })
@@ -53,9 +68,11 @@ test('POST /api/v1/auth/student-intake persists an application in the real datab
   await cleanupStudentIntakeRecords(email)
 
   try {
-    const response = await request(app)
+    const { agent, csrfToken } = await createCsrfAgent()
+    const response = await agent
       .post('/api/v1/auth/student-intake')
       .set('Origin', trustedOrigin)
+      .set('X-CSRF-Token', csrfToken)
       .send(buildStudentIntakePayload(email))
 
     assert.equal(response.status, 200)
@@ -104,9 +121,11 @@ test('POST /api/v1/auth/student-intake resets a reviewed application back to pen
       }
     })
 
-    const response = await request(app)
+    const { agent, csrfToken } = await createCsrfAgent()
+    const response = await agent
       .post('/api/v1/auth/student-intake')
       .set('Origin', trustedOrigin)
+      .set('X-CSRF-Token', csrfToken)
       .send(buildStudentIntakePayload(email))
 
     assert.equal(response.status, 200)

@@ -67,6 +67,7 @@
   "overrides": {
     "@tootallnate/once": "^3.0.1",
     "postcss": "^8.5.10",
+    "shell-quote": "^1.8.4",
     "uuid": "^14.0.0"
   },
   "private": true
