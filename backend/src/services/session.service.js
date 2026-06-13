@@ -8,6 +8,7 @@ const {
   getRefreshCookieOptions
 } = require('../utils/token')
 const { trackAccessToken } = require('../utils/accessTokenRevocation')
+const { attachCsrfCookie } = require('../middleware/csrf.middleware')
 
 const buildAuthUser = (user) => ({
   id: user.id,
@@ -72,6 +73,7 @@ const issueAuthSession = async (user, res, req, previousRefreshToken, { setRefre
 
   if (setRefreshCookie) {
     res.setCookie('refreshToken', refreshToken, getRefreshCookieOptions(req, refreshTokenExpiresAt))
+    attachCsrfCookie(res, req)
   }
 
   await trackAccessToken(accessToken)

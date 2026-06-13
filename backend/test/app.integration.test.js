@@ -3,6 +3,7 @@ const assert = require('node:assert/strict')
 const path = require('node:path')
 const { createRequire } = require('node:module')
 const express = require('express')
+const cookieParser = require('cookie-parser')
 const request = require('supertest')
 
 process.env.DATABASE_URL = process.env.DATABASE_URL || 'postgresql://test:test@localhost:5432/trilearn_test'
@@ -16,7 +17,7 @@ process.env.NODE_ENV = process.env.NODE_ENV || 'test'
 const trustedOrigin = process.env.FRONTEND_URL
 const { app } = require('../src/index')
 const { enforceHttps } = require('../src/middleware/enforceHttps.middleware')
-const { csrfProtection } = require('../src/middleware/csrf.middleware')
+const { csrfProtection, generateCsrfToken } = require('../src/middleware/csrf.middleware')
 const { validateMobileClient } = require('../src/middleware/mobileClient.middleware')
 const {
   apiLimiter,
@@ -341,6 +342,53 @@ test('csrfProtection rejects spoofed mobile bearer requests when browser cookies
     .set('Origin', 'https://evil.example')
     .set('Sec-Fetch-Site', 'cross-site')
     .set('Cookie', ['refreshToken=web-refresh-token'])
+
+  assert.equal(response.status, 403)
+  assert.deepEqual(response.body, { message: 'CSRF validation failed' })
+})
+
+test('GET /api/v1/auth/csrf issues a signed token for trusted browser origins', async () => {
+  const response = await request(app)
+    .get('/api/v1/auth/csrf')
+    .set('Origin', trustedOrigin)
+
+  assert.equal(response.status, 200)
+  assert.match(response.body.csrfToken, /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/)
+  assert.equal(
+    response.headers['set-cookie'].some((cookie) => cookie.startsWith(`csrfToken=${response.body.csrfToken};`)),
+    true
+  )
+})
+
+test('csrfProtection allows trusted browser requests with a matching signed CSRF token', async () => {
+  const csrfToken = generateCsrfToken()
+  const testApp = express()
+  testApp.use(cookieParser())
+  testApp.use(csrfProtection)
+  testApp.post('/api/v1/subjects', (_req, res) => res.json({ ok: true }))
+
+  const response = await request(testApp)
+    .post('/api/v1/subjects')
+    .set('Origin', trustedOrigin)
+    .set('Cookie', [`csrfToken=${csrfToken}; refreshToken=web-refresh-token`])
+    .set('X-CSRF-Token', csrfToken)
+
+  assert.equal(response.status, 200)
+  assert.deepEqual(response.body, { ok: true })
+})
+
+test('csrfProtection rejects trusted browser requests without a matching CSRF token', async () => {
+  const csrfToken = generateCsrfToken()
+  const testApp = express()
+  testApp.use(cookieParser())
+  testApp.use(csrfProtection)
+  testApp.post('/api/v1/subjects', (_req, res) => res.json({ ok: true }))
+
+  const response = await request(testApp)
+    .post('/api/v1/subjects')
+    .set('Origin', trustedOrigin)
+    .set('Cookie', [`csrfToken=${csrfToken}; refreshToken=web-refresh-token`])
+    .set('X-CSRF-Token', generateCsrfToken())
 
   assert.equal(response.status, 403)
   assert.deepEqual(response.body, { message: 'CSRF validation failed' })

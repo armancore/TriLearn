@@ -1,9 +1,26 @@
+const crypto = require('crypto')
 const { URL } = require('url')
 const { hasMobileClientHeaders } = require('./mobileClient.middleware')
 
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS'])
+const CSRF_COOKIE_NAME = 'csrfToken'
+const CSRF_HEADER_NAME = 'x-csrf-token'
+const CSRF_TOKEN_BYTES = 32
 
 const getRuntimeEnv = () => process.env.NODE_ENV || 'production'
+
+const getCsrfSecret = () => {
+  const secret = process.env.JWT_REFRESH_SECRET || process.env.JWT_ACCESS_SECRET
+  if (!secret) {
+    if (process.env.NODE_ENV !== 'production') {
+      return 'non-production-csrf-secret'
+    }
+
+    throw new Error('JWT_REFRESH_SECRET or JWT_ACCESS_SECRET must be configured')
+  }
+
+  return secret
+}
 
 const isLocalDevelopmentOrigin = (origin) => {
   try {
@@ -86,6 +103,78 @@ const isNativeAppOrigin = (origin) => {
   }
 }
 
+const signCsrfNonce = (nonce) => crypto
+  .createHmac('sha256', getCsrfSecret())
+  .update(nonce)
+  .digest('base64url')
+
+const generateCsrfToken = () => {
+  const nonce = crypto.randomBytes(CSRF_TOKEN_BYTES).toString('base64url')
+  return `${nonce}.${signCsrfNonce(nonce)}`
+}
+
+const getCsrfCookieOptions = (req) => {
+  const secure = req?.secure === true || String(req?.headers?.['x-forwarded-proto'] || '')
+    .split(',')[0]
+    .trim()
+    .toLowerCase() === 'https'
+
+  return {
+    httpOnly: false,
+    secure,
+    sameSite: secure ? 'none' : 'lax',
+    path: '/api/v1',
+    expires: new Date(Date.now() + 24 * 60 * 60 * 1000)
+  }
+}
+
+const attachCsrfCookie = (res, req, token = generateCsrfToken()) => {
+  if (typeof res.setCookie === 'function') {
+    res.setCookie(CSRF_COOKIE_NAME, token, getCsrfCookieOptions(req))
+  } else {
+    res.cookie(CSRF_COOKIE_NAME, token, getCsrfCookieOptions(req))
+  }
+
+  return token
+}
+
+const clearCsrfCookie = (res, req) => {
+  const options = {
+    ...getCsrfCookieOptions(req),
+    expires: new Date(0)
+  }
+
+  if (typeof res.expireCookie === 'function') {
+    res.expireCookie(CSRF_COOKIE_NAME, options)
+  } else {
+    res.clearCookie(CSRF_COOKIE_NAME, options)
+  }
+}
+
+const getSubmittedCsrfToken = (req) => {
+  const headerValue = req.get(CSRF_HEADER_NAME)
+  return Array.isArray(headerValue) ? headerValue[0] : headerValue
+}
+
+const timingSafeEqual = (left, right) => {
+  const leftBuffer = Buffer.from(String(left || ''))
+  const rightBuffer = Buffer.from(String(right || ''))
+
+  return (
+    leftBuffer.length === rightBuffer.length &&
+    crypto.timingSafeEqual(leftBuffer, rightBuffer)
+  )
+}
+
+const isValidSignedCsrfToken = (token) => {
+  const [nonce, signature, extra] = String(token || '').split('.')
+  if (!nonce || !signature || extra !== undefined) {
+    return false
+  }
+
+  return timingSafeEqual(signature, signCsrfNonce(nonce))
+}
+
 const isMobileAuthRequest = (req) => {
   const path = req.originalUrl || req.url || ''
   return (
@@ -122,23 +211,24 @@ const isCookieFreeExplicitBearerRequest = (context) => (
 
 const csrfProtection = (req, res, next) => {
   /*
-   * This API uses Origin/Referer validation instead of a synchronizer token because
-   * browser requests with cookie credentials already include a browser-controlled
-   * origin signal that can be checked against the configured frontend origins. The
-   * threat model is browser-initiated cross-site requests where an attacker site can
-   * cause the browser to send ambient cookies to this API but cannot choose a trusted
-   * Origin header for a cross-origin fetch. Native mobile clients are exempt only
-   * when ambient browser credentials are absent; mobile headers are client metadata,
-   * not proof of identity.
+   * Browser requests must pass both a trusted Origin/Referer check and a signed
+   * double-submit token check. Native mobile clients are exempt only when ambient
+   * browser credentials are absent; mobile headers are client metadata, not proof
+   * of identity.
    */
+  const hasBrowserContext = Boolean(req.headers.origin || req.headers.referer)
+  const requestOrigin = resolveRequestOrigin(req)
+
   if (SAFE_METHODS.has(req.method)) {
+    if (hasBrowserContext && requestOrigin && isTrustedOrigin(requestOrigin) && !req.cookies?.[CSRF_COOKIE_NAME]) {
+      req.csrfToken = attachCsrfCookie(res, req)
+    }
+
     return next()
   }
 
   const hasCookieHeader = Boolean(req.headers.cookie)
-  const hasBrowserContext = Boolean(req.headers.origin || req.headers.referer)
   const hasBearerToken = req.headers.authorization?.startsWith('Bearer ') === true
-  const requestOrigin = resolveRequestOrigin(req)
   const context = {
     hasCookieHeader,
     hasBrowserContext,
@@ -173,11 +263,27 @@ const csrfProtection = (req, res, next) => {
     return res.status(403).json({ message: 'CSRF validation failed' })
   }
 
+  const cookieToken = req.cookies?.[CSRF_COOKIE_NAME]
+  const submittedToken = getSubmittedCsrfToken(req)
+
+  if (
+    !cookieToken ||
+    !submittedToken ||
+    !isValidSignedCsrfToken(cookieToken) ||
+    !timingSafeEqual(cookieToken, submittedToken)
+  ) {
+    return res.status(403).json({ message: 'CSRF validation failed' })
+  }
+
   next()
 }
 
 module.exports = {
+  attachCsrfCookie,
+  clearCsrfCookie,
   csrfProtection,
+  generateCsrfToken,
+  getCsrfCookieOptions,
   getRuntimeEnv,
   getTrustedOrigins,
   isMobileAuthRequest,

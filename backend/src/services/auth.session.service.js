@@ -7,6 +7,7 @@ const { recordAuditLog } = require('../utils/audit')
 const { normalizeEmail } = require('../utils/adminHelpers')
 const { verifyRefreshToken, hashToken, getRefreshCookieOptions } = require('../utils/token')
 const { revokeAccessTokenFromRequest, revokeAllAccessTokensForUser } = require('../utils/accessTokenRevocation')
+const { clearCsrfCookie } = require('../middleware/csrf.middleware')
 const {
   validateLoginCaptcha,
   getLoginCaptchaSecret,
@@ -224,6 +225,7 @@ const refreshSession = async (context, result, refreshToken, { includeRefreshTok
         ...getRefreshCookieOptions(context),
         expires: new Date(0)
       })
+      clearCsrfCookie(result, context)
 
       logger.warn('Refresh token reuse detected; revoked all active sessions', {
         userId: decoded.id,
@@ -329,6 +331,7 @@ const logout = async (context, result = createServiceResponder()) => {
       ...getRefreshCookieOptions(context),
       expires: new Date(0)
     })
+    clearCsrfCookie(result, context)
 
     if (context.user?.id) {
       await recordAuditLog({
@@ -359,6 +362,7 @@ const logout = async (context, result = createServiceResponder()) => {
     ...getRefreshCookieOptions(context),
     expires: new Date(0)
   })
+  clearCsrfCookie(result, context)
 
   if (context.user?.id) {
     await recordAuditLog({
@@ -407,6 +411,7 @@ const logoutAll = async (context, result = createServiceResponder()) => {
     ...getRefreshCookieOptions(context),
     expires: new Date(0)
   })
+  clearCsrfCookie(result, context)
 
   await recordAuditLog({
     actorId: context.user.id,

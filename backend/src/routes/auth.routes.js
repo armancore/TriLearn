@@ -35,10 +35,14 @@ const {
 const { uploadImage, validateUploadedImage } = require('../middleware/upload.middleware')
 const { validate } = require('../middleware/validate.middleware')
 const { validateMobileClient } = require('../middleware/mobileClient.middleware')
+const { attachCsrfCookie } = require('../middleware/csrf.middleware')
 const { schemas } = require('../validators/schemas')
 
 router.use(authRouterLimiter)
 
+router.get('/csrf', (req, res) => {
+  res.json({ csrfToken: req.csrfToken || req.cookies?.csrfToken || attachCsrfCookie(res, req) })
+})
 router.post('/register', authLimiter, validate(schemas.auth.register), register)
 router.post('/student-intake', authLimiter, validate(schemas.auth.studentIntake), submitStudentIntake)
 /**

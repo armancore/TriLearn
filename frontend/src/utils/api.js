@@ -25,6 +25,9 @@ const REFRESH_LOCK_TIMEOUT_MS = 10_000
 const REFRESH_LOCK_POLL_MS = 100
 const REFRESH_LOCK_MAX_WAIT_MS = 12_000
 const REFRESH_LOCK_OWNER = `${Date.now()}-${Math.random().toString(36).slice(2)}`
+const CSRF_COOKIE_NAME = 'csrfToken'
+const CSRF_HEADER_NAME = 'X-CSRF-Token'
+const CSRF_SAFE_METHODS = new Set(['get', 'head', 'options'])
 
 const readStoredRefreshCooldownUntil = () => {
   if (typeof window === 'undefined') {
@@ -351,6 +354,7 @@ const refreshClient = axios.create({
 })
 
 let refreshPromise = null
+let csrfPromise = null
 const RETRYABLE_METHODS = new Set(['get', 'head', 'options'])
 const MAX_NETWORK_RETRIES = 2
 
@@ -390,6 +394,58 @@ const releaseRefreshLock = (owner) => {
   if (owner) {
     clearRefreshLock(owner)
   }
+}
+
+const readCookie = (name) => {
+  if (typeof document === 'undefined') {
+    return null
+  }
+
+  const encodedName = `${encodeURIComponent(name)}=`
+  const cookie = document.cookie
+    .split(';')
+    .map((part) => part.trim())
+    .find((part) => part.startsWith(encodedName))
+
+  return cookie ? decodeURIComponent(cookie.slice(encodedName.length)) : null
+}
+
+const shouldSendCsrfToken = (requestConfig) => {
+  const method = String(requestConfig?.method || 'get').toLowerCase()
+  return !CSRF_SAFE_METHODS.has(method)
+}
+
+const ensureCsrfToken = async () => {
+  const existingToken = readCookie(CSRF_COOKIE_NAME)
+  if (existingToken) {
+    return existingToken
+  }
+
+  if (!csrfPromise) {
+    csrfPromise = axios.get('/auth/csrf', {
+      baseURL: API_BASE_URL,
+      withCredentials: true
+    }).then((response) => response.data?.csrfToken || readCookie(CSRF_COOKIE_NAME))
+      .finally(() => {
+        csrfPromise = null
+      })
+  }
+
+  return csrfPromise
+}
+
+const attachCsrfToken = async (config) => {
+  if (!shouldSendCsrfToken(config)) {
+    return config
+  }
+
+  const csrfToken = await ensureCsrfToken()
+  if (csrfToken) {
+    config.headers = config.headers || {}
+    config.headers[CSRF_HEADER_NAME] = csrfToken
+  }
+
+  return config
 }
 
 const shouldRetryRequest = (error) => {
@@ -459,6 +515,8 @@ const isAuthRouteRequest = (requestConfig) => {
 
 // Automatically add token to every request
 api.interceptors.request.use(async (config) => {
+  await attachCsrfToken(config)
+
   const currentAuthState = getAuthState()
 
   if (!currentAuthState.token && currentAuthState.user && !isAuthRouteRequest(config)) {
@@ -497,7 +555,8 @@ export const refreshSession = async () => {
       const refreshLockOwner = await acquireRefreshLock()
 
       try {
-        const response = await refreshClient.post('/auth/refresh')
+        const refreshConfig = await attachCsrfToken({ method: 'post' })
+        const response = await refreshClient.post('/auth/refresh', undefined, refreshConfig)
         const { token, user } = response.data
         clearRefreshCooldown()
         setAuthState({ token, user })
