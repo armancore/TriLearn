@@ -4,6 +4,8 @@ const jwt = require('jsonwebtoken')
 const prisma = require('./prisma')
 const logger = require('./logger')
 const { isRedisConfigured, getReadyRedisClient } = require('./redis')
+const { cacheRevokedJti, isRevokedJtiCached } = require('./accessTokenRevocation')
+const { REVOKED_JTI_PREFIX } = require('../constants/auth')
 
 let io = null
 let redisAdapterSubClient = null
@@ -65,6 +67,18 @@ const verifySocketTokenUser = async (token) => {
   const decoded = jwt.verify(token, getSocketAccessSecret())
   if (decoded?.type !== 'access') {
     throw new Error('Invalid token type')
+  }
+
+  if (decoded.jti) {
+    if (isRevokedJtiCached(decoded.jti)) {
+      throw new Error('Token has been revoked')
+    }
+
+    const redis = await getReadyRedisClient({ context: 'Socket.io access token revocation check' })
+    if (redis && await redis.exists(`${REVOKED_JTI_PREFIX}${decoded.jti}`)) {
+      cacheRevokedJti(decoded.jti)
+      throw new Error('Token has been revoked')
+    }
   }
 
   const user = await prisma.user.findUnique({
@@ -289,6 +303,7 @@ const closeRealtime = async () => {
 module.exports = {
   buildCorsOriginValidator,
   createSocketEventRateLimiter,
+  verifySocketTokenUser,
   initRealtime,
   closeRealtime,
   emitNotificationCreated,

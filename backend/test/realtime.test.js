@@ -1,7 +1,47 @@
 const test = require('node:test')
 const assert = require('node:assert/strict')
+const path = require('node:path')
+const { createRequire } = require('node:module')
 
 const { buildCorsOriginValidator, createSocketEventRateLimiter } = require('../src/utils/realtime')
+
+const resolveFromTest = (...segments) => path.resolve(__dirname, '..', ...segments)
+process.env.JWT_ACCESS_SECRET = process.env.JWT_ACCESS_SECRET || 'test-access-secret'
+
+const loadWithMocks = (targetPath, mocks) => {
+  const modulePath = path.resolve(targetPath)
+  const localRequire = createRequire(modulePath)
+  const touched = []
+
+  for (const [request, mockExports] of Object.entries(mocks)) {
+    const resolved = localRequire.resolve(request)
+    touched.push({
+      resolved,
+      previous: require.cache[resolved]
+    })
+    require.cache[resolved] = {
+      id: resolved,
+      filename: resolved,
+      loaded: true,
+      exports: mockExports
+    }
+  }
+
+  delete require.cache[modulePath]
+
+  try {
+    return require(modulePath)
+  } finally {
+    delete require.cache[modulePath]
+    touched.forEach(({ resolved, previous }) => {
+      if (previous) {
+        require.cache[resolved] = previous
+      } else {
+        delete require.cache[resolved]
+      }
+    })
+  }
+}
 
 const runValidator = (validator, origin) => new Promise((resolve) => {
   validator(origin, (error, allowed) => {
@@ -122,4 +162,37 @@ test('createSocketEventRateLimiter refills tokens over time', () => {
 
   now = 1000
   assert.equal(limiter.consume(), true)
+})
+
+test('verifySocketTokenUser rejects revoked access token jti before user lookup', async () => {
+  const { verifySocketTokenUser } = loadWithMocks(resolveFromTest('src', 'utils', 'realtime.js'), {
+    'jsonwebtoken': {
+      verify: () => ({
+        id: 'user-1',
+        type: 'access',
+        jti: 'revoked-jti'
+      })
+    },
+    './prisma': {
+      user: {
+        findUnique: async () => {
+          throw new Error('user lookup should not run for revoked socket tokens')
+        }
+      }
+    },
+    './logger': {
+      warn: () => {}
+    },
+    './redis': {
+      isRedisConfigured: () => false,
+      getReadyRedisClient: async () => ({
+        exists: async (key) => key === 'trilearn:revoked:jti:revoked-jti' ? 1 : 0
+      })
+    }
+  })
+
+  await assert.rejects(
+    () => verifySocketTokenUser('revoked-access-token'),
+    /Token has been revoked/
+  )
 })
