@@ -10,13 +10,9 @@ const CSRF_TOKEN_BYTES = 32
 const getRuntimeEnv = () => process.env.NODE_ENV || 'production'
 
 const getCsrfSecret = () => {
-  const secret = process.env.JWT_REFRESH_SECRET || process.env.JWT_ACCESS_SECRET
+  const secret = process.env.CSRF_SECRET
   if (!secret) {
-    if (process.env.NODE_ENV !== 'production') {
-      return 'non-production-csrf-secret'
-    }
-
-    throw new Error('JWT_REFRESH_SECRET or JWT_ACCESS_SECRET must be configured')
+    throw new Error('CSRF_SECRET must be configured')
   }
 
   return secret

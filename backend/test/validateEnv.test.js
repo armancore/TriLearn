@@ -38,6 +38,7 @@ const withPatchedLoggerError = async (fn) => {
 const baseEnv = {
   DATABASE_URL: 'postgresql://user:pass@localhost:5432/trilearn',
   JWT_ACCESS_SECRET: 'a'.repeat(32),
+  CSRF_SECRET: 's'.repeat(32),
   LOGIN_CAPTCHA_SECRET: 'c'.repeat(32),
   JWT_REFRESH_SECRET: 'r'.repeat(32),
   QR_SIGNING_SECRET: 'q'.repeat(32),
@@ -101,6 +102,27 @@ test('validateEnv requires JWT_ACCESS_SECRET even when JWT_SECRET is set', async
         assert.throws(() => validateEnv(), /process\.exit:1/)
         assert.deepEqual(exitCalls, [1])
         assert.match(errorCalls[0], /Missing required env vars: JWT_ACCESS_SECRET/)
+      })
+    })
+  } finally {
+    restoreEnv(originalEnv)
+  }
+})
+
+test('validateEnv requires a dedicated CSRF_SECRET', async () => {
+  const originalEnv = { ...process.env }
+  const envWithoutCsrfSecret = { ...baseEnv }
+  delete envWithoutCsrfSecret.CSRF_SECRET
+
+  Object.assign(process.env, envWithoutCsrfSecret)
+  delete process.env.CSRF_SECRET
+
+  try {
+    await withPatchedLoggerError(async (errorCalls) => {
+      await withPatchedExit(async (exitCalls) => {
+        assert.throws(() => validateEnv(), /process\.exit:1/)
+        assert.deepEqual(exitCalls, [1])
+        assert.match(errorCalls[0], /Missing required env vars: CSRF_SECRET/)
       })
     })
   } finally {
@@ -277,6 +299,25 @@ test('validateEnv rejects ALLOW_SOCKET_NO_ORIGIN=true in production', async () =
         assert.throws(() => validateEnv(), /process\.exit:1/)
         assert.deepEqual(exitCalls, [1])
         assert.match(errorCalls[0], /ALLOW_SOCKET_NO_ORIGIN=true is not allowed in production/)
+      })
+    })
+  } finally {
+    restoreEnv(originalEnv)
+  }
+})
+
+test('validateEnv rejects invalid QR_DISABLE_LEGACY_KEY values', async () => {
+  const originalEnv = { ...process.env }
+  Object.assign(process.env, baseEnv, {
+    QR_DISABLE_LEGACY_KEY: 'yes'
+  })
+
+  try {
+    await withPatchedLoggerError(async (errorCalls) => {
+      await withPatchedExit(async (exitCalls) => {
+        assert.throws(() => validateEnv(), /process\.exit:1/)
+        assert.deepEqual(exitCalls, [1])
+        assert.match(errorCalls[0], /QR_DISABLE_LEGACY_KEY must be set to "true" or "false"/)
       })
     })
   } finally {

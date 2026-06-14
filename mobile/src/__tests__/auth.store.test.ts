@@ -53,4 +53,23 @@ describe('auth store persistence', () => {
       expect.stringContaining('"refreshToken":"refresh-token"'),
     );
   });
+
+  it('keeps access tokens out of the SecureStore persistence payload', async () => {
+    useAuthStore.getState().setSession({
+      user: testUser,
+      accessToken: 'access-token',
+      refreshToken: 'refresh-token',
+    });
+
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const persistedPayload = (SecureStore.setItemAsync as jest.Mock).mock.calls
+      .filter(([key]) => key === 'trilearn-auth-store')
+      .at(-1)?.[1] as string;
+
+    expect(persistedPayload).toContain('"refreshToken":"refresh-token"');
+    expect(persistedPayload).not.toContain('access-token');
+    expect(persistedPayload).not.toContain('"accessToken"');
+  });
 });

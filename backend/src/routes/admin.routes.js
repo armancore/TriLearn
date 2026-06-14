@@ -76,6 +76,8 @@ router.patch('/student-applications/:id/status', allowRoles('ADMIN', 'COORDINATO
 router.post('/student-applications/:id/create-account', allowRoles('ADMIN', 'COORDINATOR'), validate(schemas.admin.createStudentFromApplication), createStudentFromApplication)
 router.delete('/student-applications/:id', allowRoles('ADMIN', 'COORDINATOR'), validate(schemas.admin.studentApplicationId), deleteStudentApplication)
 router.post('/users/coordinator', allowRoles('ADMIN'), validate(schemas.admin.createCoordinator), createCoordinator)
+// Coordinators may create gatekeepers for physical gate operations, but only
+// admins may create coordinator peers. Keep this boundary covered by route tests.
 router.post('/users/gatekeeper', allowRoles('ADMIN', 'COORDINATOR'), validate(schemas.admin.createGatekeeper), createGatekeeper)
 router.post('/users/instructor', allowRoles('ADMIN', 'COORDINATOR'), validate(schemas.admin.createInstructor), createInstructor)
 router.post('/users/student', allowRoles('ADMIN', 'COORDINATOR'), validate(schemas.admin.createStudent), createStudent)

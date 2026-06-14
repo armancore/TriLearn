@@ -18,6 +18,7 @@ const parsePositiveInteger = (value, fallback) => {
 }
 const SOCKET_EVENT_RATE_LIMIT_MAX = parsePositiveInteger(process.env.SOCKET_EVENT_RATE_LIMIT_MAX, 60)
 const SOCKET_EVENT_RATE_LIMIT_WINDOW_MS = parsePositiveInteger(process.env.SOCKET_EVENT_RATE_LIMIT_WINDOW_MS, 10_000)
+const SOCKET_MAX_HTTP_BUFFER_SIZE = parsePositiveInteger(process.env.SOCKET_MAX_HTTP_BUFFER_SIZE, 1_000_000)
 
 const getRoomName = (userId) => `user:${userId}`
 
@@ -152,6 +153,26 @@ const createSocketEventRateLimiter = ({ maxEvents, windowMs, now = () => Date.no
   }
 }
 
+const getSocketPacketPayloadSizeBytes = (packet) => {
+  if (!Array.isArray(packet)) {
+    return 0
+  }
+
+  const serializablePacket = typeof packet[packet.length - 1] === 'function'
+    ? packet.slice(0, -1)
+    : packet
+
+  return Buffer.byteLength(JSON.stringify(serializablePacket), 'utf8')
+}
+
+const isSocketPacketWithinSizeLimit = (packet, maxBytes = SOCKET_MAX_HTTP_BUFFER_SIZE) => {
+  try {
+    return getSocketPacketPayloadSizeBytes(packet) <= maxBytes
+  } catch {
+    return false
+  }
+}
+
 const attachRedisAdapter = async (socketServer) => {
   if (!isRedisConfigured()) {
     if (!memoryAdapterWarningShown) {
@@ -193,6 +214,7 @@ const initRealtime = async ({ server, allowedOrigins = [] }) => {
 
   io = new Server(server, {
     path: '/api/v1/socket.io',
+    maxHttpBufferSize: SOCKET_MAX_HTTP_BUFFER_SIZE,
     cors: {
       origin: buildCorsOriginValidator(allowedOrigins),
       credentials: true
@@ -232,6 +254,10 @@ const initRealtime = async ({ server, allowedOrigins = [] }) => {
       const eventName = Array.isArray(packet) ? packet[0] : null
       if (eventName === 'disconnect' || eventName === 'disconnecting') {
         return next()
+      }
+
+      if (!isSocketPacketWithinSizeLimit(packet)) {
+        return next(new Error('Socket event payload is too large.'))
       }
 
       if (await eventRateLimiter.consume()) {
@@ -317,6 +343,8 @@ const closeRealtime = async () => {
 module.exports = {
   buildCorsOriginValidator,
   createSocketEventRateLimiter,
+  getSocketPacketPayloadSizeBytes,
+  isSocketPacketWithinSizeLimit,
   resolveSocketToken,
   verifySocketTokenUser,
   initRealtime,

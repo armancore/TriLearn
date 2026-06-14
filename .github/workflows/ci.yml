@@ -134,6 +134,7 @@ jobs:
       REDIS_URL: redis://localhost:6379
       FRONTEND_URL: http://localhost:5173
       JWT_ACCESS_SECRET: ci-test-access-secret-minimum-32-characters
+      CSRF_SECRET: ci-test-csrf-secret-minimum-32-characters
       JWT_REFRESH_SECRET: ci-test-refresh-secret-minimum-32-characters
       QR_SIGNING_SECRET: ci-test-qr-secret-minimum-32-characters
       LOGIN_CAPTCHA_SECRET: ci-test-captcha-secret-minimum-32-characters

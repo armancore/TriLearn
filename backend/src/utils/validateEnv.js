@@ -4,6 +4,7 @@ const required = [
   'DATABASE_URL',
   'JWT_ACCESS_SECRET',
   'LOGIN_CAPTCHA_SECRET',
+  'CSRF_SECRET',
   'JWT_REFRESH_SECRET',
   'QR_SIGNING_SECRET',
   'FRONTEND_URL',
@@ -36,6 +37,7 @@ const KNOWN_PLACEHOLDER_SUBSTRINGS = [
 ]
 const secretMinimumLengths = {
   JWT_ACCESS_SECRET: 32,
+  CSRF_SECRET: 32,
   JWT_REFRESH_SECRET: 32,
   QR_SIGNING_SECRET: 32,
   LOGIN_CAPTCHA_SECRET: 32
@@ -192,6 +194,15 @@ const validateEnv = () => {
 
   if (process.env.NODE_ENV === 'production' && String(allowSocketNoOriginFlag || '').trim() === 'true') {
     logger.error('Invalid configuration: ALLOW_SOCKET_NO_ORIGIN=true is not allowed in production.')
+    process.exit(1)
+  }
+
+  const disableLegacyQrKeyFlag = process.env.QR_DISABLE_LEGACY_KEY
+  if (
+    disableLegacyQrKeyFlag !== undefined &&
+    !validBooleanFlagValues.has(String(disableLegacyQrKeyFlag).trim())
+  ) {
+    logger.error('Invalid configuration: QR_DISABLE_LEGACY_KEY must be set to "true" or "false" when provided.')
     process.exit(1)
   }
 

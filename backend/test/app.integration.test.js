@@ -8,6 +8,7 @@ const request = require('supertest')
 
 process.env.DATABASE_URL = process.env.DATABASE_URL || 'postgresql://test:test@localhost:5432/trilearn_test'
 process.env.JWT_ACCESS_SECRET = process.env.JWT_ACCESS_SECRET || 'test-access-secret'.repeat(3)
+process.env.CSRF_SECRET = process.env.CSRF_SECRET || 'test-csrf-secret'.repeat(3)
 process.env.JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || 'test-refresh-secret'.repeat(3)
 process.env.LOGIN_CAPTCHA_SECRET = process.env.LOGIN_CAPTCHA_SECRET || 'test-login-captcha-secret'.repeat(2)
 process.env.QR_SIGNING_SECRET = process.env.QR_SIGNING_SECRET || 'test-qr-secret'.repeat(3)
@@ -359,6 +360,21 @@ test('GET /api/v1/auth/csrf issues a signed token for trusted browser origins', 
     response.headers['set-cookie'].some((cookie) => cookie.startsWith(`csrfToken=${response.body.csrfToken};`)),
     true
   )
+})
+
+test('generateCsrfToken requires the dedicated CSRF_SECRET', () => {
+  const originalCsrfSecret = process.env.CSRF_SECRET
+  delete process.env.CSRF_SECRET
+
+  try {
+    assert.throws(() => generateCsrfToken(), /CSRF_SECRET must be configured/)
+  } finally {
+    if (originalCsrfSecret === undefined) {
+      delete process.env.CSRF_SECRET
+    } else {
+      process.env.CSRF_SECRET = originalCsrfSecret
+    }
+  }
 })
 
 test('app-level csrf middleware rejects unsafe cookie-backed browser requests without a CSRF token', async () => {
@@ -1362,6 +1378,63 @@ test('POST /api/v1/admin/users/coordinator denies coordinators through the real 
   assert.deepEqual(response.body, {
     message: 'Access denied. Only ADMIN can do this.'
   })
+})
+
+test('POST /api/v1/admin/users/gatekeeper allows coordinators through the documented route boundary', async () => {
+  let createGatekeeperCalled = false
+
+  const adminRoutes = loadWithMocks(resolveFromTest('src', 'routes', 'admin.routes.js'), {
+    '../controllers/staff.controller': {
+      createCoordinator: async (_req, res) => res.status(501).json({ message: 'unused' }),
+      createGatekeeper: async (_req, res) => {
+        createGatekeeperCalled = true
+        res.status(201).json({ user: { id: 'gatekeeper-user-1' } })
+      },
+      createInstructor: async (_req, res) => res.status(501).json({ message: 'unused' })
+    },
+    '../middleware/auth.middleware': {
+      protect: (req, _res, next) => {
+        req.user = { id: 'coordinator-user-1', role: 'COORDINATOR' }
+        next()
+      },
+      allowRoles: (...roles) => (req, res, next) => (
+        roles.includes(req.user.role)
+          ? next()
+          : res.status(403).json({ message: `Access denied. Only ${roles.join(', ')} can do this.` })
+      )
+    },
+    '../middleware/profile.middleware': {
+      attachActorProfiles: (_req, _res, next) => next()
+    },
+    '../middleware/validate.middleware': {
+      validate: () => (_req, _res, next) => next()
+    },
+    '../middleware/rateLimit.middleware': {
+      staffUploadLimiter: (_req, _res, next) => next()
+    },
+    '../middleware/upload.middleware': {
+      uploadSpreadsheet: {
+        single: () => (_req, _res, next) => next()
+      },
+      validateUploadedSpreadsheet: (_req, _res, next) => next()
+    }
+  })
+
+  const testApp = express()
+  testApp.use(express.json())
+  testApp.use('/api/v1/admin', adminRoutes)
+
+  const response = await request(testApp)
+    .post('/api/v1/admin/users/gatekeeper')
+    .send({
+      name: 'Gate Keeper',
+      email: 'gatekeeper@example.com',
+      password: 'Password123A'
+    })
+
+  assert.equal(response.status, 201)
+  assert.equal(createGatekeeperCalled, true)
+  assert.deepEqual(response.body, { user: { id: 'gatekeeper-user-1' } })
 })
 
 test('GET /api/v1/marks/my returns student marks through the real route', async () => {

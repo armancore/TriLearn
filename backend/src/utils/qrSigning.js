@@ -3,6 +3,10 @@ const { getRequiredSecret } = require('./security')
 
 const LEGACY_QR_KID = 'legacy'
 
+const isLegacyKeyDisabled = () => String(process.env.QR_DISABLE_LEGACY_KEY || '')
+  .trim()
+  .toLowerCase() === 'true'
+
 const parseConfiguredKeys = () => {
   const configured = String(process.env.QR_SIGNING_SECRET_KEYS || '').trim()
   const keys = new Map()
@@ -29,7 +33,10 @@ const parseConfiguredKeys = () => {
       })
   }
 
-  keys.set(LEGACY_QR_KID, getRequiredSecret('QR_SIGNING_SECRET'))
+  if (!configured || !isLegacyKeyDisabled()) {
+    keys.set(LEGACY_QR_KID, getRequiredSecret('QR_SIGNING_SECRET'))
+  }
+
   return keys
 }
 

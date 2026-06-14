@@ -3,7 +3,13 @@ const assert = require('node:assert/strict')
 const path = require('node:path')
 const { createRequire } = require('node:module')
 
-const { buildCorsOriginValidator, createSocketEventRateLimiter, resolveSocketToken } = require('../src/utils/realtime')
+const {
+  buildCorsOriginValidator,
+  createSocketEventRateLimiter,
+  getSocketPacketPayloadSizeBytes,
+  isSocketPacketWithinSizeLimit,
+  resolveSocketToken
+} = require('../src/utils/realtime')
 
 const resolveFromTest = (...segments) => path.resolve(__dirname, '..', ...segments)
 process.env.JWT_ACCESS_SECRET = process.env.JWT_ACCESS_SECRET || 'test-access-secret'
@@ -162,6 +168,18 @@ test('createSocketEventRateLimiter refills tokens over time', () => {
 
   now = 1000
   assert.equal(limiter.consume(), true)
+})
+
+test('isSocketPacketWithinSizeLimit rejects oversized event payloads', () => {
+  assert.equal(isSocketPacketWithinSizeLimit(['event', { value: 'x'.repeat(16) }], 64), true)
+  assert.equal(isSocketPacketWithinSizeLimit(['event', { value: 'x'.repeat(128) }], 64), false)
+})
+
+test('getSocketPacketPayloadSizeBytes ignores acknowledgement callbacks', () => {
+  const withAck = getSocketPacketPayloadSizeBytes(['auth:refresh', { token: 'access-token' }, () => {}])
+  const withoutAck = getSocketPacketPayloadSizeBytes(['auth:refresh', { token: 'access-token' }])
+
+  assert.equal(withAck, withoutAck)
 })
 
 test('resolveSocketToken accepts the access token cookie', () => {

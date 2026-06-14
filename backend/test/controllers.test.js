@@ -7,6 +7,8 @@ const { createRequire } = require('node:module')
 const resolveFromTest = (...segments) => path.resolve(__dirname, '..', ...segments)
 const SYNTHETIC_TEST_PASSWORD = 'not-a-real-password-for-tests'
 
+process.env.CSRF_SECRET = process.env.CSRF_SECRET || 'test-csrf-secret'.repeat(3)
+
 const loadWithMocks = (targetPath, mocks) => {
   const modulePath = path.resolve(targetPath)
   const localRequire = createRequire(modulePath)
