@@ -15,15 +15,15 @@ import { canUseCameraQrScanner, detectQrFromVideo, getQrScanIntervalMs } from '.
 import { isRequestCanceled } from '../../utils/http'
 
 const ringTone = (percentage) => {
-  if (percentage >= 75) return 'var(--color-role-instructor)'
-  if (percentage >= 50) return 'var(--color-role-gate)'
-  return '#ef4444'
+  if (percentage >= 75) return 'stroke-[var(--color-role-instructor)]'
+  if (percentage >= 50) return 'stroke-[var(--color-role-gate)]'
+  return 'stroke-red-500'
 }
 
 const progressTone = (percentage) => {
-  if (percentage >= 75) return 'var(--color-role-instructor)'
-  if (percentage >= 50) return '#f97316'
-  return '#ef4444'
+  if (percentage >= 75) return 'ui-progress-good'
+  if (percentage >= 50) return 'ui-progress-warn'
+  return 'ui-progress-danger'
 }
 
 const getQrType = (qrData) => {
@@ -40,14 +40,22 @@ const AttendanceRing = ({ percentage }) => {
   const tone = ringTone(numericPercentage)
 
   return (
-    <div
-      className="relative flex h-20 w-20 shrink-0 items-center justify-center rounded-full"
-      style={{
-        '--attendance-ring-track': 'var(--color-card-border)',
-        background: `conic-gradient(${tone} ${numericPercentage * 3.6}deg, var(--attendance-ring-track) 0deg)`
-      }}
-    >
-      <div className="flex h-[58px] w-[58px] items-center justify-center rounded-full bg-[--color-bg-card] dark:bg-slate-800 text-sm font-black text-slate-900 dark:text-slate-100 shadow-inner">
+    <div className="relative flex h-20 w-20 shrink-0 items-center justify-center rounded-full">
+      <svg className="absolute inset-0 -rotate-90" viewBox="0 0 36 36" aria-hidden="true">
+        <circle className="stroke-[var(--color-card-border)]" cx="18" cy="18" r="16" fill="none" strokeWidth="4" />
+        <circle
+          className={tone}
+          cx="18"
+          cy="18"
+          r="16"
+          fill="none"
+          strokeWidth="4"
+          strokeLinecap="round"
+          strokeDasharray={`${Math.max(0, Math.min(100, numericPercentage))} 100`}
+          pathLength="100"
+        />
+      </svg>
+      <div className="relative flex h-[58px] w-[58px] items-center justify-center rounded-full bg-[--color-bg-card] dark:bg-slate-800 text-sm font-black text-slate-900 dark:text-slate-100 shadow-inner">
         {percentage}
       </div>
     </div>
@@ -348,12 +356,12 @@ const StudentAttendance = () => {
                     </div>
                     <AttendanceRing percentage={item.percentage} />
                   </div>
-                  <div className="mt-5 h-2 w-full rounded-full bg-[var(--color-surface-muted)]">
-                    <div
-                      className="h-2 rounded-full"
-                      style={{ width: item.percentage, backgroundColor: progressTone(parseFloat(item.percentage)) }}
-                    />
-                  </div>
+                  <progress
+                    className={`ui-progress mt-5 h-2 w-full ${progressTone(parseFloat(item.percentage))}`}
+                    max="100"
+                    value={Math.max(0, Math.min(100, parseFloat(item.percentage) || 0))}
+                    aria-label={`${item.subjectName || item.subjectCode || 'Subject'} attendance`}
+                  />
                   <p className="mt-3 text-xs text-[var(--color-text-muted)]">
                     {item.present} present out of {item.total} classes
                   </p>

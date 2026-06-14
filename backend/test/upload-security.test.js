@@ -187,15 +187,36 @@ test('serveUploadedFile denies instructor access to another user avatar', async 
 
 test('serveUploadedFile denies direct uploaded file access to non-owners', async () => {
   const auditCalls = []
+  const legacyLookupCalls = []
   const { serveUploadedFile } = loadWithMocks(resolveFromTest('src', 'controllers', 'upload.controller.js'), {
     '../utils/prisma': {
       uploadedFile: {
         findUnique: async () => ({ id: 'file-1', uploadedById: 'owner-user-1' })
       },
-      user: { findFirst: async () => null },
-      assignment: { findFirst: async () => null },
-      submission: { findFirst: async () => null },
-      studyMaterial: { findFirst: async () => null }
+      user: {
+        findFirst: async () => {
+          legacyLookupCalls.push('user.findFirst')
+          return null
+        }
+      },
+      assignment: {
+        findFirst: async () => {
+          legacyLookupCalls.push('assignment.findFirst')
+          return null
+        }
+      },
+      submission: {
+        findFirst: async () => {
+          legacyLookupCalls.push('submission.findFirst')
+          return null
+        }
+      },
+      studyMaterial: {
+        findFirst: async () => {
+          legacyLookupCalls.push('studyMaterial.findFirst')
+          return null
+        }
+      }
     },
     '../utils/fileStorage': {
       uploadPath: 'C:\\uploads',
@@ -224,6 +245,7 @@ test('serveUploadedFile denies direct uploaded file access to non-owners', async
   assert.equal(res.sentFile, null)
   assert.equal(auditCalls.length, 1)
   assert.equal(auditCalls[0].metadata.resourceType, 'UPLOAD')
+  assert.deepEqual(legacyLookupCalls, [])
 })
 
 test('serveUploadedFile allows direct uploaded file access to the owner', async () => {

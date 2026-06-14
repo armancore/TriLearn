@@ -88,7 +88,7 @@ test('GET /ping is not exposed as a second unauthenticated health endpoint', asy
     .set('Origin', trustedOrigin)
 
   assert.equal(response.status, 404)
-  assert.deepEqual(response.body, { message: 'Route not found' })
+  assert.deepEqual(response.body, { code: 'ROUTE_NOT_FOUND', message: 'Route not found' })
 })
 
 test('oversized JSON requests return a user-friendly 413 response', async () => {
@@ -100,6 +100,7 @@ test('oversized JSON requests return a user-friendly 413 response', async () => 
 
   assert.equal(response.status, 413)
   assert.deepEqual(response.body, {
+    code: 'REQUEST_BODY_TOO_LARGE',
     message: 'Request body is too large. Upload large student datasets as a spreadsheet file.'
   })
 })
@@ -559,7 +560,7 @@ test('GET / responds with the generic not found payload', async () => {
     .set('Origin', trustedOrigin)
 
   assert.equal(response.status, 404)
-  assert.deepEqual(response.body, { message: 'Route not found' })
+  assert.deepEqual(response.body, { code: 'ROUTE_NOT_FOUND', message: 'Route not found' })
 })
 
 test('unknown routes return a JSON 404 response', async () => {
@@ -568,10 +569,10 @@ test('unknown routes return a JSON 404 response', async () => {
     .set('Origin', trustedOrigin)
 
   assert.equal(response.status, 404)
-  assert.deepEqual(response.body, { message: 'Route not found' })
+  assert.deepEqual(response.body, { code: 'ROUTE_NOT_FOUND', message: 'Route not found' })
 })
 
-test('getErrorMessage hides internal exception text unless DEBUG_ERRORS is enabled', async () => {
+test('getErrorMessage hides internal exception text even when DEBUG_ERRORS is enabled', async () => {
   const { getErrorMessage } = require('../src/index')
   const originalDebugErrors = process.env.DEBUG_ERRORS
   const originalNodeEnv = process.env.NODE_ENV
@@ -587,7 +588,7 @@ test('getErrorMessage hides internal exception text unless DEBUG_ERRORS is enabl
     process.env.DEBUG_ERRORS = 'true'
     assert.equal(
       getErrorMessage(new Error("Invalid value for argument 'where'."), 'Something went wrong'),
-      "Invalid value for argument 'where'."
+      'Something went wrong'
     )
   } finally {
     if (originalDebugErrors === undefined) {

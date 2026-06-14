@@ -586,7 +586,7 @@ const Attendance = () => {
                 </button>
                 {qrCode && (
                   <div className="mt-5 text-center">
-                    <img src={qrCode} alt="QR Code" className="mx-auto rounded-xl border border-[var(--color-card-border)]" style={{ width: 220 }} />
+                    <img src={qrCode} alt="QR Code" className="mx-auto w-[220px] rounded-xl border border-[var(--color-card-border)]" />
                     <p className="status-late mt-3 inline-flex rounded-lg px-3 py-1 text-xs">Expires in {qrExpiry}</p>
                   </div>
                 )}

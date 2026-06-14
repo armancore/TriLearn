@@ -15,8 +15,21 @@ const { recordAuditLog } = require('../utils/audit')
 const resolvedUploadPublicPaths = Array.isArray(uploadPublicPaths) && uploadPublicPaths.length > 0
   ? uploadPublicPaths
   : [uploadPublicPath || '/api/v1/uploads']
+const UPLOAD_NOT_FOUND_MIN_RESPONSE_MS = 25
 
 const buildRelativeUploadPaths = (fileName) => resolvedUploadPublicPaths.map((publicPath) => `${publicPath}/${fileName}`)
+
+const waitForUploadNegativeResponseFloor = async (startedAt) => {
+  const remainingMs = UPLOAD_NOT_FOUND_MIN_RESPONSE_MS - (Date.now() - startedAt)
+  if (remainingMs > 0) {
+    await new Promise((resolve) => setTimeout(resolve, remainingMs))
+  }
+}
+
+const uploadNegativeResponse = async (result, startedAt, statusCode, message) => {
+  await waitForUploadNegativeResponseFloor(startedAt)
+  return result.withStatus(statusCode, { message })
+}
 
 const setUploadSecurityHeaders = (result) => {
   const allowedFrameAncestors = ["'self'"]
@@ -360,9 +373,10 @@ const canAccessUploadedFileEntity = async (user, uploadedFile) => {
  * @returns {Promise<any>} Service result.
  */
 const serveUploadedFile = async (context, result = createServiceResponder()) => {
+  const startedAt = Date.now()
   const fileName = path.basename(String(context.params.filename || ''))
   if (!fileName) {
-    return result.withStatus(404, { message: 'File not found' })
+    return uploadNegativeResponse(result, startedAt, 404, 'File not found')
   }
 
   const relativePaths = buildRelativeUploadPaths(fileName)
@@ -381,10 +395,10 @@ const serveUploadedFile = async (context, result = createServiceResponder()) => 
       })
     : null
 
-  if (uploadedFile?.entityType && uploadedFile?.entityId) {
+  if (uploadedFile) {
     if (!(await canAccessUploadedFileEntity(user, uploadedFile))) {
-      await logUploadAccessDenied(context, fileName, uploadedFile.entityType)
-      return result.withStatus(403, { message: 'Access denied' })
+      await logUploadAccessDenied(context, fileName, uploadedFile.entityType || 'UPLOAD')
+      return uploadNegativeResponse(result, startedAt, 403, 'Access denied')
     }
 
     return sendUploadFile(result, fileName)
@@ -398,7 +412,7 @@ const serveUploadedFile = async (context, result = createServiceResponder()) => 
   if (avatar) {
     if (!user || (user.id !== avatar.id && !['ADMIN', 'COORDINATOR'].includes(user.role))) {
       await logUploadAccessDenied(context, fileName, 'AVATAR')
-      return result.withStatus(403, { message: 'Access denied' })
+      return uploadNegativeResponse(result, startedAt, 403, 'Access denied')
     }
 
     return sendUploadFile(result, fileName)
@@ -416,7 +430,7 @@ const serveUploadedFile = async (context, result = createServiceResponder()) => 
   if (assignment) {
     if (!(await canAccessAssignmentFile(user, assignment))) {
       await logUploadAccessDenied(context, fileName, 'ASSIGNMENT')
-      return result.withStatus(403, { message: 'Access denied' })
+      return uploadNegativeResponse(result, startedAt, 403, 'Access denied')
     }
 
     return sendUploadFile(result, fileName)
@@ -438,7 +452,7 @@ const serveUploadedFile = async (context, result = createServiceResponder()) => 
   if (submission) {
     if (!(await canAccessSubmissionFile(user, submission))) {
       await logUploadAccessDenied(context, fileName, 'SUBMISSION')
-      return result.withStatus(403, { message: 'Access denied' })
+      return uploadNegativeResponse(result, startedAt, 403, 'Access denied')
     }
 
     return sendUploadFile(result, fileName)
@@ -458,7 +472,7 @@ const serveUploadedFile = async (context, result = createServiceResponder()) => 
   if (task) {
     if (!(await canAccessTaskFile(user, task))) {
       await logUploadAccessDenied(context, fileName, 'TASK')
-      return result.withStatus(403, { message: 'Access denied' })
+      return uploadNegativeResponse(result, startedAt, 403, 'Access denied')
     }
 
     return sendUploadFile(result, fileName)
@@ -482,7 +496,7 @@ const serveUploadedFile = async (context, result = createServiceResponder()) => 
   if (taskSubmission) {
     if (!(await canAccessTaskSubmissionFile(user, taskSubmission))) {
       await logUploadAccessDenied(context, fileName, 'TASK_SUBMISSION')
-      return result.withStatus(403, { message: 'Access denied' })
+      return uploadNegativeResponse(result, startedAt, 403, 'Access denied')
     }
 
     return sendUploadFile(result, fileName)
@@ -500,22 +514,13 @@ const serveUploadedFile = async (context, result = createServiceResponder()) => 
   if (material) {
     if (!(await canAccessMaterialFile(user, material))) {
       await logUploadAccessDenied(context, fileName, 'MATERIAL')
-      return result.withStatus(403, { message: 'Access denied' })
+      return uploadNegativeResponse(result, startedAt, 403, 'Access denied')
     }
 
     return sendUploadFile(result, fileName)
   }
 
-  if (uploadedFile) {
-    if (!(await canAccessUploadedFileEntity(user, uploadedFile))) {
-      await logUploadAccessDenied(context, fileName, 'UPLOAD')
-      return result.withStatus(403, { message: 'Access denied' })
-    }
-
-    return sendUploadFile(result, fileName)
-  }
-
-  return result.withStatus(404, { message: 'File not found' })
+  return uploadNegativeResponse(result, startedAt, 404, 'File not found')
 }
 
 module.exports = {

@@ -221,12 +221,12 @@ const StudentMarks = () => {
                             <span className="text-xl text-[var(--color-text-muted)]">/{resultSheet.totals.totalMarks}</span>
                           </p>
                         </div>
-                        <div className="h-3 overflow-hidden rounded-full bg-slate-100">
-                          <div
-                            className="h-full rounded-full bg-[var(--color-heading)]"
-                            style={{ width: `${Math.max(0, Math.min(100, resultSheet.overallPercentage))}%` }}
-                          />
-                        </div>
+                        <progress
+                          className="ui-progress ui-progress-heading h-3 w-full"
+                          max="100"
+                          value={Math.max(0, Math.min(100, resultSheet.overallPercentage))}
+                          aria-label="Overall percentage"
+                        />
                         <p className="text-sm leading-6 text-[var(--color-text-muted)]">
                           Published across {resultSheet.subjects.length} enrolled {resultSheet.subjects.length === 1 ? 'subject' : 'subjects'} for this exam.
                         </p>

@@ -331,9 +331,12 @@ const StudentDashboard = () => {
                           {subject.percentage.toFixed(0)}%
                         </span>
                       </div>
-                      <div className="mt-3 h-2 overflow-hidden rounded-full bg-[var(--color-surface-subtle)]">
-                        <div className={`h-full rounded-full ${subject.percentage >= 80 ? 'bg-primary-500' : 'bg-accent'}`} style={{ width: `${Math.min(subject.percentage, 100)}%` }} />
-                      </div>
+                      <progress
+                        className={`ui-progress mt-3 h-2 w-full ${subject.percentage >= 80 ? 'ui-progress-primary' : 'ui-progress-accent'}`}
+                        max="100"
+                        value={Math.min(subject.percentage, 100)}
+                        aria-label={`${subject.name} attendance`}
+                      />
                       <p className="mt-2 text-xs text-[var(--color-text-muted)]">{subject.present} present out of {subject.total} records</p>
                     </div>
                   ))}

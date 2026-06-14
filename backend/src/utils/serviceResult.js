@@ -36,10 +36,11 @@ const { PassThrough } = require('stream')
  * @param {unknown} [details]
  * @returns {Error & { status: number, details?: unknown }}
  */
-const createServiceError = (statusCode, message, details) => {
+const createServiceError = (statusCode, message, details, code) => {
   const error = Object.assign(new Error(message), {
     status: statusCode,
-    details
+    details,
+    code
   })
   return error
 }

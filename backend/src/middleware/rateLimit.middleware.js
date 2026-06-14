@@ -1,7 +1,7 @@
 const { ipKeyGenerator, rateLimit } = require('express-rate-limit')
 const { RedisStore } = require('rate-limit-redis')
 const { hashToken, verifyRefreshToken } = require('../utils/token')
-const { isRedisConfigured, getRedisClient } = require('../utils/redis')
+const { isRedisConfigured, getRedisClient, getReadyRedisClient } = require('../utils/redis')
 const logger = require('../utils/logger')
 
 let memoryStoreWarningShown = false
@@ -47,6 +47,28 @@ const getRedisStore = (prefixSuffix = 'global') => {
   })
 }
 
+const createRedisAvailabilityGuard = (prefixSuffix) => async (_req, res, next) => {
+  if (!isRedisConfigured()) {
+    return next()
+  }
+
+  try {
+    const redis = await getReadyRedisClient({ context: `rate limit ${prefixSuffix || 'global'}` })
+    if (redis) {
+      return next()
+    }
+  } catch (error) {
+    logger.warn('Rate limiting Redis availability check failed', {
+      message: error.message,
+      limiter: prefixSuffix || 'global'
+    })
+  }
+
+  return res.status(429).json({
+    message: 'Too many requests, please try again later'
+  })
+}
+
 const createLimiter = ({ max, message, windowMs = 15 * 60 * 1000, keyGenerator, prefixSuffix, useRedisStore = true }) => {
   if (areRateLimitsDisabled()) {
     if (!rateLimitDisabledWarningShown) {
@@ -57,7 +79,7 @@ const createLimiter = ({ max, message, windowMs = 15 * 60 * 1000, keyGenerator, 
     return (_req, _res, next) => next()
   }
 
-  return rateLimit({
+  const limiter = rateLimit({
     windowMs,
     max,
     standardHeaders: 'draft-7',
@@ -66,6 +88,21 @@ const createLimiter = ({ max, message, windowMs = 15 * 60 * 1000, keyGenerator, 
     keyGenerator,
     store: useRedisStore ? getRedisStore(prefixSuffix) : undefined
   })
+
+  if (!useRedisStore) {
+    return limiter
+  }
+
+  const redisAvailabilityGuard = createRedisAvailabilityGuard(prefixSuffix)
+  return async (req, res, next) => {
+    await redisAvailabilityGuard(req, res, (error) => {
+      if (error) {
+        return next(error)
+      }
+
+      return limiter(req, res, next)
+    })
+  }
 }
 
 const actorRateLimitKey = (req) => (

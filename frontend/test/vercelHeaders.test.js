@@ -12,10 +12,12 @@ describe('vercel security headers', () => {
 
     expect(csp).toContain("default-src 'self'");
     expect(csp).toContain("script-src 'self'");
+    expect(csp).toContain("style-src 'self' https://fonts.googleapis.com");
     expect(csp).toContain("object-src 'none'");
     expect(csp).toContain("base-uri 'self'");
     expect(csp).toContain("frame-ancestors 'none'");
     expect(csp).not.toContain('unsafe-eval');
+    expect(csp).not.toContain('unsafe-inline');
     expect(csp).not.toContain('https://vercel.live');
   });
 });

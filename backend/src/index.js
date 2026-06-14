@@ -27,6 +27,7 @@ const { warmRedisConnection } = require('./utils/redis')
 const { startNotificationWorker, closeNotificationWorker } = require('./jobs/notificationWorker')
 const { notificationQueue } = require('./jobs/notificationQueue')
 const { healthCheckHandler } = require('./utils/healthCheck')
+const { ERROR_CODES, createErrorResponse } = require('./utils/apiError')
 
 validateEnv()
 initMonitoring()
@@ -74,10 +75,7 @@ const getTrustProxySetting = () => {
   return configured
 }
 
-const getErrorMessage = (error, fallbackMessage = 'Something went wrong') => {
-  const errorMessage = error instanceof Error ? error.message : String(error)
-  return shouldExposeInternalErrors() ? (errorMessage || fallbackMessage) : fallbackMessage
-}
+const getErrorMessage = (_error, fallbackMessage = 'Something went wrong') => fallbackMessage
 
 app.set('trust proxy', getTrustProxySetting())
 app.use(requestId)
@@ -123,6 +121,7 @@ app.use(express.json({ limit: '1mb' }))
 app.use((error, _req, res, next) => {
   if (error?.type === 'entity.too.large') {
     return res.status(413).json({
+      code: 'REQUEST_BODY_TOO_LARGE',
       message: 'Request body is too large. Upload large student datasets as a spreadsheet file.'
     })
   }
@@ -141,7 +140,10 @@ app.use((req, res, next) => {
     req.logger.error(errorMessage, { stack: error?.stack })
     captureRequestException(error, req)
     return res.status(500).json({
-      message: getErrorMessage(error, fallbackMessage)
+      ...createErrorResponse({
+        code: ERROR_CODES.INTERNAL_ERROR,
+        message: getErrorMessage(error, fallbackMessage)
+      })
     })
   }
 
@@ -191,23 +193,25 @@ apiV1.use('/instructor', instructorRoutes)
 app.use('/api/v1', apiV1)
 
 app.use((req, res) => {
-  res.status(404).json({ message: 'Route not found' })
+  res.status(404).json(createErrorResponse({ code: 'ROUTE_NOT_FOUND', message: 'Route not found' }))
 })
 
 app.use((error, req, res, _next) => {
   if (error?.code === 'P2024') {
     res.setHeader('Retry-After', '5')
-    return res.status(503).json({
+    return res.status(503).json(createErrorResponse({
+      code: ERROR_CODES.DATABASE_BUSY,
       message: 'Database is busy. Please try again shortly.'
-    })
+    }))
   }
 
   const errorMessage = error instanceof Error ? error.message : String(error)
   ;(req.logger || logger).error(errorMessage, { stack: error?.stack })
   captureRequestException(error, req)
-  res.status(500).json({
+  res.status(500).json(createErrorResponse({
+    code: ERROR_CODES.INTERNAL_ERROR,
     message: getErrorMessage(error, 'Something went wrong')
-  })
+  }))
 })
 
 const PORT = process.env.PORT || 5000

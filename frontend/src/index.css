@@ -245,4 +245,50 @@
            hover:bg-primary-50/50 dark:hover:bg-primary-900/20
            transition-colors duration-150;
   }
+
+  .ui-progress {
+    appearance: none;
+    overflow: hidden;
+    border-radius: 9999px;
+    background: var(--color-surface-muted);
+  }
+
+  .ui-progress::-webkit-progress-bar {
+    border-radius: 9999px;
+    background: var(--color-surface-muted);
+  }
+
+  .ui-progress::-webkit-progress-value {
+    border-radius: 9999px;
+    background: var(--ui-progress-fill, var(--color-role-accent));
+  }
+
+  .ui-progress::-moz-progress-bar {
+    border-radius: 9999px;
+    background: var(--ui-progress-fill, var(--color-role-accent));
+  }
+
+  .ui-progress-good {
+    --ui-progress-fill: var(--color-role-instructor);
+  }
+
+  .ui-progress-warn {
+    --ui-progress-fill: #f97316;
+  }
+
+  .ui-progress-danger {
+    --ui-progress-fill: #ef4444;
+  }
+
+  .ui-progress-primary {
+    --ui-progress-fill: #2563eb;
+  }
+
+  .ui-progress-accent {
+    --ui-progress-fill: var(--color-accent);
+  }
+
+  .ui-progress-heading {
+    --ui-progress-fill: var(--color-heading);
+  }
 }

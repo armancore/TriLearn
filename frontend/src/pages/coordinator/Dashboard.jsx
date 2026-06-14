@@ -85,7 +85,7 @@ const getAttendanceTone = (percentage) => {
 
   if (value >= 80) {
     return {
-      bar: 'bg-emerald-400',
+      bar: 'ui-progress-good',
       text: 'text-emerald-600 dark:text-emerald-300',
       icon: 'bg-emerald-100 text-emerald-700',
       label: 'Green'
@@ -94,7 +94,7 @@ const getAttendanceTone = (percentage) => {
 
   if (value >= 75) {
     return {
-      bar: 'bg-amber-400',
+      bar: 'ui-progress-warn',
       text: 'text-amber-600 dark:text-amber-300',
       icon: 'bg-amber-100 text-amber-700',
       label: 'Yellow'
@@ -102,7 +102,7 @@ const getAttendanceTone = (percentage) => {
   }
 
   return {
-    bar: 'bg-rose-400',
+    bar: 'ui-progress-danger',
     text: 'text-rose-600 dark:text-rose-300',
     icon: 'bg-rose-100 text-rose-700',
     label: 'Red'
@@ -449,12 +449,12 @@ const CoordinatorDashboard = () => {
                     <p className={`mt-1 font-bold ${attendanceTone.text}`}>{attendanceTone.label}</p>
                   </div>
                 </div>
-                <div className="mt-4 h-3 overflow-hidden rounded-full bg-white/10">
-                  <div
-                    className={`h-full rounded-full ${attendanceTone.bar}`}
-                    style={{ width: `${Math.min(monthlyAverage, 100)}%` }}
-                  />
-                </div>
+                <progress
+                  className={`ui-progress mt-4 h-3 w-full ${attendanceTone.bar}`}
+                  max="100"
+                  value={Math.min(monthlyAverage, 100)}
+                  aria-label="Monthly attendance average"
+                />
                 <div className="mt-4 grid grid-cols-3 gap-3 text-sm">
                   <div className="rounded-2xl bg-white/[0.04] px-3 py-3">
                     <p className="text-[var(--color-text-soft)]">Present</p>

@@ -1,3 +1,6 @@
+const { createErrorResponse, ERROR_CODES, normalizeErrorCode } = require('./apiError')
+const { createServiceResponder } = require('./serviceResult')
+
 const buildServiceContext = (request) => ({
   body: request.body || {},
   params: request.params || {},
@@ -64,13 +67,17 @@ const applyServiceResult = (response, result) => {
 const handleControllerError = (response, error, fallbackMessage) => {
   if (error?.code === 'P2024') {
     response.setHeader('Retry-After', '5')
-    return response.status(503).json({
+    return response.status(503).json(createErrorResponse({
+      code: ERROR_CODES.DATABASE_BUSY,
       message: 'Database is busy. Please try again shortly.'
-    })
+    }))
   }
 
   if (error?.status) {
-    const payload = { message: error.message }
+    const payload = createErrorResponse({
+      code: normalizeErrorCode(error.code),
+      message: error.message
+    })
     if (error.details !== undefined) {
       payload.details = error.details
     }
@@ -79,7 +86,10 @@ const handleControllerError = (response, error, fallbackMessage) => {
 
   return response.internalError
     ? response.internalError(error, fallbackMessage)
-    : response.status(500).json({ message: fallbackMessage || 'Something went wrong' })
+    : response.status(500).json(createErrorResponse({
+      code: ERROR_CODES.INTERNAL_ERROR,
+      message: fallbackMessage || 'Something went wrong'
+    }))
 }
 
 const createController = (serviceFn, options = {}) => async (request, response) => {
@@ -98,4 +108,3 @@ module.exports = {
   createController,
   handleControllerError
 }
-const { createServiceResponder } = require('./serviceResult')

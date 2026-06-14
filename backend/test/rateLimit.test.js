@@ -1,5 +1,7 @@
 const test = require('node:test')
 const assert = require('node:assert/strict')
+const path = require('node:path')
+const { createRequire } = require('node:module')
 const express = require('express')
 const request = require('supertest')
 
@@ -12,6 +14,43 @@ const {
   staffStudentIdScanLimiter,
   forgotPasswordRateLimitKey
 } = require('../src/middleware/rateLimit.middleware')
+
+const resolveFromTest = (...segments) => path.resolve(__dirname, '..', ...segments)
+
+const loadWithMocks = (targetPath, mocks) => {
+  const modulePath = path.resolve(targetPath)
+  const localRequire = createRequire(modulePath)
+  const touched = []
+
+  for (const [requestPath, mockExports] of Object.entries(mocks)) {
+    const resolved = localRequire.resolve(requestPath)
+    touched.push({
+      resolved,
+      previous: require.cache[resolved]
+    })
+    require.cache[resolved] = {
+      id: resolved,
+      filename: resolved,
+      loaded: true,
+      exports: mockExports
+    }
+  }
+
+  delete require.cache[modulePath]
+
+  try {
+    return require(modulePath)
+  } finally {
+    delete require.cache[modulePath]
+    touched.forEach(({ resolved, previous }) => {
+      if (previous) {
+        require.cache[resolved] = previous
+      } else {
+        delete require.cache[resolved]
+      }
+    })
+  }
+}
 
 const buildApp = (middleware, user) => {
   const app = express()
@@ -105,4 +144,49 @@ test('loginRateLimitKey falls back to IP when email is missing', () => {
 
   const loginKey = loginRateLimitKey(req)
   assert.ok(typeof loginKey === 'string' && loginKey.length > 0)
+})
+
+test('configured Redis rate limits fail closed when Redis is unavailable', async () => {
+  const originalRedisUrl = process.env.REDIS_URL
+  process.env.REDIS_URL = 'redis://localhost:6379'
+
+  try {
+    const { authLimiter: unavailableRedisAuthLimiter } = loadWithMocks(resolveFromTest('src', 'middleware', 'rateLimit.middleware.js'), {
+      '../utils/redis': {
+        isRedisConfigured: () => true,
+        getRedisClient: () => ({
+          sendCommand: async () => null
+        }),
+        getReadyRedisClient: async () => null
+      },
+      '../utils/logger': {
+        warn: () => {}
+      },
+      'rate-limit-redis': {
+        RedisStore: class RedisStore {
+          constructor() {}
+          init() {}
+          async increment() {
+            return { totalHits: 1, resetTime: new Date(Date.now() + 60_000) }
+          }
+          async decrement() {}
+          async resetKey() {}
+        }
+      }
+    })
+    const app = buildApp(unavailableRedisAuthLimiter, null)
+
+    const response = await request(app).post('/limited').send({ email: 'student@example.com' })
+
+    assert.equal(response.status, 429)
+    assert.deepEqual(response.body, {
+      message: 'Too many requests, please try again later'
+    })
+  } finally {
+    if (originalRedisUrl === undefined) {
+      delete process.env.REDIS_URL
+    } else {
+      process.env.REDIS_URL = originalRedisUrl
+    }
+  }
 })

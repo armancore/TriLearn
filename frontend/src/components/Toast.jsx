@@ -56,7 +56,6 @@ export const ToastProvider = ({ children }) => {
 const Toast = ({ toast, onDismiss }) => {
   const tone = toastStyles[toast.type] || toastStyles.success
   const Icon = tone.icon
-  const [progressStarted, setProgressStarted] = useState(false)
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -65,15 +64,6 @@ const Toast = ({ toast, onDismiss }) => {
 
     return () => window.clearTimeout(timeoutId)
   }, [onDismiss, toast.duration, toast.id])
-
-  useEffect(() => {
-    setProgressStarted(false)
-    const frameId = window.requestAnimationFrame(() => {
-      setProgressStarted(true)
-    })
-
-    return () => window.cancelAnimationFrame(frameId)
-  }, [toast.duration, toast.id])
 
   return (
     <div
@@ -101,13 +91,7 @@ const Toast = ({ toast, onDismiss }) => {
         </button>
       </div>
       <div className="h-1 w-full bg-[var(--color-surface-muted)]">
-        <div
-          className={`h-full ${tone.progress}`}
-          style={{
-            width: progressStarted ? '0%' : '100%',
-            transition: `width ${toast.duration}ms linear`
-          }}
-        />
+        <div className={`h-full w-full ${tone.progress}`} />
       </div>
     </div>
   )
