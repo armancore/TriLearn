@@ -117,7 +117,7 @@ app.use(cors({
   },
   credentials: true
 }))
-// lgtm[js/missing-token-validation] Signed double-submit CSRF tokens are enforced by csrfProtection below.
+// codeql[js/missing-token-validation] Signed double-submit CSRF tokens are enforced by csrfProtection before API routes.
 app.use(cookieParser())
 app.use(express.json({ limit: '1mb' }))
 app.use((error, _req, res, next) => {

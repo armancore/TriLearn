@@ -360,6 +360,16 @@ test('GET /api/v1/auth/csrf issues a signed token for trusted browser origins', 
   )
 })
 
+test('app-level csrf middleware rejects unsafe cookie-backed browser requests without a CSRF token', async () => {
+  const response = await request(app)
+    .post('/api/v1/auth/logout')
+    .set('Origin', trustedOrigin)
+    .set('Cookie', ['refreshToken=web-refresh-token'])
+
+  assert.equal(response.status, 403)
+  assert.deepEqual(response.body, { message: 'CSRF validation failed' })
+})
+
 test('csrfProtection allows trusted browser requests with a matching signed CSRF token', async () => {
   const csrfToken = generateCsrfToken()
   const testApp = express()
