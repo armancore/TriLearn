@@ -106,7 +106,7 @@ describe('AuthContext', () => {
       screen.getByRole('button', { name: 'Update' }).click()
     })
 
-    expect(setAuthStateMock).toHaveBeenCalledWith({ user: { name: 'Taylor', role: 'ADMIN' }, token: 'token-1' })
+    expect(setAuthStateMock).toHaveBeenCalledWith({ user: { name: 'Taylor', role: 'ADMIN' } })
     expect(setAuthStateMock).toHaveBeenCalledWith({ user: { name: 'Jordan', role: 'ADMIN' }, token: null })
   })
 

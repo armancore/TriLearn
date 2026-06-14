@@ -110,8 +110,8 @@ export const AuthProvider = ({ children }) => {
     }
   }, [isLoginRoute, isPublicAuthRoute, navigate])
 
-  const login = (userData, userToken) => {
-    setAuthState({ user: userData, token: userToken })
+  const login = (userData) => {
+    setAuthState({ user: userData })
   }
 
   const logout = async ({ skipRequest = false } = {}) => {

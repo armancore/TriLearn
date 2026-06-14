@@ -39,7 +39,9 @@ if (typeof jest === 'undefined') {
     verifyRefreshToken: jest.fn(() => ({ id: 'user-1', role: 'STUDENT' })),
     hashToken: jest.fn((token) => `hash:${token}`),
     getRefreshTokenExpiry: jest.fn(() => new Date('2030-01-01T00:00:00.000Z')),
-    getRefreshCookieOptions: jest.fn(() => ({ httpOnly: true }))
+    getRefreshCookieOptions: jest.fn(() => ({ httpOnly: true, path: '/api/v1/auth' })),
+    getAccessCookieOptions: jest.fn(() => ({ httpOnly: true, path: '/api/v1' })),
+    ACCESS_TOKEN_COOKIE_NAME: 'accessToken'
   }))
 
   jest.mock('../src/utils/accessTokenRevocation', () => ({
@@ -114,7 +116,7 @@ if (typeof jest === 'undefined') {
   })
 
   describe('auth session service login', () => {
-    test('valid credentials returns accessToken and user', async () => {
+    test('valid web credentials set access token cookie without returning it in the body', async () => {
       const user = baseUser()
       prisma.user.findUnique
         .mockResolvedValueOnce(user)
@@ -127,13 +129,17 @@ if (typeof jest === 'undefined') {
 
       expect(statusCodeOf(result)).toBe(200)
       expect(result.body).toEqual(expect.objectContaining({
-        accessToken: 'access-token',
         user: expect.objectContaining({
           id: user.id,
           email: user.email,
           role: user.role
         })
       }))
+      expect(result.body.token).toBeUndefined()
+      expect(result.body.accessToken).toBeUndefined()
+      expect(result.cookies).toEqual(expect.arrayContaining([
+        ['accessToken', 'access-token', { httpOnly: true, path: '/api/v1' }]
+      ]))
     })
 
     test('invalid password returns 401 and increments failedLoginAttempts', async () => {

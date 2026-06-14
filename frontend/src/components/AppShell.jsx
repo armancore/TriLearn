@@ -2,7 +2,6 @@ import { Bell, CheckCheck, LogOut, Menu, Moon, PanelLeftClose, PanelLeftOpen, Su
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import api from '../utils/api'
-import { useAuth } from '../context/AuthContext'
 import { useTheme } from '../context/ThemeContext'
 import { useToast } from './Toast'
 import BrandLogo from './BrandLogo'
@@ -53,7 +52,6 @@ const AppShell = ({
   const [unreadCount, setUnreadCount] = useState(0)
   const notificationsRef = useRef(null)
   const navigate = useNavigate()
-  const { token } = useAuth()
   const { showToast } = useToast()
   const { resolvedTheme, toggleTheme } = useTheme()
   const roleThemeClass = roleThemeClasses[roleTheme] || roleThemeClasses.admin
@@ -212,7 +210,6 @@ const AppShell = ({
 
   useLiveNotifications({
     enabled: Boolean(user?.id),
-    token,
     onNotification: handleIncomingNotification,
     onNotificationRead: handleNotificationRead,
     onNotificationsReadAll: handleNotificationsReadAll

@@ -40,7 +40,7 @@ describe('api auth persistence', () => {
     window.localStorage.removeItem('trilearn.auth.refresh.cooldownUntil')
   })
 
-  it('stores only a session hint while keeping the full user and token in memory', async () => {
+  it('stores only a session hint while keeping the full user in memory', async () => {
     const apiClient = createAxiosClient()
     const refreshClient = createAxiosClient()
     const csrfClient = createAxiosClient()
@@ -57,7 +57,6 @@ describe('api auth persistence', () => {
     const { getAuthState, setAuthState } = await import('../src/utils/api')
 
     setAuthState({
-      token: 'token-1',
       user: {
         id: 'user-1',
         name: 'Taylor',
@@ -75,7 +74,7 @@ describe('api auth persistence', () => {
       }
     })
 
-    expect(getAuthState().token).toBe('token-1')
+    expect(getAuthState().token).toBeNull()
     expect(getAuthState().user).toMatchObject({
       id: 'user-1',
       email: 'student@example.com',
@@ -102,7 +101,6 @@ describe('api auth persistence', () => {
 
     refreshClient.post.mockResolvedValue({
       data: {
-        token: 'fresh-access-token',
         user: {
           id: 'user-7',
           name: 'Jordan',
@@ -266,21 +264,10 @@ describe('api auth persistence', () => {
     expect(errorSpy).not.toHaveBeenCalled()
   })
 
-  it('does not send protected requests without a token when session refresh fails', async () => {
+  it('does not attach bearer tokens to protected browser requests', async () => {
     const apiClient = createAxiosClient()
     const refreshClient = createAxiosClient()
     const csrfClient = createAxiosClient()
-    const refreshError = {
-      response: {
-        status: 401,
-        data: { message: 'Refresh token is invalid or expired' }
-      }
-    }
-
-    csrfClient.get.mockResolvedValue({
-      data: { csrfToken: 'csrf-token-2' }
-    })
-    refreshClient.post.mockRejectedValue(refreshError)
 
     vi.doMock('axios', () => ({
       default: {
@@ -293,7 +280,6 @@ describe('api auth persistence', () => {
 
     const { setAuthState } = await import('../src/utils/api')
     setAuthState({
-      token: null,
       user: {
         name: 'Jordan',
         role: 'STUDENT',
@@ -309,7 +295,8 @@ describe('api auth persistence', () => {
       headers: {}
     }
 
-    await expect(interceptorResolve(requestConfig)).rejects.toBe(refreshError)
+    await expect(interceptorResolve(requestConfig)).resolves.toBe(requestConfig)
     expect(requestConfig.headers.Authorization).toBeUndefined()
+    expect(refreshClient.post).not.toHaveBeenCalled()
   })
 })

@@ -5,7 +5,13 @@ const prisma = require('../utils/prisma')
 const logger = require('../utils/logger')
 const { recordAuditLog } = require('../utils/audit')
 const { normalizeEmail } = require('../utils/adminHelpers')
-const { verifyRefreshToken, hashToken, getRefreshCookieOptions } = require('../utils/token')
+const {
+  verifyRefreshToken,
+  hashToken,
+  getRefreshCookieOptions,
+  getAccessCookieOptions,
+  ACCESS_TOKEN_COOKIE_NAME
+} = require('../utils/token')
 const { revokeAccessTokenFromRequest, revokeAllAccessTokensForUser } = require('../utils/accessTokenRevocation')
 const { clearCsrfCookie } = require('../middleware/csrf.middleware')
 const {
@@ -52,6 +58,10 @@ const loginUserSelect = {
   failedLoginAttempts: true,
   lockedUntil: true,
   deletedAt: true
+}
+
+const clearAccessCookie = (result, context) => {
+  result.expireCookie(ACCESS_TOKEN_COOKIE_NAME, getAccessCookieOptions(context))
 }
 
 const getLoginLockoutExpiry = () => {
@@ -183,12 +193,12 @@ const login = async (context, result = createServiceResponder()) => {
     message: user.mustChangePassword
       ? 'Login successful. Please change your password to continue.'
       : 'Login successful!',
-    token: session.accessToken,
-    accessToken: session.accessToken,
     user: buildAuthUser(authUser || user)
   }
 
   if (isMobileClient(context)) {
+    responseBody.token = session.accessToken
+    responseBody.accessToken = session.accessToken
     responseBody.refreshToken = session.refreshToken
   }
 
@@ -225,6 +235,7 @@ const refreshSession = async (context, result, refreshToken, { includeRefreshTok
         ...getRefreshCookieOptions(context),
         expires: new Date(0)
       })
+      clearAccessCookie(result, context)
       clearCsrfCookie(result, context)
 
       logger.warn('Refresh token reuse detected; revoked all active sessions', {
@@ -264,12 +275,12 @@ const refreshSession = async (context, result, refreshToken, { includeRefreshTok
 
     const responseBody = {
       message: 'Token refreshed successfully',
-      token: session.accessToken,
-      accessToken: session.accessToken,
       user: buildAuthUser(storedRefreshToken.user)
     }
 
     if (includeRefreshToken) {
+      responseBody.token = session.accessToken
+      responseBody.accessToken = session.accessToken
       responseBody.refreshToken = session.refreshToken
     }
 
@@ -331,6 +342,7 @@ const logout = async (context, result = createServiceResponder()) => {
       ...getRefreshCookieOptions(context),
       expires: new Date(0)
     })
+    clearAccessCookie(result, context)
     clearCsrfCookie(result, context)
 
     if (context.user?.id) {
@@ -362,6 +374,7 @@ const logout = async (context, result = createServiceResponder()) => {
     ...getRefreshCookieOptions(context),
     expires: new Date(0)
   })
+  clearAccessCookie(result, context)
   clearCsrfCookie(result, context)
 
   if (context.user?.id) {
@@ -411,6 +424,7 @@ const logoutAll = async (context, result = createServiceResponder()) => {
     ...getRefreshCookieOptions(context),
     expires: new Date(0)
   })
+  clearAccessCookie(result, context)
   clearCsrfCookie(result, context)
 
   await recordAuditLog({

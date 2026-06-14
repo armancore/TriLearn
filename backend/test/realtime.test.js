@@ -3,7 +3,7 @@ const assert = require('node:assert/strict')
 const path = require('node:path')
 const { createRequire } = require('node:module')
 
-const { buildCorsOriginValidator, createSocketEventRateLimiter } = require('../src/utils/realtime')
+const { buildCorsOriginValidator, createSocketEventRateLimiter, resolveSocketToken } = require('../src/utils/realtime')
 
 const resolveFromTest = (...segments) => path.resolve(__dirname, '..', ...segments)
 process.env.JWT_ACCESS_SECRET = process.env.JWT_ACCESS_SECRET || 'test-access-secret'
@@ -162,6 +162,19 @@ test('createSocketEventRateLimiter refills tokens over time', () => {
 
   now = 1000
   assert.equal(limiter.consume(), true)
+})
+
+test('resolveSocketToken accepts the access token cookie', () => {
+  const token = resolveSocketToken({
+    handshake: {
+      auth: {},
+      headers: {
+        cookie: 'csrfToken=csrf-token; accessToken=cookie-access-token'
+      }
+    }
+  })
+
+  assert.equal(token, 'cookie-access-token')
 })
 
 test('verifySocketTokenUser rejects revoked access token jti before user lookup', async () => {

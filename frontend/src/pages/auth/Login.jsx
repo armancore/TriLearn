@@ -91,10 +91,10 @@ const Login = () => {
         ...(formValues.captchaAnswer.trim() ? { captchaAnswer: formValues.captchaAnswer.trim() } : {})
       }
       const res = await api.post('/auth/login', loginPayload)
-      const { user, token } = res.data
+      const { user } = res.data
       setCaptchaChallenge(null)
       setValues((current) => ({ ...current, captchaToken: '', captchaAnswer: '' }))
-      login(user, token)
+      login(user)
       navigate(getHomeRouteForUser(user))
     } catch (err) {
       if (err?.response?.status === 429) {

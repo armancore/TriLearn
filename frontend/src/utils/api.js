@@ -18,13 +18,31 @@ export {
   subscribeToAuthState
 }
 
-const REFRESH_COOLDOWN_STORAGE_KEY = 'trilearn.auth.refresh.cooldownUntil'
-const REFRESH_LOCK_STORAGE_KEY = 'trilearn.auth.refresh.lock'
-const ACCESS_TOKEN_REFRESH_SKEW_MS = 30_000
 const REFRESH_LOCK_TIMEOUT_MS = 10_000
 const REFRESH_LOCK_POLL_MS = 100
 const REFRESH_LOCK_MAX_WAIT_MS = 12_000
 const REFRESH_LOCK_OWNER = `${Date.now()}-${Math.random().toString(36).slice(2)}`
+const getRefreshStorageScope = () => {
+  if (typeof window === 'undefined') {
+    return REFRESH_LOCK_OWNER
+  }
+
+  try {
+    const existingScope = window.sessionStorage.getItem('trilearn.auth.refresh.scope')
+    if (existingScope) {
+      return existingScope
+    }
+
+    const nextScope = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`
+    window.sessionStorage.setItem('trilearn.auth.refresh.scope', nextScope)
+    return nextScope
+  } catch {
+    return REFRESH_LOCK_OWNER
+  }
+}
+const REFRESH_STORAGE_SCOPE = getRefreshStorageScope()
+const REFRESH_COOLDOWN_STORAGE_KEY = `trilearn.auth.refresh.${REFRESH_STORAGE_SCOPE}.cooldownUntil`
+const REFRESH_LOCK_STORAGE_KEY = `trilearn.auth.refresh.${REFRESH_STORAGE_SCOPE}.lock`
 const CSRF_COOKIE_NAME = 'csrfToken'
 const CSRF_HEADER_NAME = 'X-CSRF-Token'
 const CSRF_SAFE_METHODS = new Set(['get', 'head', 'options'])
@@ -101,16 +119,6 @@ const clearRefreshLock = (owner) => {
   }
 }
 
-/**
- * Security note — access token storage:
- * The access token and user snapshot are held in module-level JS memory.
- * Trade-off: an XSS attack could exfiltrate the access token from memory.
- * Mitigation: the token is short-lived, logout revokes the current access-token
- * JTI through Redis, the refresh token is in an httpOnly
- * cookie and never accessible to JS, and the CSP blocks inline scripts and unknown origins.
- * Alternative: move the access token to an httpOnly cookie - requires a CSRF
- * double-submit strategy since the refresh cookie is already httpOnly on /api/v1/auth.
- */
 let unauthorizedHandler = null
 let refreshCooldownUntil = readStoredRefreshCooldownUntil()
 
@@ -158,38 +166,6 @@ const setRefreshCooldown = (cooldownUntil) => {
 
 const clearRefreshCooldown = () => {
   setRefreshCooldown(0)
-}
-
-function decodeJwtPayload(token) {
-  try {
-    const encodedPayload = String(token || '').split('.')[1]
-    if (!encodedPayload) {
-      return null
-    }
-
-    const base64 = encodedPayload
-      .replace(/-/g, '+')
-      .replace(/_/g, '/')
-      .padEnd(Math.ceil(encodedPayload.length / 4) * 4, '=')
-    const decodedPayload = globalThis.atob(base64)
-
-    return JSON.parse(decodedPayload)
-  } catch {
-    return null
-  }
-}
-
-function getAccessTokenExpiresAt(token) {
-  const payload = decodeJwtPayload(token)
-  const expiresAtSeconds = Number(payload?.exp)
-
-  return Number.isFinite(expiresAtSeconds) ? expiresAtSeconds * 1000 : null
-}
-
-const isAccessTokenExpiring = (token) => {
-  const expiresAt = getAccessTokenExpiresAt(token)
-
-  return expiresAt !== null && expiresAt <= Date.now() + ACCESS_TOKEN_REFRESH_SKEW_MS
 }
 
 const buildRefreshRateLimitError = () => {
@@ -516,35 +492,8 @@ const isAuthRouteRequest = (requestConfig) => {
   )
 }
 
-// Automatically add token to every request
 api.interceptors.request.use(async (config) => {
   await attachCsrfToken(config)
-
-  const currentAuthState = getAuthState()
-
-  if (!currentAuthState.token && currentAuthState.user && !isAuthRouteRequest(config)) {
-    try {
-      await refreshSession()
-    } catch (refreshError) {
-      return Promise.reject(refreshError)
-    }
-  }
-
-  const refreshedAuthState = getAuthState()
-
-  if (refreshedAuthState.token && refreshedAuthState.user && isAccessTokenExpiring(refreshedAuthState.token) && !isAuthRouteRequest(config)) {
-    try {
-      await refreshSession()
-    } catch (refreshError) {
-      return Promise.reject(refreshError)
-    }
-  }
-
-  const nextAuthState = getAuthState()
-
-  if (nextAuthState.token) {
-    config.headers.Authorization = `Bearer ${nextAuthState.token}`
-  }
   return config
 })
 
@@ -560,9 +509,9 @@ export const refreshSession = async () => {
       try {
         const refreshConfig = await attachCsrfToken({ method: 'post' })
         const response = await refreshClient.post('/auth/refresh', undefined, refreshConfig)
-        const { token, user } = response.data
+        const { user } = response.data
         clearRefreshCooldown()
-        setAuthState({ token, user })
+        setAuthState({ user })
         return response.data
       } catch (error) {
         if (error?.response?.status === 429) {
@@ -623,10 +572,7 @@ api.interceptors.response.use(
       originalRequest._retry = true
 
       try {
-        const { token } = await refreshSession()
-
-        originalRequest.headers = originalRequest.headers || {}
-        originalRequest.headers.Authorization = `Bearer ${token}`
+        await refreshSession()
 
         return api(originalRequest)
       } catch (refreshError) {

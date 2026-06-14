@@ -5,6 +5,7 @@ const {
   REVOKED_JTI_PREFIX,
   USER_ACCESS_JTI_PREFIX
 } = require('../constants/auth')
+const { ACCESS_TOKEN_COOKIE_NAME } = require('./token')
 
 const REVOKED_JTI_CACHE_TTL_MS = 60 * 1000
 const REVOKED_JTI_CACHE_CLEANUP_MS = 5 * 60 * 1000
@@ -53,6 +54,16 @@ if (typeof revokedJtiCacheCleanupTimer.unref === 'function') {
 const getBearerToken = (req) => {
   const [scheme, token] = String(req?.headers?.authorization || '').split(' ')
   return scheme?.toLowerCase() === 'bearer' && token ? token : null
+}
+
+const getRequestAccessToken = (req) => {
+  const bearerToken = getBearerToken(req)
+  if (bearerToken) {
+    return bearerToken
+  }
+
+  const cookieToken = req?.cookies?.[ACCESS_TOKEN_COOKIE_NAME]
+  return typeof cookieToken === 'string' && cookieToken.trim() ? cookieToken.trim() : null
 }
 
 const getRemainingTtlSeconds = (exp) => {
@@ -111,7 +122,7 @@ const revokeAccessTokenFromRequest = async (req, options) => {
     return revokeAccessTokenPayload(req.accessTokenPayload, options)
   }
 
-  return revokeAccessToken(getBearerToken(req), options)
+  return revokeAccessToken(getRequestAccessToken(req), options)
 }
 
 const getUserAccessJtiKey = (userId) => `${USER_ACCESS_JTI_PREFIX}${userId}`

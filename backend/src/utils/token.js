@@ -3,6 +3,7 @@ const jwt = require('jsonwebtoken')
 const { isPrivateIpv4, isPrivateIpv6 } = require('./network')
 
 const ACCESS_TOKEN_EXPIRES_IN = process.env.ACCESS_TOKEN_EXPIRES_IN || '15m'
+const ACCESS_TOKEN_COOKIE_NAME = 'accessToken'
 const REFRESH_TOKEN_EXPIRES_DAYS = parseInt(process.env.REFRESH_TOKEN_EXPIRES_DAYS || '7', 10)
 
 const getAccessSecret = () => {
@@ -94,11 +95,36 @@ const getRefreshCookieOptions = (req, expiresAt = getRefreshTokenExpiry()) => {
   }
 }
 
+const getAccessCookieExpiry = (token, fallbackFrom = new Date()) => {
+  const decoded = jwt.decode(token)
+  const expiresAtSeconds = Number(decoded?.exp)
+
+  if (Number.isFinite(expiresAtSeconds) && expiresAtSeconds > 0) {
+    return new Date(expiresAtSeconds * 1000)
+  }
+
+  return new Date(fallbackFrom.getTime() + 15 * 60 * 1000)
+}
+
+const getAccessCookieOptions = (req, token = null) => {
+  const secure = isSecureRequest(req) || !isLocalHost(getRequestHost(req))
+
+  return {
+    httpOnly: true,
+    secure,
+    sameSite: secure ? 'none' : 'lax',
+    path: '/api/v1',
+    expires: token ? getAccessCookieExpiry(token) : new Date(0)
+  }
+}
+
 module.exports = {
+  ACCESS_TOKEN_COOKIE_NAME,
   signAccessToken,
   signRefreshToken,
   verifyRefreshToken,
   hashToken,
   getRefreshTokenExpiry,
-  getRefreshCookieOptions
+  getRefreshCookieOptions,
+  getAccessCookieOptions
 }

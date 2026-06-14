@@ -50,8 +50,7 @@ describe('Login', () => {
   test('submits the login form and routes to the user home page', async () => {
     postMock.mockResolvedValue({
       data: {
-        user: { role: 'ADMIN', name: 'Casey' },
-        token: 'token-123'
+        user: { role: 'ADMIN', name: 'Casey' }
       }
     })
 
@@ -76,7 +75,7 @@ describe('Login', () => {
       })
     })
 
-    expect(loginMock).toHaveBeenCalledWith({ role: 'ADMIN', name: 'Casey' }, 'token-123')
+    expect(loginMock).toHaveBeenCalledWith({ role: 'ADMIN', name: 'Casey' })
     expect(navigateMock).toHaveBeenCalledWith('/admin')
   })
 
@@ -97,8 +96,7 @@ describe('Login', () => {
       })
       .mockResolvedValueOnce({
         data: {
-          user: { role: 'ADMIN', name: 'Casey' },
-          token: 'token-123'
+          user: { role: 'ADMIN', name: 'Casey' }
         }
       })
 

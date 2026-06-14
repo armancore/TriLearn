@@ -111,7 +111,9 @@ const authControllerMocks = (overrides = {}) => ({
     verifyRefreshToken: () => ({ id: 'user-1' }),
     hashToken: () => 'hash',
     getRefreshTokenExpiry: () => new Date(),
-    getRefreshCookieOptions: () => ({})
+    getRefreshCookieOptions: () => ({}),
+    getAccessCookieOptions: () => ({}),
+    ACCESS_TOKEN_COOKIE_NAME: 'accessToken'
   },
   '../utils/mailer': {
     sendMail: async () => {}
@@ -1339,7 +1341,9 @@ test('logout does not run token revocation when no refresh token is provided', a
       verifyRefreshToken: () => ({ id: 'user-1' }),
       hashToken: (value) => `hash:${value}`,
       getRefreshTokenExpiry: () => new Date(),
-      getRefreshCookieOptions: () => ({})
+      getRefreshCookieOptions: () => ({}),
+      getAccessCookieOptions: () => ({}),
+      ACCESS_TOKEN_COOKIE_NAME: 'accessToken'
     }
   }))
 
@@ -1671,7 +1675,9 @@ test('refresh revokes all active sessions when a rotated refresh token is replay
       verifyRefreshToken: () => ({ id: 'user-1', role: 'STUDENT' }),
       hashToken: () => 'replayed-hash',
       getRefreshTokenExpiry: () => new Date(),
-      getRefreshCookieOptions: () => ({ path: '/api/v1/auth', httpOnly: true })
+      getRefreshCookieOptions: () => ({ path: '/api/v1/auth', httpOnly: true }),
+      getAccessCookieOptions: () => ({ path: '/api/v1', httpOnly: true }),
+      ACCESS_TOKEN_COOKIE_NAME: 'accessToken'
     }
   }))
 
@@ -3132,7 +3138,9 @@ test('soft-deleted user cannot refresh with the prior session token', async () =
       verifyRefreshToken: () => ({ id: 'student-2' }),
       hashToken,
       getRefreshTokenExpiry: () => new Date(Date.now() + 86_400_000),
-      getRefreshCookieOptions: () => ({})
+      getRefreshCookieOptions: () => ({}),
+      getAccessCookieOptions: () => ({}),
+      ACCESS_TOKEN_COOKIE_NAME: 'accessToken'
     },
     '../utils/accessTokenRevocation': {
       revokeAllAccessTokensForUser: async () => 1,
@@ -6114,7 +6122,9 @@ test('getActivity marks the current session by id without selecting tokenHash in
       verifyRefreshToken: () => ({ id: 'user-1' }),
       hashToken: () => 'current-hash',
       getRefreshTokenExpiry: () => new Date(),
-      getRefreshCookieOptions: () => ({})
+      getRefreshCookieOptions: () => ({}),
+      getAccessCookieOptions: () => ({}),
+      ACCESS_TOKEN_COOKIE_NAME: 'accessToken'
     }
   }))
 

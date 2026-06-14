@@ -5,6 +5,7 @@ const { getInstructorDepartments } = require('../utils/instructorDepartments')
 const { getReadyRedisClient } = require('../utils/redis')
 const { cacheRevokedJti, isRevokedJtiCached } = require('../utils/accessTokenRevocation')
 const { REVOKED_JTI_PREFIX } = require('../constants/auth')
+const { ACCESS_TOKEN_COOKIE_NAME } = require('../utils/token')
 
 const getUserSelectShape = () => ({
   id: true,
@@ -65,10 +66,19 @@ const getAccessSecret = () => {
   return accessSecret
 }
 
+const resolveAccessToken = (req) => {
+  const [scheme, bearerToken] = String(req.headers.authorization || '').split(' ')
+  if (scheme?.toLowerCase() === 'bearer' && bearerToken) {
+    return bearerToken
+  }
+
+  const cookieToken = req.cookies?.[ACCESS_TOKEN_COOKIE_NAME]
+  return typeof cookieToken === 'string' && cookieToken.trim() ? cookieToken.trim() : null
+}
+
 const protect = async (req, res, next) => {
   try {
-    // Tokens must be delivered via the Authorization header (Bearer ...) — we keep the JWT in memory on the frontend so we avoid cookies.
-    const token = req.headers.authorization?.split(' ')[1]
+    const token = resolveAccessToken(req)
 
     if (!token) {
       return res.status(401).json({ message: 'No token, access denied' })

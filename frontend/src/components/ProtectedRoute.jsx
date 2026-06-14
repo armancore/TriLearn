@@ -5,7 +5,7 @@ import LoadingSkeleton from './LoadingSkeleton'
 import { ROLES } from '../constants/roles'
 
 const ProtectedRoute = ({ children, allowedRoles }) => {
-  const { user, token, loading } = useAuth()
+  const { user, loading } = useAuth()
   const location = useLocation()
 
   if (loading) {
@@ -18,7 +18,7 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
     )
   }
 
-  if (!user || !token) return <Navigate to="/login" />
+  if (!user) return <Navigate to="/login" />
   if (user.mustChangePassword && location.pathname !== '/change-password') {
     return <Navigate to="/change-password" />
   }

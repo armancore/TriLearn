@@ -37,14 +37,14 @@ describe('ProtectedRoute', () => {
     expect(screen.getByText('Login page')).toBeInTheDocument()
   })
 
-  it('redirects cached users without a live access token to the login page', () => {
+  it('renders hydrated users without requiring a JS-readable access token', () => {
     renderProtectedRoute('/protected', {
       user: { role: 'ADMIN', mustChangePassword: false },
       token: null,
       loading: false
     })
 
-    expect(screen.getByText('Login page')).toBeInTheDocument()
+    expect(screen.getByText('Protected content')).toBeInTheDocument()
   })
 
   it('redirects users who must change their password', () => {

@@ -6,6 +6,7 @@ const logger = require('./logger')
 const { isRedisConfigured, getReadyRedisClient } = require('./redis')
 const { cacheRevokedJti, isRevokedJtiCached } = require('./accessTokenRevocation')
 const { REVOKED_JTI_PREFIX } = require('../constants/auth')
+const { ACCESS_TOKEN_COOKIE_NAME } = require('./token')
 
 let io = null
 let redisAdapterSubClient = null
@@ -58,6 +59,18 @@ const resolveSocketToken = (socket) => {
   const authorizationHeader = socket.handshake.headers?.authorization
   if (typeof authorizationHeader === 'string' && authorizationHeader.startsWith('Bearer ')) {
     return authorizationHeader.slice(7).trim()
+  }
+
+  const cookieHeader = socket.handshake.headers?.cookie
+  if (typeof cookieHeader === 'string' && cookieHeader.trim()) {
+    const accessCookie = cookieHeader
+      .split(';')
+      .map((part) => part.trim())
+      .find((part) => part.startsWith(`${encodeURIComponent(ACCESS_TOKEN_COOKIE_NAME)}=`))
+
+    if (accessCookie) {
+      return decodeURIComponent(accessCookie.slice(ACCESS_TOKEN_COOKIE_NAME.length + 1))
+    }
   }
 
   return null
@@ -179,6 +192,7 @@ const initRealtime = async ({ server, allowedOrigins = [] }) => {
   }
 
   io = new Server(server, {
+    path: '/api/v1/socket.io',
     cors: {
       origin: buildCorsOriginValidator(allowedOrigins),
       credentials: true
@@ -303,6 +317,7 @@ const closeRealtime = async () => {
 module.exports = {
   buildCorsOriginValidator,
   createSocketEventRateLimiter,
+  resolveSocketToken,
   verifySocketTokenUser,
   initRealtime,
   closeRealtime,

@@ -5,7 +5,9 @@ const {
   signRefreshToken,
   hashToken,
   getRefreshTokenExpiry,
-  getRefreshCookieOptions
+  getRefreshCookieOptions,
+  getAccessCookieOptions,
+  ACCESS_TOKEN_COOKIE_NAME
 } = require('../utils/token')
 const { trackAccessToken } = require('../utils/accessTokenRevocation')
 const { attachCsrfCookie } = require('../middleware/csrf.middleware')
@@ -40,7 +42,7 @@ const getRequestIpAddress = (req) => {
   return String(req.ip || req.socket?.remoteAddress || '').slice(0, 64) || null
 }
 
-const issueAuthSession = async (user, res, req, previousRefreshToken, { setRefreshCookie = true } = {}) => {
+const issueAuthSession = async (user, res, req, previousRefreshToken, { setRefreshCookie = true, setAccessCookie = setRefreshCookie } = {}) => {
   const accessToken = signAccessToken(user)
   const refreshToken = signRefreshToken(user)
   const refreshTokenExpiresAt = getRefreshTokenExpiry()
@@ -74,6 +76,10 @@ const issueAuthSession = async (user, res, req, previousRefreshToken, { setRefre
   if (setRefreshCookie) {
     res.setCookie('refreshToken', refreshToken, getRefreshCookieOptions(req, refreshTokenExpiresAt))
     attachCsrfCookie(res, req)
+  }
+
+  if (setAccessCookie) {
+    res.setCookie(ACCESS_TOKEN_COOKIE_NAME, accessToken, getAccessCookieOptions(req, accessToken))
   }
 
   await trackAccessToken(accessToken)

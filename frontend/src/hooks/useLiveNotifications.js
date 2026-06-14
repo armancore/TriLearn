@@ -4,7 +4,6 @@ import { API_ORIGIN } from '../utils/api'
 
 const useLiveNotifications = ({
   enabled,
-  token,
   onNotification,
   onNotificationRead,
   onNotificationsReadAll
@@ -26,12 +25,12 @@ const useLiveNotifications = ({
   }, [onNotificationsReadAll])
 
   useEffect(() => {
-    if (!enabled || !token) {
+    if (!enabled) {
       return undefined
     }
 
     const socket = io(API_ORIGIN, {
-      auth: { token },
+      path: '/api/v1/socket.io',
       withCredentials: true,
       autoConnect: false,
       reconnectionAttempts: 3,
@@ -67,7 +66,7 @@ const useLiveNotifications = ({
         socket.disconnect()
       }
     }
-  }, [enabled, token])
+  }, [enabled])
 }
 
 export default useLiveNotifications

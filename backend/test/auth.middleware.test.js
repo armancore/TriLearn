@@ -156,6 +156,111 @@ test('protect allows access tokens issued after passwordChangedAt', async () => 
   assert.equal(req.user.id, 'user-1')
 })
 
+test('protect allows access tokens from the httpOnly access cookie', async () => {
+  const { protect } = loadWithMocks(resolveFromTest('src', 'middleware', 'auth.middleware.js'), {
+    'jsonwebtoken': {
+      verify: (token) => {
+        assert.equal(token, 'cookie-access-token')
+        return {
+          id: 'user-1',
+          type: 'access',
+          iat: 1_710_000_100
+        }
+      }
+    },
+    '../utils/prisma': {
+      user: {
+        findUnique: async () => ({
+          id: 'user-1',
+          role: 'STUDENT',
+          isActive: true,
+          passwordChangedAt: null,
+          student: null,
+          instructor: null,
+          coordinator: null
+        })
+      }
+    },
+    '../utils/logger': {
+      error: () => {}
+    },
+    '../utils/redis': {
+      getReadyRedisClient: async () => null
+    }
+  })
+
+  const req = {
+    headers: {},
+    cookies: {
+      accessToken: 'cookie-access-token'
+    }
+  }
+  const res = createResponse()
+  let nextCalled = false
+
+  await protect(req, res, () => {
+    nextCalled = true
+  })
+
+  assert.equal(res.statusCode, 200)
+  assert.equal(nextCalled, true)
+  assert.equal(req.accessToken, 'cookie-access-token')
+  assert.equal(req.user.id, 'user-1')
+})
+
+test('protect prefers explicit bearer tokens over the access cookie', async () => {
+  const { protect } = loadWithMocks(resolveFromTest('src', 'middleware', 'auth.middleware.js'), {
+    'jsonwebtoken': {
+      verify: (token) => {
+        assert.equal(token, 'bearer-access-token')
+        return {
+          id: 'user-1',
+          type: 'access',
+          iat: 1_710_000_100
+        }
+      }
+    },
+    '../utils/prisma': {
+      user: {
+        findUnique: async () => ({
+          id: 'user-1',
+          role: 'STUDENT',
+          isActive: true,
+          passwordChangedAt: null,
+          student: null,
+          instructor: null,
+          coordinator: null
+        })
+      }
+    },
+    '../utils/logger': {
+      error: () => {}
+    },
+    '../utils/redis': {
+      getReadyRedisClient: async () => null
+    }
+  })
+
+  const req = {
+    headers: {
+      authorization: 'Bearer bearer-access-token'
+    },
+    cookies: {
+      accessToken: 'cookie-access-token'
+    }
+  }
+  const res = createResponse()
+  let nextCalled = false
+
+  await protect(req, res, () => {
+    nextCalled = true
+  })
+
+  assert.equal(res.statusCode, 200)
+  assert.equal(nextCalled, true)
+  assert.equal(req.accessToken, 'bearer-access-token')
+})
+
 test('protect rejects access tokens issued in the same second as passwordChangedAt', async () => {
   const { protect } = loadWithMocks(resolveFromTest('src', 'middleware', 'auth.middleware.js'), {
     'jsonwebtoken': {
