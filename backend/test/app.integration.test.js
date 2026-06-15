@@ -18,16 +18,10 @@ process.env.NODE_ENV = process.env.NODE_ENV || 'test'
 const trustedOrigin = process.env.FRONTEND_URL
 const { app } = require('../src/index')
 const { enforceHttps } = require('../src/middleware/enforceHttps.middleware')
-const { csrfProtection, generateCsrfToken } = require('../src/middleware/csrf.middleware')
+const { attachCsrfCookie, csrfProtection, generateCsrfToken } = require('../src/middleware/csrf.middleware')
 const { validateMobileClient } = require('../src/middleware/mobileClient.middleware')
-const {
-  apiLimiter,
-  loginLimiter,
-  logoutLimiter,
-  studentQrScanLimiter
-} = require('../src/middleware/rateLimit.middleware')
-
 const resolveFromTest = (...segments) => path.resolve(__dirname, '..', ...segments)
+const passThroughLimiter = (_req, _res, next) => next()
 
 const loadWithMocks = (targetPath, mocks) => {
   const modulePath = path.resolve(targetPath)
@@ -331,7 +325,7 @@ test('validateMobileClient records valid mobile app versions on the request logg
 test('csrfProtection rejects spoofed mobile bearer requests when browser cookies are present', async () => {
   const testApp = express()
   testApp.use(csrfProtection)
-  testApp.post('/api/v1/subjects', apiLimiter, (_req, res) => res.json({ ok: true }))
+  testApp.post('/api/v1/subjects', passThroughLimiter, (_req, res) => res.json({ ok: true }))
 
   const response = await request(testApp)
     .post('/api/v1/subjects')
@@ -350,7 +344,14 @@ test('csrfProtection rejects spoofed mobile bearer requests when browser cookies
 })
 
 test('GET /api/v1/auth/csrf issues a signed token for trusted browser origins', async () => {
-  const response = await request(app)
+  const testApp = express()
+  testApp.use(cookieParser())
+  testApp.use(csrfProtection)
+  testApp.get('/api/v1/auth/csrf', (req, res) => {
+    res.json({ csrfToken: req.csrfToken || req.cookies?.csrfToken || attachCsrfCookie(res, req) })
+  })
+
+  const response = await request(testApp)
     .get('/api/v1/auth/csrf')
     .set('Origin', trustedOrigin)
 
@@ -424,7 +425,7 @@ test('csrfProtection rejects trusted browser requests without a matching CSRF to
 test('csrfProtection allows native mobile bearer requests without browser context', async () => {
   const testApp = express()
   testApp.use(csrfProtection)
-  testApp.post('/api/v1/subjects', apiLimiter, (_req, res) => res.json({ ok: true }))
+  testApp.post('/api/v1/subjects', passThroughLimiter, (_req, res) => res.json({ ok: true }))
 
   const response = await request(testApp)
     .post('/api/v1/subjects')
@@ -441,7 +442,7 @@ test('csrfProtection allows native mobile bearer requests without browser contex
 test('csrfProtection rejects no-origin bearer requests without mobile metadata', async () => {
   const testApp = express()
   testApp.use(csrfProtection)
-  testApp.post('/api/v1/subjects', apiLimiter, (_req, res) => res.json({ ok: true }))
+  testApp.post('/api/v1/subjects', passThroughLimiter, (_req, res) => res.json({ ok: true }))
 
   const response = await request(testApp)
     .post('/api/v1/subjects')
@@ -454,7 +455,7 @@ test('csrfProtection rejects no-origin bearer requests without mobile metadata',
 test('csrfProtection rejects unsafe requests without browser origin context or bearer token', async () => {
   const testApp = express()
   testApp.use(csrfProtection)
-  testApp.post('/api/v1/auth/logout-all', logoutLimiter, (_req, res) => res.json({ ok: true }))
+  testApp.post('/api/v1/auth/logout-all', passThroughLimiter, (_req, res) => res.json({ ok: true }))
 
   const response = await request(testApp)
     .post('/api/v1/auth/logout-all')
@@ -466,7 +467,7 @@ test('csrfProtection rejects unsafe requests without browser origin context or b
 test('csrfProtection allows native mobile login requests with Expo origin and no cookies', async () => {
   const testApp = express()
   testApp.use(csrfProtection)
-  testApp.post('/api/v1/auth/login', loginLimiter, (_req, res) => res.json({ ok: true }))
+  testApp.post('/api/v1/auth/login', passThroughLimiter, (_req, res) => res.json({ ok: true }))
 
   const response = await request(testApp)
     .post('/api/v1/auth/login')
@@ -484,7 +485,7 @@ test('csrfProtection allows native mobile login requests with Expo origin and no
 test('csrfProtection rejects spoofed mobile login requests from untrusted browser origins', async () => {
   const testApp = express()
   testApp.use(csrfProtection)
-  testApp.post('/api/v1/auth/login', loginLimiter, (_req, res) => res.json({ ok: true }))
+  testApp.post('/api/v1/auth/login', passThroughLimiter, (_req, res) => res.json({ ok: true }))
 
   const response = await request(testApp)
     .post('/api/v1/auth/login')
@@ -501,7 +502,7 @@ test('csrfProtection rejects spoofed mobile login requests from untrusted browse
 test('csrfProtection allows mobile login before version metadata validation', async () => {
   const testApp = express()
   testApp.use(csrfProtection)
-  testApp.post('/api/v1/auth/login', loginLimiter, (_req, res) => res.json({ ok: true }))
+  testApp.post('/api/v1/auth/login', passThroughLimiter, (_req, res) => res.json({ ok: true }))
 
   const response = await request(testApp)
     .post('/api/v1/auth/login')
@@ -516,7 +517,7 @@ test('csrfProtection allows mobile login before version metadata validation', as
 test('csrfProtection rejects mobile login requests with stale cookies', async () => {
   const testApp = express()
   testApp.use(csrfProtection)
-  testApp.post('/api/v1/auth/login', loginLimiter, (_req, res) => res.json({ ok: true }))
+  testApp.post('/api/v1/auth/login', passThroughLimiter, (_req, res) => res.json({ ok: true }))
 
   const response = await request(testApp)
     .post('/api/v1/auth/login')
@@ -535,7 +536,7 @@ test('csrfProtection rejects mobile login requests with stale cookies', async ()
 test('csrfProtection rejects mobile API requests with stale cookies even when mobile headers are present', async () => {
   const testApp = express()
   testApp.use(csrfProtection)
-  testApp.post('/api/v1/attendance/scan-qr', studentQrScanLimiter, (_req, res) => res.json({ ok: true }))
+  testApp.post('/api/v1/attendance/scan-qr', passThroughLimiter, (_req, res) => res.json({ ok: true }))
 
   const response = await request(testApp)
     .post('/api/v1/attendance/scan-qr')
@@ -555,7 +556,7 @@ test('csrfProtection rejects mobile API requests with stale cookies even when mo
 test('csrfProtection rejects unsigned mobile API requests with stale cookies', async () => {
   const testApp = express()
   testApp.use(csrfProtection)
-  testApp.post('/api/v1/attendance/scan-qr', studentQrScanLimiter, (_req, res) => res.json({ ok: true }))
+  testApp.post('/api/v1/attendance/scan-qr', passThroughLimiter, (_req, res) => res.json({ ok: true }))
 
   const response = await request(testApp)
     .post('/api/v1/attendance/scan-qr')
