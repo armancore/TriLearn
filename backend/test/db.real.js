@@ -18,6 +18,7 @@ process.env.QR_SIGNING_SECRET = process.env.QR_SIGNING_SECRET || 'test-qr-secret
 process.env.LOGIN_CAPTCHA_SECRET = process.env.LOGIN_CAPTCHA_SECRET || 'test-login-captcha-secret'.repeat(2)
 process.env.FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173'
 process.env.NODE_ENV = process.env.NODE_ENV || 'test'
+process.env.DISABLE_RATE_LIMITS = 'true'
 
 const trustedOrigin = process.env.FRONTEND_URL
 const { app } = require('../src/index')
