@@ -59,7 +59,8 @@
   "overrides": {
     "@hono/node-server": "1.19.13",
     "hono": "4.12.21",
-    "uuid": "14.0.0"
+    "uuid": "14.0.0",
+    "ws": "8.21.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
