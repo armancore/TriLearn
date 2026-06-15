@@ -42,7 +42,7 @@
     "isomorphic-dompurify": "^3.8.0",
     "jsonwebtoken": "^9.0.3",
     "multer": "^2.0.2",
-    "nodemailer": "^8.0.4",
+    "nodemailer": "^9.0.0",
     "pdf-lib": "^1.17.1",
     "pdfkit": "^0.18.0",
     "pg": "^8.20.0",
@@ -59,6 +59,7 @@
   "overrides": {
     "@hono/node-server": "1.19.13",
     "hono": "4.12.21",
+    "js-yaml": "4.2.0",
     "uuid": "14.0.0",
     "ws": "8.21.0"
   },
