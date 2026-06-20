@@ -99,7 +99,17 @@ const registerUploadedFile = async (req) => {
     }
   })
 }
+const getUploadedFileName = (fileUrl) => {
+  const rawValue = String(fileUrl || '').trim()
+  if (!rawValue) return ''
 
+  try {
+    const parsedUrl = new URL(rawValue, 'http://local.upload')
+    return path.basename(decodeURIComponent(parsedUrl.pathname))
+  } catch {
+    return path.basename(rawValue)
+  }
+}
 const lookupPdfObject = (pdfDoc, object) => {
   if (!object || !pdfDoc?.context?.lookup) {
     return object
@@ -574,19 +584,20 @@ const removeUploadedFile = async (fileUrl) => {
   if (!fileUrl) return
 
   try {
-    const fileName = path.basename(String(fileUrl))
+    const fileName = getUploadedFileName(fileUrl)
     if (!fileName) return
 
-    const resolvedPath = path.resolve(path.join(uploadPath, fileName))
-    const resolvedUploadDir = path.resolve(uploadPath)
-
-    // Prevent path traversal: ensure the resolved path is within the upload directory.
-    if (!resolvedPath.startsWith(resolvedUploadDir + path.sep) && resolvedPath !== resolvedUploadDir) {
-      logger.error('removeUploadedFile: path traversal attempt blocked', { fileUrl, resolvedPath, resolvedUploadDir })
-      return
+    if (typeof deleteFile === 'function') {
+      await deleteFile(fileName)
+    } else {
+      await fs.promises.unlink(path.resolve(path.join(uploadPath, fileName))).catch(() => {})
     }
 
-    await fs.promises.unlink(resolvedPath).catch(() => {})
+    if (prisma.uploadedFile?.deleteMany) {
+      await prisma.uploadedFile.deleteMany({
+        where: { fileName }
+      })
+    }
   } catch (error) {
     logger.error(error.message, { stack: error.stack })
   }
@@ -602,3 +613,4 @@ module.exports = {
   validateUploadedSpreadsheet,
   removeUploadedFile
 }
+
