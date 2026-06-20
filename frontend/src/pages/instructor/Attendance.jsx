@@ -41,7 +41,7 @@ const Attendance = () => {
   const Layout = isCoordinator ? CoordinatorLayout : InstructorLayout
   const [subjects, setSubjects] = useState([])
   const [selectedSubject, setSelectedSubject] = useState(searchParams.get('subject') || '')
-  const [selectedDate, setSelectedDate] = useState(getToday())
+  const [selectedDate, setSelectedDate] = useState(searchParams.get('date') || getToday())
   const [selectedMonth, setSelectedMonth] = useState(getCurrentMonth())
   const [selectedSemester, setSelectedSemester] = useState(searchParams.get('semester') || (isCoordinator ? '1' : ''))
   const [selectedSection, setSelectedSection] = useState(searchParams.get('section') || '')

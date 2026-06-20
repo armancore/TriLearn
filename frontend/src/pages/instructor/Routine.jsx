@@ -5,7 +5,7 @@ import useRoutines from '../../hooks/useRoutines'
 const InstructorRoutine = () => {
   const { routines, loading, error } = useRoutines({ roleLabel: 'instructor' })
 
-  return <RoutineView Layout={InstructorLayout} breadcrumbs={['Instructor', 'Routine']} loading={loading} error={error} routines={routines} />
+  return <RoutineView Layout={InstructorLayout} breadcrumbs={['Instructor', 'Routine']} loading={loading} error={error} routines={routines} attendancePath="/instructor/attendance" />
 }
 
 export default InstructorRoutine
