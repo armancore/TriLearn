@@ -2,7 +2,7 @@ const jwt = require('jsonwebtoken')
 const prisma = require('../utils/prisma')
 const logger = require('../utils/logger')
 const { getInstructorDepartments } = require('../utils/instructorDepartments')
-const { getReadyRedisClient } = require('../utils/redis')
+const { getReadyRedisClient, isRedisConfigured } = require('../utils/redis')
 const { cacheRevokedJti, isRevokedJtiCached } = require('../utils/accessTokenRevocation')
 const { REVOKED_JTI_PREFIX } = require('../constants/auth')
 const { ACCESS_TOKEN_COOKIE_NAME } = require('../utils/token')
@@ -95,7 +95,14 @@ const protect = async (req, res, next) => {
         return res.status(401).json({ message: 'Token has been revoked' })
       }
 
+      // Fail-closed: if Redis is configured (revocation feature is enabled) but
+      // unreachable we must not silently skip the check — a revoked token would
+      // stay valid for up to the 15-min access-token TTL.  Consistent with the
+      // rate-limiter and QR-replay guard which also fail closed.
       const redis = await getReadyRedisClient({ context: 'access token revocation check' })
+      if (!redis && isRedisConfigured()) {
+        return res.status(503).json({ message: 'Service temporarily unavailable. Please try again shortly.' })
+      }
       if (redis && await redis.exists(`${REVOKED_JTI_PREFIX}${decoded.jti}`)) {
         cacheRevokedJti(decoded.jti)
         return res.status(401).json({ message: 'Token has been revoked' })
@@ -141,9 +148,12 @@ const protect = async (req, res, next) => {
 
 const allowRoles = (...roles) => {
   return (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({ message: 'Authentication required' })
+    }
     if (!roles.includes(req.user.role)) {
-      return res.status(403).json({ 
-        message: `Access denied. Only ${roles.join(', ')} can do this.` 
+      return res.status(403).json({
+        message: `Access denied. Only ${roles.join(', ')} can do this.`
       })
     }
     next()

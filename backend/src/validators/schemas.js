@@ -160,6 +160,9 @@ const devicePlatformEnum = z.enum(['IOS', 'ANDROID'])
 
 const strongPasswordSchema = z.string()
   .min(8, 'Password must be at least 8 characters')
+  // bcrypt silently truncates input at 72 bytes — reject before hashing to avoid
+  // two different passwords producing the same hash.
+  .refine((value) => Buffer.byteLength(value, 'utf8') <= 72, 'Password must not exceed 72 bytes')
   .regex(/[A-Z]/, 'Password must contain an uppercase letter')
   .regex(/[a-z]/, 'Password must contain a lowercase letter')
   .regex(/[0-9]/, 'Password must contain a number')

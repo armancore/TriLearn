@@ -92,6 +92,8 @@ const Dashboard = () => {
     departmentBreakdown: [{ name: 'Students', value: 0 }],
     marksDistribution: marksDistributionFallback
   })
+  // Tracks which charts are still showing placeholder data (no real endpoint yet)
+  const [sampleData, setSampleData] = useState({ attendanceTrend: true, marksDistribution: true })
   const [recentUsers, setRecentUsers] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -118,14 +120,16 @@ const Dashboard = () => {
         totalInstructors: nextStats.totalInstructors || 0,
         totalSubjects: nextStats.totalSubjects || 0,
       })
+      const realAttendanceTrend = normalizeChartArray(nextStats.attendanceTrend || nextStats.monthlyAttendanceTrend)
+      const realMarksDistribution = normalizeChartArray(nextStats.marksDistribution || nextStats.gradeDistribution)
       setChartData({
-        attendanceTrend: normalizeChartArray(nextStats.attendanceTrend || nextStats.monthlyAttendanceTrend).length > 0
-          ? normalizeChartArray(nextStats.attendanceTrend || nextStats.monthlyAttendanceTrend)
-          : attendanceTrendFallback,
+        attendanceTrend: realAttendanceTrend.length > 0 ? realAttendanceTrend : attendanceTrendFallback,
         departmentBreakdown: normalizeDepartmentBreakdown(nextStats),
-        marksDistribution: normalizeChartArray(nextStats.marksDistribution || nextStats.gradeDistribution).length > 0
-          ? normalizeChartArray(nextStats.marksDistribution || nextStats.gradeDistribution)
-          : marksDistributionFallback
+        marksDistribution: realMarksDistribution.length > 0 ? realMarksDistribution : marksDistributionFallback
+      })
+      setSampleData({
+        attendanceTrend: realAttendanceTrend.length === 0,
+        marksDistribution: realMarksDistribution.length === 0
       })
 
       setRecentUsers(users)
@@ -171,7 +175,12 @@ const Dashboard = () => {
 
         <div className="mb-8 grid grid-cols-1 gap-6 xl:grid-cols-3">
           <div className="ui-card min-w-0 rounded-2xl p-6">
-            <h2 className="ui-heading-tight mb-4 text-lg font-semibold text-[var(--color-text)]">Monthly attendance trend</h2>
+            <div className="mb-4 flex items-center gap-2">
+              <h2 className="ui-heading-tight text-lg font-semibold text-[var(--color-text)]">Monthly attendance trend</h2>
+              {sampleData.attendanceTrend && (
+                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-900/40 dark:text-amber-400">Sample data</span>
+              )}
+            </div>
             <div className="h-[260px] w-full min-w-0">
               <ResponsiveContainer width="100%" height={CHART_HEIGHT} minWidth={0}>
                 <BarChart data={chartData.attendanceTrend}>
@@ -210,7 +219,12 @@ const Dashboard = () => {
           </div>
 
           <div className="ui-card min-w-0 rounded-2xl p-6">
-            <h2 className="ui-heading-tight mb-4 text-lg font-semibold text-[var(--color-text)]">Marks distribution</h2>
+            <div className="mb-4 flex items-center gap-2">
+              <h2 className="ui-heading-tight text-lg font-semibold text-[var(--color-text)]">Marks distribution</h2>
+              {sampleData.marksDistribution && (
+                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-900/40 dark:text-amber-400">Sample data</span>
+              )}
+            </div>
             <div className="h-[260px] w-full min-w-0">
               <ResponsiveContainer width="100%" height={CHART_HEIGHT} minWidth={0}>
                 <BarChart data={chartData.marksDistribution}>

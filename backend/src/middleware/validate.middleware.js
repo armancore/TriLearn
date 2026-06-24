@@ -7,7 +7,12 @@ const validate = (schema) => (req, res, next) => {
     }
 
     if (schema.query) {
-      req.query = schema.query.parse(req.query)
+
+
+
+      // Express 5: req.query is a getter-only property; writing to it is a silent no-op.
+      // Store parsed/coerced result in req.validatedQuery so transforms and defaults reach controllers.
+      req.validatedQuery = schema.query.parse(req.query)
     }
 
     if (schema.params) {

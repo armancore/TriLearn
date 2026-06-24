@@ -4,7 +4,7 @@ const { createServiceResponder } = require('./serviceResult')
 const buildServiceContext = (request) => ({
   body: request.body || {},
   params: request.params || {},
-  query: request.query || {},
+  query: request.validatedQuery ?? request.query ?? {},
   user: request.user || null,
   student: request.student || null,
   instructor: request.instructor || null,

@@ -427,7 +427,7 @@ const Subjects = () => {
                     max="8"
                     required
                     value={form.semester}
-                    onChange={(e) => setForm({ ...form, semester: parseInt(e.target.value) })}
+                    onChange={(e) => setForm({ ...form, semester: Number.parseInt(e.target.value, 10) })}
                     className="ui-form-input"
                   />
                 </div>

@@ -226,7 +226,7 @@ const getAllSubjects = async (context, result = createServiceResponder()) => {
   const { page, limit, skip } = getPagination(context.query)
 
   const filters = {}
-  if (semester) filters.semester = parseInt(semester)
+  if (semester) filters.semester = Number.parseInt(semester, 10)
   if (department) filters.department = department
   if (search) {
     filters.OR = [
