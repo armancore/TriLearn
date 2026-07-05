@@ -113,7 +113,7 @@ const SOURCES = [
     entityType: 'STUDY_MATERIAL',
     label: 'StudyMaterial.fileUrl',
     page: (cursor) => prisma.studyMaterial.findMany({
-      where: { fileUrl: { not: null } },
+      where: { fileUrl: { not: '' } },
       select: { id: true, fileUrl: true, instructor: { select: { userId: true } } },
       orderBy: { id: 'asc' },
       take: PAGE_SIZE,
