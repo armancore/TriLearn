@@ -221,6 +221,17 @@ const staffUploadLimiter = createLimiter({
   message: 'Too many staff upload attempts, please try again later'
 })
 
+// Tighter, per-actor limiter for the upload-serving route. A miss there fans out
+// into several DB lookups across the legacy file columns, so cap how fast a single
+// authenticated user can probe random file names.
+const fileServeLimiter = createLimiter({
+  prefixSuffix: 'file-serve',
+  windowMs: 5 * 60 * 1000,
+  max: 120,
+  message: 'Too many file requests, please try again shortly',
+  keyGenerator: actorRateLimitKey
+})
+
 const studentQrScanLimiter = createLimiter({
   prefixSuffix: 'student-qr-scan',
   windowMs: 5 * 60 * 1000,
@@ -259,6 +270,7 @@ module.exports = {
   uploadLimiter,
   studentUploadLimiter,
   staffUploadLimiter,
+  fileServeLimiter,
   studentQrScanLimiter,
   dailyQrScanLimiter,
   staffStudentIdScanLimiter

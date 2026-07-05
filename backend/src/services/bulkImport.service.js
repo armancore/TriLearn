@@ -27,6 +27,10 @@ const {
 const { normalizeDepartmentList } = require('../utils/instructorDepartments')
 
 const MAX_STUDENT_SEMESTER = 8
+// Hard ceiling on rows parsed from an uploaded workbook. xlsx is zip-compressed,
+// so a small file can decompress into millions of rows (decompression bomb);
+// reject oversized sheets before materialising them into memory.
+const MAX_IMPORT_ROWS = 5000
 const WELCOME_EMAIL_SEND_DELAY_MS = 1200
 const WELCOME_EMAIL_RATE_LIMIT_RETRY_DELAY_MS = 2500
 const WELCOME_EMAIL_MAX_ATTEMPTS = 3
@@ -103,12 +107,22 @@ const buildStudentImportRowsFromTable = (headerValues = [], dataRows = []) => {
   }, [])
 }
 
+const assertImportRowCountWithinLimit = (rowCount) => {
+  if (Number(rowCount) > MAX_IMPORT_ROWS + 1) {
+    throw new Error(`The uploaded file has too many rows. Split the import into files of at most ${MAX_IMPORT_ROWS} students.`)
+  }
+}
+
 const buildStudentImportRowsFromExcelWorksheet = (worksheet) => {
+  // rowCount includes the header row, hence the +1 allowance in the guard.
+  assertImportRowCountWithinLimit(worksheet.actualRowCount ?? worksheet.rowCount)
+
   const headerRow = worksheet.getRow(1)
   const headerValues = Array.from({ length: headerRow.cellCount }, (_, index) => headerRow.getCell(index + 1).text)
   const dataRows = []
+  const lastRowNumber = Math.min(worksheet.rowCount, MAX_IMPORT_ROWS + 1)
 
-  for (let rowNumber = 2; rowNumber <= worksheet.rowCount; rowNumber += 1) {
+  for (let rowNumber = 2; rowNumber <= lastRowNumber; rowNumber += 1) {
     const row = worksheet.getRow(rowNumber)
     dataRows.push(Array.from({ length: headerRow.cellCount }, (_, index) => row.getCell(index + 1).text))
   }
@@ -122,6 +136,8 @@ const loadStudentImportRowsWithFallbackXlsxReader = async (filePath) => {
   if (table.length === 0) {
     throw new Error('The uploaded file does not contain any worksheet data')
   }
+
+  assertImportRowCountWithinLimit(table.length)
 
   return buildStudentImportRowsFromTable(table[0] || [], table.slice(1))
 }

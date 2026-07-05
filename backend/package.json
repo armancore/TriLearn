@@ -7,6 +7,7 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate:dev": "prisma migrate dev",
     "prisma:migrate:deploy": "prisma migrate deploy",
+    "backfill:uploaded-files": "node scripts/backfillUploadedFiles.js",
     "postinstall": "prisma generate",
     "lint": "eslint .",
     "lint:staged": "eslint --fix",
@@ -15,6 +16,7 @@
     "test:db": "node --test test/db.real.js",
     "typecheck": "tsc --noEmit",
     "start": "node src/index.js",
+    "start:deploy": "npm run prisma:migrate:deploy && npm run backfill:uploaded-files && npm start",
     "dev": "nodemon src/index.js"
   },
   "keywords": [],

@@ -5,7 +5,7 @@
 - Set `NODE_ENV=production`
 - Provide a production `DATABASE_URL`
 - Generate real backend secrets with [backend/scripts/gen-env.sh](backend/scripts/gen-env.sh), then replace any local connection strings with production values
-- Run `npm run prisma:migrate:deploy` before starting the app
+- Run `npm run prisma:migrate:deploy` and `npm run backfill:uploaded-files` before starting the app
 - Expose `GET /health` for container and platform health checks, and set `HEALTHCHECK_KEY` for public load balancers
 - Configure `SENTRY_DSN` or an equivalent external error alerting service
 - Configure `FRONTEND_URL` with the exact deployed frontend origin
@@ -20,10 +20,16 @@ Use the following commands:
 
 ```bash
 npm run prisma:migrate:deploy
+npm run backfill:uploaded-files
 npm run prisma:generate
 ```
 
 Do not use `prisma migrate dev` in production.
+
+The backfill is idempotent and should be kept in the deploy/start path until all
+environments have materialised legacy file references into `UploadedFile`.
+Without it, files that predate `UploadedFile` tracking can return 404 from the
+upload-serving route.
 
 ## Connection pooling
 

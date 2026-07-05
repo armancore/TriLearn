@@ -175,11 +175,19 @@ test('serveUploadedFile route enforces uploaded file authorization matrix', asyn
 
   assert.equal(adminResponse.status, 200)
 
-  const fallbackResponse = await request(buildTestApp(
+  const entityResponse = await request(buildTestApp(
     { id: 'student-user-1', role: 'STUDENT', student: { id: 'student-1' } },
     {
+      uploadedFile: {
+        findUnique: async () => ({
+          id: 'file-1',
+          uploadedById: 'instructor-user-1',
+          entityType: 'ASSIGNMENT',
+          entityId: 'assignment-1'
+        })
+      },
       assignment: {
-        findFirst: async () => ({
+        findUnique: async () => ({
           id: 'assignment-1',
           subjectId: 'subject-1',
           instructorId: 'instructor-1'
@@ -191,8 +199,8 @@ test('serveUploadedFile route enforces uploaded file authorization matrix', asyn
     }
   )).get('/api/v1/uploads/assignment.pdf')
 
-  assert.equal(fallbackResponse.status, 200)
-  assert.equal(fallbackResponse.body.contentType, 'application/pdf')
+  assert.equal(entityResponse.status, 200)
+  assert.equal(entityResponse.body.contentType, 'application/pdf')
   assert.equal(auditCalls.some((entry) => entry.action === 'UPLOAD_FILE_ACCESS_DENIED'), true)
 })
 

@@ -109,8 +109,13 @@ test('serveUploadedFile denies access to another user avatar', async () => {
   const auditCalls = []
   const { serveUploadedFile } = loadWithMocks(resolveFromTest('src', 'controllers', 'upload.controller.js'), {
     '../utils/prisma': {
-      user: {
-        findFirst: async () => ({ id: 'avatar-owner-1' })
+      uploadedFile: {
+        findUnique: async () => ({
+          id: 'file-1',
+          uploadedById: 'avatar-owner-1',
+          entityType: 'USER_AVATAR',
+          entityId: 'avatar-owner-1'
+        })
       }
     },
     '../utils/fileStorage': {
@@ -147,8 +152,13 @@ test('serveUploadedFile denies instructor access to another user avatar', async 
   const auditCalls = []
   const { serveUploadedFile } = loadWithMocks(resolveFromTest('src', 'controllers', 'upload.controller.js'), {
     '../utils/prisma': {
-      user: {
-        findFirst: async () => ({ id: 'avatar-owner-1' })
+      uploadedFile: {
+        findUnique: async () => ({
+          id: 'file-1',
+          uploadedById: 'avatar-owner-1',
+          entityType: 'USER_AVATAR',
+          entityId: 'avatar-owner-1'
+        })
       }
     },
     '../utils/fileStorage': {
@@ -1282,21 +1292,13 @@ test('uploadPdf rejects files unless the MIME type is application/pdf', async ()
 test('serveUploadedFile serves assignment PDFs with hardened headers', async () => {
   const { serveUploadedFile } = loadWithMocks(resolveFromTest('src', 'controllers', 'upload.controller.js'), {
     '../utils/prisma': {
-      user: {
-        findFirst: async () => null
-      },
-      assignment: {
-        findFirst: async () => ({
-          id: 'assignment-1',
-          subjectId: 'subject-1',
-          instructorId: 'instructor-1'
+      uploadedFile: {
+        findUnique: async () => ({
+          id: 'file-1',
+          uploadedById: 'instructor-user-1',
+          entityType: 'ASSIGNMENT',
+          entityId: 'assignment-1'
         })
-      },
-      submission: {
-        findFirst: async () => null
-      },
-      studyMaterial: {
-        findFirst: async () => null
       }
     },
     '../utils/fileStorage': {
@@ -1331,17 +1333,13 @@ test('serveUploadedFile serves assignment PDFs with hardened headers', async () 
 test('serveUploadedFile proxies S3-backed uploads instead of redirecting to storage', async () => {
   const { serveUploadedFile } = loadWithMocks(resolveFromTest('src', 'controllers', 'upload.controller.js'), {
     '../utils/prisma': {
-      user: {
-        findFirst: async () => ({ id: 'avatar-owner-1' })
-      },
-      assignment: {
-        findFirst: async () => null
-      },
-      submission: {
-        findFirst: async () => null
-      },
-      studyMaterial: {
-        findFirst: async () => null
+      uploadedFile: {
+        findUnique: async () => ({
+          id: 'file-1',
+          uploadedById: 'avatar-owner-1',
+          entityType: 'USER_AVATAR',
+          entityId: 'avatar-owner-1'
+        })
       }
     },
     '../utils/fileStorage': {

@@ -57,6 +57,8 @@ model User {
   @@index([deletedAt])
   @@index([emailVerificationToken])
   @@index([passwordResetTokenHash])
+  // Supports the legacy file-serving fallback lookup in upload.service.js.
+  @@index([avatar])
 }
 
 enum Role {
@@ -347,6 +349,8 @@ model Assignment {
   @@index([subjectId])
   @@index([instructorId])
   @@index([dueDate])
+  // Supports the legacy file-serving fallback lookup in upload.service.js.
+  @@index([questionPdfUrl])
 }
 
 model Submission {
@@ -366,6 +370,8 @@ model Submission {
   @@index([assignmentId])
   @@index([studentId])
   @@index([status])
+  // Supports the legacy file-serving fallback lookup in upload.service.js.
+  @@index([fileUrl])
 }
 
 enum SubmissionStatus {
@@ -397,6 +403,8 @@ model Task {
   @@index([subjectId])
   @@index([instructorId])
   @@index([dueDate])
+  // Supports the legacy file-serving fallback lookup in upload.service.js.
+  @@index([questionPdfUrl])
 }
 
 model TaskSubmission {
@@ -416,6 +424,8 @@ model TaskSubmission {
   @@index([taskId])
   @@index([studentId])
   @@index([status])
+  // Supports the legacy file-serving fallback lookup in upload.service.js.
+  @@index([fileUrl])
 }
 
 enum TaskSubmissionStatus {
@@ -477,6 +487,8 @@ model StudyMaterial {
 
   @@index([subjectId])
   @@index([instructorId])
+  // Supports the legacy file-serving fallback lookup in upload.service.js.
+  @@index([fileUrl])
 }
 
 model UploadedFile {

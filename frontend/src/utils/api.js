@@ -377,6 +377,30 @@ const releaseRefreshLock = (owner) => {
   }
 }
 
+const REFRESH_WEB_LOCK_NAME = 'trilearn.auth.refresh'
+
+const supportsWebLocks = () => (
+  typeof navigator !== 'undefined' &&
+  typeof navigator.locks?.request === 'function'
+)
+
+// Run the refresh critical section under an exclusive lock. The Web Locks API
+// gives a genuinely atomic cross-tab lock; the localStorage lock is a best-effort
+// fallback for browsers without it (backend rotation + reuse-detection remains the
+// real safety net if two tabs still race).
+const runWithRefreshLock = async (task) => {
+  if (supportsWebLocks()) {
+    return navigator.locks.request(REFRESH_WEB_LOCK_NAME, task)
+  }
+
+  const refreshLockOwner = await acquireRefreshLock()
+  try {
+    return await task()
+  } finally {
+    releaseRefreshLock(refreshLockOwner)
+  }
+}
+
 const readCookie = (name) => {
   if (typeof document === 'undefined') {
     return null
@@ -503,9 +527,7 @@ export const refreshSession = async () => {
   }
 
   if (!refreshPromise) {
-    refreshPromise = (async () => {
-      const refreshLockOwner = await acquireRefreshLock()
-
+    refreshPromise = runWithRefreshLock(async () => {
       try {
         const refreshConfig = await attachCsrfToken({ method: 'post' })
         const response = await refreshClient.post('/auth/refresh', undefined, refreshConfig)
@@ -520,10 +542,9 @@ export const refreshSession = async () => {
         clearAuthState()
         throw error
       } finally {
-        releaseRefreshLock(refreshLockOwner)
         refreshPromise = null
       }
-    })()
+    })
   }
 
   return refreshPromise

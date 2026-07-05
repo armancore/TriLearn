@@ -13,7 +13,7 @@ if (process.env.NODE_ENV !== 'production') {
 const logger = require('./utils/logger')
 const { initMonitoring, captureException, captureRequestException, flushMonitoring } = require('./utils/monitoring')
 const validateEnv = require('./utils/validateEnv')
-const { apiLimiter } = require('./middleware/rateLimit.middleware')
+const { apiLimiter, fileServeLimiter } = require('./middleware/rateLimit.middleware')
 const { protect } = require('./middleware/auth.middleware')
 const { enforceHttps } = require('./middleware/enforceHttps.middleware')
 const { requestId } = require('./middleware/requestId.middleware')
@@ -151,7 +151,7 @@ app.use((req, res, next) => {
 })
 app.use(csrfProtection)
 uploadPublicPaths.forEach((publicPath) => {
-  app.get(`${publicPath}/:filename`, apiLimiter, protect, serveUploadedFile)
+  app.get(`${publicPath}/:filename`, apiLimiter, protect, fileServeLimiter, serveUploadedFile)
 })
 
 // Routes

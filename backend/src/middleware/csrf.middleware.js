@@ -1,6 +1,7 @@
 const crypto = require('crypto')
 const { URL } = require('url')
 const { hasMobileClientHeaders } = require('./mobileClient.middleware')
+const { getCookieSecurity } = require('../utils/cookieSecurity')
 
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS'])
 const CSRF_COOKIE_NAME = 'csrfToken'
@@ -110,10 +111,10 @@ const generateCsrfToken = () => {
 }
 
 const getCsrfCookieOptions = (req) => {
-  const secure = req?.secure === true || String(req?.headers?.['x-forwarded-proto'] || '')
-    .split(',')[0]
-    .trim()
-    .toLowerCase() === 'https'
+  // Share the derivation used by the access/refresh cookies so the CSRF cookie's
+  // Secure/SameSite attributes never drift from the auth cookies (which would
+  // break cross-site auth on any non-local host).
+  const secure = getCookieSecurity(req)
 
   return {
     httpOnly: false,

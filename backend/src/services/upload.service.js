@@ -5,19 +5,12 @@ const prisma = require('../utils/prisma')
 const {
   uploadPath,
   legacyUploadPaths,
-  uploadPublicPath,
-  uploadPublicPaths,
   getFileBuffer
 } = require('../utils/fileStorage')
 const { getTrustedOrigins } = require('../middleware/csrf.middleware')
 const { recordAuditLog } = require('../utils/audit')
 
-const resolvedUploadPublicPaths = Array.isArray(uploadPublicPaths) && uploadPublicPaths.length > 0
-  ? uploadPublicPaths
-  : [uploadPublicPath || '/api/v1/uploads']
 const UPLOAD_NOT_FOUND_MIN_RESPONSE_MS = 25
-
-const buildRelativeUploadPaths = (fileName) => resolvedUploadPublicPaths.map((publicPath) => `${publicPath}/${fileName}`)
 
 const waitForUploadNegativeResponseFloor = async (startedAt) => {
   const remainingMs = UPLOAD_NOT_FOUND_MIN_RESPONSE_MS - (Date.now() - startedAt)
@@ -66,7 +59,10 @@ const getSafeContentType = (fileName) => {
   return 'application/octet-stream'
 }
 
-const getSafeDownloadFileName = (filePath) => path.basename(filePath).replace(/[^\w\s.-]/g, '_')
+// Excludes \s deliberately: \s matches CR/LF, which must never survive into the
+// Content-Disposition header. Keep the class strict so the helper is safe
+// regardless of how callers build the header value.
+const getSafeDownloadFileName = (filePath) => path.basename(filePath).replace(/[^\w.-]/g, '_')
 
 const resolveUploadFilePath = (basePath, fileName) => {
   const uploadDir = path.resolve(basePath)
@@ -274,7 +270,10 @@ const canAccessUploadedFileRecord = (user, uploadedFile) => {
   }
 
   return uploadedFile.uploadedById === user.id ||
-    uploadedFile.entityId === user.id ||
+    // Only USER_AVATAR records store a user id in entityId. Scope the match to
+    // that entity type so a future entity storing an attacker-influenced id that
+    // collides with a user id cannot become an authorization bypass.
+    (uploadedFile.entityType === 'USER_AVATAR' && uploadedFile.entityId === user.id) ||
     ['ADMIN', 'COORDINATOR'].includes(user.role)
 }
 
@@ -379,9 +378,11 @@ const serveUploadedFile = async (context, result = createServiceResponder()) => 
     return uploadNegativeResponse(result, startedAt, 404, 'File not found')
   }
 
-  const relativePaths = buildRelativeUploadPaths(fileName)
-
   const user = context.user
+  // Every uploaded file is tracked in UploadedFile (created on upload and stamped
+  // with entityType/entityId when attached to its owning entity). Legacy files
+  // are backfilled by scripts/backfillUploadedFiles.js, so a single indexed
+  // lookup replaces the former per-column fallback scans.
   const uploadedFile = prisma.uploadedFile?.findUnique
     ? await prisma.uploadedFile.findUnique({
         where: { fileName },
@@ -395,132 +396,16 @@ const serveUploadedFile = async (context, result = createServiceResponder()) => 
       })
     : null
 
-  if (uploadedFile) {
-    if (!(await canAccessUploadedFileEntity(user, uploadedFile))) {
-      await logUploadAccessDenied(context, fileName, uploadedFile.entityType || 'UPLOAD')
-      return uploadNegativeResponse(result, startedAt, 403, 'Access denied')
-    }
-
-    return sendUploadFile(result, fileName)
+  if (!uploadedFile) {
+    return uploadNegativeResponse(result, startedAt, 404, 'File not found')
   }
 
-  const avatar = await prisma.user.findFirst({
-    where: { avatar: { in: relativePaths } },
-    select: { id: true }
-  })
-
-  if (avatar) {
-    if (!user || (user.id !== avatar.id && !['ADMIN', 'COORDINATOR'].includes(user.role))) {
-      await logUploadAccessDenied(context, fileName, 'AVATAR')
-      return uploadNegativeResponse(result, startedAt, 403, 'Access denied')
-    }
-
-    return sendUploadFile(result, fileName)
+  if (!(await canAccessUploadedFileEntity(user, uploadedFile))) {
+    await logUploadAccessDenied(context, fileName, uploadedFile.entityType || 'UPLOAD')
+    return uploadNegativeResponse(result, startedAt, 403, 'Access denied')
   }
 
-  const assignment = await prisma.assignment.findFirst({
-    where: { questionPdfUrl: { in: relativePaths } },
-    select: {
-      id: true,
-      subjectId: true,
-      instructorId: true
-    }
-  })
-
-  if (assignment) {
-    if (!(await canAccessAssignmentFile(user, assignment))) {
-      await logUploadAccessDenied(context, fileName, 'ASSIGNMENT')
-      return uploadNegativeResponse(result, startedAt, 403, 'Access denied')
-    }
-
-    return sendUploadFile(result, fileName)
-  }
-
-  const submission = await prisma.submission.findFirst({
-    where: { fileUrl: { in: relativePaths } },
-    select: {
-      id: true,
-      studentId: true,
-      assignment: {
-        select: {
-          instructorId: true
-        }
-      }
-    }
-  })
-
-  if (submission) {
-    if (!(await canAccessSubmissionFile(user, submission))) {
-      await logUploadAccessDenied(context, fileName, 'SUBMISSION')
-      return uploadNegativeResponse(result, startedAt, 403, 'Access denied')
-    }
-
-    return sendUploadFile(result, fileName)
-  }
-
-  const task = prisma.task?.findFirst
-    ? await prisma.task.findFirst({
-        where: { questionPdfUrl: { in: relativePaths } },
-        select: {
-          id: true,
-          subjectId: true,
-          instructorId: true
-        }
-      })
-    : null
-
-  if (task) {
-    if (!(await canAccessTaskFile(user, task))) {
-      await logUploadAccessDenied(context, fileName, 'TASK')
-      return uploadNegativeResponse(result, startedAt, 403, 'Access denied')
-    }
-
-    return sendUploadFile(result, fileName)
-  }
-
-  const taskSubmission = prisma.taskSubmission?.findFirst
-    ? await prisma.taskSubmission.findFirst({
-        where: { fileUrl: { in: relativePaths } },
-        select: {
-          id: true,
-          studentId: true,
-          task: {
-            select: {
-              instructorId: true
-            }
-          }
-        }
-      })
-    : null
-
-  if (taskSubmission) {
-    if (!(await canAccessTaskSubmissionFile(user, taskSubmission))) {
-      await logUploadAccessDenied(context, fileName, 'TASK_SUBMISSION')
-      return uploadNegativeResponse(result, startedAt, 403, 'Access denied')
-    }
-
-    return sendUploadFile(result, fileName)
-  }
-
-  const material = await prisma.studyMaterial.findFirst({
-    where: { fileUrl: { in: relativePaths } },
-    select: {
-      id: true,
-      subjectId: true,
-      instructorId: true
-    }
-  })
-
-  if (material) {
-    if (!(await canAccessMaterialFile(user, material))) {
-      await logUploadAccessDenied(context, fileName, 'MATERIAL')
-      return uploadNegativeResponse(result, startedAt, 403, 'Access denied')
-    }
-
-    return sendUploadFile(result, fileName)
-  }
-
-  return uploadNegativeResponse(result, startedAt, 404, 'File not found')
+  return sendUploadFile(result, fileName)
 }
 
 module.exports = {

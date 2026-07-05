@@ -1,6 +1,6 @@
 const crypto = require('crypto')
 const jwt = require('jsonwebtoken')
-const { isPrivateIpv4, isPrivateIpv6 } = require('./network')
+const { getCookieSecurity } = require('./cookieSecurity')
 
 const ACCESS_TOKEN_EXPIRES_IN = process.env.ACCESS_TOKEN_EXPIRES_IN || '15m'
 const ACCESS_TOKEN_COOKIE_NAME = 'accessToken'
@@ -58,29 +58,8 @@ const getRefreshTokenExpiry = (from = new Date()) => {
   return expiresAt
 }
 
-const getRequestHost = (req) => String(req?.hostname || req?.headers?.host || '')
-  .split(':')[0]
-  .trim()
-  .toLowerCase()
-
-const isLocalHost = (host) => (
-  host === 'localhost' ||
-  host.endsWith('.local') ||
-  isPrivateIpv4(host) ||
-  isPrivateIpv6(host)
-)
-
-const isSecureRequest = (req) => {
-  const forwardedProto = String(req?.headers?.['x-forwarded-proto'] || '')
-    .split(',')[0]
-    .trim()
-    .toLowerCase()
-
-  return req?.secure === true || forwardedProto === 'https'
-}
-
 const getRefreshCookieOptions = (req, expiresAt = getRefreshTokenExpiry()) => {
-  const secure = isSecureRequest(req) || !isLocalHost(getRequestHost(req))
+  const secure = getCookieSecurity(req)
 
   return {
     httpOnly: true,
@@ -107,7 +86,7 @@ const getAccessCookieExpiry = (token, fallbackFrom = new Date()) => {
 }
 
 const getAccessCookieOptions = (req, token = null) => {
-  const secure = isSecureRequest(req) || !isLocalHost(getRequestHost(req))
+  const secure = getCookieSecurity(req)
 
   return {
     httpOnly: true,
@@ -125,6 +104,7 @@ module.exports = {
   verifyRefreshToken,
   hashToken,
   getRefreshTokenExpiry,
+  getCookieSecurity,
   getRefreshCookieOptions,
   getAccessCookieOptions
 }

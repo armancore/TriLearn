@@ -113,6 +113,7 @@ const authControllerMocks = (overrides = {}) => ({
     verifyRefreshToken: () => ({ id: 'user-1' }),
     hashToken: () => 'hash',
     getRefreshTokenExpiry: () => new Date(),
+    getCookieSecurity: () => false,
     getRefreshCookieOptions: () => ({}),
     getAccessCookieOptions: () => ({}),
     ACCESS_TOKEN_COOKIE_NAME: 'accessToken'
@@ -1343,6 +1344,7 @@ test('logout does not run token revocation when no refresh token is provided', a
       verifyRefreshToken: () => ({ id: 'user-1' }),
       hashToken: (value) => `hash:${value}`,
       getRefreshTokenExpiry: () => new Date(),
+      getCookieSecurity: () => false,
       getRefreshCookieOptions: () => ({}),
       getAccessCookieOptions: () => ({}),
       ACCESS_TOKEN_COOKIE_NAME: 'accessToken'
@@ -1677,6 +1679,7 @@ test('refresh revokes all active sessions when a rotated refresh token is replay
       verifyRefreshToken: () => ({ id: 'user-1', role: 'STUDENT' }),
       hashToken: () => 'replayed-hash',
       getRefreshTokenExpiry: () => new Date(),
+      getCookieSecurity: () => false,
       getRefreshCookieOptions: () => ({ path: '/api/v1/auth', httpOnly: true }),
       getAccessCookieOptions: () => ({ path: '/api/v1', httpOnly: true }),
       ACCESS_TOKEN_COOKIE_NAME: 'accessToken'
@@ -1795,6 +1798,7 @@ test('refreshMobile rotates only the body refresh token and does not set a cooki
       },
       hashToken: (token) => `hash:${token}`,
       getRefreshTokenExpiry: () => new Date('2099-05-31T09:00:00.000Z'),
+      getCookieSecurity: () => false,
       getRefreshCookieOptions: () => ({ path: '/api/v1/auth', httpOnly: true })
     }
   }))
@@ -3140,6 +3144,7 @@ test('soft-deleted user cannot refresh with the prior session token', async () =
       verifyRefreshToken: () => ({ id: 'student-2' }),
       hashToken,
       getRefreshTokenExpiry: () => new Date(Date.now() + 86_400_000),
+      getCookieSecurity: () => false,
       getRefreshCookieOptions: () => ({}),
       getAccessCookieOptions: () => ({}),
       ACCESS_TOKEN_COOKIE_NAME: 'accessToken'
@@ -6124,6 +6129,7 @@ test('getActivity marks the current session by id without selecting tokenHash in
       verifyRefreshToken: () => ({ id: 'user-1' }),
       hashToken: () => 'current-hash',
       getRefreshTokenExpiry: () => new Date(),
+      getCookieSecurity: () => false,
       getRefreshCookieOptions: () => ({}),
       getAccessCookieOptions: () => ({}),
       ACCESS_TOKEN_COOKIE_NAME: 'accessToken'
@@ -6377,3 +6383,4 @@ test('addMarks sanitizes remarks before storing them', async () => {
   assert.equal(createCalls[0].data.gradePoint, 3.6)
   assert.equal(res.body.mark.remarks, 'Great work')
 })
+
