@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { RefreshCw } from 'lucide-react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router'
 import InstructorLayout from '../../layouts/InstructorLayout'
 import CoordinatorLayout from '../../layouts/CoordinatorLayout'
 import Alert from '../../components/Alert'

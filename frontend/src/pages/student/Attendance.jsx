@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { AlertCircle, Camera, FileText, Square, Upload } from 'lucide-react'
-import { Link, useLocation } from 'react-router-dom'
+import { Link, useLocation } from 'react-router'
 import StudentLayout from '../../layouts/StudentLayout'
 import api from '../../utils/api'
 import Alert from '../../components/Alert'

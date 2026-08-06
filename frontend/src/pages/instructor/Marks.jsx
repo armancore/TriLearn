@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Plus, UploadCloud } from 'lucide-react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router'
 import AdminLayout from '../../layouts/AdminLayout'
 import InstructorLayout from '../../layouts/InstructorLayout'
 import CoordinatorLayout from '../../layouts/CoordinatorLayout'

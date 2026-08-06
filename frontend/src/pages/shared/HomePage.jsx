@@ -12,7 +12,7 @@ import {
   TimerReset,
   Users2
 } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { Link } from 'react-router'
 import BrandLogo from '../../components/BrandLogo'
 import SiteFooter from '../../components/SiteFooter'
 

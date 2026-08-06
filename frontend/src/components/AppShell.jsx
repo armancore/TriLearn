@@ -1,6 +1,6 @@
 import { Bell, CheckCheck, LogOut, Menu, Moon, PanelLeftClose, PanelLeftOpen, SunMedium, X } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router'
 import api from '../utils/api'
 import { useTheme } from '../context/ThemeContext'
 import { useToast } from './Toast'

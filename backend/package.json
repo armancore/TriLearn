@@ -53,16 +53,21 @@
     "rate-limit-redis": "^4.3.1",
     "read-excel-file": "^9.0.9",
     "redis": "^5.12.1",
-    "sharp": "^0.34.5",
+    "sharp": "^0.35.3",
     "socket.io": "^4.8.3",
     "winston": "^3.19.0",
     "zod": "^4.3.6"
   },
   "overrides": {
-    "@hono/node-server": "1.19.13",
-    "hono": "4.12.26",
-    "js-yaml": "4.2.0",
+    "@hono/node-server": "2.1.0",
+    "fast-uri": "3.1.5",
+    "hono": "4.13.0",
+    "ip-address": "10.4.0",
+    "js-yaml": "4.3.1",
+    "socket.io-parser": "4.2.7",
+    "undici": "7.29.0",
     "uuid": "14.0.0",
+    "valibot": "1.4.2",
     "ws": "8.21.0"
   },
   "devDependencies": {

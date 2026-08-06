@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom'
+import { Link } from 'react-router'
 import { ArrowUpCircle, PencilLine, Power, Search, Trash2, UserPlus } from 'lucide-react'
 import { ROLES } from '../../constants/roles'
 import { useAuth } from '../../context/AuthContext'

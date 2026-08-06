@@ -1,5 +1,5 @@
 import { Fragment, useCallback, useEffect, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router'
 import { Trash2 } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { ROLES } from '../../constants/roles'

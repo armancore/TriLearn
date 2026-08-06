@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Plus } from 'lucide-react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router'
 import Alert from '../../components/Alert'
 import PageHeader from '../../components/PageHeader'
 import AdminLayout from '../../layouts/AdminLayout'

@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom'
+import { Link } from 'react-router'
 
 const buttonVariants = {
   primary: 'cursor-pointer border border-transparent bg-[var(--color-role-accent)] text-white shadow-sm dark:shadow-slate-900/50 hover:brightness-95',

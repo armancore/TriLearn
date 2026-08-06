@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { BookOpenText, ClipboardList, Files, GraduationCap, Percent, Users } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { Link } from 'react-router'
 import InstructorLayout from '../../layouts/InstructorLayout'
 import PageHeader from '../../components/PageHeader'
 import EmptyState from '../../components/EmptyState'

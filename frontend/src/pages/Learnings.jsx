@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router'
 import { motion } from 'framer-motion'
 import { ArrowUpRight, BookOpenText, CalendarClock, CheckCircle2, FileText, Hash, Sparkles } from 'lucide-react'
 import StudentLayout from '../layouts/StudentLayout'

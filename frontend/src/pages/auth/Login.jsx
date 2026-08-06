@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { ArrowRight, Building2, Eye, EyeOff, KeyRound, ShieldCheck } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router'
 import Alert from '../../components/Alert'
 import AuthSplitLayout from '../../components/AuthSplitLayout'
 import { useAuth } from '../../context/AuthContext'

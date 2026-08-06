@@ -1,6 +1,6 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import { GraduationCap, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { Link } from 'react-router'
 
 const Sidebar = ({
   items,

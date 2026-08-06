@@ -10,7 +10,7 @@ import {
   SunMedium
 } from 'lucide-react'
 import { useState } from 'react'
-import { Link, useLocation } from 'react-router-dom'
+import { Link, useLocation } from 'react-router'
 import useProtectedObjectUrl from '../hooks/useProtectedObjectUrl'
 
 const topItems = [

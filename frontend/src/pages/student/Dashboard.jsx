@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ArrowRight, BellRing, BookOpenText, CalendarDays, ClipboardList, Percent } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { Link } from 'react-router'
 import StudentLayout from '../../layouts/StudentLayout'
 import Alert from '../../components/Alert'
 import LoadingSkeleton from '../../components/LoadingSkeleton'

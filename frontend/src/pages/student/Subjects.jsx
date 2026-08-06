@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Link } from 'react-router-dom'
+import { Link } from 'react-router'
 import { BookOpenText, ClipboardList, Files, GraduationCap } from 'lucide-react'
 import StudentLayout from '../../layouts/StudentLayout'
 import PageHeader from '../../components/PageHeader'

@@ -7,7 +7,7 @@ import api from '../../utils/api'
 import { getHomeRouteForUser } from '../../utils/auth'
 import { getFriendlyErrorMessage } from '../../utils/errors'
 import useForm from '../../hooks/useForm'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router'
 
 const ProfileSetup = () => {
   const navigate = useNavigate()

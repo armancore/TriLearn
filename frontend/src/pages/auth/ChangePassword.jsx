@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { ArrowRight, KeyRound, LockKeyhole, ShieldCheck } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router'
 import Alert from '../../components/Alert'
 import AuthSplitLayout from '../../components/AuthSplitLayout'
 import FormInput from '../../components/common/FormInput'

@@ -11,7 +11,7 @@ import {
   TimerReset,
   Users
 } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { Link } from 'react-router'
 import CoordinatorLayout from '../../layouts/CoordinatorLayout'
 import PageHeader from '../../components/PageHeader'
 import LoadingSkeleton from '../../components/LoadingSkeleton'

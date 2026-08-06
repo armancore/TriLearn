@@ -1,5 +1,5 @@
 import { ArrowLeft, Compass, Home, SearchX } from 'lucide-react'
-import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router'
 import SiteFooter from '../../components/SiteFooter'
 import { useAuth } from '../../context/AuthContext'
 import { getHomeRouteForUser } from '../../utils/auth'
