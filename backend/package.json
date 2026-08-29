@@ -60,6 +60,7 @@
   },
   "overrides": {
     "@hono/node-server": "2.1.0",
+    "deepmerge-ts": "8.0.0",
     "fast-uri": "3.1.5",
     "hono": "4.13.0",
     "ip-address": "10.4.0",
