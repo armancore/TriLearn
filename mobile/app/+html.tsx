@@ -27,12 +27,14 @@ export default function Root({ children }: { children: React.ReactNode }) {
   );
 }
 
+// Matches the `background` token in src/theme/tokens.ts so the web shell never
+// flashes a colour the app itself does not use.
 const responsiveBackground = `
 body {
-  background-color: #fff;
+  background-color: #F5F8F7;
 }
 @media (prefers-color-scheme: dark) {
   body {
-    background-color: #000;
+    background-color: #0A1412;
   }
 }`;

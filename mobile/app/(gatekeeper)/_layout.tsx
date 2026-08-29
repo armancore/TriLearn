@@ -1,34 +1,21 @@
-import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
 
-import { COLORS } from '@/src/constants/colors';
+import { useTabScreenOptions, type TabIconResolver } from '@/src/components/ui/TabBarOptions';
 
-type GatekeeperTabIconName = 'home-outline' | 'home' | 'person-outline' | 'person';
+const getGatekeeperTabIcon: TabIconResolver = (routeName, focused) => {
+  if (routeName === 'scanner') return focused ? 'scan-circle' : 'scan-circle-outline';
+  if (routeName === 'profile') return focused ? 'person-circle' : 'person-circle-outline';
 
-const getGatekeeperTabIcon = (routeName: string, focused: boolean): GatekeeperTabIconName => {
-  if (routeName === 'profile') {
-    return focused ? 'person' : 'person-outline';
-  }
-
-  return focused ? 'home' : 'home-outline';
+  return focused ? 'qr-code' : 'qr-code-outline';
 };
 
 export default function GatekeeperTabsLayout() {
+  const screenOptions = useTabScreenOptions(getGatekeeperTabIcon);
+
   return (
-    <Tabs
-      screenOptions={({ route }) => ({
-        headerTintColor: '#FFFFFF',
-        headerStyle: { backgroundColor: COLORS.primary },
-        headerTitleStyle: { fontWeight: '700' },
-        tabBarActiveTintColor: COLORS.primary,
-        tabBarInactiveTintColor: COLORS.muted,
-        tabBarIcon: ({ color, focused, size }) => (
-          <Ionicons color={color} name={getGatekeeperTabIcon(route.name, focused)} size={size} />
-        ),
-      })}
-    >
+    <Tabs screenOptions={screenOptions}>
       <Tabs.Screen name="dashboard" options={{ title: 'Gate QR' }} />
-      <Tabs.Screen name="scanner" options={{ href: null }} />
+      <Tabs.Screen name="scanner" options={{ title: 'Scanner' }} />
       <Tabs.Screen name="profile" options={{ title: 'Profile' }} />
     </Tabs>
   );

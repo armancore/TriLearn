@@ -1,46 +1,58 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useNetInfo } from '@react-native-community/netinfo';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { FlatList, Modal, Pressable, RefreshControl, Text, TextInput, View } from 'react-native';
+import { FlatList, RefreshControl, TextInput, View } from 'react-native';
 
-import { COLORS } from '@/src/constants/colors';
+import {
+  Badge,
+  Button,
+  Card,
+  EmptyState,
+  ErrorState,
+  InlineNotice,
+  SCREEN_GUTTER,
+  Screen,
+  Select,
+  SkeletonList,
+  Text,
+} from '@/src/components/ui';
+import { announce } from '@/src/hooks/useA11y';
 import { useToast } from '@/src/hooks/useToast';
 import { api } from '@/src/services/api';
-import type { BulkMarksPayload, EnrolledStudent, SubjectMarksResponse, SubjectStudentsResponse } from '@/src/types/instructorOps';
+import { useTheme } from '@/src/theme/ThemeProvider';
+import { MAX_FONT_SCALE, MIN_TOUCH_TARGET, radius } from '@/src/theme/tokens';
+import type {
+  BulkMarksPayload,
+  EnrolledStudent,
+  SubjectMarksResponse,
+  SubjectStudentsResponse,
+} from '@/src/types/instructorOps';
 import type { ExamType } from '@/src/types/marks';
 import type { Subject, SubjectsResponse } from '@/src/types/subject';
 
-const examTypes: ExamType[] = ['INTERNAL', 'MIDTERM', 'FINAL', 'PREBOARD', 'PRACTICAL'];
+const EXAM_TYPES: ExamType[] = ['INTERNAL', 'MIDTERM', 'FINAL', 'PREBOARD', 'PRACTICAL'];
+
+const titleCase = (value: string) => value.charAt(0) + value.slice(1).toLowerCase();
 
 const getSubjects = async (): Promise<Subject[]> => {
   const response = await api.get<Subject[] | SubjectsResponse>('/subjects');
   return Array.isArray(response.data) ? response.data : response.data.subjects;
 };
 
-const MarkSkeleton = () => (
-  <View className="rounded-2xl bg-white p-5">
-    <View className="h-5 w-2/3 rounded-full bg-slate-200" />
-    <View className="mt-3 h-10 rounded-xl bg-slate-100" />
-  </View>
-);
-
 export default function InstructorMarksScreen() {
-  const [selectedSubject, setSelectedSubject] = useState<Subject | null>(null);
-  const [examType, setExamType] = useState<ExamType>('INTERNAL');
-  const [totalMarks, setTotalMarks] = useState('100');
-  const [marksByStudent, setMarksByStudent] = useState<Record<string, string>>({});
-  const [subjectPickerOpen, setSubjectPickerOpen] = useState(false);
-  const [examPickerOpen, setExamPickerOpen] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
-  const [validationError, setValidationError] = useState('');
+  const { colors } = useTheme();
   const toast = useToast();
   const { isConnected } = useNetInfo();
   const isOffline = isConnected === false;
 
-  const subjectsQuery = useQuery({
-    queryKey: ['subjects', 'instructor'],
-    queryFn: getSubjects,
-  });
+  const [selectedSubject, setSelectedSubject] = useState<Subject | null>(null);
+  const [examType, setExamType] = useState<ExamType>('INTERNAL');
+  const [totalMarks, setTotalMarks] = useState('100');
+  const [marksByStudent, setMarksByStudent] = useState<Record<string, string>>({});
+  const [refreshing, setRefreshing] = useState(false);
+  const [validationError, setValidationError] = useState('');
+
+  const subjectsQuery = useQuery({ queryKey: ['subjects', 'instructor'], queryFn: getSubjects });
 
   useEffect(() => {
     if (!selectedSubject && subjectsQuery.data?.[0]) {
@@ -50,21 +62,19 @@ export default function InstructorMarksScreen() {
 
   const studentsQuery = useQuery({
     queryKey: ['marks', 'subject', selectedSubject?.id, 'students'],
-    queryFn: async () => {
-      const response = await api.get<SubjectStudentsResponse>(`/marks/subject/${selectedSubject?.id}/students`);
-      return response.data;
-    },
+    queryFn: async () =>
+      (await api.get<SubjectStudentsResponse>(`/marks/subject/${selectedSubject?.id}/students`)).data,
     enabled: Boolean(selectedSubject),
   });
 
   const marksQuery = useQuery({
     queryKey: ['marks', 'subject', selectedSubject?.id, examType],
-    queryFn: async () => {
-      const response = await api.get<SubjectMarksResponse>(
-        `/marks/subject/${selectedSubject?.id}?examType=${examType}&page=1&limit=100`,
-      );
-      return response.data;
-    },
+    queryFn: async () =>
+      (
+        await api.get<SubjectMarksResponse>(
+          `/marks/subject/${selectedSubject?.id}?examType=${examType}&page=1&limit=100`,
+        )
+      ).data,
     enabled: Boolean(selectedSubject),
   });
 
@@ -79,6 +89,7 @@ export default function InstructorMarksScreen() {
       const existing = existingMarksMap.get(student.id);
       nextValues[student.id] = existing ? String(existing.obtainedMarks) : '';
     }
+
     setMarksByStudent(nextValues);
     setValidationError('');
   }, [existingMarksMap, studentsQuery.data?.students]);
@@ -86,20 +97,21 @@ export default function InstructorMarksScreen() {
   const parsedTotalMarks = Number.parseInt(totalMarks, 10);
   const totalMarksValid = !Number.isNaN(parsedTotalMarks) && parsedTotalMarks > 0;
 
-  const validateEntries = () => {
+  const validateEntries = useCallback(() => {
     if (!selectedSubject) return 'Select a subject first.';
     if (!totalMarksValid) return 'Total marks must be a positive number.';
 
     for (const student of studentsQuery.data?.students ?? []) {
       const rawValue = marksByStudent[student.id];
       if (!rawValue) continue;
+
       const value = Number.parseInt(rawValue, 10);
       if (Number.isNaN(value) || value < 0) return `Enter valid marks for ${student.name}.`;
-      if (value > parsedTotalMarks) return `${student.name} has marks above total marks.`;
+      if (value > parsedTotalMarks) return `${student.name} has marks above the total.`;
     }
 
     return '';
-  };
+  }, [marksByStudent, parsedTotalMarks, selectedSubject, studentsQuery.data?.students, totalMarksValid]);
 
   const saveMutation = useMutation({
     mutationFn: async () => {
@@ -108,7 +120,9 @@ export default function InstructorMarksScreen() {
         throw new Error(error);
       }
 
-      if (!selectedSubject) return;
+      if (!selectedSubject) {
+        return;
+      }
 
       const newEntries: BulkMarksPayload['entries'] = [];
       const updateRequests: Promise<unknown>[] = [];
@@ -121,8 +135,16 @@ export default function InstructorMarksScreen() {
         const existingMark = existingMarksMap.get(student.id);
 
         if (existingMark) {
-          if (existingMark.obtainedMarks !== obtainedMarks || existingMark.totalMarks !== parsedTotalMarks) {
-            updateRequests.push(api.put(`/marks/${existingMark.id}`, { obtainedMarks, remarks: existingMark.remarks ?? '' }));
+          if (
+            existingMark.obtainedMarks !== obtainedMarks ||
+            existingMark.totalMarks !== parsedTotalMarks
+          ) {
+            updateRequests.push(
+              api.put(`/marks/${existingMark.id}`, {
+                obtainedMarks,
+                remarks: existingMark.remarks ?? '',
+              }),
+            );
           }
         } else {
           newEntries.push({ studentId: student.id, obtainedMarks });
@@ -140,9 +162,7 @@ export default function InstructorMarksScreen() {
 
       await Promise.all(updateRequests);
     },
-    onMutate: () => {
-      setValidationError('');
-    },
+    onMutate: () => setValidationError(''),
     onError: (error) => {
       const message = error instanceof Error ? error.message : 'Could not save marks.';
       setValidationError(message);
@@ -151,6 +171,7 @@ export default function InstructorMarksScreen() {
     onSuccess: async () => {
       await marksQuery.refetch();
       toast.success('Marks saved.');
+      announce('Marks saved');
     },
   });
 
@@ -163,170 +184,190 @@ export default function InstructorMarksScreen() {
     }
   }, [marksQuery, studentsQuery, subjectsQuery]);
 
-  const renderStudent = ({ item }: { item: EnrolledStudent }) => {
-    const existingMark = existingMarksMap.get(item.id);
-
-    return (
-      <View className="rounded-2xl bg-white p-5">
-        <View className="flex-row items-start justify-between gap-4">
-          <View className="flex-1">
-            <Text className="text-base font-bold text-slate-900">{item.name}</Text>
-            <Text className="mt-1 text-sm text-slate-500">{item.rollNumber}</Text>
-          </View>
-          {existingMark ? (
-            <View className="rounded-full bg-blue-100 px-3 py-1">
-              <Text className="text-xs font-bold text-blue-700">{existingMark.grade}</Text>
-            </View>
-          ) : null}
-        </View>
-        <TextInput
-          className="mt-4 rounded-xl bg-slate-100 px-4 py-3 text-base font-bold text-slate-900"
-          keyboardType="number-pad"
-          placeholder="Obtained marks"
-          placeholderTextColor="#94A3B8"
-          value={marksByStudent[item.id] ?? ''}
-          onChangeText={(value) => setMarksByStudent((current) => ({ ...current, [item.id]: value.replace(/[^0-9]/g, '') }))}
-        />
-      </View>
-    );
-  };
+  const isLoading = subjectsQuery.isLoading || studentsQuery.isLoading || marksQuery.isLoading;
+  const enteredCount = Object.values(marksByStudent).filter((value) => value.length > 0).length;
 
   if (subjectsQuery.isError) {
     return (
-      <View className="flex-1 items-center justify-center bg-slate-50 p-6">
-        <Text className="text-lg font-bold text-slate-900">Could not load marks</Text>
-        <Text className="mt-2 text-center text-sm text-slate-500">Check your connection and try again.</Text>
-        <Pressable className="mt-5 rounded-xl bg-primary px-5 py-3" onPress={() => void subjectsQuery.refetch()}>
-          <Text className="font-bold text-white">Retry</Text>
-        </Pressable>
-      </View>
+      <Screen header={{ title: 'Marks', showBack: false }}>
+        <ErrorState onRetry={() => void subjectsQuery.refetch()} title="Could not load your subjects" />
+      </Screen>
     );
   }
 
   return (
-    <View className="flex-1 bg-slate-50">
+    <Screen
+      footer={
+        <>
+          <Button
+            accessibilityHint={`Saves marks for ${enteredCount} students`}
+            disabled={isOffline || !totalMarksValid}
+            icon="save-outline"
+            label="Save all marks"
+            loading={saveMutation.isPending}
+            onPress={() => saveMutation.mutate()}
+          />
+          {isOffline ? (
+            <Text center style={{ marginTop: 8 }} tone="warning" variant="caption">
+              Saving is unavailable while offline.
+            </Text>
+          ) : null}
+        </>
+      }
+      header={{ title: 'Marks entry', subtitle: 'Enter an exam’s marks and save the class at once.', showBack: false }}
+      padded={false}
+      scroll={false}
+    >
       <FlatList
-        contentContainerStyle={{ gap: 12, padding: 24, paddingBottom: 112 }}
+        contentContainerStyle={{
+          gap: 10,
+          paddingHorizontal: SCREEN_GUTTER,
+          paddingTop: 8,
+          paddingBottom: 24,
+          flexGrow: 1,
+        }}
         data={studentsQuery.data?.students ?? []}
+        keyboardShouldPersistTaps="handled"
         keyExtractor={(item) => item.id}
         ListEmptyComponent={
-          subjectsQuery.isLoading || studentsQuery.isLoading || marksQuery.isLoading ? (
-            <View className="gap-3">
-              <MarkSkeleton />
-              <MarkSkeleton />
-              <MarkSkeleton />
-            </View>
+          isLoading ? (
+            <SkeletonList count={4} lines={1} />
           ) : (
-            <View className="items-center rounded-2xl bg-white px-5 py-10">
-              <Text className="text-lg font-bold text-slate-900">No enrolled students</Text>
-              <Text className="mt-2 text-center text-sm text-slate-500">Students assigned to this subject will appear here.</Text>
-            </View>
+            <EmptyState
+              description="Students enrolled in this subject will appear here."
+              icon="people-outline"
+              title="No enrolled students"
+            />
           )
         }
         ListHeaderComponent={
-          <View className="mb-2">
-            <Text className="text-2xl font-bold text-primary">Marks Entry</Text>
-            <Text className="mt-2 text-sm text-slate-600">Enter marks for an exam and save the class in one action.</Text>
+          <View style={{ gap: 12, paddingBottom: 6 }}>
+            <Select
+              icon="book-outline"
+              label="Subject"
+              onChange={(id) =>
+                setSelectedSubject(subjectsQuery.data?.find((subject) => subject.id === id) ?? null)
+              }
+              options={(subjectsQuery.data ?? []).map((subject) => ({
+                value: subject.id,
+                label: subject.name,
+                description: `${subject.code} · Semester ${subject.semester}`,
+              }))}
+              placeholder="Select a subject"
+              value={selectedSubject?.id ?? null}
+            />
 
-            <View className="mt-6 gap-3">
-              <Pressable className="rounded-2xl bg-white p-4" onPress={() => setSubjectPickerOpen(true)}>
-                <Text className="text-xs font-medium text-slate-500">Subject</Text>
-                <Text className="mt-1 text-base font-bold text-slate-900">
-                  {selectedSubject ? `${selectedSubject.name} (${selectedSubject.code})` : 'Select subject'}
-                </Text>
-              </Pressable>
-
-              <View className="flex-row gap-3">
-                <Pressable className="flex-1 rounded-2xl bg-white p-4" onPress={() => setExamPickerOpen(true)}>
-                  <Text className="text-xs font-medium text-slate-500">Exam type</Text>
-                  <Text className="mt-1 text-base font-bold text-slate-900">{examType}</Text>
-                </Pressable>
-                <View className="w-32 rounded-2xl bg-white p-4">
-                  <Text className="text-xs font-medium text-slate-500">Total</Text>
-                  <TextInput
-                    className="mt-1 text-base font-bold text-slate-900"
-                    keyboardType="number-pad"
-                    value={totalMarks}
-                    onChangeText={(value) => setTotalMarks(value.replace(/[^0-9]/g, ''))}
-                  />
-                </View>
+            <View style={{ flexDirection: 'row', gap: 12 }}>
+              <View style={{ flex: 1 }}>
+                <Select
+                  icon="school-outline"
+                  label="Exam type"
+                  onChange={setExamType}
+                  options={EXAM_TYPES.map((type) => ({ value: type, label: titleCase(type) }))}
+                  value={examType}
+                />
               </View>
 
-              {validationError ? (
-                <View className="rounded-2xl bg-red-50 p-4">
-                  <Text className="text-sm font-bold text-red-700">{validationError}</Text>
-                </View>
-              ) : null}
+              <View
+                style={{
+                  width: 116,
+                  justifyContent: 'center',
+                  paddingHorizontal: 14,
+                  paddingVertical: 12,
+                  borderRadius: radius.md,
+                  borderWidth: 1,
+                  borderColor: totalMarksValid ? colors.border : colors.danger,
+                  backgroundColor: colors.surface,
+                }}
+              >
+                <Text tone="subtle" uppercase variant="label">
+                  Total
+                </Text>
+                <TextInput
+                  accessibilityLabel="Total marks for this exam"
+                  keyboardType="number-pad"
+                  maxFontSizeMultiplier={MAX_FONT_SCALE}
+                  onChangeText={(value) => setTotalMarks(value.replace(/[^0-9]/g, ''))}
+                  style={{ marginTop: 2, fontSize: 15, fontWeight: '600', color: colors.text, paddingVertical: 4 }}
+                  value={totalMarks}
+                />
+              </View>
             </View>
+
+            {validationError ? (
+              <InlineNotice title={validationError} tone="danger" />
+            ) : (
+              <Text tone="subtle" variant="caption">
+                {enteredCount} of {studentsQuery.data?.students.length ?? 0} students have marks entered.
+              </Text>
+            )}
           </View>
         }
         refreshControl={
           <RefreshControl
-            colors={[COLORS.primary]}
-            refreshing={refreshing}
-            tintColor={COLORS.primary}
+            colors={[colors.primaryText]}
             onRefresh={onRefresh}
+            progressBackgroundColor={colors.surface}
+            refreshing={refreshing}
+            tintColor={colors.primaryText}
           />
         }
-        renderItem={renderStudent}
-      />
+        renderItem={({ item }: { item: EnrolledStudent }) => {
+          const existingMark = existingMarksMap.get(item.id);
+          const value = marksByStudent[item.id] ?? '';
+          const numericValue = Number.parseInt(value, 10);
+          const isOverTotal = !Number.isNaN(numericValue) && totalMarksValid && numericValue > parsedTotalMarks;
 
-      <View className="absolute bottom-0 left-0 right-0 border-t border-slate-200 bg-white p-4">
-        <Pressable
-          className={`rounded-xl px-5 py-4 ${isOffline ? 'bg-slate-300' : 'bg-primary'}`}
-          disabled={saveMutation.isPending || isOffline}
-          onPress={() => saveMutation.mutate()}
-        >
-          <Text className="text-center font-bold text-white">{saveMutation.isPending ? 'Saving...' : 'Save all'}</Text>
-        </Pressable>
-        {isOffline ? <Text className="mt-2 text-center text-xs font-semibold text-amber-700">Unavailable while offline</Text> : null}
-      </View>
+          return (
+            <Card padding="md">
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                <View style={{ flex: 1 }}>
+                  <Text numberOfLines={1} variant="bodyStrong">
+                    {item.name}
+                  </Text>
+                  <Text style={{ marginTop: 2 }} tone="muted" variant="caption">
+                    {item.rollNumber}
+                  </Text>
+                </View>
 
-      <Modal animationType="slide" transparent visible={subjectPickerOpen} onRequestClose={() => setSubjectPickerOpen(false)}>
-        <Pressable className="flex-1 justify-end bg-black/40" onPress={() => setSubjectPickerOpen(false)}>
-          <Pressable className="max-h-[75%] rounded-t-3xl bg-white p-6" onPress={(event) => event.stopPropagation()}>
-            <View className="h-1 w-12 self-center rounded-full bg-slate-200" />
-            <Text className="mt-6 text-xl font-bold text-slate-900">Select subject</Text>
-            <FlatList
-              data={subjectsQuery.data ?? []}
-              keyExtractor={(item) => item.id}
-              renderItem={({ item }) => (
-                <Pressable
-                  className="border-b border-slate-100 py-4"
-                  onPress={() => {
-                    setSelectedSubject(item);
-                    setSubjectPickerOpen(false);
+                {existingMark ? <Badge label={existingMark.grade} tone="info" /> : null}
+
+                <View
+                  style={{
+                    width: 92,
+                    height: MIN_TOUCH_TARGET,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    paddingHorizontal: 10,
+                    borderRadius: radius.md,
+                    borderWidth: isOverTotal ? 2 : 1,
+                    borderColor: isOverTotal ? colors.danger : colors.border,
+                    backgroundColor: colors.surfaceMuted,
                   }}
                 >
-                  <Text className="text-base font-bold text-slate-900">{item.name}</Text>
-                  <Text className="mt-1 text-sm text-slate-500">{item.code}</Text>
-                </Pressable>
-              )}
-            />
-          </Pressable>
-        </Pressable>
-      </Modal>
-
-      <Modal animationType="slide" transparent visible={examPickerOpen} onRequestClose={() => setExamPickerOpen(false)}>
-        <Pressable className="flex-1 justify-end bg-black/40" onPress={() => setExamPickerOpen(false)}>
-          <Pressable className="rounded-t-3xl bg-white p-6" onPress={(event) => event.stopPropagation()}>
-            <View className="h-1 w-12 self-center rounded-full bg-slate-200" />
-            <Text className="mt-6 text-xl font-bold text-slate-900">Exam type</Text>
-            {examTypes.map((type) => (
-              <Pressable
-                className="border-b border-slate-100 py-4"
-                key={type}
-                onPress={() => {
-                  setExamType(type);
-                  setExamPickerOpen(false);
-                }}
-              >
-                <Text className={`text-base font-bold ${examType === type ? 'text-primary' : 'text-slate-900'}`}>{type}</Text>
-              </Pressable>
-            ))}
-          </Pressable>
-        </Pressable>
-      </Modal>
-    </View>
+                  <TextInput
+                    accessibilityHint={`Out of ${totalMarks} marks`}
+                    accessibilityLabel={`Marks for ${item.name}`}
+                    keyboardType="number-pad"
+                    maxFontSizeMultiplier={MAX_FONT_SCALE}
+                    onChangeText={(next) =>
+                      setMarksByStudent((current) => ({ ...current, [item.id]: next.replace(/[^0-9]/g, '') }))
+                    }
+                    placeholder="—"
+                    placeholderTextColor={colors.textSubtle}
+                    style={{ flex: 1, fontSize: 15, fontWeight: '700', color: colors.text, textAlign: 'right' }}
+                    value={value}
+                  />
+                  <Text style={{ marginLeft: 4 }} tone="subtle" variant="caption">
+                    /{totalMarks || '—'}
+                  </Text>
+                </View>
+              </View>
+            </Card>
+          );
+        }}
+        showsVerticalScrollIndicator={false}
+      />
+    </Screen>
   );
 }

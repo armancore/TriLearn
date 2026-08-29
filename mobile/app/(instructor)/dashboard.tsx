@@ -1,10 +1,26 @@
 import { useQuery } from '@tanstack/react-query';
-import { useCallback, useMemo, useState } from 'react';
-import { Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
+import { router } from 'expo-router';
+import { useCallback, useMemo } from 'react';
+import { View } from 'react-native';
 
-import { COLORS } from '@/src/constants/colors';
+import {
+  Badge,
+  Button,
+  Card,
+  EmptyState,
+  ErrorState,
+  IconButton,
+  InlineNotice,
+  PressableCard,
+  Screen,
+  Section,
+  SkeletonList,
+  StatTile,
+  Text,
+} from '@/src/components/ui';
 import { useAuth } from '@/src/hooks/useAuth';
 import { api } from '@/src/services/api';
+import { useTheme } from '@/src/theme/ThemeProvider';
 import type { AssignmentsResponse, AssignmentSubmission } from '@/src/types/assignment';
 import type { AttendanceBulkSummaryResponse } from '@/src/types/instructorOps';
 import type { RoutinesResponse } from '@/src/types/routine';
@@ -13,9 +29,7 @@ import type { Subject, SubjectsResponse } from '@/src/types/subject';
 type ReviewSubmission = AssignmentSubmission & {
   student?: {
     rollNumber?: string | null;
-    user?: {
-      name?: string | null;
-    } | null;
+    user?: { name?: string | null } | null;
   } | null;
 };
 
@@ -23,15 +37,13 @@ type AssignmentDetailResponse = {
   assignment: {
     id: string;
     title: string;
-    subject?: {
-      name: string;
-      code: string;
-    } | null;
+    subject?: { name: string; code: string } | null;
     submissions?: ReviewSubmission[];
   };
 };
 
-const dayNames = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'] as const;
+const DAY_NAMES = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'] as const;
+
 const classTypeLabel = (value?: string) => {
   if (value === 'WORKSHOP') return 'Workshop';
   if (value === 'TUTORIAL') return 'Tutorial';
@@ -39,37 +51,18 @@ const classTypeLabel = (value?: string) => {
 };
 
 const getTodayDate = () => new Date().toISOString().slice(0, 10);
-const getTodayDayName = () => dayNames[new Date().getDay()];
+const getTodayDayName = () => DAY_NAMES[new Date().getDay()];
+
+const titleCase = (value: string) => value.charAt(0) + value.slice(1).toLowerCase();
 
 const getSubjects = async (): Promise<Subject[]> => {
   const response = await api.get<Subject[] | SubjectsResponse>('/subjects');
-
   return Array.isArray(response.data) ? response.data : response.data.subjects;
 };
 
-const StatCard = ({ label, value }: { label: string; value: string | number }) => (
-  <View className="flex-1 rounded-2xl bg-white p-4">
-    <Text className="text-xs font-semibold uppercase text-slate-500">{label}</Text>
-    <Text className="mt-2 text-2xl font-bold text-slate-900">{value}</Text>
-  </View>
-);
-
-const SectionHeader = ({ title, subtitle }: { title: string; subtitle?: string }) => (
-  <View className="mb-3 mt-6">
-    <Text className="text-lg font-bold text-slate-900">{title}</Text>
-    {subtitle ? <Text className="mt-1 text-sm text-slate-500">{subtitle}</Text> : null}
-  </View>
-);
-
-const EmptyPanel = ({ text }: { text: string }) => (
-  <View className="rounded-2xl bg-white p-5">
-    <Text className="text-center text-sm font-semibold text-slate-500">{text}</Text>
-  </View>
-);
-
 export default function InstructorDashboardScreen() {
+  const { colors } = useTheme();
   const { user } = useAuth();
-  const [refreshing, setRefreshing] = useState(false);
   const todayDate = getTodayDate();
   const todayDayName = getTodayDayName();
 
@@ -101,9 +94,8 @@ export default function InstructorDashboardScreen() {
       const response = await api.get<AttendanceBulkSummaryResponse>(
         `/attendance/bulk-summary?subjectIds=${encodeURIComponent(subjectIdsKey)}&date=${todayDate}`,
       );
-      const summaries = Object.values(response.data);
 
-      return summaries.reduce(
+      return Object.values(response.data).reduce(
         (total, summary) => ({
           present: total.present + summary.present,
           absent: total.absent + summary.absent,
@@ -116,136 +108,252 @@ export default function InstructorDashboardScreen() {
   });
 
   const reviewQuery = useQuery({
-    queryKey: ['assignments', 'instructor', 'pending-review', assignmentsQuery.data?.assignments.map((assignment) => assignment.id).join(',')],
+    queryKey: [
+      'assignments',
+      'instructor',
+      'pending-review',
+      assignmentsQuery.data?.assignments.map((assignment) => assignment.id).join(','),
+    ],
     enabled: Boolean(assignmentsQuery.data?.assignments.length),
     queryFn: async () => {
       const details = await Promise.all(
-        (assignmentsQuery.data?.assignments ?? []).map(async (assignment) => (
-          await api.get<AssignmentDetailResponse>(`/assignments/${assignment.id}`)
-        ).data),
+        (assignmentsQuery.data?.assignments ?? []).map(
+          async (assignment) => (await api.get<AssignmentDetailResponse>(`/assignments/${assignment.id}`)).data,
+        ),
       );
 
-      return details.flatMap(({ assignment }) => (
+      return details.flatMap(({ assignment }) =>
         (assignment.submissions ?? [])
           .filter((submission) => submission.status === 'SUBMITTED' || submission.status === 'LATE')
-          .map((submission) => ({ ...submission, assignment }))
-      ));
+          .map((submission) => ({ ...submission, assignment })),
+      );
     },
   });
 
   const todayRoutines = useMemo(
-    () => [...(routineQuery.data?.routines ?? [])].sort((left, right) => left.startTime.localeCompare(right.startTime)),
+    () =>
+      [...(routineQuery.data?.routines ?? [])].sort((left, right) =>
+        left.startTime.localeCompare(right.startTime),
+      ),
     [routineQuery.data?.routines],
   );
+
   const attendance = attendanceQuery.data ?? { present: 0, absent: 0, late: 0, total: 0 };
   const pendingReviews = reviewQuery.data ?? [];
 
-  const onRefresh = useCallback(async () => {
-    setRefreshing(true);
-    try {
-      await Promise.all([
+  const onRefresh = useCallback(
+    async () =>
+      Promise.all([
         routineQuery.refetch(),
         subjectsQuery.refetch(),
         assignmentsQuery.refetch(),
         attendanceQuery.refetch(),
         reviewQuery.refetch(),
-      ]);
-    } finally {
-      setRefreshing(false);
-    }
-  }, [assignmentsQuery, attendanceQuery, reviewQuery, routineQuery, subjectsQuery]);
+      ]),
+    [assignmentsQuery, attendanceQuery, reviewQuery, routineQuery, subjectsQuery],
+  );
 
   return (
-    <ScrollView
-      className="flex-1 bg-slate-50"
-      contentContainerStyle={{ padding: 24, paddingBottom: 32 }}
-      refreshControl={<RefreshControl colors={[COLORS.primary]} refreshing={refreshing} tintColor={COLORS.primary} onRefresh={onRefresh} />}
+    <Screen
+      header={{
+        title: 'Home',
+        showBack: false,
+        actions: (
+          <IconButton
+            accessibilityLabel="Announcements and updates"
+            icon="megaphone-outline"
+            onPress={() => router.push('/(instructor)/updates')}
+            variant="soft"
+          />
+        ),
+      }}
+      onRefresh={onRefresh}
     >
-      <View className="rounded-3xl bg-primary p-5">
-        <Text className="text-sm font-semibold text-blue-100">Instructor dashboard</Text>
-        <Text className="mt-2 text-2xl font-bold text-white">{user?.name ?? 'Instructor'}</Text>
-        <Text className="mt-2 text-sm text-blue-100">{todayRoutines.length} class{todayRoutines.length === 1 ? '' : 'es'} scheduled today</Text>
-      </View>
+      <Card padding="lg" style={{ backgroundColor: colors.primary, borderColor: colors.primary }}>
+        <Text style={{ color: 'rgba(255,255,255,0.82)' }} tone="inherit" variant="caption">
+          Instructor dashboard
+        </Text>
+        <Text numberOfLines={1} style={{ color: '#FFFFFF', marginTop: 3 }} tone="inherit" variant="heading">
+          {user?.name ?? 'Instructor'}
+        </Text>
+        <Text style={{ color: 'rgba(255,255,255,0.82)', marginTop: 8 }} tone="inherit" variant="caption">
+          {todayRoutines.length} {todayRoutines.length === 1 ? 'class' : 'classes'} scheduled today ·{' '}
+          {titleCase(todayDayName)}
+        </Text>
 
-      <View className="mt-4 flex-row gap-3">
-        <StatCard label="Present today" value={attendance.present} />
-        <StatCard label="Pending review" value={pendingReviews.length} />
-      </View>
-
-      <View className="mt-3 flex-row gap-3">
-        <StatCard label="Absent today" value={attendance.absent} />
-        <StatCard label="Late today" value={attendance.late} />
-      </View>
-
-      <SectionHeader title="Today's Schedule" subtitle={todayDayName.toLowerCase()} />
-      {routineQuery.isLoading ? (
-        <EmptyPanel text="Loading schedule..." />
-      ) : todayRoutines.length === 0 ? (
-        <EmptyPanel text="No classes scheduled today" />
-      ) : (
-        <View className="gap-3">
-          {todayRoutines.map((routine) => (
-            <View className="rounded-2xl bg-white p-5" key={routine.id}>
-              <View className="flex-row items-start justify-between gap-4">
-                <View className="flex-1">
-                  <Text className="text-base font-bold text-slate-900">{routine.subject?.name ?? 'Subject'}</Text>
-                  <Text className="mt-1 text-sm font-semibold text-primary">{routine.subject?.code ?? 'N/A'}</Text>
-                  <Text className="mt-2 self-start rounded-full bg-blue-50 px-3 py-1 text-xs font-bold uppercase text-primary">
-                    {classTypeLabel(routine.classType)}
-                  </Text>
-                  {routine.note ? <Text className="mt-2 text-xs font-semibold text-amber-700">{routine.note}</Text> : null}
-                </View>
-                <View className="rounded-full bg-slate-100 px-3 py-1">
-                  <Text className="text-xs font-bold text-slate-600">{routine.startTime}-{routine.endTime}</Text>
-                </View>
-              </View>
-              <Text className="mt-3 text-sm text-slate-500">
-                Semester {routine.semester}{routine.section ? `, Section ${routine.section}` : ''}{routine.room ? `, Room ${routine.room}` : ''}
-              </Text>
-            </View>
-          ))}
+        <View style={{ flexDirection: 'row', gap: 10, marginTop: 18 }}>
+          <StatTile icon="checkmark-outline" label="Present" onPrimary value={attendance.present} />
+          <StatTile icon="close-outline" label="Absent" onPrimary value={attendance.absent} />
+          <StatTile icon="time-outline" label="Late" onPrimary value={attendance.late} />
         </View>
-      )}
+      </Card>
 
-      <SectionHeader title="Attendance Snapshot" subtitle="Recorded across assigned subjects today" />
-      {attendanceQuery.isLoading ? (
-        <EmptyPanel text="Loading attendance..." />
-      ) : attendanceQuery.isError ? (
-        <EmptyPanel text="Could not load attendance. Pull to refresh and try again." />
-      ) : attendance.total === 0 ? (
-        <EmptyPanel text="No attendance recorded yet today" />
-      ) : (
-        <View className="rounded-2xl bg-white p-5">
-          <Text className="text-sm font-semibold text-slate-500">Total records</Text>
-          <Text className="mt-2 text-3xl font-bold text-slate-900">{attendance.total}</Text>
-          <View className="mt-4 flex-row justify-between">
-            <Text className="font-bold text-green-700">Present {attendance.present}</Text>
-            <Text className="font-bold text-red-700">Absent {attendance.absent}</Text>
-            <Text className="font-bold text-amber-700">Late {attendance.late}</Text>
+      {pendingReviews.length > 0 ? (
+        <View style={{ marginTop: 14 }}>
+          <InlineNotice
+            description={`${pendingReviews.length} ${pendingReviews.length === 1 ? 'submission is' : 'submissions are'} waiting for a grade.`}
+            title="Submissions to review"
+            tone="info"
+          />
+        </View>
+      ) : null}
+
+      <Section description={titleCase(todayDayName)} title="Today's schedule">
+        {routineQuery.isLoading ? (
+          <SkeletonList count={2} />
+        ) : routineQuery.isError ? (
+          <ErrorState onRetry={() => void routineQuery.refetch()} title="Could not load your schedule" />
+        ) : todayRoutines.length === 0 ? (
+          <EmptyState
+            description="Enjoy the quiet day — nothing is on your timetable."
+            icon="cafe-outline"
+            title="No classes today"
+          />
+        ) : (
+          <View style={{ gap: 12 }}>
+            {todayRoutines.map((routine) => (
+              <Card key={routine.id} padding="lg">
+                <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12 }}>
+                  <View style={{ flex: 1 }}>
+                    <Text numberOfLines={2} variant="subheading">
+                      {routine.subject?.name ?? 'Subject'}
+                    </Text>
+                    <Text style={{ marginTop: 3 }} tone="muted" variant="caption">
+                      {routine.subject?.code ?? 'N/A'}
+                    </Text>
+                  </View>
+                  <Badge label={`${routine.startTime}–${routine.endTime}`} tone="primary" />
+                </View>
+
+                <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
+                  <StatTile label="Type" value={classTypeLabel(routine.classType)} />
+                  <StatTile
+                    label="Group"
+                    value={`Sem ${routine.semester}${routine.section ? ` · ${routine.section}` : ''}`}
+                  />
+                  <StatTile label="Room" value={routine.room || '—'} />
+                </View>
+
+                {routine.note ? (
+                  <View style={{ marginTop: 14 }}>
+                    <InlineNotice title={routine.note} tone="warning" />
+                  </View>
+                ) : null}
+
+                {/*
+                  Taking attendance is the daily job, so it is one tap from the
+                  class rather than a tab plus a subject picker plus a date.
+                */}
+                <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
+                  <View style={{ flex: 1 }}>
+                    <Button
+                      accessibilityHint={`Opens the roster for ${routine.subject?.name ?? 'this class'}`}
+                      accessibilityLabel={`Take attendance for ${routine.subject?.name ?? 'this class'}`}
+                      icon="checkbox-outline"
+                      label="Take attendance"
+                      onPress={() =>
+                        router.push({
+                          pathname: '/(instructor)/attendance',
+                          params: { subjectId: routine.subjectId },
+                        })
+                      }
+                      size="sm"
+                    />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Button
+                      accessibilityHint={`Opens QR generation for ${routine.subject?.name ?? 'this class'}`}
+                      accessibilityLabel={`Show QR for ${routine.subject?.name ?? 'this class'}`}
+                      icon="qr-code-outline"
+                      label="Class QR"
+                      onPress={() =>
+                        router.push({
+                          pathname: '/(instructor)/qr',
+                          params: { subjectId: routine.subjectId },
+                        })
+                      }
+                      size="sm"
+                      variant="secondary"
+                    />
+                  </View>
+                </View>
+              </Card>
+            ))}
           </View>
-        </View>
-      )}
+        )}
+      </Section>
 
-      <SectionHeader title="Pending Submissions" subtitle="Latest ungraded submissions" />
-      {reviewQuery.isLoading ? (
-        <EmptyPanel text="Loading submissions..." />
-      ) : pendingReviews.length === 0 ? (
-        <EmptyPanel text="No submissions waiting for review" />
-      ) : (
-        <View className="gap-3">
-          {pendingReviews.slice(0, 5).map((submission) => (
-            <Pressable className="rounded-2xl bg-white p-5" key={submission.id}>
-              <Text className="text-base font-bold text-slate-900">{submission.assignment.title}</Text>
-              <Text className="mt-1 text-sm font-semibold text-primary">
-                {submission.assignment.subject?.code ?? 'Assignment'}
-              </Text>
-              <Text className="mt-3 text-sm text-slate-500">
-                {submission.student?.user?.name ?? 'Student'} submitted {new Date(submission.submittedAt).toLocaleDateString()}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
-      )}
-    </ScrollView>
+      <Section description="Recorded across your subjects today" title="Attendance snapshot">
+        {attendanceQuery.isLoading ? (
+          <SkeletonList count={1} />
+        ) : attendanceQuery.isError ? (
+          <ErrorState onRetry={() => void attendanceQuery.refetch()} title="Could not load attendance" />
+        ) : attendance.total === 0 ? (
+          <EmptyState
+            description="Take attendance from the Attendance tab to see today's totals."
+            icon="clipboard-outline"
+            title="Nothing recorded yet"
+          />
+        ) : (
+          <Card padding="lg">
+            <Text tone="muted" variant="caption">
+              Total records today
+            </Text>
+            <Text style={{ marginTop: 4 }} variant="display">
+              {attendance.total}
+            </Text>
+
+            <View style={{ flexDirection: 'row', gap: 10, marginTop: 18 }}>
+              <StatTile label="Present" value={attendance.present} valueColor={colors.success} />
+              <StatTile label="Absent" value={attendance.absent} valueColor={colors.danger} />
+              <StatTile label="Late" value={attendance.late} valueColor={colors.warning} />
+            </View>
+          </Card>
+        )}
+      </Section>
+
+      <Section description="Latest ungraded work" title="Pending submissions">
+        {reviewQuery.isLoading ? (
+          <SkeletonList count={2} />
+        ) : pendingReviews.length === 0 ? (
+          <EmptyState
+            description="Everything submitted so far has been graded."
+            icon="checkmark-done-outline"
+            title="Nothing to review"
+          />
+        ) : (
+          <View style={{ gap: 12 }}>
+            {pendingReviews.slice(0, 5).map((submission) => (
+              <PressableCard
+                accessibilityHint="Opens marks entry"
+                accessibilityLabel={`${submission.assignment.title}, submitted by ${submission.student?.user?.name ?? 'a student'}`}
+                key={submission.id}
+                onPress={() => router.push('/(instructor)/marks')}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12 }}>
+                  <View style={{ flex: 1 }}>
+                    <Text numberOfLines={2} variant="subheading">
+                      {submission.assignment.title}
+                    </Text>
+                    <Text style={{ marginTop: 3 }} tone="muted" variant="caption">
+                      {submission.assignment.subject?.code ?? 'Assignment'}
+                    </Text>
+                  </View>
+                  <Badge
+                    label={submission.status}
+                    tone={submission.status === 'LATE' ? 'warning' : 'info'}
+                  />
+                </View>
+                <Text style={{ marginTop: 12 }} tone="subtle" variant="caption">
+                  {submission.student?.user?.name ?? 'Student'}
+                  {submission.student?.rollNumber ? ` · ${submission.student.rollNumber}` : ''} · submitted{' '}
+                  {new Date(submission.submittedAt).toLocaleDateString()}
+                </Text>
+              </PressableCard>
+            ))}
+          </View>
+        )}
+      </Section>
+    </Screen>
   );
 }

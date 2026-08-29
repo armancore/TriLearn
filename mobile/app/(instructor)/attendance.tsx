@@ -1,11 +1,30 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useNetInfo } from '@react-native-community/netinfo';
+import { useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { FlatList, Modal, Pressable, RefreshControl, Text, TextInput, View } from 'react-native';
+import { FlatList, Pressable, RefreshControl, View } from 'react-native';
 
-import { COLORS } from '@/src/constants/colors';
+import {
+  Badge,
+  Button,
+  Card,
+  EmptyState,
+  ErrorState,
+  InlineNotice,
+  Input,
+  ProgressBar,
+  SCREEN_GUTTER,
+  Screen,
+  Select,
+  SkeletonList,
+  Text,
+  type BadgeTone,
+} from '@/src/components/ui';
+import { announce } from '@/src/hooks/useA11y';
 import { useToast } from '@/src/hooks/useToast';
 import { api } from '@/src/services/api';
+import { useTheme } from '@/src/theme/ThemeProvider';
+import { radius } from '@/src/theme/tokens';
 import type {
   AttendanceBySubjectResponse,
   AttendanceStatus,
@@ -17,54 +36,55 @@ import type { Subject, SubjectsResponse } from '@/src/types/subject';
 
 type RosterStatus = AttendanceStatus | 'NOT_MARKED';
 
-const getTodayInputValue = () => new Date().toISOString().slice(0, 10);
+const STATUS_ORDER: AttendanceStatus[] = ['PRESENT', 'ABSENT', 'LATE'];
 
-const statusOrder: AttendanceStatus[] = ['PRESENT', 'ABSENT', 'LATE'];
-
-const statusTone: Record<RosterStatus, { bg: string; text: string; label: string }> = {
-  PRESENT: { bg: '#DCFCE7', text: '#166534', label: 'PRESENT' },
-  ABSENT: { bg: '#FEE2E2', text: '#B91C1C', label: 'ABSENT' },
-  LATE: { bg: '#FEF3C7', text: '#92400E', label: 'LATE' },
-  NOT_MARKED: { bg: '#F1F5F9', text: '#64748B', label: 'Not Marked' },
+const STATUS_STYLE: Record<RosterStatus, { tone: BadgeTone; label: string; icon: 'checkmark-circle' | 'close-circle' | 'time-outline' | 'ellipse-outline' }> = {
+  PRESENT: { tone: 'success', label: 'Present', icon: 'checkmark-circle' },
+  ABSENT: { tone: 'danger', label: 'Absent', icon: 'close-circle' },
+  LATE: { tone: 'warning', label: 'Late', icon: 'time-outline' },
+  NOT_MARKED: { tone: 'neutral', label: 'Not marked', icon: 'ellipse-outline' },
 };
+
+const getTodayInputValue = () => new Date().toISOString().slice(0, 10);
 
 const getSubjects = async (): Promise<Subject[]> => {
   const response = await api.get<Subject[] | SubjectsResponse>('/subjects');
   return Array.isArray(response.data) ? response.data : response.data.subjects;
 };
 
-const nextStatus = (status: RosterStatus): AttendanceStatus => {
-  if (status === 'NOT_MARKED') return 'PRESENT';
-  return statusOrder[(statusOrder.indexOf(status) + 1) % statusOrder.length];
-};
+const nextStatus = (status: RosterStatus): AttendanceStatus =>
+  status === 'NOT_MARKED'
+    ? 'PRESENT'
+    : STATUS_ORDER[(STATUS_ORDER.indexOf(status) + 1) % STATUS_ORDER.length];
 
-const RosterSkeleton = () => (
-  <View className="rounded-2xl bg-white p-5">
-    <View className="h-5 w-2/3 rounded-full bg-slate-200" />
-    <View className="mt-3 h-4 w-1/2 rounded-full bg-slate-100" />
-  </View>
-);
+const isValidDate = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(value));
 
 export default function InstructorAttendanceScreen() {
-  const [selectedSubject, setSelectedSubject] = useState<Subject | null>(null);
-  const [date, setDate] = useState(getTodayInputValue);
-  const [pickerOpen, setPickerOpen] = useState(false);
-  const [changes, setChanges] = useState<Record<string, AttendanceStatus>>({});
-  const [refreshing, setRefreshing] = useState(false);
+  const { colors } = useTheme();
   const toast = useToast();
   const { isConnected } = useNetInfo();
   const isOffline = isConnected === false;
+  const { subjectId } = useLocalSearchParams<{ subjectId?: string }>();
 
-  const subjectsQuery = useQuery({
-    queryKey: ['subjects', 'instructor'],
-    queryFn: getSubjects,
-  });
+  const [selectedSubject, setSelectedSubject] = useState<Subject | null>(null);
+  const [date, setDate] = useState(getTodayInputValue);
+  const [changes, setChanges] = useState<Record<string, AttendanceStatus>>({});
+  const [refreshing, setRefreshing] = useState(false);
 
+  const subjectsQuery = useQuery({ queryKey: ['subjects', 'instructor'], queryFn: getSubjects });
+
+  // A subjectId handed over from the dashboard wins, so "Take attendance" on a
+  // class lands on that roster instead of whichever subject sorts first.
   useEffect(() => {
-    if (!selectedSubject && subjectsQuery.data?.[0]) {
-      setSelectedSubject(subjectsQuery.data[0]);
+    if (selectedSubject || !subjectsQuery.data?.length) {
+      return;
     }
-  }, [selectedSubject, subjectsQuery.data]);
+
+    const requested = typeof subjectId === 'string' ? subjectId : undefined;
+    setSelectedSubject(
+      subjectsQuery.data.find((subject) => subject.id === requested) ?? subjectsQuery.data[0],
+    );
+  }, [selectedSubject, subjectId, subjectsQuery.data]);
 
   useEffect(() => {
     setChanges({});
@@ -72,22 +92,20 @@ export default function InstructorAttendanceScreen() {
 
   const studentsQuery = useQuery({
     queryKey: ['marks', 'subject', selectedSubject?.id, 'students'],
-    queryFn: async () => {
-      const response = await api.get<SubjectStudentsResponse>(`/marks/subject/${selectedSubject?.id}/students`);
-      return response.data;
-    },
+    queryFn: async () =>
+      (await api.get<SubjectStudentsResponse>(`/marks/subject/${selectedSubject?.id}/students`)).data,
     enabled: Boolean(selectedSubject),
   });
 
   const attendanceQuery = useQuery({
     queryKey: ['attendance', 'subject', selectedSubject?.id, date],
-    queryFn: async () => {
-      const response = await api.get<AttendanceBySubjectResponse>(
-        `/attendance/subject/${selectedSubject?.id}?date=${encodeURIComponent(date)}&limit=100`,
-      );
-      return response.data;
-    },
-    enabled: Boolean(selectedSubject),
+    queryFn: async () =>
+      (
+        await api.get<AttendanceBySubjectResponse>(
+          `/attendance/subject/${selectedSubject?.id}?date=${encodeURIComponent(date)}&limit=100`,
+        )
+      ).data,
+    enabled: Boolean(selectedSubject) && isValidDate(date),
   });
 
   const attendanceMap = useMemo(
@@ -97,31 +115,39 @@ export default function InstructorAttendanceScreen() {
 
   const roster = useMemo(
     () =>
-      (studentsQuery.data?.students ?? []).map((student) => {
-        const currentStatus = changes[student.id] ?? attendanceMap.get(student.id) ?? 'NOT_MARKED';
-        return { student, status: currentStatus };
-      }),
+      (studentsQuery.data?.students ?? []).map((student) => ({
+        student,
+        status: (changes[student.id] ?? attendanceMap.get(student.id) ?? 'NOT_MARKED') as RosterStatus,
+      })),
     [attendanceMap, changes, studentsQuery.data?.students],
   );
 
   const presentCount = roster.filter((row) => row.status === 'PRESENT').length;
+  const changeCount = Object.keys(changes).length;
 
   const saveMutation = useMutation({
     mutationFn: async () => {
-      if (!selectedSubject) throw new Error('Select a subject first');
-      const attendanceList = Object.entries(changes).map(([studentId, status]) => ({ studentId, status }));
+      if (!selectedSubject) {
+        throw new Error('Select a subject first.');
+      }
+
       const payload: ManualAttendancePayload = {
         subjectId: selectedSubject.id,
         attendanceDate: date,
-        semester: typeof selectedSubject.semester === 'number' ? selectedSubject.semester : Number(selectedSubject.semester),
-        attendanceList,
+        semester:
+          typeof selectedSubject.semester === 'number'
+            ? selectedSubject.semester
+            : Number(selectedSubject.semester),
+        attendanceList: Object.entries(changes).map(([studentId, status]) => ({ studentId, status })),
       };
+
       await api.post('/attendance/manual', payload);
     },
     onSuccess: async () => {
       setChanges({});
       await attendanceQuery.refetch();
       toast.success('Attendance saved.');
+      announce('Attendance saved');
     },
     onError: (error) => toast.error(error, 'Could not save attendance.'),
   });
@@ -135,136 +161,166 @@ export default function InstructorAttendanceScreen() {
     }
   }, [attendanceQuery, studentsQuery, subjectsQuery]);
 
-  const toggleStudent = (studentId: string, status: RosterStatus) => {
-    setChanges((current) => ({ ...current, [studentId]: nextStatus(status) }));
-  };
-
-  const renderStudent = ({ item }: { item: { student: EnrolledStudent; status: RosterStatus } }) => {
-    const tone = statusTone[item.status];
-    return (
-      <Pressable className="rounded-2xl bg-white p-5 active:opacity-80" onPress={() => toggleStudent(item.student.id, item.status)}>
-        <View className="flex-row items-start justify-between gap-4">
-          <View className="flex-1">
-            <Text className="text-base font-bold text-slate-900">{item.student.name}</Text>
-            <Text className="mt-1 text-sm text-slate-500">{item.student.rollNumber}</Text>
-          </View>
-          <View className="rounded-full px-3 py-1" style={{ backgroundColor: tone.bg }}>
-            <Text className="text-xs font-bold" style={{ color: tone.text }}>
-              {tone.label}
-            </Text>
-          </View>
-        </View>
-      </Pressable>
-    );
-  };
+  const isLoading = subjectsQuery.isLoading || studentsQuery.isLoading || attendanceQuery.isLoading;
 
   if (subjectsQuery.isError) {
     return (
-      <View className="flex-1 items-center justify-center bg-slate-50 p-6">
-        <Text className="text-lg font-bold text-slate-900">Could not load attendance</Text>
-        <Text className="mt-2 text-center text-sm text-slate-500">Check your connection and try again.</Text>
-        <Pressable className="mt-5 rounded-xl bg-primary px-5 py-3" onPress={() => void subjectsQuery.refetch()}>
-          <Text className="font-bold text-white">Retry</Text>
-        </Pressable>
-      </View>
+      <Screen header={{ title: 'Attendance', showBack: false }}>
+        <ErrorState onRetry={() => void subjectsQuery.refetch()} title="Could not load your subjects" />
+      </Screen>
     );
   }
 
   return (
-    <View className="flex-1 bg-slate-50">
+    <Screen
+      footer={
+        <>
+          <Button
+            accessibilityHint={
+              changeCount === 0 ? 'No changes to save yet' : `Saves ${changeCount} attendance changes`
+            }
+            disabled={changeCount === 0 || isOffline}
+            icon="save-outline"
+            label={changeCount === 0 ? 'No changes to save' : `Save ${changeCount} ${changeCount === 1 ? 'change' : 'changes'}`}
+            loading={saveMutation.isPending}
+            onPress={() => saveMutation.mutate()}
+          />
+          {isOffline ? (
+            <Text center style={{ marginTop: 8 }} tone="warning" variant="caption">
+              Saving is unavailable while offline.
+            </Text>
+          ) : null}
+        </>
+      }
+      header={{ title: 'Attendance', subtitle: 'Tap a student to cycle present, absent and late.', showBack: false }}
+      padded={false}
+      scroll={false}
+    >
       <FlatList
-        contentContainerStyle={{ gap: 12, padding: 24, paddingBottom: 112 }}
+        contentContainerStyle={{
+          gap: 10,
+          paddingHorizontal: SCREEN_GUTTER,
+          paddingTop: 8,
+          paddingBottom: 24,
+          flexGrow: 1,
+        }}
         data={roster}
         keyExtractor={(item) => item.student.id}
         ListEmptyComponent={
-          subjectsQuery.isLoading || studentsQuery.isLoading || attendanceQuery.isLoading ? (
-            <View className="gap-3">
-              <RosterSkeleton />
-              <RosterSkeleton />
-              <RosterSkeleton />
-            </View>
+          isLoading ? (
+            <SkeletonList count={4} lines={1} />
           ) : (
-            <View className="items-center rounded-2xl bg-white px-5 py-10">
-              <Text className="text-lg font-bold text-slate-900">No enrolled students</Text>
-              <Text className="mt-2 text-center text-sm text-slate-500">Students assigned to this subject will appear here.</Text>
-            </View>
+            <EmptyState
+              description="Students enrolled in this subject will appear here."
+              icon="people-outline"
+              title="No enrolled students"
+            />
           )
         }
         ListHeaderComponent={
-          <View className="mb-2">
-            <Text className="text-2xl font-bold text-primary">Attendance Roster</Text>
-            <Text className="mt-2 text-sm text-slate-600">Tap rows to cycle Present, Absent, and Late.</Text>
-
-            <View className="mt-6 rounded-2xl bg-primary p-5">
-              <Text className="text-sm font-semibold text-blue-100">Present today</Text>
-              <Text className="mt-2 text-4xl font-bold text-white">
-                {presentCount} / {roster.length}
+          <View style={{ gap: 14, paddingBottom: 6 }}>
+            <Card padding="lg" style={{ backgroundColor: colors.primary, borderColor: colors.primary }}>
+              <Text style={{ color: 'rgba(255,255,255,0.82)' }} tone="inherit" variant="caption">
+                Marked present
               </Text>
-            </View>
-
-            <View className="mt-4 gap-3">
-              <Pressable className="rounded-2xl bg-white p-4" onPress={() => setPickerOpen(true)}>
-                <Text className="text-xs font-medium text-slate-500">Subject</Text>
-                <Text className="mt-1 text-base font-bold text-slate-900">
-                  {selectedSubject ? `${selectedSubject.name} (${selectedSubject.code})` : 'Select subject'}
+              <Text style={{ color: '#FFFFFF', marginTop: 4 }} tone="inherit" variant="display">
+                {presentCount}
+                <Text style={{ color: 'rgba(255,255,255,0.7)' }} tone="inherit" variant="heading">
+                  {` / ${roster.length}`}
                 </Text>
-              </Pressable>
-              <View className="rounded-2xl bg-white p-4">
-                <Text className="text-xs font-medium text-slate-500">Date</Text>
-                <TextInput className="mt-1 text-base font-bold text-slate-900" value={date} onChangeText={setDate} />
-              </View>
-            </View>
+              </Text>
+              <ProgressBar
+                color="#FFFFFF"
+                label="Students marked present"
+                style={{ marginTop: 14 }}
+                trackColor="rgba(255,255,255,0.24)"
+                value={roster.length === 0 ? 0 : (presentCount / roster.length) * 100}
+              />
+            </Card>
+
+            <Select
+              icon="book-outline"
+              label="Subject"
+              onChange={(id) =>
+                setSelectedSubject(subjectsQuery.data?.find((subject) => subject.id === id) ?? null)
+              }
+              options={(subjectsQuery.data ?? []).map((subject) => ({
+                value: subject.id,
+                label: subject.name,
+                description: `${subject.code} · Semester ${subject.semester}`,
+              }))}
+              placeholder="Select a subject"
+              value={selectedSubject?.id ?? null}
+            />
+
+            <Input
+              autoCapitalize="none"
+              error={isValidDate(date) ? undefined : 'Use the format YYYY-MM-DD.'}
+              hint="Format: YYYY-MM-DD"
+              icon="calendar-outline"
+              keyboardType="numbers-and-punctuation"
+              label="Date"
+              onChangeText={setDate}
+              placeholder="YYYY-MM-DD"
+              value={date}
+            />
+
+            {changeCount > 0 ? (
+              <InlineNotice
+                description={`${changeCount} unsaved ${changeCount === 1 ? 'change' : 'changes'}.`}
+                title="Not saved yet"
+                tone="info"
+              />
+            ) : null}
           </View>
         }
         refreshControl={
           <RefreshControl
-            colors={[COLORS.primary]}
-            refreshing={refreshing}
-            tintColor={COLORS.primary}
+            colors={[colors.primaryText]}
             onRefresh={onRefresh}
+            progressBackgroundColor={colors.surface}
+            refreshing={refreshing}
+            tintColor={colors.primaryText}
           />
         }
-        renderItem={renderStudent}
+        renderItem={({ item }: { item: { student: EnrolledStudent; status: RosterStatus } }) => {
+          const style = STATUS_STYLE[item.status];
+
+          return (
+            <Pressable
+              accessibilityHint="Cycles between present, absent and late"
+              accessibilityLabel={`${item.student.name}, ${item.student.rollNumber}, ${style.label}`}
+              accessibilityRole="button"
+              onPress={() =>
+                setChanges((current) => ({ ...current, [item.student.id]: nextStatus(item.status) }))
+              }
+              style={({ pressed }) => ({
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 12,
+                minHeight: 64,
+                paddingHorizontal: 16,
+                paddingVertical: 12,
+                borderRadius: radius.lg,
+                borderWidth: 1,
+                borderColor: colors.border,
+                backgroundColor: pressed ? colors.surfacePressed : colors.surface,
+              })}
+            >
+              <View style={{ flex: 1 }}>
+                <Text numberOfLines={1} variant="bodyStrong">
+                  {item.student.name}
+                </Text>
+                <Text style={{ marginTop: 2 }} tone="muted" variant="caption">
+                  {item.student.rollNumber}
+                </Text>
+              </View>
+              <Badge icon={style.icon} label={style.label} tone={style.tone} />
+            </Pressable>
+          );
+        }}
+        showsVerticalScrollIndicator={false}
       />
-
-      <View className="absolute bottom-0 left-0 right-0 border-t border-slate-200 bg-white p-4">
-        <Pressable
-          className={`rounded-xl px-5 py-4 ${Object.keys(changes).length && !isOffline ? 'bg-primary' : 'bg-slate-300'}`}
-          disabled={!Object.keys(changes).length || saveMutation.isPending || isOffline}
-          onPress={() => saveMutation.mutate()}
-        >
-          <Text className="text-center font-bold text-white">
-            {saveMutation.isPending ? 'Saving...' : `Save changes (${Object.keys(changes).length})`}
-          </Text>
-        </Pressable>
-        {isOffline ? <Text className="mt-2 text-center text-xs font-semibold text-amber-700">Unavailable while offline</Text> : null}
-        {saveMutation.isError ? <Text className="mt-2 text-center text-xs font-semibold text-red-600">Could not save attendance.</Text> : null}
-      </View>
-
-      <Modal animationType="slide" transparent visible={pickerOpen} onRequestClose={() => setPickerOpen(false)}>
-        <Pressable className="flex-1 justify-end bg-black/40" onPress={() => setPickerOpen(false)}>
-          <Pressable className="max-h-[75%] rounded-t-3xl bg-white p-6" onPress={(event) => event.stopPropagation()}>
-            <View className="h-1 w-12 self-center rounded-full bg-slate-200" />
-            <Text className="mt-6 text-xl font-bold text-slate-900">Select subject</Text>
-            <FlatList
-              data={subjectsQuery.data ?? []}
-              keyExtractor={(item) => item.id}
-              renderItem={({ item }) => (
-                <Pressable
-                  className="border-b border-slate-100 py-4"
-                  onPress={() => {
-                    setSelectedSubject(item);
-                    setPickerOpen(false);
-                  }}
-                >
-                  <Text className="text-base font-bold text-slate-900">{item.name}</Text>
-                  <Text className="mt-1 text-sm text-slate-500">{item.code}</Text>
-                </Pressable>
-              )}
-            />
-          </Pressable>
-        </Pressable>
-      </Modal>
-    </View>
+    </Screen>
   );
 }

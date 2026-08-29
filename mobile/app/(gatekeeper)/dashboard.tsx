@@ -1,12 +1,24 @@
-import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
-import { Image, Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Image, View } from 'react-native';
 
-import { COLORS } from '@/src/constants/colors';
+import {
+  Badge,
+  Card,
+  IconButton,
+  InlineNotice,
+  ProgressBar,
+  Screen,
+  SkeletonCard,
+  StatTile,
+  Text,
+} from '@/src/components/ui';
 import { useAuth } from '@/src/hooks/useAuth';
 import { api } from '@/src/services/api';
+import { useTheme } from '@/src/theme/ThemeProvider';
+import { radius } from '@/src/theme/tokens';
 
 interface LiveGateQrResponse {
   active: boolean;
@@ -41,21 +53,16 @@ interface LiveGateQrResponse {
 const formatClock = (date: Date) =>
   new Intl.DateTimeFormat('en', { hour: 'numeric', minute: '2-digit', second: '2-digit' }).format(date);
 
-const secondsUntil = (value?: string) => {
-  if (!value) return 0;
-  return Math.max(0, Math.ceil((new Date(value).getTime() - Date.now()) / 1000));
-};
+const secondsUntil = (value?: string) =>
+  value ? Math.max(0, Math.ceil((new Date(value).getTime() - Date.now()) / 1000)) : 0;
 
-const formatCountdown = (seconds: number) => {
-  const minutes = Math.floor(seconds / 60);
-  const remainingSeconds = seconds % 60;
-  return `${String(minutes).padStart(2, '0')}:${String(remainingSeconds).padStart(2, '0')}`;
-};
+const formatCountdown = (seconds: number) =>
+  `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
 
 export default function GatekeeperDashboardScreen() {
+  const { colors } = useTheme();
   const { isAuthenticated, user } = useAuth();
   const [now, setNow] = useState(() => new Date());
-  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     const interval = setInterval(() => setNow(new Date()), 1000);
@@ -64,10 +71,7 @@ export default function GatekeeperDashboardScreen() {
 
   const query = useQuery({
     queryKey: ['attendance', 'gatekeeper', 'live-qr'],
-    queryFn: async () => {
-      const response = await api.get<LiveGateQrResponse>('/attendance/gatekeeper/live-qr');
-      return response.data;
-    },
+    queryFn: async () => (await api.get<LiveGateQrResponse>('/attendance/gatekeeper/live-qr')).data,
     enabled: isAuthenticated,
     refetchInterval: (data) => {
       const refreshInSeconds = data.state.data?.refreshInSeconds;
@@ -76,94 +80,156 @@ export default function GatekeeperDashboardScreen() {
   });
 
   const secondsLeft = secondsUntil(query.data?.expiresAt);
+  const refreshWindow = query.data?.refreshInSeconds ?? 0;
+
   const allowedSemesters = useMemo(
     () => [...new Set(query.data?.allowedSemesters ?? [])],
     [query.data?.allowedSemesters],
   );
 
-  const handleRefresh = useCallback(async () => {
-    setRefreshing(true);
-    try {
-      await query.refetch();
-      setNow(new Date());
-    } finally {
-      setRefreshing(false);
-    }
+  const onRefresh = useCallback(async () => {
+    await query.refetch();
+    setNow(new Date());
   }, [query]);
 
+  const isActive = Boolean(query.data?.active && query.data.qrCode);
+
   return (
-    <ScrollView
-      className="flex-1 bg-slate-50"
-      contentContainerStyle={{ padding: 20, paddingBottom: 28 }}
-      refreshControl={<RefreshControl colors={[COLORS.primary]} refreshing={refreshing} tintColor={COLORS.primary} onRefresh={handleRefresh} />}
+    <Screen
+      header={{
+        title: 'Gate QR',
+        subtitle: `Gate attendance · ${formatClock(now)}`,
+        showBack: false,
+        actions: (
+          <IconButton
+            accessibilityLabel="Scan a student ID code"
+            icon="scan-outline"
+            onPress={() => router.push('/(gatekeeper)/scanner')}
+            variant="solid"
+          />
+        ),
+      }}
+      onRefresh={onRefresh}
     >
-      <View className="flex-row items-center justify-between">
-        <View>
-          <Text className="text-sm font-semibold text-slate-500">Gate attendance</Text>
-          <Text className="mt-1 text-2xl font-bold text-primary">{formatClock(now)}</Text>
-        </View>
-        <Pressable
-          accessibilityLabel="Scan student ID"
-          className="h-12 w-12 items-center justify-center rounded-full bg-primary active:opacity-80"
-          onPress={() => router.push('/(gatekeeper)/scanner')}
-        >
-          <Ionicons color="#FFFFFF" name="scan-outline" size={24} />
-        </Pressable>
-      </View>
-
-      <View className="mt-5 rounded-3xl bg-white p-5">
-        <View className="flex-row items-center justify-between">
-          <Text className="text-lg font-bold text-slate-900">Student Gate QR</Text>
-          <View className={`rounded-full px-3 py-1 ${query.data?.active ? 'bg-green-100' : 'bg-slate-100'}`}>
-            <Text className={`text-xs font-bold ${query.data?.active ? 'text-green-700' : 'text-slate-600'}`}>
-              {query.data?.active ? 'Live' : 'Closed'}
-            </Text>
-          </View>
-        </View>
-
-        {query.isLoading ? (
-          <View className="mt-6 aspect-square w-full items-center justify-center rounded-3xl bg-slate-100">
-            <Text className="text-sm font-semibold text-slate-500">Loading QR...</Text>
-          </View>
-        ) : query.data?.active && query.data.qrCode ? (
-          <>
-            <Image className="mt-5 aspect-square w-full rounded-3xl bg-white" resizeMode="contain" source={{ uri: query.data.qrCode }} />
-            <View className="mt-5 flex-row gap-3">
-              <View className="flex-1 rounded-2xl bg-primary p-4">
-                <Text className="text-xs font-medium text-blue-100">Refreshes in</Text>
-                <Text className="mt-1 text-3xl font-bold text-white">{formatCountdown(secondsLeft)}</Text>
-              </View>
-              <View className="flex-1 rounded-2xl bg-slate-100 p-4">
-                <Text className="text-xs font-medium text-slate-500">Semesters</Text>
-                <Text className="mt-1 text-lg font-bold text-slate-900">{allowedSemesters.join(', ') || '-'}</Text>
-              </View>
-            </View>
-          </>
-        ) : (
-          <View className="mt-6 aspect-square w-full items-center justify-center rounded-3xl bg-slate-100 p-6">
-            <Ionicons color={COLORS.muted} name={query.data?.holiday ? 'calendar-outline' : 'lock-closed-outline'} size={42} />
-            <Text className="mt-4 text-center text-lg font-bold text-slate-900">
-              {query.data?.holiday ? 'Holiday' : 'Gate QR inactive'}
-            </Text>
-            <Text className="mt-2 text-center text-sm text-slate-500">
-              {query.data?.holidayInfo?.title
-                ?? (query.data?.nextWindow
-                  ? `Next window ${query.data.nextWindow.startTime} - ${query.data.nextWindow.endTime}`
-                  : 'No active attendance window right now.')}
-            </Text>
-          </View>
-        )}
-      </View>
-
       {query.isError ? (
-        <View className="mt-5 rounded-2xl bg-red-50 p-4">
-          <Text className="text-sm font-semibold text-red-700">Unable to load the gate QR. Pull down to retry.</Text>
+        <View style={{ marginBottom: 16 }}>
+          <InlineNotice
+            description="Pull down to retry."
+            title="Could not load the gate QR"
+            tone="danger"
+          />
         </View>
       ) : null}
 
-      <Text className="mt-5 text-center text-xs text-slate-400">
-        Logged in as {user?.name ?? 'Gatekeeper'}
+      {query.isLoading ? (
+        <SkeletonCard lines={1} showFooter />
+      ) : (
+        <Card padding="lg">
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+            <Text variant="heading">Student gate QR</Text>
+            <Badge
+              icon={isActive ? 'radio-button-on' : 'lock-closed'}
+              label={isActive ? 'Live' : 'Closed'}
+              tone={isActive ? 'success' : 'neutral'}
+            />
+          </View>
+
+          {isActive ? (
+            <>
+              <Image
+                accessibilityLabel="Live gate attendance QR code"
+                resizeMode="contain"
+                source={{ uri: query.data?.qrCode }}
+                style={{
+                  width: '100%',
+                  aspectRatio: 1,
+                  marginTop: 18,
+                  borderRadius: radius.lg,
+                  // Students scan this from a distance — keep the quiet zone white.
+                  backgroundColor: '#FFFFFF',
+                }}
+              />
+
+              <View style={{ flexDirection: 'row', gap: 10, marginTop: 18 }}>
+                <StatTile
+                  icon="refresh-outline"
+                  label="Refreshes in"
+                  value={formatCountdown(secondsLeft)}
+                />
+                <StatTile
+                  icon="layers-outline"
+                  label="Semesters"
+                  value={allowedSemesters.join(', ') || 'All'}
+                />
+              </View>
+
+              {refreshWindow > 0 ? (
+                <ProgressBar
+                  label="Time until this code refreshes"
+                  style={{ marginTop: 14 }}
+                  value={(secondsLeft / refreshWindow) * 100}
+                />
+              ) : null}
+            </>
+          ) : (
+            <View
+              accessibilityLiveRegion="polite"
+              style={{
+                width: '100%',
+                aspectRatio: 1,
+                marginTop: 18,
+                padding: 24,
+                borderRadius: radius.lg,
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: colors.surfaceMuted,
+              }}
+            >
+              <Ionicons
+                color={colors.textSubtle}
+                name={query.data?.holiday ? 'calendar-outline' : 'lock-closed-outline'}
+                size={40}
+              />
+              <Text center style={{ marginTop: 14 }} variant="subheading">
+                {query.data?.holiday ? 'Holiday' : 'Gate QR inactive'}
+              </Text>
+              <Text center style={{ marginTop: 6, maxWidth: 280 }} tone="muted" variant="caption">
+                {query.data?.holidayInfo?.title ??
+                  (query.data?.nextWindow
+                    ? `Next window ${query.data.nextWindow.startTime} – ${query.data.nextWindow.endTime}`
+                    : 'No attendance window is open right now.')}
+              </Text>
+            </View>
+          )}
+        </Card>
+      )}
+
+      {query.data?.periods?.length ? (
+        <Card padding="lg" style={{ marginTop: 16 }}>
+          <Text tone="muted" uppercase variant="label">
+            Today’s windows
+          </Text>
+          <View style={{ gap: 10, marginTop: 12 }}>
+            {query.data.periods.map((period) => (
+              <View
+                key={period.id}
+                style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}
+              >
+                <Text numberOfLines={1} style={{ flex: 1 }} variant="bodyStrong">
+                  {period.title}
+                </Text>
+                <Text tone="muted" variant="caption">
+                  {period.startTime} – {period.endTime}
+                </Text>
+              </View>
+            ))}
+          </View>
+        </Card>
+      ) : null}
+
+      <Text center style={{ marginTop: 20 }} tone="subtle" variant="caption">
+        Signed in as {user?.name ?? 'Gatekeeper'}
       </Text>
-    </ScrollView>
+    </Screen>
   );
 }

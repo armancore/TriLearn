@@ -1,38 +1,80 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { Ionicons } from '@expo/vector-icons';
-import { useEffect, useMemo, useState } from 'react';
-import { Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { Alert, View } from 'react-native';
 
-import { AppButton } from '@/src/components/AppButton';
-import { AppInput } from '@/src/components/AppInput';
-import { COLORS } from '@/src/constants/colors';
+import { ThemeSetting } from '@/src/components/ThemeSetting';
+import {
+  Avatar,
+  Button,
+  Card,
+  Divider,
+  InlineNotice,
+  Input,
+  Screen,
+  Section,
+  StatTile,
+  Text,
+} from '@/src/components/ui';
+import { announce } from '@/src/hooks/useA11y';
 import { useAuth } from '@/src/hooks/useAuth';
 import { useToast } from '@/src/hooks/useToast';
 import { api } from '@/src/services/api';
+import { useTheme } from '@/src/theme/ThemeProvider';
 import type { AuthActivityResponse, ProfileResponse } from '@/src/types/profile';
 
+const MIN_PASSWORD_LENGTH = 8;
+
 const formatDate = (value?: string | null) => {
-  if (!value) return '-';
+  if (!value) {
+    return '—';
+  }
+
   return new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(value));
 };
 
-const DetailRow = ({ label, value }: { label: string; value?: string | number | null }) => (
-  <View className="border-b border-slate-100 py-3">
-    <Text className="text-xs font-semibold uppercase text-slate-400">{label}</Text>
-    <Text className="mt-1 text-base font-semibold text-slate-900">{value || '-'}</Text>
+const formatDateTime = (value?: string | null) => {
+  if (!value) {
+    return 'Unknown';
+  }
+
+  return new Intl.DateTimeFormat('en', {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  }).format(new Date(value));
+};
+
+/** Read-only label/value pair inside a detail card. */
+const DetailRow = ({ label, value, last = false }: { label: string; value?: string | number | null; last?: boolean }) => (
+  <View accessibilityLabel={`${label}: ${value || 'not set'}`} accessible style={{ paddingVertical: 14 }}>
+    <Text tone="subtle" uppercase variant="label">
+      {label}
+    </Text>
+    <Text style={{ marginTop: 4 }} variant="bodyStrong">
+      {value || '—'}
+    </Text>
+    {last ? null : <Divider style={{ marginTop: 14, marginBottom: -14 }} />}
   </View>
 );
 
 export default function ProfileScreen() {
+  const { colors } = useTheme();
   const { logout, updateUser } = useAuth();
   const toast = useToast();
-  const [refreshing, setRefreshing] = useState(false);
   const [profileForm, setProfileForm] = useState({ name: '', phone: '', address: '' });
   const [passwordForm, setPasswordForm] = useState({ currentPassword: '', newPassword: '', confirm: '' });
   const [passwordError, setPasswordError] = useState('');
 
-  const profileQuery = useQuery({ queryKey: ['auth', 'me'], queryFn: async () => (await api.get<ProfileResponse>('/auth/me')).data });
-  const activityQuery = useQuery({ queryKey: ['auth', 'activity'], queryFn: async () => (await api.get<AuthActivityResponse>('/auth/activity')).data });
+  const profileQuery = useQuery({
+    queryKey: ['auth', 'me'],
+    queryFn: async () => (await api.get<ProfileResponse>('/auth/me')).data,
+  });
+
+  const activityQuery = useQuery({
+    queryKey: ['auth', 'activity'],
+    queryFn: async () => (await api.get<AuthActivityResponse>('/auth/activity')).data,
+  });
 
   useEffect(() => {
     const user = profileQuery.data?.user;
@@ -41,38 +83,36 @@ export default function ProfileScreen() {
     }
   }, [profileQuery.data?.user]);
 
-  const initials = useMemo(() => (
-    profileQuery.data?.user.name
-      ?.split(' ')
-      .map((part) => part[0])
-      .join('')
-      .slice(0, 2)
-      .toUpperCase() || 'U'
-  ), [profileQuery.data?.user.name]);
-
   const updateProfile = useMutation({
     mutationFn: async () => api.patch('/auth/profile', profileForm),
     onError: (error) => toast.error(error, 'Could not update your profile.'),
     onSuccess: async () => {
       await profileQuery.refetch();
       toast.success('Profile updated.');
+      announce('Profile updated');
     },
   });
 
   const changePassword = useMutation({
     mutationFn: async () => {
+      if (passwordForm.newPassword.length < MIN_PASSWORD_LENGTH) {
+        throw new Error(`Use at least ${MIN_PASSWORD_LENGTH} characters.`);
+      }
+
       if (passwordForm.newPassword !== passwordForm.confirm) {
         throw new Error('Password confirmation does not match.');
       }
+
       const response = await api.post<{ user?: ProfileResponse['user'] }>('/auth/change-password', {
         currentPassword: passwordForm.currentPassword,
         newPassword: passwordForm.newPassword,
       });
+
       return response.data.user;
     },
     onMutate: () => setPasswordError(''),
     onError: (error) => {
-      const message = error instanceof Error ? error.message : 'Could not change password.';
+      const message = error instanceof Error ? error.message : 'Could not change your password.';
       setPasswordError(message);
       toast.error(error, message);
     },
@@ -89,133 +129,271 @@ export default function ProfileScreen() {
           ...(updatedUser.student ? { student: updatedUser.student } : {}),
         });
       }
+
       setPasswordForm({ currentPassword: '', newPassword: '', confirm: '' });
       toast.success('Password changed.');
+      announce('Password changed');
     },
   });
 
   const logoutAll = useMutation({
     mutationFn: async () => api.post('/auth/logout-all'),
-    onError: (error) => toast.error(error, 'Could not sign out all sessions.'),
+    onError: (error) => toast.error(error, 'Could not sign out your other sessions.'),
     onSuccess: logout,
   });
 
-  const onRefresh = async () => {
-    setRefreshing(true);
-    try { await Promise.all([profileQuery.refetch(), activityQuery.refetch()]); } finally { setRefreshing(false); }
+  const onRefresh = useCallback(
+    async () => Promise.all([profileQuery.refetch(), activityQuery.refetch()]),
+    [activityQuery, profileQuery],
+  );
+
+  const confirmLogoutAll = () => {
+    Alert.alert(
+      'Sign out everywhere',
+      'This ends every active session, including this one. You will need to sign in again.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Sign out all', style: 'destructive', onPress: () => logoutAll.mutate() },
+      ],
+    );
   };
 
   const user = profileQuery.data?.user;
+  const sessions = activityQuery.data?.sessions ?? [];
+
   const roleDetail = user?.student
-    ? `${user.student.department || 'Department'} · Sem ${user.student.semester}${user.student.section ? ` · ${user.student.section}` : ''}`
-    : user?.instructor?.departments?.join(', ') || user?.instructor?.department || user?.coordinator?.department || user?.role;
+    ? [user.student.department, `Semester ${user.student.semester}`, user.student.section]
+        .filter(Boolean)
+        .join(' · ')
+    : user?.instructor?.departments?.join(', ') ||
+      user?.instructor?.department ||
+      user?.coordinator?.department ||
+      user?.role;
+
+  const isPasswordDirty =
+    passwordForm.currentPassword.length > 0 ||
+    passwordForm.newPassword.length > 0 ||
+    passwordForm.confirm.length > 0;
 
   return (
-    <ScrollView
-      className="flex-1 bg-slate-50"
-      contentContainerStyle={{ padding: 24, paddingBottom: 32 }}
-      refreshControl={<RefreshControl colors={[COLORS.primary]} refreshing={refreshing} tintColor={COLORS.primary} onRefresh={onRefresh} />}
-    >
-      <View className="rounded-3xl bg-primary p-6">
-        <View className="flex-row items-start justify-between gap-4">
-          <View className="flex-row flex-1 items-center gap-4">
-            <View className="h-16 w-16 items-center justify-center rounded-full bg-white/15">
-              <Text className="text-xl font-bold text-white">{initials}</Text>
-            </View>
-            <View className="flex-1">
-              <Text className="text-2xl font-bold text-white">{user?.name ?? 'Profile'}</Text>
-              <Text className="mt-1 text-sm font-medium text-blue-100">{user?.email}</Text>
-              <Text className="mt-2 text-xs font-semibold text-blue-100">{roleDetail}</Text>
-            </View>
-          </View>
-          <Pressable
-            accessibilityLabel="Logout"
-            className="h-11 w-11 items-center justify-center rounded-full bg-white/15 active:opacity-80"
+    <Screen
+      header={{
+        title: 'Profile',
+        actions: (
+          <Button
+            accessibilityHint="Signs you out of this device"
+            fullWidth={false}
+            icon="log-out-outline"
+            label="Sign out"
             onPress={logout}
-          >
-            <Ionicons color="#FFFFFF" name="log-out-outline" size={22} />
-          </Pressable>
+            size="sm"
+            variant="ghost"
+          />
+        ),
+      }}
+      onRefresh={onRefresh}
+    >
+      {/* Identity */}
+      <Card padding="lg" style={{ backgroundColor: colors.primary, borderColor: colors.primary }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+          <Avatar name={user?.name} onPrimary size={58} />
+          <View style={{ flex: 1 }}>
+            <Text numberOfLines={1} style={{ color: '#FFFFFF' }} tone="inherit" variant="heading">
+              {user?.name ?? 'Profile'}
+            </Text>
+            <Text numberOfLines={1} style={{ color: 'rgba(255,255,255,0.82)', marginTop: 3 }} tone="inherit" variant="caption">
+              {user?.email ?? ''}
+            </Text>
+          </View>
         </View>
 
-        <View className="mt-6 flex-row gap-3">
-          <View className="flex-1 rounded-2xl bg-white/10 p-3">
-            <Text className="text-xs font-medium text-blue-100">Role</Text>
-            <Text className="mt-1 text-sm font-bold text-white">{user?.role ?? '-'}</Text>
-          </View>
-          <View className="flex-1 rounded-2xl bg-white/10 p-3">
-            <Text className="text-xs font-medium text-blue-100">Joined</Text>
-            <Text className="mt-1 text-sm font-bold text-white">{formatDate(user?.createdAt)}</Text>
-          </View>
+        <View style={{ flexDirection: 'row', gap: 10, marginTop: 18 }}>
+          <StatTile label="Role" onPrimary value={user?.role ?? '—'} />
+          <StatTile label="Joined" onPrimary value={formatDate(user?.createdAt)} />
         </View>
-      </View>
+
+        {roleDetail ? (
+          <Text numberOfLines={2} style={{ color: 'rgba(255,255,255,0.82)', marginTop: 14 }} tone="inherit" variant="caption">
+            {roleDetail}
+          </Text>
+        ) : null}
+      </Card>
 
       {profileQuery.isError ? (
-        <Text className="mt-4 rounded-2xl bg-white p-4 text-center text-red-600">Could not load profile. Pull down to retry.</Text>
+        <View style={{ marginTop: 16 }}>
+          <InlineNotice
+            description="Pull down to retry."
+            title="Could not load your profile"
+            tone="danger"
+          />
+        </View>
       ) : null}
 
       {user?.mustChangePassword ? (
-        <View className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4">
-          <Text className="text-base font-bold text-amber-900">Change your temporary password</Text>
-          <Text className="mt-1 text-sm leading-5 text-amber-800">
-            You need to set a new password before using the rest of TriLearn.
-          </Text>
+        <View style={{ marginTop: 16 }}>
+          <InlineNotice
+            description="Set a new password below before using the rest of TriLearn."
+            title="Change your temporary password"
+            tone="warning"
+          />
         </View>
       ) : null}
 
-      <View className="mt-6 rounded-2xl bg-white px-5">
-        <DetailRow label="Phone" value={user?.phone} />
-        <DetailRow label="Address" value={user?.address} />
-        {user?.student ? (
-          <>
-            <DetailRow label="Roll number" value={user.student.rollNumber} />
-            <DetailRow label="Section" value={user.student.section} />
-          </>
-        ) : null}
-      </View>
+      {/* Details */}
+      <Section title="Details">
+        <Card padding="none" style={{ paddingHorizontal: 16 }}>
+          <DetailRow label="Phone" value={user?.phone} />
+          <DetailRow label="Address" value={user?.address} />
+          {user?.student ? (
+            <>
+              <DetailRow label="Roll number" value={user.student.rollNumber} />
+              <DetailRow label="Section" last value={user.student.section} />
+            </>
+          ) : (
+            <DetailRow label="Email verified" last value={user?.emailVerified ? 'Yes' : 'No'} />
+          )}
+        </Card>
+      </Section>
 
-      <View className="mt-6 rounded-2xl bg-white p-5">
-        <View className="mb-4 flex-row items-center justify-between">
-          <Text className="text-lg font-bold text-slate-900">Edit Profile</Text>
-          <Ionicons color={COLORS.primary} name="person-outline" size={22} />
-        </View>
-        <AppInput label="Name" value={profileForm.name} onChangeText={(name) => setProfileForm((form) => ({ ...form, name }))} />
-        <AppInput label="Phone" value={profileForm.phone} onChangeText={(phone) => setProfileForm((form) => ({ ...form, phone }))} />
-        <AppInput label="Address" value={profileForm.address} onChangeText={(address) => setProfileForm((form) => ({ ...form, address }))} />
-        <AppButton label="Save profile" loading={updateProfile.isPending} onPress={() => updateProfile.mutate()} />
-      </View>
+      {/* Edit profile */}
+      <Section description="Update how the college can reach you." title="Edit profile">
+        <Card padding="lg">
+          <Input
+            autoComplete="name"
+            icon="person-outline"
+            label="Full name"
+            onChangeText={(name) => setProfileForm((form) => ({ ...form, name }))}
+            placeholder="Your name"
+            value={profileForm.name}
+          />
+          <Input
+            autoComplete="tel"
+            icon="call-outline"
+            keyboardType="phone-pad"
+            label="Phone"
+            onChangeText={(phone) => setProfileForm((form) => ({ ...form, phone }))}
+            placeholder="Contact number"
+            value={profileForm.phone}
+          />
+          <Input
+            icon="home-outline"
+            label="Address"
+            multiline
+            onChangeText={(address) => setProfileForm((form) => ({ ...form, address }))}
+            placeholder="Where you live"
+            value={profileForm.address}
+          />
+          <Button
+            icon="checkmark"
+            label="Save changes"
+            loading={updateProfile.isPending}
+            onPress={() => updateProfile.mutate()}
+          />
+        </Card>
+      </Section>
 
-      <View className="mt-6 rounded-2xl bg-white p-5">
-        <View className="mb-4 flex-row items-center justify-between">
-          <Text className="text-lg font-bold text-slate-900">Security</Text>
-          <Ionicons color={COLORS.primary} name="shield-checkmark-outline" size={22} />
-        </View>
-        <AppInput secureTextEntry label="Current password" value={passwordForm.currentPassword} onChangeText={(currentPassword) => setPasswordForm((form) => ({ ...form, currentPassword }))} />
-        <AppInput secureTextEntry label="New password" value={passwordForm.newPassword} onChangeText={(newPassword) => setPasswordForm((form) => ({ ...form, newPassword }))} />
-        <AppInput secureTextEntry label="Confirm password" error={passwordError} value={passwordForm.confirm} onChangeText={(confirm) => setPasswordForm((form) => ({ ...form, confirm }))} />
-        <AppButton label="Change password" loading={changePassword.isPending} onPress={() => changePassword.mutate()} />
-      </View>
+      {/* Security */}
+      <Section description="Choose a password you do not use anywhere else." title="Password">
+        <Card padding="lg">
+          <Input
+            autoComplete="current-password"
+            icon="lock-closed-outline"
+            label="Current password"
+            onChangeText={(currentPassword) => setPasswordForm((form) => ({ ...form, currentPassword }))}
+            revealable
+            secureTextEntry
+            value={passwordForm.currentPassword}
+          />
+          <Input
+            autoComplete="new-password"
+            hint={`At least ${MIN_PASSWORD_LENGTH} characters.`}
+            icon="key-outline"
+            label="New password"
+            onChangeText={(newPassword) => setPasswordForm((form) => ({ ...form, newPassword }))}
+            revealable
+            secureTextEntry
+            value={passwordForm.newPassword}
+          />
+          <Input
+            autoComplete="new-password"
+            error={passwordError}
+            icon="key-outline"
+            label="Confirm new password"
+            onChangeText={(confirm) => setPasswordForm((form) => ({ ...form, confirm }))}
+            revealable
+            secureTextEntry
+            value={passwordForm.confirm}
+          />
+          <Button
+            disabled={!isPasswordDirty}
+            icon="shield-checkmark-outline"
+            label="Change password"
+            loading={changePassword.isPending}
+            onPress={() => changePassword.mutate()}
+          />
+        </Card>
+      </Section>
 
-      <View className="mt-6 rounded-2xl bg-white p-5">
-        <View className="flex-row items-center justify-between">
-          <Text className="text-lg font-bold text-slate-900">Active Sessions</Text>
-          <Pressable onPress={logout}>
-            <Text className="text-sm font-bold text-red-600">Logout</Text>
-          </Pressable>
-        </View>
-        {activityQuery.isError ? (
-          <Text className="mt-3 text-sm text-red-600">Could not load sessions. Pull down to retry.</Text>
-        ) : null}
-        {(activityQuery.data?.sessions ?? []).map((session) => (
-          <View className="mt-4 border-t border-slate-100 pt-4" key={session.id}>
-            <Text className="text-sm font-bold text-slate-900">{session.current ? 'Current session' : 'Session'}</Text>
-            <Text className="mt-1 text-xs text-slate-500">{session.ipAddress ?? 'Unknown IP'}</Text>
-            <Text className="mt-1 text-xs text-slate-500" numberOfLines={2}>{session.userAgent ?? 'Unknown device'}</Text>
-          </View>
-        ))}
-        <View className="mt-5">
-          <AppButton label="Sign out all devices" loading={logoutAll.isPending} onPress={() => logoutAll.mutate()} />
-        </View>
-      </View>
-    </ScrollView>
+      {/* Appearance */}
+      <Section description="Applies to this device only." title="Appearance">
+        <Card padding="lg">
+          <ThemeSetting />
+        </Card>
+      </Section>
+
+      {/* Sessions */}
+      <Section description="Devices currently signed in to your account." title="Active sessions">
+        <Card padding="lg">
+          {activityQuery.isError ? (
+            <Text tone="danger" variant="caption">
+              Could not load your sessions. Pull down to retry.
+            </Text>
+          ) : sessions.length === 0 ? (
+            <Text tone="muted" variant="caption">
+              No other active sessions.
+            </Text>
+          ) : (
+            sessions.map((session, index) => (
+              <View key={session.id} style={{ paddingBottom: 14, paddingTop: index === 0 ? 0 : 14 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <Text variant="bodyStrong">{session.current ? 'This device' : 'Other device'}</Text>
+                  {session.current ? (
+                    <View
+                      style={{
+                        paddingHorizontal: 8,
+                        paddingVertical: 2,
+                        borderRadius: 999,
+                        backgroundColor: colors.successSoft,
+                      }}
+                    >
+                      <Text style={{ color: colors.successSoftText, fontSize: 10, fontWeight: '700' }} tone="inherit">
+                        CURRENT
+                      </Text>
+                    </View>
+                  ) : null}
+                </View>
+                <Text numberOfLines={2} style={{ marginTop: 4 }} tone="muted" variant="caption">
+                  {session.userAgent ?? 'Unknown device'}
+                </Text>
+                <Text style={{ marginTop: 2 }} tone="subtle" variant="caption">
+                  {session.ipAddress ?? 'Unknown IP'} · last used {formatDateTime(session.lastUsedAt)}
+                </Text>
+                {index < sessions.length - 1 ? <Divider style={{ marginTop: 14 }} /> : null}
+              </View>
+            ))
+          )}
+
+          <Button
+            accessibilityHint="Ends every session including this device"
+            icon="log-out-outline"
+            label="Sign out of all devices"
+            loading={logoutAll.isPending}
+            onPress={confirmLogoutAll}
+            style={{ marginTop: 8 }}
+            variant="danger"
+          />
+        </Card>
+      </Section>
+    </Screen>
   );
 }

@@ -39,9 +39,9 @@
       "typedRoutes": true
     },
     "extra": {
-      "apiBaseUrl": "http://192.168.1.81:5000/api/v1",
-      "socketUrl": "http://192.168.1.81:5000",
-      "webAppUrl": "http://192.168.1.81:5173"
+      "apiBaseUrl": "http://192.168.1.73:5000/api/v1",
+      "socketUrl": "http://192.168.1.73:5000",
+      "webAppUrl": "http://192.168.1.73:5173"
     }
   }
 }

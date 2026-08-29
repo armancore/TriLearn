@@ -1,56 +1,31 @@
 import { Tabs } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
 
-import { COLORS } from '@/src/constants/colors';
+import { useTabScreenOptions, type TabIconResolver } from '@/src/components/ui/TabBarOptions';
 
-type InstructorTabIconName =
-  | 'home-outline'
-  | 'home'
-  | 'book-outline'
-  | 'book'
-  | 'notifications-outline'
-  | 'notifications'
-  | 'qr-code-outline'
-  | 'qr-code'
-  | 'ribbon-outline'
-  | 'ribbon'
-  | 'calendar-outline'
-  | 'calendar'
-  | 'person-outline'
-  | 'person';
-
-const getInstructorTabIcon = (routeName: string, focused: boolean): InstructorTabIconName => {
+const getInstructorTabIcon: TabIconResolver = (routeName, focused) => {
   if (routeName === 'courses') return focused ? 'book' : 'book-outline';
-  if (routeName === 'updates') return focused ? 'notifications' : 'notifications-outline';
+  if (routeName === 'updates') return focused ? 'megaphone' : 'megaphone-outline';
   if (routeName === 'qr') return focused ? 'qr-code' : 'qr-code-outline';
   if (routeName === 'marks') return focused ? 'ribbon' : 'ribbon-outline';
   if (routeName === 'attendance') return focused ? 'calendar' : 'calendar-outline';
-  if (routeName === 'profile') return focused ? 'person' : 'person-outline';
+  if (routeName === 'profile') return focused ? 'person-circle' : 'person-circle-outline';
 
   return focused ? 'home' : 'home-outline';
 };
 
 export default function InstructorTabsLayout() {
+  const screenOptions = useTabScreenOptions(getInstructorTabIcon);
+
   return (
-    <Tabs
-      screenOptions={({ route }) => ({
-        headerTintColor: '#FFFFFF',
-        headerStyle: { backgroundColor: COLORS.primary },
-        headerTitleStyle: { fontWeight: '700' },
-        tabBarActiveTintColor: COLORS.primary,
-        tabBarInactiveTintColor: COLORS.muted,
-        tabBarIcon: ({ color, focused, size }) => (
-          <Ionicons color={color} name={getInstructorTabIcon(route.name, focused)} size={size} />
-        ),
-      })}
-    >
-      <Tabs.Screen name="dashboard" options={{ title: 'Dashboard' }} />
+    <Tabs screenOptions={screenOptions}>
+      <Tabs.Screen name="dashboard" options={{ title: 'Home' }} />
       <Tabs.Screen name="courses" options={{ title: 'Courses' }} />
-      <Tabs.Screen name="updates" options={{ title: 'Updates' }} />
-      <Tabs.Screen name="qr" options={{ title: 'QR' }} />
-      <Tabs.Screen name="marks" options={{ title: 'Marks' }} />
       <Tabs.Screen name="attendance" options={{ title: 'Attendance' }} />
+      <Tabs.Screen name="marks" options={{ title: 'Marks' }} />
+      <Tabs.Screen name="qr" options={{ title: 'QR' }} />
       <Tabs.Screen name="profile" options={{ title: 'Profile' }} />
+
+      <Tabs.Screen name="updates" options={{ href: null, title: 'Updates' }} />
     </Tabs>
   );
 }

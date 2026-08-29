@@ -4,11 +4,12 @@ import { isAxiosError } from 'axios';
 import { CameraView, type BarcodeScanningResult, useCameraPermissions } from 'expo-camera';
 import * as Haptics from 'expo-haptics';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Text, View } from 'react-native';
+import { ActivityIndicator, View } from 'react-native';
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 
-import { AppButton } from '@/src/components/AppButton';
-import { COLORS } from '@/src/constants/colors';
+import { Button, Text } from '@/src/components/ui';
+import { useTheme } from '@/src/theme/ThemeProvider';
+import { radius } from '@/src/theme/tokens';
 import { api } from '@/src/services/api';
 
 type FlashState = {
@@ -27,6 +28,11 @@ type ParsedAttendanceQr = {
   endpoint: '/attendance/scan-daily-qr' | '/attendance/scan-qr';
   qrData: string;
 };
+
+const IDLE_MESSAGE = 'Point the camera at an instructor or gate attendance QR code.';
+
+/** Inlined so the overlays do not need a StyleSheet just for absolute fill. */
+const ABSOLUTE_FILL = { position: 'absolute' as const, top: 0, left: 0, right: 0, bottom: 0 };
 
 const parseAttendanceQr = (qrData: string): ParsedAttendanceQr => {
   try {
@@ -68,10 +74,11 @@ const getErrorMessage = (error: unknown): string => {
 };
 
 export default function StudentScannerScreen() {
+  const { colors } = useTheme();
   const [permission, requestPermission] = useCameraPermissions();
   const [isScanning, setIsScanning] = useState(true);
   const [isFetching, setIsFetching] = useState(false);
-  const [message, setMessage] = useState('Scan an instructor or gate attendance QR.');
+  const [message, setMessage] = useState(IDLE_MESSAGE);
   const [flash, setFlash] = useState<FlashState>(null);
   const resetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isProcessingRef = useRef(false);
@@ -95,121 +102,210 @@ export default function StudentScannerScreen() {
     clearResetTimer();
     isProcessingRef.current = false;
     setFlash(null);
-    setMessage('Scan an instructor or gate attendance QR.');
+    setMessage(IDLE_MESSAGE);
     setIsFetching(false);
     setIsScanning(true);
   }, [clearResetTimer]);
 
   const scheduleAutoReset = useCallback(() => {
     clearResetTimer();
-    resetTimerRef.current = setTimeout(() => {
-      resetScanner();
-    }, 1500);
+    resetTimerRef.current = setTimeout(resetScanner, 1500);
   }, [clearResetTimer, resetScanner]);
 
-  useEffect(() => () => {
-    clearResetTimer();
-    isProcessingRef.current = false;
-  }, [clearResetTimer]);
+  useEffect(
+    () => () => {
+      clearResetTimer();
+      isProcessingRef.current = false;
+    },
+    [clearResetTimer],
+  );
 
-  const handleBarcodeScanned = useCallback(async ({ data }: BarcodeScanningResult) => {
-    if (isProcessingRef.current || !isScanning || !data) {
-      return;
-    }
+  const handleBarcodeScanned = useCallback(
+    async ({ data }: BarcodeScanningResult) => {
+      if (isProcessingRef.current || !isScanning || !data) {
+        return;
+      }
 
-    isProcessingRef.current = true;
-    setIsFetching(true);
-    setIsScanning(false);
-    setMessage('Marking attendance...');
-    setFlash(null);
+      isProcessingRef.current = true;
+      setIsFetching(true);
+      setIsScanning(false);
+      setMessage('Marking attendance…');
+      setFlash(null);
 
-    try {
-      const successMessage = await scanMutation.mutateAsync(data);
-      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      setMessage(successMessage);
-      setFlash({ type: 'success', message: successMessage });
-    } catch (error) {
-      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      const errorMessage = getErrorMessage(error);
-      setMessage(errorMessage);
-      setFlash({ type: 'error', message: errorMessage });
-    } finally {
-      setIsFetching(false);
-      scheduleAutoReset();
-    }
-  }, [isScanning, scanMutation, scheduleAutoReset]);
+      try {
+        const successMessage = await scanMutation.mutateAsync(data);
+        await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+        setMessage(successMessage);
+        setFlash({ type: 'success', message: successMessage });
+      } catch (error) {
+        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        const errorMessage = getErrorMessage(error);
+        setMessage(errorMessage);
+        setFlash({ type: 'error', message: errorMessage });
+      } finally {
+        setIsFetching(false);
+        scheduleAutoReset();
+      }
+    },
+    [isScanning, scanMutation, scheduleAutoReset],
+  );
 
   if (!permission) {
     return (
-      <View className="flex-1 items-center justify-center bg-slate-50 px-6">
-        <Text className="text-center text-slate-600">Checking camera permission...</Text>
+      <View
+        accessibilityLiveRegion="polite"
+        style={{
+          flex: 1,
+          alignItems: 'center',
+          justifyContent: 'center',
+          paddingHorizontal: 28,
+          backgroundColor: colors.background,
+        }}
+      >
+        <ActivityIndicator color={colors.primaryText} />
+        <Text center style={{ marginTop: 14 }} tone="muted" variant="caption">
+          Checking camera permission…
+        </Text>
       </View>
     );
   }
 
   if (!permission.granted) {
     return (
-      <View className="flex-1 items-center justify-center bg-slate-50 px-6">
-        <Ionicons color={COLORS.primary} name="camera-outline" size={44} />
-        <Text className="mt-4 text-center text-lg font-bold text-slate-900">Camera permission required</Text>
-        <Text className="mt-2 text-center text-sm text-slate-600">
-          Student attendance scanning needs camera access to read class and gate QR codes.
-        </Text>
-        <View className="mt-6 w-full">
-          <AppButton label="Allow camera" onPress={requestPermission} />
+      <View
+        style={{
+          flex: 1,
+          alignItems: 'center',
+          justifyContent: 'center',
+          paddingHorizontal: 28,
+          backgroundColor: colors.background,
+        }}
+      >
+        <View
+          style={{
+            width: 72,
+            height: 72,
+            borderRadius: radius.full,
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: colors.primarySoft,
+          }}
+        >
+          <Ionicons color={colors.primarySoftText} name="camera-outline" size={32} />
         </View>
+        <Text accessibilityRole="header" center style={{ marginTop: 18 }} variant="heading">
+          Camera access needed
+        </Text>
+        <Text center style={{ marginTop: 8, maxWidth: 320 }} tone="muted" variant="caption">
+          Scanning attendance codes needs permission to use the camera. Nothing is recorded or
+          uploaded except the code you scan.
+        </Text>
+        <Button
+          accessibilityHint="Opens the system camera permission prompt"
+          fullWidth={false}
+          icon="camera"
+          label="Allow camera access"
+          onPress={requestPermission}
+          style={{ marginTop: 22 }}
+        />
       </View>
     );
   }
 
   return (
-    <View className="flex-1 bg-black">
+    <View style={{ flex: 1, backgroundColor: '#000000' }}>
       <CameraView
         barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
-        style={{ flex: 1 }}
         onBarcodeScanned={isScanning && !isFetching ? handleBarcodeScanned : undefined}
+        style={{ flex: 1 }}
       />
 
-      <View className="absolute inset-0 justify-between p-6" pointerEvents="box-none">
-        <View className="rounded-2xl bg-black/60 p-4">
-          <Text className="text-center text-base font-bold text-white">Student QR Scanner</Text>
-          <Text className="mt-2 text-center text-sm text-slate-200">{message}</Text>
+      <View style={{ ...ABSOLUTE_FILL, justifyContent: 'space-between', padding: 24, pointerEvents: 'box-none' }}>
+        <View
+          accessibilityLiveRegion="polite"
+          style={{ padding: 16, borderRadius: radius.lg, backgroundColor: 'rgba(0,0,0,0.66)' }}
+        >
+          <Text center style={{ color: '#FFFFFF' }} tone="inherit" variant="bodyStrong">
+            Attendance scanner
+          </Text>
+          <Text center style={{ color: 'rgba(255,255,255,0.86)', marginTop: 6 }} tone="inherit" variant="caption">
+            {message}
+          </Text>
         </View>
 
-        <View className="self-center rounded-3xl border-4 border-white/90 p-28" />
+        {/* Reticle — decorative, the instructions above carry the meaning. */}
+        <View
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+          style={{
+            alignSelf: 'center',
+            width: 232,
+            height: 232,
+            borderRadius: radius['2xl'],
+            borderWidth: 3,
+            borderColor: 'rgba(255,255,255,0.92)',
+          }}
+        />
 
-        <View className="rounded-2xl bg-black/60 p-4">
-          <AppButton
-            label={isScanning ? 'Scanning...' : 'Scan again'}
+        <View style={{ padding: 16, borderRadius: radius.lg, backgroundColor: 'rgba(0,0,0,0.66)' }}>
+          <Button
+            accessibilityHint="Re-enables scanning after a result"
             disabled={isScanning}
+            icon="scan"
+            label={isScanning ? 'Ready to scan' : 'Scan again'}
             onPress={resetScanner}
           />
         </View>
       </View>
 
       {isScanning && isFetching ? (
-        <View className="absolute inset-0 items-center justify-center bg-black/40">
-          <View className="items-center rounded-2xl bg-black/70 px-6 py-5">
+        <View
+          style={{
+            ...ABSOLUTE_FILL,
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: 'rgba(0,0,0,0.45)',
+          }}
+        >
+          <View
+            style={{
+              alignItems: 'center',
+              paddingHorizontal: 26,
+              paddingVertical: 22,
+              borderRadius: radius.lg,
+              backgroundColor: 'rgba(0,0,0,0.78)',
+            }}
+          >
             <ActivityIndicator color="#FFFFFF" size="large" />
-            <Text className="mt-3 text-sm font-bold text-white">Marking attendance...</Text>
+            <Text style={{ color: '#FFFFFF', marginTop: 12 }} tone="inherit" variant="bodyStrong">
+              Marking attendance…
+            </Text>
           </View>
         </View>
       ) : null}
 
       {flash ? (
         <Animated.View
+          accessibilityLiveRegion="assertive"
           entering={FadeIn.duration(120)}
           exiting={FadeOut.duration(160)}
-          className={`absolute inset-0 items-center justify-center px-8 ${
-            flash.type === 'success' ? 'bg-green-700/75' : 'bg-red-700/75'
-          }`}
+          style={{
+            ...ABSOLUTE_FILL,
+            alignItems: 'center',
+            justifyContent: 'center',
+            paddingHorizontal: 32,
+            // Deep, opaque fills so the result reads clearly over any camera feed.
+            backgroundColor: flash.type === 'success' ? 'rgba(12,88,44,0.92)' : 'rgba(140,26,20,0.92)',
+          }}
         >
           <Ionicons
             color="#FFFFFF"
-            name={flash.type === 'success' ? 'checkmark-circle-outline' : 'alert-circle-outline'}
-            size={54}
+            name={flash.type === 'success' ? 'checkmark-circle' : 'alert-circle'}
+            size={58}
           />
-          <Text className="mt-4 text-center text-lg font-black text-white">{flash.message}</Text>
+          <Text center style={{ color: '#FFFFFF', marginTop: 16 }} tone="inherit" variant="heading">
+            {flash.message}
+          </Text>
         </Animated.View>
       ) : null}
     </View>

@@ -1,162 +1,139 @@
-import { useCallback, useMemo, useState } from 'react';
-import { RefreshControl, ScrollView, Text, View } from 'react-native';
+import { useCallback, useMemo } from 'react';
+import { View } from 'react-native';
 
-import { COLORS } from '@/src/constants/colors';
+import {
+  Badge,
+  Card,
+  EmptyState,
+  ErrorState,
+  ProgressBar,
+  Screen,
+  SkeletonList,
+  StatTile,
+  Text,
+} from '@/src/components/ui';
 import { useAttendance } from '@/src/hooks/useAttendance';
+import { useTheme } from '@/src/theme/ThemeProvider';
 import type { AttendanceSummary } from '@/src/types/attendance';
 
-const getAttendanceTone = (percentage: string) => {
-  const numericPercentage = parseFloat(percentage);
-
-  if (numericPercentage >= 75) {
-    return {
-      bar: '#16A34A',
-      bg: '#DCFCE7',
-      text: '#166534',
-      label: 'On track',
-    };
-  }
-
-  if (numericPercentage >= 60) {
-    return {
-      bar: COLORS.accent,
-      bg: '#FEF3C7',
-      text: '#92400E',
-      label: 'Watch',
-    };
-  }
-
-  return {
-    bar: COLORS.danger,
-    bg: '#FEE2E2',
-    text: COLORS.danger,
-    label: 'At risk',
-  };
+type Standing = {
+  tone: 'success' | 'warning' | 'danger';
+  label: string;
+  icon: 'checkmark-circle' | 'alert-circle' | 'warning';
 };
 
-const CountBadge = ({ label, value }: { label: string; value: number }) => (
-  <View className="min-w-[72px] rounded-lg bg-slate-100 px-3 py-2">
-    <Text className="text-xs font-medium text-slate-500">{label}</Text>
-    <Text className="mt-1 text-base font-bold text-slate-900">{value}</Text>
-  </View>
-);
+/** 75% is the usual minimum requirement; below 60% is treated as critical. */
+const getStanding = (percentage: number): Standing => {
+  if (percentage >= 75) return { tone: 'success', label: 'On track', icon: 'checkmark-circle' };
+  if (percentage >= 60) return { tone: 'warning', label: 'Watch', icon: 'alert-circle' };
+  return { tone: 'danger', label: 'At risk', icon: 'warning' };
+};
 
-const AttendanceCard = ({ item }: { item: AttendanceSummary }) => {
-  const tone = useMemo(() => getAttendanceTone(item.percentage), [item.percentage]);
-  const numericPercentage = parseFloat(item.percentage);
-  const clampedPercentage = Math.max(0, Math.min(100, Number.isNaN(numericPercentage) ? 0 : numericPercentage));
+const toNumber = (value: string) => {
+  const parsed = parseFloat(value);
+  return Number.isNaN(parsed) ? 0 : parsed;
+};
+
+function AttendanceCard({ item }: { item: AttendanceSummary }) {
+  const { colors } = useTheme();
+  const percentage = toNumber(item.percentage);
+  const standing = getStanding(percentage);
+  const barColor = colors[standing.tone === 'success' ? 'success' : standing.tone === 'warning' ? 'warning' : 'danger'];
 
   return (
-    <View className="rounded-2xl bg-white p-5">
-      <View className="flex-row items-start justify-between gap-4">
-        <View className="flex-1">
-          <Text className="text-lg font-bold text-slate-900">{item.subject}</Text>
-          <Text className="mt-1 text-sm font-medium text-slate-500">{item.code}</Text>
-        </View>
-        <View className="rounded-full px-3 py-1" style={{ backgroundColor: tone.bg }}>
-          <Text className="text-xs font-bold" style={{ color: tone.text }}>
-            {tone.label}
+    <Card padding="lg">
+      <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12 }}>
+        <View style={{ flex: 1 }}>
+          <Text numberOfLines={2} variant="subheading">
+            {item.subject}
+          </Text>
+          <Text style={{ marginTop: 3 }} tone="muted" variant="caption">
+            {item.code}
           </Text>
         </View>
+        <Badge icon={standing.icon} label={standing.label} tone={standing.tone} />
       </View>
 
-      <View className="mt-5">
-        <View className="flex-row items-end justify-between">
-          <Text className="text-sm font-medium text-slate-500">Attendance</Text>
-          <Text className="text-2xl font-bold" style={{ color: tone.text }}>
-            {item.percentage}
+      <View style={{ marginTop: 18 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' }}>
+          <Text tone="muted" variant="caption">
+            Attendance
+          </Text>
+          <Text style={{ color: barColor }} tone="inherit" variant="title">
+            {percentage}%
           </Text>
         </View>
-        <View className="mt-3 h-3 overflow-hidden rounded-full bg-slate-100">
-          <View
-            className="h-full rounded-full"
-            style={{ backgroundColor: tone.bar, width: `${clampedPercentage}%` }}
-          />
-        </View>
+        <ProgressBar
+          color={barColor}
+          label={`${item.subject} attendance`}
+          style={{ marginTop: 10 }}
+          value={percentage}
+        />
       </View>
 
-      <View className="mt-5 flex-row gap-2">
-        <CountBadge label="Present" value={item.present} />
-        <CountBadge label="Absent" value={item.absent} />
-        <CountBadge label="Late" value={item.late} />
+      <View style={{ flexDirection: 'row', gap: 10, marginTop: 18 }}>
+        <StatTile icon="checkmark-outline" label="Present" value={item.present} />
+        <StatTile icon="close-outline" label="Absent" value={item.absent} />
+        <StatTile icon="time-outline" label="Late" value={item.late} />
       </View>
 
-      <Text className="mt-4 text-xs text-slate-500">{item.total} total sessions recorded</Text>
-    </View>
+      <Text style={{ marginTop: 14 }} tone="subtle" variant="caption">
+        {item.total} total {item.total === 1 ? 'session' : 'sessions'} recorded
+      </Text>
+    </Card>
   );
-};
-
-const SkeletonCard = () => (
-  <View className="rounded-2xl bg-white p-5">
-    <View className="h-5 w-2/3 rounded-full bg-slate-200" />
-    <View className="mt-2 h-4 w-24 rounded-full bg-slate-100" />
-    <View className="mt-6 h-3 rounded-full bg-slate-100" />
-    <View className="mt-5 flex-row gap-2">
-      <View className="h-14 flex-1 rounded-lg bg-slate-100" />
-      <View className="h-14 flex-1 rounded-lg bg-slate-100" />
-      <View className="h-14 flex-1 rounded-lg bg-slate-100" />
-    </View>
-  </View>
-);
+}
 
 export default function StudentAttendanceScreen() {
   const { summary, isLoading, isError, error, refetch } = useAttendance();
-  const [refreshing, setRefreshing] = useState(false);
 
   const onRefresh = useCallback(async () => {
-    setRefreshing(true);
-    try {
-      await refetch();
-    } finally {
-      setRefreshing(false);
-    }
+    await refetch();
   }, [refetch]);
 
-  return (
-    <ScrollView
-      className="flex-1 bg-slate-50"
-      contentContainerStyle={{ padding: 24, paddingBottom: 32 }}
-      refreshControl={
-        <RefreshControl
-          colors={[COLORS.primary]}
-          refreshing={refreshing}
-          tintColor={COLORS.primary}
-          onRefresh={onRefresh}
-        />
-      }
-    >
-      <View>
-        <Text className="text-2xl font-bold text-primary">Attendance</Text>
-        <Text className="mt-2 text-sm text-slate-600">
-          Review attendance by subject and monitor minimum percentage requirements.
-        </Text>
-      </View>
+  const atRisk = useMemo(
+    () => summary.filter((item) => toNumber(item.percentage) < 75).length,
+    [summary],
+  );
 
-      <View className="mt-6 gap-4">
+  return (
+    <Screen
+      header={{
+        title: 'Attendance',
+        subtitle: 'Attendance by subject against the 75% minimum requirement.',
+        showBack: false,
+      }}
+      onRefresh={onRefresh}
+    >
+      {!isLoading && !isError && summary.length > 0 ? (
+        <Card padding="md" style={{ marginBottom: 16 }} variant="muted">
+          <Text tone="muted" variant="caption">
+            {atRisk === 0
+              ? `All ${summary.length} subjects are meeting the minimum requirement.`
+              : `${atRisk} of ${summary.length} subjects ${atRisk === 1 ? 'is' : 'are'} below 75%.`}
+          </Text>
+        </Card>
+      ) : null}
+
+      <View style={{ gap: 14 }}>
         {isLoading ? (
-          <>
-            <SkeletonCard />
-            <SkeletonCard />
-            <SkeletonCard />
-          </>
+          <SkeletonList count={3} showFooter />
         ) : isError ? (
-          <View className="items-center rounded-2xl bg-white px-5 py-10">
-            <Text className="text-lg font-bold text-red-600">Could not load attendance</Text>
-            <Text className="mt-2 text-center text-sm text-slate-500">
-              {error instanceof Error ? error.message : 'Pull down to retry.'}
-            </Text>
-          </View>
+          <ErrorState
+            description={error instanceof Error ? error.message : 'Pull down to retry.'}
+            onRetry={() => void refetch()}
+            title="Could not load attendance"
+          />
         ) : summary.length === 0 ? (
-          <View className="items-center rounded-2xl bg-white px-5 py-10">
-            <Text className="text-lg font-bold text-slate-900">No enrolled subjects</Text>
-            <Text className="mt-2 text-center text-sm text-slate-500">
-              Attendance summaries will appear here after subjects are assigned.
-            </Text>
-          </View>
+          <EmptyState
+            description="Attendance summaries appear here once your subjects are assigned."
+            icon="calendar-outline"
+            title="No enrolled subjects"
+          />
         ) : (
           summary.map((item) => <AttendanceCard item={item} key={item.subjectId ?? item.code} />)
         )}
       </View>
-    </ScrollView>
+    </Screen>
   );
 }

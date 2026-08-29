@@ -1,50 +1,123 @@
 import { useQuery } from '@tanstack/react-query';
 import { useCallback, useMemo, useState } from 'react';
-import { Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
+import { Pressable, ScrollView, View } from 'react-native';
 
-import { COLORS } from '@/src/constants/colors';
+import {
+  Badge,
+  Card,
+  EmptyState,
+  ErrorState,
+  InlineNotice,
+  Screen,
+  SkeletonList,
+  StatTile,
+  Text,
+} from '@/src/components/ui';
 import { useAuth } from '@/src/hooks/useAuth';
 import { api } from '@/src/services/api';
+import { useTheme } from '@/src/theme/ThemeProvider';
+import { radius } from '@/src/theme/tokens';
 import type { DayOfWeek, Routine, RoutinesResponse } from '@/src/types/routine';
 
-const days: { label: string; value: DayOfWeek }[] = [
-  { label: 'Sun', value: 'SUNDAY' },
-  { label: 'Mon', value: 'MONDAY' },
-  { label: 'Tue', value: 'TUESDAY' },
-  { label: 'Wed', value: 'WEDNESDAY' },
-  { label: 'Thu', value: 'THURSDAY' },
-  { label: 'Fri', value: 'FRIDAY' },
-  { label: 'Sat', value: 'SATURDAY' },
+const DAYS: { short: string; long: string; value: DayOfWeek }[] = [
+  { short: 'Sun', long: 'Sunday', value: 'SUNDAY' },
+  { short: 'Mon', long: 'Monday', value: 'MONDAY' },
+  { short: 'Tue', long: 'Tuesday', value: 'TUESDAY' },
+  { short: 'Wed', long: 'Wednesday', value: 'WEDNESDAY' },
+  { short: 'Thu', long: 'Thursday', value: 'THURSDAY' },
+  { short: 'Fri', long: 'Friday', value: 'FRIDAY' },
+  { short: 'Sat', long: 'Saturday', value: 'SATURDAY' },
 ];
 
-const getToday = () => days[new Date().getDay()]?.value ?? 'SUNDAY';
+const getToday = (): DayOfWeek => DAYS[new Date().getDay()]?.value ?? 'SUNDAY';
+
 const classTypeLabel = (value?: Routine['classType']) => {
   if (value === 'WORKSHOP') return 'Workshop';
   if (value === 'TUTORIAL') return 'Tutorial';
   return 'Lecture';
 };
 
-const RoutineSkeleton = () => (
-  <View className="rounded-2xl bg-white p-5">
-    <View className="h-5 w-2/3 rounded-full bg-slate-200" />
-    <View className="mt-3 h-4 w-1/2 rounded-full bg-slate-100" />
-    <View className="mt-5 h-4 w-24 rounded-full bg-slate-100" />
-  </View>
-);
+/**
+ * Day selector.
+ *
+ * Built as a tab list rather than plain buttons so the selected day is
+ * announced, and "today" is marked with a dot plus an accessible label instead
+ * of a colour tint alone.
+ */
+function DayPicker({
+  activeDay,
+  onChange,
+  today,
+}: {
+  activeDay: DayOfWeek;
+  onChange: (day: DayOfWeek) => void;
+  today: DayOfWeek;
+}) {
+  const { colors } = useTheme();
+
+  return (
+    <ScrollView accessibilityLabel="Day of week" accessibilityRole="tablist" horizontal showsHorizontalScrollIndicator={false}>
+      <View style={{ flexDirection: 'row', gap: 8, paddingRight: 4 }}>
+        {DAYS.map((day) => {
+          const isActive = activeDay === day.value;
+          const isToday = today === day.value;
+
+          return (
+            <Pressable
+              accessibilityLabel={isToday ? `${day.long}, today` : day.long}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: isActive }}
+              key={day.value}
+              onPress={() => onChange(day.value)}
+              style={({ pressed }) => ({
+                width: 52,
+                height: 60,
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 4,
+                borderRadius: radius.md,
+                borderWidth: 1,
+                backgroundColor: isActive ? colors.primary : colors.surface,
+                borderColor: isActive ? colors.primary : colors.border,
+                opacity: pressed ? 0.75 : 1,
+              })}
+            >
+              <Text
+                style={{
+                  color: isActive ? colors.textOnPrimary : colors.textMuted,
+                  fontSize: 13,
+                  fontWeight: '600',
+                }}
+                tone="inherit"
+              >
+                {day.short}
+              </Text>
+              <View
+                style={{
+                  width: 5,
+                  height: 5,
+                  borderRadius: 999,
+                  backgroundColor: isToday ? (isActive ? '#FFFFFF' : colors.accent) : 'transparent',
+                }}
+              />
+            </Pressable>
+          );
+        })}
+      </View>
+    </ScrollView>
+  );
+}
 
 export default function StudentRoutineScreen() {
   const { isAuthenticated, user } = useAuth();
   const [activeDay, setActiveDay] = useState<DayOfWeek>(getToday);
-  const [isRefreshing, setIsRefreshing] = useState(false);
+  const today = getToday();
 
   const student = user?.student;
 
   const routineQuery = useQuery({
     queryKey: ['routines', 'student'],
-    queryFn: async () => {
-      const response = await api.get<RoutinesResponse>('/routines');
-      return response.data;
-    },
+    queryFn: async () => (await api.get<RoutinesResponse>('/routines')).data,
     enabled: isAuthenticated,
   });
 
@@ -56,93 +129,66 @@ export default function StudentRoutineScreen() {
     [activeDay, routineQuery.data?.routines],
   );
 
-  const handleRefresh = useCallback(async () => {
-    setIsRefreshing(true);
-    try {
-      await routineQuery.refetch();
-    } finally {
-      setIsRefreshing(false);
-    }
+  const onRefresh = useCallback(async () => {
+    await routineQuery.refetch();
   }, [routineQuery]);
 
-  const renderRoutine = (routine: Routine) => (
-    <View className="rounded-2xl bg-white p-5" key={routine.id}>
-      <Text className="text-lg font-bold text-slate-900">{routine.subject?.name ?? 'Subject'}</Text>
-      <Text className="mt-1 text-sm font-medium text-slate-500">{routine.subject?.code ?? 'N/A'}</Text>
-      <Text className="mt-3 self-start rounded-full bg-blue-50 px-3 py-1 text-xs font-bold uppercase text-primary">
-        {classTypeLabel(routine.classType)}
-      </Text>
-      <View className="mt-5 flex-row gap-3">
-        <View className="flex-1 rounded-xl bg-slate-100 p-3">
-          <Text className="text-xs font-medium text-slate-500">Time</Text>
-          <Text className="mt-1 text-sm font-bold text-slate-900">
-            {routine.startTime}-{routine.endTime}
-          </Text>
-        </View>
-        <View className="flex-1 rounded-xl bg-slate-100 p-3">
-          <Text className="text-xs font-medium text-slate-500">Room</Text>
-          <Text className="mt-1 text-sm font-bold text-slate-900">{routine.room || '-'}</Text>
-        </View>
-      </View>
-      <Text className="mt-4 text-sm text-slate-600">Instructor: {routine.instructor?.user?.name ?? '-'}</Text>
-      {routine.note ? <Text className="mt-3 rounded-xl bg-amber-50 p-3 text-sm font-semibold text-amber-800">{routine.note}</Text> : null}
-    </View>
-  );
+  const subtitle = [
+    student?.department,
+    student?.semester ? `Semester ${student.semester}` : null,
+    student?.section ? `Section ${student.section}` : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
 
   return (
-    <ScrollView
-      className="flex-1 bg-slate-50"
-      contentContainerStyle={{ padding: 24, paddingBottom: 32 }}
-      refreshControl={
-        <RefreshControl
-          colors={[COLORS.primary]}
-          refreshing={isRefreshing}
-          tintColor={COLORS.primary}
-          onRefresh={handleRefresh}
-        />
-      }
-    >
-      <Text className="text-2xl font-bold text-primary">Routine</Text>
-      <Text className="mt-2 text-sm text-slate-600">
-        {student?.department ?? 'Department'} • Semester {student?.semester ?? '-'} {student?.section ? `• Section ${student.section}` : ''}
-      </Text>
+    <Screen header={{ title: 'Routine', subtitle: subtitle || 'Your weekly class timetable.' }} onRefresh={onRefresh}>
+      <DayPicker activeDay={activeDay} onChange={setActiveDay} today={today} />
 
-      <ScrollView className="mt-5" horizontal showsHorizontalScrollIndicator={false}>
-        <View className="flex-row gap-2">
-          {days.map((day) => {
-            const active = activeDay === day.value;
-            const today = getToday() === day.value;
-            return (
-              <Pressable
-                className={`rounded-full px-4 py-2 ${active ? 'bg-primary' : today ? 'bg-blue-100' : 'bg-white'}`}
-                key={day.value}
-                onPress={() => setActiveDay(day.value)}
-              >
-                <Text className={`text-xs font-bold ${active ? 'text-white' : today ? 'text-primary' : 'text-slate-600'}`}>
-                  {day.label}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-      </ScrollView>
-
-      <View className="mt-6 gap-4">
+      <View accessibilityLiveRegion="polite" style={{ gap: 14, marginTop: 20 }}>
         {routineQuery.isLoading ? (
-          <>
-            <RoutineSkeleton />
-            <RoutineSkeleton />
-            <RoutineSkeleton />
-          </>
+          <SkeletonList count={3} showFooter />
+        ) : routineQuery.isError ? (
+          <ErrorState onRetry={() => void routineQuery.refetch()} title="Could not load your routine" />
         ) : dayRoutines.length === 0 ? (
-          <View className="items-center rounded-2xl bg-white px-5 py-10">
-            <Text className="text-lg font-bold text-slate-900">No classes scheduled</Text>
-            <Text className="mt-2 text-center text-sm text-slate-500">This day has no routine entries yet.</Text>
-          </View>
+          <EmptyState
+            description={`No classes are scheduled for ${DAYS.find((day) => day.value === activeDay)?.long ?? 'this day'}.`}
+            icon="cafe-outline"
+            title="No classes scheduled"
+          />
         ) : (
-          dayRoutines.map(renderRoutine)
+          dayRoutines.map((routine) => (
+            <Card key={routine.id} padding="lg">
+              <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12 }}>
+                <View style={{ flex: 1 }}>
+                  <Text numberOfLines={2} variant="subheading">
+                    {routine.subject?.name ?? 'Subject'}
+                  </Text>
+                  <Text style={{ marginTop: 3 }} tone="muted" variant="caption">
+                    {routine.subject?.code ?? 'N/A'}
+                  </Text>
+                </View>
+                <Badge label={classTypeLabel(routine.classType)} tone="primary" />
+              </View>
+
+              <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
+                <StatTile icon="time-outline" label="Time" value={`${routine.startTime}–${routine.endTime}`} />
+                <StatTile icon="location-outline" label="Room" value={routine.room || '—'} />
+              </View>
+
+              <Text style={{ marginTop: 14 }} tone="muted" variant="caption">
+                Instructor: {routine.instructor?.user?.name ?? 'To be announced'}
+              </Text>
+
+              {routine.note ? (
+                <View style={{ marginTop: 14 }}>
+                  <InlineNotice title={routine.note} tone="warning" />
+                </View>
+              ) : null}
+            </Card>
+          ))
         )}
       </View>
-    </ScrollView>
+    </Screen>
   );
 }

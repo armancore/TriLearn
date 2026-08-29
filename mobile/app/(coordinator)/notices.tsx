@@ -1,71 +1,223 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { useState } from 'react';
-import { FlatList, Modal, Pressable, RefreshControl, Text, TextInput, View } from 'react-native';
+import { useCallback, useState } from 'react';
+import { FlatList, RefreshControl, View } from 'react-native';
 
-import { COLORS } from '@/src/constants/colors';
+import {
+  Badge,
+  Button,
+  Card,
+  EmptyState,
+  ErrorState,
+  IconButton,
+  Input,
+  SCREEN_GUTTER,
+  Screen,
+  Select,
+  Sheet,
+  SkeletonList,
+  Text,
+  type BadgeTone,
+} from '@/src/components/ui';
+import { announce } from '@/src/hooks/useA11y';
 import { useToast } from '@/src/hooks/useToast';
 import { api } from '@/src/services/api';
-import type { Notice, NoticesResponse, NoticeAudience, NoticeType } from '@/src/types/notice';
+import { useTheme } from '@/src/theme/ThemeProvider';
+import type { Notice, NoticeAudience, NoticesResponse, NoticeType } from '@/src/types/notice';
 
-const types: NoticeType[] = ['GENERAL', 'EXAM', 'HOLIDAY', 'EVENT', 'URGENT'];
-const audiences: NoticeAudience[] = ['ALL', 'STUDENTS', 'INSTRUCTORS_ONLY'];
+const TYPE_OPTIONS: { value: NoticeType; label: string; description: string }[] = [
+  { value: 'GENERAL', label: 'General', description: 'Everyday information' },
+  { value: 'EXAM', label: 'Exam', description: 'Exam schedules and rules' },
+  { value: 'HOLIDAY', label: 'Holiday', description: 'Closures and breaks' },
+  { value: 'EVENT', label: 'Event', description: 'Campus events and activities' },
+  { value: 'URGENT', label: 'Urgent', description: 'Time-critical announcements' },
+];
+
+const AUDIENCE_OPTIONS: { value: NoticeAudience; label: string; description: string }[] = [
+  { value: 'ALL', label: 'Everyone', description: 'Students and instructors' },
+  { value: 'STUDENTS', label: 'Students only', description: 'Visible to students' },
+  { value: 'INSTRUCTORS_ONLY', label: 'Instructors only', description: 'Visible to teaching staff' },
+];
+
+const TYPE_TONE: Record<NoticeType, BadgeTone> = {
+  GENERAL: 'neutral',
+  EXAM: 'info',
+  HOLIDAY: 'success',
+  EVENT: 'accent',
+  URGENT: 'danger',
+};
+
+const MIN_TITLE_LENGTH = 3;
+const MIN_CONTENT_LENGTH = 10;
+
+const emptyForm = {
+  title: '',
+  content: '',
+  type: 'GENERAL' as NoticeType,
+  audience: 'ALL' as NoticeAudience,
+};
+
+const formatDate = (value: string) =>
+  new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(value));
 
 export default function CoordinatorNoticesScreen() {
-  const [refreshing, setRefreshing] = useState(false);
-  const [modalOpen, setModalOpen] = useState(false);
-  const [form, setForm] = useState({ title: '', content: '', type: 'GENERAL' as NoticeType, audience: 'ALL' as NoticeAudience });
+  const { colors } = useTheme();
   const toast = useToast();
-  const query = useQuery({ queryKey: ['notices', 'coordinator'], queryFn: async () => (await api.get<NoticesResponse>('/notices?page=1&limit=50')).data });
+  const [refreshing, setRefreshing] = useState(false);
+  const [isComposerOpen, setIsComposerOpen] = useState(false);
+  const [form, setForm] = useState(emptyForm);
+
+  const query = useQuery({
+    queryKey: ['notices', 'coordinator'],
+    queryFn: async () => (await api.get<NoticesResponse>('/notices?page=1&limit=50')).data,
+  });
+
   const createMutation = useMutation({
     mutationFn: async () => api.post('/notices', form),
-    onError: (error) => toast.error(error, 'Could not create notice.'),
+    onError: (error) => toast.error(error, 'Could not publish the notice.'),
     onSuccess: async () => {
-      setModalOpen(false);
-      setForm({ title: '', content: '', type: 'GENERAL', audience: 'ALL' });
+      setIsComposerOpen(false);
+      setForm(emptyForm);
       await query.refetch();
       toast.success('Notice published.');
+      announce('Notice published');
     },
   });
 
-  const onRefresh = async () => {
+  const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    try { await query.refetch(); } finally { setRefreshing(false); }
-  };
+    try {
+      await query.refetch();
+    } finally {
+      setRefreshing(false);
+    }
+  }, [query]);
+
+  const canPublish =
+    form.title.trim().length >= MIN_TITLE_LENGTH && form.content.trim().length >= MIN_CONTENT_LENGTH;
 
   return (
-    <View className="flex-1 bg-slate-50">
-      <FlatList
-        contentContainerStyle={{ gap: 12, padding: 24, paddingBottom: 96 }}
-        data={query.data?.notices ?? []}
-        keyExtractor={(item: Notice) => item.id}
-        ListHeaderComponent={<><Text className="text-2xl font-bold text-primary">Notices</Text><Text className="mt-2 text-sm text-slate-600">View and publish department notices.</Text></>}
-        ListEmptyComponent={query.isLoading ? <View className="h-24 rounded-2xl bg-white" /> : <Text className="rounded-2xl bg-white p-5 text-center text-slate-500">No notices</Text>}
-        refreshControl={<RefreshControl colors={[COLORS.primary]} refreshing={refreshing} tintColor={COLORS.primary} onRefresh={onRefresh} />}
-        renderItem={({ item }) => (
-          <View className="rounded-2xl bg-white p-5">
-            <Text className="text-lg font-bold text-slate-900">{item.title}</Text>
-            <Text className="mt-1 text-xs font-bold text-primary">{item.type}</Text>
-            <Text className="mt-3 text-sm text-slate-600" numberOfLines={3}>{item.content}</Text>
-          </View>
-        )}
-      />
-      <Pressable className="absolute bottom-6 right-6 h-14 w-14 items-center justify-center rounded-full bg-primary" onPress={() => setModalOpen(true)}>
-        <Text className="text-3xl font-light text-white">+</Text>
-      </Pressable>
-      <Modal animationType="slide" transparent visible={modalOpen} onRequestClose={() => setModalOpen(false)}>
-        <Pressable className="flex-1 justify-end bg-black/40" onPress={() => setModalOpen(false)}>
-          <Pressable className="rounded-t-3xl bg-white p-6" onPress={(event) => event.stopPropagation()}>
-            <Text className="text-xl font-bold text-slate-900">Create notice</Text>
-            <TextInput className="mt-4 rounded-xl bg-slate-100 px-4 py-3" placeholder="Title" value={form.title} onChangeText={(title) => setForm((f) => ({ ...f, title }))} />
-            <TextInput className="mt-3 min-h-24 rounded-xl bg-slate-100 px-4 py-3" multiline placeholder="Content" value={form.content} onChangeText={(content) => setForm((f) => ({ ...f, content }))} />
-            <FlatList horizontal className="mt-3" data={types} keyExtractor={(item) => item} renderItem={({ item }) => <Pressable className={`mr-2 rounded-full px-3 py-2 ${form.type === item ? 'bg-primary' : 'bg-slate-100'}`} onPress={() => setForm((f) => ({ ...f, type: item }))}><Text className={`text-xs font-bold ${form.type === item ? 'text-white' : 'text-slate-600'}`}>{item}</Text></Pressable>} />
-            <FlatList horizontal className="mt-3" data={audiences} keyExtractor={(item) => item} renderItem={({ item }) => <Pressable className={`mr-2 rounded-full px-3 py-2 ${form.audience === item ? 'bg-primary' : 'bg-slate-100'}`} onPress={() => setForm((f) => ({ ...f, audience: item }))}><Text className={`text-xs font-bold ${form.audience === item ? 'text-white' : 'text-slate-600'}`}>{item}</Text></Pressable>} />
-            <Pressable className="mt-5 rounded-xl bg-primary px-5 py-4" onPress={() => createMutation.mutate()}>
-              <Text className="text-center font-bold text-white">{createMutation.isPending ? 'Creating...' : 'Create notice'}</Text>
-            </Pressable>
-          </Pressable>
-        </Pressable>
-      </Modal>
-    </View>
+    <>
+      <Screen
+        header={{
+          title: 'Notices',
+          subtitle: 'View and publish department announcements.',
+          showBack: false,
+          actions: (
+            <IconButton
+              accessibilityLabel="Write a new notice"
+              icon="add"
+              onPress={() => setIsComposerOpen(true)}
+              variant="solid"
+            />
+          ),
+        }}
+        padded={false}
+        scroll={false}
+      >
+        <FlatList
+          contentContainerStyle={{
+            gap: 12,
+            paddingHorizontal: SCREEN_GUTTER,
+            paddingTop: 8,
+            paddingBottom: 32,
+            flexGrow: 1,
+          }}
+          data={query.data?.notices ?? []}
+          keyExtractor={(item: Notice) => item.id}
+          ListEmptyComponent={
+            query.isLoading ? (
+              <SkeletonList count={3} />
+            ) : query.isError ? (
+              <ErrorState onRetry={() => void query.refetch()} title="Could not load notices" />
+            ) : (
+              <EmptyState
+                actionLabel="Write a notice"
+                description="Publish an announcement for your department."
+                icon="megaphone-outline"
+                onAction={() => setIsComposerOpen(true)}
+                title="No notices yet"
+              />
+            )
+          }
+          refreshControl={
+            <RefreshControl
+              colors={[colors.primaryText]}
+              onRefresh={onRefresh}
+              progressBackgroundColor={colors.surface}
+              refreshing={refreshing}
+              tintColor={colors.primaryText}
+            />
+          }
+          renderItem={({ item }) => (
+            <Card padding="lg">
+              <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12 }}>
+                <Text style={{ flex: 1 }} variant="subheading">
+                  {item.title}
+                </Text>
+                <Badge label={item.type} tone={TYPE_TONE[item.type] ?? 'neutral'} />
+              </View>
+              <Text style={{ marginTop: 6 }} tone="subtle" variant="caption">
+                {formatDate(item.createdAt)} · {item.audience.replace('_', ' ').toLowerCase()}
+              </Text>
+              <Text numberOfLines={3} style={{ marginTop: 10 }} tone="muted" variant="caption">
+                {item.content}
+              </Text>
+            </Card>
+          )}
+          showsVerticalScrollIndicator={false}
+        />
+      </Screen>
+
+      <Sheet
+        footer={
+          <Button
+            disabled={!canPublish}
+            icon="send-outline"
+            label="Publish notice"
+            loading={createMutation.isPending}
+            onPress={() => createMutation.mutate()}
+          />
+        }
+        onClose={() => setIsComposerOpen(false)}
+        subtitle="Everyone in the selected audience is notified."
+        title="New notice"
+        visible={isComposerOpen}
+      >
+        <Input
+          label="Title"
+          onChangeText={(title) => setForm((current) => ({ ...current, title }))}
+          placeholder="What is this about?"
+          required
+          value={form.title}
+        />
+
+        <Input
+          hint={`At least ${MIN_CONTENT_LENGTH} characters.`}
+          label="Content"
+          multiline
+          onChangeText={(content) => setForm((current) => ({ ...current, content }))}
+          placeholder="Write the announcement…"
+          required
+          value={form.content}
+        />
+
+        <View style={{ gap: 12 }}>
+          <Select
+            icon="pricetag-outline"
+            label="Type"
+            onChange={(type) => setForm((current) => ({ ...current, type }))}
+            options={TYPE_OPTIONS}
+            value={form.type}
+          />
+          <Select
+            icon="people-outline"
+            label="Audience"
+            onChange={(audience) => setForm((current) => ({ ...current, audience }))}
+            options={AUDIENCE_OPTIONS}
+            value={form.audience}
+          />
+        </View>
+      </Sheet>
+    </>
   );
 }

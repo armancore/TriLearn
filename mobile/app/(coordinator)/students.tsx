@@ -1,83 +1,185 @@
 import { useQuery } from '@tanstack/react-query';
-import { useMemo, useState } from 'react';
-import { FlatList, Modal, Pressable, RefreshControl, Text, TextInput, View } from 'react-native';
+import { useCallback, useMemo, useState } from 'react';
+import { FlatList, RefreshControl, View } from 'react-native';
 
-import { COLORS } from '@/src/constants/colors';
+import {
+  Avatar,
+  Badge,
+  EmptyState,
+  ErrorState,
+  Input,
+  PressableCard,
+  SCREEN_GUTTER,
+  Screen,
+  Sheet,
+  SkeletonList,
+  StatTile,
+  Text,
+} from '@/src/components/ui';
 import { api } from '@/src/services/api';
+import { useTheme } from '@/src/theme/ThemeProvider';
 import type { AdminUser, AdminUsersResponse, CoordinatorDepartmentReport } from '@/src/types/admin';
 
-const monthValue = () => new Date().toISOString().slice(0, 7);
+const currentMonth = () => new Date().toISOString().slice(0, 7);
 
 export default function CoordinatorStudentsScreen() {
+  const { colors } = useTheme();
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<AdminUser | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
   const usersQuery = useQuery({
     queryKey: ['coordinator', 'students'],
-    queryFn: async () => (await api.get<AdminUsersResponse>('/admin/users?role=STUDENT&page=1&limit=100')).data,
+    queryFn: async () =>
+      (await api.get<AdminUsersResponse>('/admin/users?role=STUDENT&page=1&limit=100')).data,
   });
 
   const reportQuery = useQuery({
     queryKey: ['coordinator', 'student-attendance', selected?.student?.semester],
-    queryFn: async () => (await api.get<CoordinatorDepartmentReport>(`/attendance/coordinator/department-report?month=${monthValue()}&semester=${selected?.student?.semester ?? 1}`)).data,
+    queryFn: async () =>
+      (
+        await api.get<CoordinatorDepartmentReport>(
+          `/attendance/coordinator/department-report?month=${currentMonth()}&semester=${selected?.student?.semester ?? 1}`,
+        )
+      ).data,
     enabled: Boolean(selected?.student?.semester),
   });
 
   const students = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return (usersQuery.data?.users ?? []).filter((user) => (
-      !q || user.name.toLowerCase().includes(q) || user.student?.rollNumber?.toLowerCase().includes(q)
-    ));
+    const query = search.trim().toLowerCase();
+
+    return (usersQuery.data?.users ?? []).filter(
+      (user) =>
+        !query ||
+        user.name.toLowerCase().includes(query) ||
+        user.student?.rollNumber?.toLowerCase().includes(query),
+    );
   }, [search, usersQuery.data?.users]);
 
-  const selectedAttendance = reportQuery.data?.students.find((student) => student.id === selected?.student?.id)?.monthlyAverage ?? '-';
+  const selectedAttendance =
+    reportQuery.data?.students.find((student) => student.id === selected?.student?.id)?.monthlyAverage ?? null;
 
-  const onRefresh = async () => {
+  const onRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
       await usersQuery.refetch();
     } finally {
       setRefreshing(false);
     }
-  };
+  }, [usersQuery]);
 
   return (
-    <View className="flex-1 bg-slate-50">
-      <FlatList
-        contentContainerStyle={{ gap: 12, padding: 24, paddingBottom: 32 }}
-        data={students}
-        keyExtractor={(item) => item.id}
-        ListHeaderComponent={
-          <View>
-            <Text className="text-2xl font-bold text-primary">Students</Text>
-            <TextInput className="mt-4 rounded-2xl bg-white px-4 py-3 text-slate-900" placeholder="Search name or roll number" value={search} onChangeText={setSearch} />
-          </View>
-        }
-        ListEmptyComponent={usersQuery.isLoading ? <View className="h-24 rounded-2xl bg-white" /> : <Text className="rounded-2xl bg-white p-5 text-center text-slate-500">No students found</Text>}
-        refreshControl={<RefreshControl colors={[COLORS.primary]} refreshing={refreshing} tintColor={COLORS.primary} onRefresh={onRefresh} />}
-        renderItem={({ item }) => (
-          <Pressable className="rounded-2xl bg-white p-5 active:opacity-80" onPress={() => setSelected(item)}>
-            <Text className="text-base font-bold text-slate-900">{item.name}</Text>
-            <Text className="mt-1 text-sm text-slate-500">{item.student?.rollNumber ?? '-'} • Sem {item.student?.semester ?? '-'}</Text>
-            <Text className="mt-2 text-sm text-slate-600">{item.student?.department ?? '-'} {item.student?.section ? `• Section ${item.student.section}` : ''}</Text>
-          </Pressable>
-        )}
-      />
-      <Modal animationType="slide" transparent visible={Boolean(selected)} onRequestClose={() => setSelected(null)}>
-        <Pressable className="flex-1 justify-end bg-black/40" onPress={() => setSelected(null)}>
-          <Pressable className="rounded-t-3xl bg-white p-6" onPress={(event) => event.stopPropagation()}>
-            <View className="h-1 w-12 self-center rounded-full bg-slate-200" />
-            <Text className="mt-6 text-2xl font-bold text-slate-900">{selected?.name}</Text>
-            <Text className="mt-2 text-sm text-slate-500">{selected?.email}</Text>
-            <Text className="mt-1 text-sm text-slate-500">{selected?.phone ?? 'No contact number'}</Text>
-            <View className="mt-5 rounded-2xl bg-slate-100 p-4">
-              <Text className="text-xs font-medium text-slate-500">Attendance this month</Text>
-              <Text className="mt-1 text-2xl font-bold text-slate-900">{selectedAttendance}{selectedAttendance !== '-' ? '%' : ''}</Text>
-            </View>
-          </Pressable>
-        </Pressable>
-      </Modal>
-    </View>
+    <>
+      <Screen
+        header={{
+          title: 'Students',
+          subtitle: usersQuery.data ? `${usersQuery.data.total} enrolled` : 'Search the student roster.',
+          showBack: false,
+        }}
+        padded={false}
+        scroll={false}
+      >
+        <FlatList
+          contentContainerStyle={{
+            gap: 12,
+            paddingHorizontal: SCREEN_GUTTER,
+            paddingTop: 8,
+            paddingBottom: 32,
+            flexGrow: 1,
+          }}
+          data={students}
+          keyboardShouldPersistTaps="handled"
+          keyExtractor={(item) => item.id}
+          ListEmptyComponent={
+            usersQuery.isLoading ? (
+              <SkeletonList count={4} lines={1} />
+            ) : usersQuery.isError ? (
+              <ErrorState onRetry={() => void usersQuery.refetch()} title="Could not load students" />
+            ) : (
+              <EmptyState
+                description={
+                  search ? `Nothing matches “${search.trim()}”.` : 'Students in your department will appear here.'
+                }
+                icon="people-outline"
+                title="No students found"
+              />
+            )
+          }
+          ListHeaderComponent={
+            <Input
+              autoCapitalize="none"
+              autoCorrect={false}
+              clearButtonMode="while-editing"
+              icon="search-outline"
+              label="Search"
+              onChangeText={setSearch}
+              placeholder="Name or roll number"
+              returnKeyType="search"
+              value={search}
+            />
+          }
+          refreshControl={
+            <RefreshControl
+              colors={[colors.primaryText]}
+              onRefresh={onRefresh}
+              progressBackgroundColor={colors.surface}
+              refreshing={refreshing}
+              tintColor={colors.primaryText}
+            />
+          }
+          renderItem={({ item }) => (
+            <PressableCard
+              accessibilityHint="Opens student details"
+              accessibilityLabel={`${item.name}, roll number ${item.student?.rollNumber ?? 'unknown'}, semester ${item.student?.semester ?? 'unknown'}`}
+              onPress={() => setSelected(item)}
+              padding="md"
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                <Avatar name={item.name} size={42} />
+                <View style={{ flex: 1 }}>
+                  <Text numberOfLines={1} variant="bodyStrong">
+                    {item.name}
+                  </Text>
+                  <Text numberOfLines={1} style={{ marginTop: 2 }} tone="muted" variant="caption">
+                    {item.student?.rollNumber ?? '—'}
+                    {item.student?.department ? ` · ${item.student.department}` : ''}
+                  </Text>
+                </View>
+                <Badge label={`Sem ${item.student?.semester ?? '—'}`} tone="primary" />
+              </View>
+            </PressableCard>
+          )}
+          showsVerticalScrollIndicator={false}
+        />
+      </Screen>
+
+      <Sheet
+        onClose={() => setSelected(null)}
+        subtitle={selected?.email}
+        title={selected?.name ?? ''}
+        visible={Boolean(selected)}
+      >
+        <View style={{ flexDirection: 'row', gap: 10 }}>
+          <StatTile icon="id-card-outline" label="Roll number" value={selected?.student?.rollNumber ?? '—'} />
+          <StatTile icon="layers-outline" label="Semester" value={selected?.student?.semester ?? '—'} />
+          <StatTile icon="grid-outline" label="Section" value={selected?.student?.section ?? '—'} />
+        </View>
+
+        <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>
+          <StatTile icon="call-outline" label="Phone" value={selected?.phone ?? '—'} />
+          <StatTile
+            icon="calendar-outline"
+            label="Attendance this month"
+            value={reportQuery.isLoading ? '…' : selectedAttendance ? `${selectedAttendance}%` : '—'}
+          />
+        </View>
+
+        {selected?.student?.department ? (
+          <Text style={{ marginTop: 16 }} tone="muted" variant="caption">
+            {selected.student.department}
+          </Text>
+        ) : null}
+      </Sheet>
+    </>
   );
 }

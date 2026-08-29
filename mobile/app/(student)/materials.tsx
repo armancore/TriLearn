@@ -1,12 +1,23 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
-import { useMemo, useState } from 'react';
-import { FlatList, Pressable, RefreshControl, Text, View } from 'react-native';
+import { useCallback, useMemo, useState } from 'react';
+import { FlatList, RefreshControl, View } from 'react-native';
 
-import { COLORS } from '@/src/constants/colors';
-import EmptyState from '@/src/components/EmptyState';
+import {
+  Button,
+  Card,
+  EmptyState,
+  ErrorState,
+  FilterChips,
+  SCREEN_GUTTER,
+  Screen,
+  SkeletonList,
+  Text,
+} from '@/src/components/ui';
 import { useToast } from '@/src/hooks/useToast';
 import { api } from '@/src/services/api';
+import { useTheme } from '@/src/theme/ThemeProvider';
+import { radius } from '@/src/theme/tokens';
 import type { StudyMaterial, StudyMaterialsResponse } from '@/src/types/material';
 import { openAuthenticatedUpload } from '@/src/utils/uploadFiles';
 
@@ -14,122 +25,167 @@ const formatDate = (value: string) =>
   new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(value));
 
 export default function StudentMaterialsScreen() {
-  const [selectedSubjectId, setSelectedSubjectId] = useState<string>('ALL');
-  const [refreshing, setRefreshing] = useState(false);
+  const { colors } = useTheme();
   const toast = useToast();
+  const [selectedSubjectId, setSelectedSubjectId] = useState('ALL');
+  const [refreshing, setRefreshing] = useState(false);
+  const [openingId, setOpeningId] = useState<string | null>(null);
 
   const query = useQuery({
     queryKey: ['materials', 'student'],
     queryFn: async () => (await api.get<StudyMaterialsResponse>('/materials?page=1&limit=100')).data,
   });
 
-  const subjectChips = useMemo(() => {
-    const subjects = new Map<string, { id: string; label: string }>();
+  /** Chip values are subject ids; the map keeps a readable label for each. */
+  const subjectLabels = useMemo(() => {
+    const labels = new Map<string, string>([['ALL', 'All subjects']]);
     for (const material of query.data?.materials ?? []) {
-      subjects.set(material.subjectId, {
-        id: material.subjectId,
-        label: material.subject?.code ?? 'Subject',
-      });
+      labels.set(material.subjectId, material.subject?.code ?? 'Subject');
     }
-    return [{ id: 'ALL', label: 'All' }, ...subjects.values()];
+    return labels;
   }, [query.data?.materials]);
+
+  const subjectIds = useMemo(() => Array.from(subjectLabels.keys()), [subjectLabels]);
 
   const materials = useMemo(
     () =>
-      (query.data?.materials ?? []).filter((material) => (
-        selectedSubjectId === 'ALL' || material.subjectId === selectedSubjectId
-      )),
+      (query.data?.materials ?? []).filter(
+        (material) => selectedSubjectId === 'ALL' || material.subjectId === selectedSubjectId,
+      ),
     [query.data?.materials, selectedSubjectId],
   );
 
-  const onRefresh = async () => {
+  const onRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
       await query.refetch();
     } finally {
       setRefreshing(false);
     }
-  };
+  }, [query]);
 
   const openMaterial = async (material: StudyMaterial) => {
+    setOpeningId(material.id);
     try {
       await openAuthenticatedUpload(material.fileUrl);
     } catch (error) {
       toast.error(error, 'Could not open this material.');
+    } finally {
+      setOpeningId(null);
     }
   };
 
-  const renderMaterial = ({ item }: { item: StudyMaterial }) => (
-    <View className="rounded-2xl bg-white p-5">
-      <View className="flex-row items-start gap-4">
-        <View className="h-12 w-12 items-center justify-center rounded-2xl bg-blue-100">
-          <Ionicons color={COLORS.primary} name="document-text-outline" size={24} />
-        </View>
-        <View className="flex-1">
-          <Text className="text-lg font-bold text-slate-900">{item.title}</Text>
-          <Text className="mt-1 text-sm font-semibold text-primary">
-            {item.subject?.name ?? 'Subject'} {item.subject?.code ? `(${item.subject.code})` : ''}
-          </Text>
-        </View>
-      </View>
-      {item.description ? (
-        <Text className="mt-4 text-sm leading-6 text-slate-600" numberOfLines={3}>
-          {item.description}
-        </Text>
-      ) : null}
-      <View className="mt-5 flex-row items-center justify-between">
-        <Text className="text-xs text-slate-500">Uploaded {formatDate(item.createdAt)}</Text>
-        <Pressable className="rounded-xl bg-primary px-4 py-2" onPress={() => void openMaterial(item)}>
-          <Text className="text-sm font-bold text-white">Open</Text>
-        </Pressable>
-      </View>
-    </View>
-  );
-
   return (
-    <View className="flex-1 bg-slate-50">
+    <Screen
+      header={{ title: 'Materials', subtitle: 'Course files shared by your instructors.' }}
+      padded={false}
+      scroll={false}
+    >
       <FlatList
-        contentContainerStyle={{ gap: 12, padding: 24, paddingBottom: 32 }}
+        contentContainerStyle={{
+          gap: 12,
+          paddingHorizontal: SCREEN_GUTTER,
+          paddingTop: 8,
+          paddingBottom: 32,
+          flexGrow: 1,
+        }}
         data={materials}
         keyExtractor={(item) => item.id}
-        ListHeaderComponent={
-          <View>
-            <Text className="text-2xl font-bold text-primary">Study Materials</Text>
-            <Text className="mt-2 text-sm text-slate-600">Open course files shared by instructors.</Text>
-            <FlatList
-              className="mt-5"
-              data={subjectChips}
-              horizontal
-              keyExtractor={(item) => item.id}
-              showsHorizontalScrollIndicator={false}
-              renderItem={({ item }) => {
-                const active = selectedSubjectId === item.id;
-                return (
-                  <Pressable
-                    className={`mr-2 rounded-full px-4 py-2 ${active ? 'bg-primary' : 'bg-white'}`}
-                    onPress={() => setSelectedSubjectId(item.id)}
-                  >
-                    <Text className={`text-xs font-bold ${active ? 'text-white' : 'text-slate-600'}`}>{item.label}</Text>
-                  </Pressable>
-                );
-              }}
-            />
-          </View>
-        }
         ListEmptyComponent={
           query.isLoading ? (
-            <View className="h-24 rounded-2xl bg-white" />
+            <SkeletonList count={3} />
           ) : query.isError ? (
-            <Text className="rounded-2xl bg-white p-5 text-center text-red-600">Could not load study materials. Pull down to retry.</Text>
+            <ErrorState onRetry={() => void query.refetch()} title="Could not load materials" />
           ) : (
-            <View className="rounded-2xl bg-white px-5 py-10">
-              <EmptyState title="No study materials yet" />
-            </View>
+            <EmptyState
+              description="Files your instructors upload will appear here."
+              icon="folder-open-outline"
+              title="No study materials yet"
+            />
           )
         }
-        refreshControl={<RefreshControl colors={[COLORS.primary]} refreshing={refreshing} tintColor={COLORS.primary} onRefresh={onRefresh} />}
-        renderItem={renderMaterial}
+        ListHeaderComponent={
+          subjectIds.length > 1 ? (
+            <View style={{ paddingBottom: 4 }}>
+              <FilterChips
+                formatLabel={(id) => subjectLabels.get(id) ?? 'Subject'}
+                label="Filter by subject"
+                onChange={setSelectedSubjectId}
+                options={subjectIds}
+                value={selectedSubjectId}
+              />
+            </View>
+          ) : null
+        }
+        refreshControl={
+          <RefreshControl
+            colors={[colors.primaryText]}
+            onRefresh={onRefresh}
+            progressBackgroundColor={colors.surface}
+            refreshing={refreshing}
+            tintColor={colors.primaryText}
+          />
+        }
+        renderItem={({ item }) => (
+          <Card padding="lg">
+            <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 14 }}>
+              <View
+                style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: radius.md,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor: colors.primarySoft,
+                }}
+              >
+                <Ionicons color={colors.primarySoftText} name="document-text-outline" size={22} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text numberOfLines={2} variant="subheading">
+                  {item.title}
+                </Text>
+                <Text numberOfLines={1} style={{ marginTop: 3 }} tone="muted" variant="caption">
+                  {item.subject?.name ?? 'Subject'}
+                  {item.subject?.code ? ` · ${item.subject.code}` : ''}
+                </Text>
+              </View>
+            </View>
+
+            {item.description ? (
+              <Text numberOfLines={3} style={{ marginTop: 12 }} tone="muted" variant="caption">
+                {item.description}
+              </Text>
+            ) : null}
+
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 12,
+                marginTop: 16,
+              }}
+            >
+              <Text style={{ flex: 1 }} tone="subtle" variant="caption">
+                Uploaded {formatDate(item.createdAt)}
+              </Text>
+              <Button
+                accessibilityHint={`Opens ${item.title}`}
+                accessibilityLabel={`Open ${item.title}`}
+                fullWidth={false}
+                icon="open-outline"
+                label="Open"
+                loading={openingId === item.id}
+                onPress={() => void openMaterial(item)}
+                size="sm"
+                variant="tonal"
+              />
+            </View>
+          </Card>
+        )}
+        showsVerticalScrollIndicator={false}
       />
-    </View>
+    </Screen>
   );
 }

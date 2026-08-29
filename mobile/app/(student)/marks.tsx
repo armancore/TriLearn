@@ -1,172 +1,185 @@
 import { useQuery } from '@tanstack/react-query';
 import { useCallback, useMemo, useState } from 'react';
-import { Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
+import { View } from 'react-native';
 
-import { COLORS } from '@/src/constants/colors';
-import EmptyState from '@/src/components/EmptyState';
+import {
+  Badge,
+  Card,
+  EmptyState,
+  FilterChips,
+  Screen,
+  SkeletonCard,
+  SkeletonList,
+  StatTile,
+  Text,
+} from '@/src/components/ui';
 import { useAuth } from '@/src/hooks/useAuth';
 import { api } from '@/src/services/api';
+import { useTheme } from '@/src/theme/ThemeProvider';
 import type { ExamType, MarksResponse, MarksSummaryResponse } from '@/src/types/marks';
 
-const examTypes: ExamType[] = ['INTERNAL', 'MIDTERM', 'FINAL', 'PRACTICAL'];
+const EXAM_TYPES: ExamType[] = ['INTERNAL', 'MIDTERM', 'FINAL', 'PRACTICAL'];
 
 const formatDate = (value?: string | null) => {
-  if (!value) return 'Not published';
+  if (!value) {
+    return 'Not published';
+  }
+
   return new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(value));
 };
 
-const MarkSkeleton = () => (
-  <View className="rounded-2xl bg-white p-5">
-    <View className="h-5 w-2/3 rounded-full bg-slate-200" />
-    <View className="mt-3 h-4 w-1/2 rounded-full bg-slate-100" />
-    <View className="mt-5 h-4 w-24 rounded-full bg-slate-100" />
-  </View>
-);
+/** Grades map to a tone so a good result reads as good at a glance. */
+const gradeTone = (grade: string) => {
+  const head = grade.trim().charAt(0).toUpperCase();
+  if (head === 'A') return 'success' as const;
+  if (head === 'B' || head === 'C') return 'info' as const;
+  if (head === 'D') return 'warning' as const;
+  return 'danger' as const;
+};
 
 export default function StudentMarksScreen() {
+  const { colors } = useTheme();
   const { isAuthenticated } = useAuth();
   const [activeExamType, setActiveExamType] = useState<ExamType>('INTERNAL');
-  const [refreshing, setRefreshing] = useState(false);
 
   const marksQuery = useQuery({
     queryKey: ['marks', 'my', activeExamType],
-    queryFn: async () => {
-      const response = await api.get<MarksResponse>(`/marks/my?examType=${activeExamType}&page=1&limit=50`);
-      return response.data;
-    },
+    queryFn: async () =>
+      (await api.get<MarksResponse>(`/marks/my?examType=${activeExamType}&page=1&limit=50`)).data,
     enabled: isAuthenticated,
   });
 
   const summaryQuery = useQuery({
     queryKey: ['marks', 'my', 'summary'],
-    queryFn: async () => {
-      const response = await api.get<MarksSummaryResponse>('/marks/my/summary');
-      return response.data;
-    },
+    queryFn: async () => (await api.get<MarksSummaryResponse>('/marks/my/summary')).data,
     enabled: isAuthenticated,
   });
 
   const publishedMarks = useMemo(
-    () => (marksQuery.data?.marks ?? []).filter((mark) => mark.isPublished && mark.examType === activeExamType),
+    () =>
+      (marksQuery.data?.marks ?? []).filter(
+        (mark) => mark.isPublished && mark.examType === activeExamType,
+      ),
     [activeExamType, marksQuery.data?.marks],
   );
 
   const availableExamTypes = useMemo(() => {
-    const available = new Set<ExamType>([...examTypes, ...(marksQuery.data?.availableExamTypes ?? []), ...(summaryQuery.data?.availableExamTypes ?? [])]);
-    return examTypes.filter((type) => available.has(type));
+    const available = new Set<ExamType>([
+      ...EXAM_TYPES,
+      ...(marksQuery.data?.availableExamTypes ?? []),
+      ...(summaryQuery.data?.availableExamTypes ?? []),
+    ]);
+
+    return EXAM_TYPES.filter((type) => available.has(type));
   }, [marksQuery.data?.availableExamTypes, summaryQuery.data?.availableExamTypes]);
 
   const summary = summaryQuery.data?.resultSheet;
 
-  const onRefresh = useCallback(async () => {
-    setRefreshing(true);
-    try {
-      await Promise.all([marksQuery.refetch(), summaryQuery.refetch()]);
-    } finally {
-      setRefreshing(false);
-    }
-  }, [marksQuery, summaryQuery]);
+  const onRefresh = useCallback(
+    async () => Promise.all([marksQuery.refetch(), summaryQuery.refetch()]),
+    [marksQuery, summaryQuery],
+  );
 
   return (
-    <ScrollView
-      className="flex-1 bg-slate-50"
-      contentContainerStyle={{ padding: 24, paddingBottom: 32 }}
-      refreshControl={
-        <RefreshControl
-          colors={[COLORS.primary]}
-          refreshing={refreshing}
-          tintColor={COLORS.primary}
-          onRefresh={onRefresh}
-        />
-      }
+    <Screen
+      header={{ title: 'Marks', subtitle: 'Published results grouped by exam type.', showBack: false }}
+      onRefresh={onRefresh}
     >
-      <Text className="text-2xl font-bold text-primary">Marks</Text>
-      <Text className="mt-2 text-sm text-slate-600">Published results grouped by exam type.</Text>
-
       {summaryQuery.isLoading ? (
-        <View className="mt-6 rounded-2xl bg-white p-5">
-          <View className="h-4 w-32 rounded-full bg-slate-200" />
-          <View className="mt-4 h-10 w-24 rounded-full bg-slate-100" />
-          <View className="mt-4 h-3 rounded-full bg-slate-100" />
-        </View>
+        <SkeletonCard lines={1} showFooter />
       ) : (
-        <View className="mt-6 rounded-2xl bg-primary p-5">
-          <Text className="text-sm font-semibold text-blue-100">Semester summary</Text>
-          <View className="mt-3 flex-row items-end justify-between">
+        <Card padding="lg" style={{ backgroundColor: colors.primary, borderColor: colors.primary }}>
+          <Text style={{ color: 'rgba(255,255,255,0.82)' }} tone="inherit" variant="caption">
+            Semester summary
+          </Text>
+
+          <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', marginTop: 10 }}>
             <View>
-              <Text className="text-5xl font-bold text-white">{summary?.overallGpa?.toFixed(2) ?? '0.00'}</Text>
-              <Text className="mt-1 text-sm text-blue-100">Overall GPA</Text>
+              <Text style={{ color: '#FFFFFF' }} tone="inherit" variant="display">
+                {summary?.overallGpa?.toFixed(2) ?? '0.00'}
+              </Text>
+              <Text style={{ color: 'rgba(255,255,255,0.82)', marginTop: 2 }} tone="inherit" variant="caption">
+                Overall GPA
+              </Text>
             </View>
-            <View className="items-end">
-              <Text className="text-2xl font-bold text-white">{summary?.overallPercentage ?? 0}%</Text>
-              <Text className="mt-1 text-sm text-blue-100">Overall</Text>
+            <View style={{ alignItems: 'flex-end' }}>
+              <Text style={{ color: '#FFFFFF' }} tone="inherit" variant="title">
+                {summary?.overallPercentage ?? 0}%
+              </Text>
+              <Text style={{ color: 'rgba(255,255,255,0.82)', marginTop: 2 }} tone="inherit" variant="caption">
+                Overall score
+              </Text>
             </View>
           </View>
-          <Text className="mt-4 text-sm text-blue-100">
-            {summary?.totals.obtainedMarks ?? 0}/{summary?.totals.totalMarks ?? 0} marks across {summary?.subjects.length ?? 0} subjects
-          </Text>
-        </View>
+
+          <View style={{ flexDirection: 'row', gap: 10, marginTop: 18 }}>
+            <StatTile
+              label="Marks"
+              onPrimary
+              value={`${summary?.totals.obtainedMarks ?? 0}/${summary?.totals.totalMarks ?? 0}`}
+            />
+            <StatTile label="Subjects" onPrimary value={summary?.subjects.length ?? 0} />
+            <StatTile label="Grade" onPrimary value={summary?.overallGrade ?? '—'} />
+          </View>
+        </Card>
       )}
 
-      <ScrollView className="mt-5" horizontal showsHorizontalScrollIndicator={false}>
-        <View className="flex-row gap-2">
-          {availableExamTypes.map((type) => {
-            const active = activeExamType === type;
-            return (
-              <Pressable
-                className={`rounded-full px-4 py-2 ${active ? 'bg-primary' : 'bg-white'}`}
-                key={type}
-                onPress={() => setActiveExamType(type)}
-              >
-                <Text className={`text-xs font-bold ${active ? 'text-white' : 'text-slate-600'}`}>{type}</Text>
-              </Pressable>
-            );
-          })}
-        </View>
-      </ScrollView>
+      <View style={{ marginTop: 20 }}>
+        <FilterChips
+          label="Exam type"
+          onChange={setActiveExamType}
+          options={availableExamTypes}
+          value={activeExamType}
+        />
+      </View>
 
-      <View className="mt-6 gap-4">
+      <View style={{ gap: 14, marginTop: 18 }}>
         {marksQuery.isLoading ? (
-          <>
-            <MarkSkeleton />
-            <MarkSkeleton />
-            <MarkSkeleton />
-          </>
+          <SkeletonList count={3} showFooter />
         ) : publishedMarks.length === 0 ? (
-          <View className="items-center rounded-2xl bg-white px-5 py-10">
-            <EmptyState title="No marks yet" subtitle={`Published ${activeExamType.toLowerCase()} marks will appear here.`} />
-          </View>
+          <EmptyState
+            description={`Published ${activeExamType.toLowerCase()} results will appear here once your instructor releases them.`}
+            icon="ribbon-outline"
+            title="No marks published yet"
+          />
         ) : (
           publishedMarks.map((mark) => (
-            <View className="rounded-2xl bg-white p-5" key={mark.id}>
-              <View className="flex-row items-start justify-between gap-4">
-                <View className="flex-1">
-                  <Text className="text-lg font-bold text-slate-900">{mark.subject?.name ?? 'Subject'}</Text>
-                  <Text className="mt-1 text-sm font-medium text-slate-500">
-                    {mark.subject?.code ?? 'N/A'} • {mark.examType}
+            <Card key={mark.id} padding="lg">
+              <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12 }}>
+                <View style={{ flex: 1 }}>
+                  <Text numberOfLines={2} variant="subheading">
+                    {mark.subject?.name ?? 'Subject'}
+                  </Text>
+                  <Text style={{ marginTop: 3 }} tone="muted" variant="caption">
+                    {mark.subject?.code ?? 'N/A'} · {mark.examType}
                   </Text>
                 </View>
-                <View className="rounded-full bg-blue-100 px-3 py-1">
-                  <Text className="text-xs font-bold text-blue-700">{mark.grade}</Text>
-                </View>
+                <Badge
+                  accessibilityLabel={`Grade ${mark.grade}`}
+                  label={mark.grade}
+                  tone={gradeTone(mark.grade)}
+                />
               </View>
-              <View className="mt-5 flex-row gap-3">
-                <View className="flex-1 rounded-xl bg-slate-100 p-3">
-                  <Text className="text-xs font-medium text-slate-500">Marks</Text>
-                  <Text className="mt-1 text-base font-bold text-slate-900">
-                    {mark.obtainedMarks}/{mark.totalMarks}
-                  </Text>
-                </View>
-                <View className="flex-1 rounded-xl bg-slate-100 p-3">
-                  <Text className="text-xs font-medium text-slate-500">Grade point</Text>
-                  <Text className="mt-1 text-base font-bold text-slate-900">{mark.gradePoint.toFixed(1)}</Text>
-                </View>
+
+              <View style={{ flexDirection: 'row', gap: 10, marginTop: 18 }}>
+                <StatTile label="Marks" value={`${mark.obtainedMarks}/${mark.totalMarks}`} />
+                <StatTile label="Percentage" value={`${Math.round(mark.percentage)}%`} />
+                <StatTile label="Grade point" value={mark.gradePoint.toFixed(1)} />
               </View>
-              <Text className="mt-4 text-xs text-slate-500">Published {formatDate(mark.publishedAt)}</Text>
-            </View>
+
+              {mark.remarks ? (
+                <Text style={{ marginTop: 14 }} tone="muted" variant="caption">
+                  {mark.remarks}
+                </Text>
+              ) : null}
+
+              <Text style={{ marginTop: 10 }} tone="subtle" variant="caption">
+                Published {formatDate(mark.publishedAt)}
+              </Text>
+            </Card>
           ))
         )}
       </View>
-    </ScrollView>
+    </Screen>
   );
 }

@@ -1,9 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
-import { useCallback, useMemo, useState } from 'react';
-import { Image, Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
+import { useCallback } from 'react';
+import { ActivityIndicator, Image, View } from 'react-native';
 
-import { COLORS } from '@/src/constants/colors';
+import { Avatar, Button, Card, Screen, StatTile, Text } from '@/src/components/ui';
 import { api } from '@/src/services/api';
+import { useTheme } from '@/src/theme/ThemeProvider';
+import { radius } from '@/src/theme/tokens';
 import type { ProfileResponse } from '@/src/types/profile';
 
 interface StudentQrResponse {
@@ -13,16 +15,8 @@ interface StudentQrResponse {
   expiresAt?: string;
 }
 
-const getInitials = (name?: string) =>
-  (name || 'Student')
-    .split(' ')
-    .map((part) => part[0])
-    .join('')
-    .slice(0, 2)
-    .toUpperCase();
-
 export default function StudentIdCardScreen() {
-  const [refreshing, setRefreshing] = useState(false);
+  const { colors } = useTheme();
 
   const profileQuery = useQuery({
     queryKey: ['auth', 'me'],
@@ -31,88 +25,128 @@ export default function StudentIdCardScreen() {
 
   const qrQuery = useQuery({
     queryKey: ['student-id-qr'],
-    queryFn: async () => {
-      const response = await api.get<StudentQrResponse>('/auth/student-id-qr');
-      return response.data;
-    },
+    queryFn: async () => (await api.get<StudentQrResponse>('/auth/student-id-qr')).data,
     staleTime: 60 * 60 * 1000,
     refetchOnMount: 'always',
   });
 
   const user = profileQuery.data?.user;
   const student = user?.student;
-  const initials = useMemo(() => getInitials(user?.name), [user?.name]);
 
   const refreshQr = useCallback(async () => {
     await qrQuery.refetch();
   }, [qrQuery]);
 
-  const onRefresh = useCallback(async () => {
-    setRefreshing(true);
-    try {
-      await Promise.all([profileQuery.refetch(), refreshQr()]);
-    } finally {
-      setRefreshing(false);
-    }
-  }, [profileQuery, refreshQr]);
+  const onRefresh = useCallback(
+    async () => Promise.all([profileQuery.refetch(), qrQuery.refetch()]),
+    [profileQuery, qrQuery],
+  );
 
   return (
-    <ScrollView
-      className="flex-1 bg-slate-50"
-      contentContainerStyle={{ padding: 24, paddingBottom: 32 }}
-      refreshControl={<RefreshControl colors={[COLORS.primary]} refreshing={refreshing} tintColor={COLORS.primary} onRefresh={onRefresh} />}
+    <Screen
+      header={{ title: 'ID Card', subtitle: 'Show this QR code at the gate for attendance.' }}
+      onRefresh={onRefresh}
     >
-      <Text className="text-2xl font-bold text-primary">Student ID Card</Text>
-      <Text className="mt-2 text-sm text-slate-600">Use this QR for gate attendance verification.</Text>
-
-      <View className="mt-6 overflow-hidden rounded-3xl bg-primary">
-        <View className="p-6">
-          <View className="flex-row items-center justify-between">
-            <View>
-              <Text className="text-xs font-bold uppercase text-blue-100">TriLearn</Text>
-              <Text className="mt-1 text-lg font-bold text-white">Student Identity Card</Text>
-            </View>
-            <View className="h-14 w-14 items-center justify-center rounded-2xl bg-white">
-              <Text className="text-lg font-black text-primary">{initials}</Text>
-            </View>
-          </View>
-
-          <View className="mt-8">
-            <Text className="text-xs font-semibold uppercase text-blue-100">Card holder</Text>
-            <Text className="mt-2 text-3xl font-black text-white">{user?.name ?? 'Student'}</Text>
-            <Text className="mt-2 text-sm text-blue-100">{user?.email}</Text>
-            <Text className="mt-1 text-sm font-bold text-white">{student?.rollNumber ?? '-'}</Text>
-          </View>
-
-          <View className="mt-6 flex-row gap-3">
-            <View className="flex-1 rounded-2xl bg-white/10 p-4">
-              <Text className="text-xs font-medium text-blue-100">Department</Text>
-              <Text className="mt-1 text-sm font-bold text-white">{student?.department ?? '-'}</Text>
-            </View>
-            <View className="flex-1 rounded-2xl bg-white/10 p-4">
-              <Text className="text-xs font-medium text-blue-100">Semester</Text>
-              <Text className="mt-1 text-sm font-bold text-white">
-                {student?.semester ? `Sem ${student.semester}` : '-'} {student?.section ? `• ${student.section}` : ''}
+      <Card padding="none" style={{ overflow: 'hidden' }}>
+        {/* Card face */}
+        <View style={{ backgroundColor: colors.primary, padding: 22 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: 'rgba(255,255,255,0.78)' }} tone="inherit" uppercase variant="label">
+                TriLearn
+              </Text>
+              <Text style={{ color: '#FFFFFF', marginTop: 2 }} tone="inherit" variant="bodyStrong">
+                Student identity card
               </Text>
             </View>
+            <Avatar name={user?.name} onPrimary size={48} />
+          </View>
+
+          <View style={{ marginTop: 26 }}>
+            <Text style={{ color: 'rgba(255,255,255,0.78)' }} tone="inherit" uppercase variant="label">
+              Card holder
+            </Text>
+            <Text numberOfLines={2} style={{ color: '#FFFFFF', marginTop: 6 }} tone="inherit" variant="title">
+              {user?.name ?? 'Student'}
+            </Text>
+            <Text numberOfLines={1} style={{ color: 'rgba(255,255,255,0.82)', marginTop: 4 }} tone="inherit" variant="caption">
+              {user?.email ?? ''}
+            </Text>
+          </View>
+
+          <View style={{ flexDirection: 'row', gap: 10, marginTop: 20 }}>
+            <StatTile label="Roll number" onPrimary value={student?.rollNumber ?? '—'} />
+            <StatTile label="Department" onPrimary value={student?.department ?? '—'} />
+            <StatTile
+              label="Semester"
+              onPrimary
+              value={student?.semester ? `${student.semester}${student.section ? ` · ${student.section}` : ''}` : '—'}
+            />
           </View>
         </View>
 
-        <View className="rounded-t-3xl bg-white p-6">
+        {/* QR panel */}
+        <View style={{ padding: 22, backgroundColor: colors.surface }}>
           {qrQuery.data?.qrCode ? (
-            <Image className="aspect-square w-full rounded-2xl bg-white" resizeMode="contain" source={{ uri: qrQuery.data.qrCode }} />
+            <Image
+              accessibilityLabel="Your gate attendance QR code"
+              resizeMode="contain"
+              source={{ uri: qrQuery.data.qrCode }}
+              style={{
+                width: '100%',
+                aspectRatio: 1,
+                borderRadius: radius.md,
+                // The code needs a white quiet zone to stay scannable in dark mode.
+                backgroundColor: '#FFFFFF',
+              }}
+            />
           ) : (
-            <View className="aspect-square w-full items-center justify-center rounded-2xl bg-slate-100">
-              <Text className="text-sm font-semibold text-slate-500">Loading QR</Text>
+            <View
+              accessibilityLabel={qrQuery.isError ? 'QR code unavailable' : 'Loading your QR code'}
+              accessibilityLiveRegion="polite"
+              style={{
+                width: '100%',
+                aspectRatio: 1,
+                borderRadius: radius.md,
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: colors.surfaceMuted,
+                gap: 12,
+              }}
+            >
+              {qrQuery.isError ? (
+                <Text center tone="muted" variant="caption">
+                  We could not generate your QR code.
+                </Text>
+              ) : (
+                <>
+                  <ActivityIndicator color={colors.primaryText} />
+                  <Text tone="muted" variant="caption">
+                    Generating QR code…
+                  </Text>
+                </>
+              )}
             </View>
           )}
-          <Text className="mt-4 text-center text-sm font-bold text-slate-900">Valid for 24 hours</Text>
-          <Text className="mt-1 text-center text-xs text-slate-500">Gatekeepers scan this QR to mark gate attendance.</Text>
-          <Pressable className="mt-5 rounded-xl bg-primary px-5 py-4" onPress={() => void refreshQr()}>
-            <Text className="text-center font-bold text-white">Refresh QR</Text>
-          </Pressable>
+
+          <Text center style={{ marginTop: 16 }} variant="bodyStrong">
+            Valid for 24 hours
+          </Text>
+          <Text center style={{ marginTop: 4 }} tone="subtle" variant="caption">
+            Gatekeepers scan this code to record your gate attendance.
+          </Text>
+
+          <Button
+            accessibilityHint="Generates a new QR code"
+            icon="refresh"
+            label="Refresh QR code"
+            loading={qrQuery.isFetching}
+            onPress={() => void refreshQr()}
+            style={{ marginTop: 18 }}
+            variant="secondary"
+          />
         </View>
-      </View>
-    </ScrollView>
+      </Card>
+    </Screen>
   );
 }

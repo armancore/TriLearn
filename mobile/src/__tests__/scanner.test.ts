@@ -4,7 +4,13 @@ import React from 'react';
 import type { Mock } from 'jest-mock';
 
 import { api } from '@/src/services/api';
+import { ThemeProvider } from '@/src/theme/ThemeProvider';
 import StudentScannerScreen from '../../app/(student)/scanner';
+
+// The screen reads design tokens from context, so it needs the provider the
+// real app mounts at the root.
+const renderScanner = () =>
+  render(React.createElement(ThemeProvider, null, React.createElement(StudentScannerScreen)));
 
 type CameraViewProps = { onBarcodeScanned?: (event: { data: string }) => void };
 type UseMutationOptions = { mutationFn: (value: string) => Promise<string> };
@@ -74,7 +80,7 @@ describe('student QR scanner flow', () => {
     });
     (api.post as unknown as ApiPostMock).mockResolvedValueOnce({ data: { message: 'Marked present' } });
 
-    render(React.createElement(StudentScannerScreen));
+    renderScanner();
 
     await act(async () => {
       await cameraViewProps?.onBarcodeScanned?.({ data: validQrPayload });
@@ -86,7 +92,7 @@ describe('student QR scanner flow', () => {
   });
 
   it('shows an error for malformed QR payloads without calling the attendance API', async () => {
-    const screen = render(React.createElement(StudentScannerScreen));
+    const screen = renderScanner();
 
     await act(async () => {
       await cameraViewProps?.onBarcodeScanned?.({ data: 'not-json' });

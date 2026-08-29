@@ -1,37 +1,50 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
-import { FlatList, Pressable, RefreshControl, Text, TextInput, View } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { Alert, FlatList, RefreshControl, View } from 'react-native';
 
-import { COLORS } from '@/src/constants/colors';
+import {
+  Avatar,
+  Badge,
+  Button,
+  Card,
+  EmptyState,
+  ErrorState,
+  FilterChips,
+  Input,
+  SCREEN_GUTTER,
+  Screen,
+  SkeletonList,
+  Text,
+} from '@/src/components/ui';
+import { announce } from '@/src/hooks/useA11y';
 import { useToast } from '@/src/hooks/useToast';
 import { api } from '@/src/services/api';
+import { useTheme } from '@/src/theme/ThemeProvider';
 import type { AdminUser, AdminUsersResponse } from '@/src/types/admin';
 import type { UserRole } from '@/src/types/auth';
 
-const roles: ('ALL' | UserRole)[] = ['ALL', 'STUDENT', 'INSTRUCTOR', 'COORDINATOR', 'GATEKEEPER', 'ADMIN'];
+const ROLES: ('ALL' | UserRole)[] = ['ALL', 'STUDENT', 'INSTRUCTOR', 'COORDINATOR', 'GATEKEEPER', 'ADMIN'];
+
+const SEARCH_DEBOUNCE_MS = 350;
 
 export default function AdminUsersScreen() {
+  const { colors } = useTheme();
+  const toast = useToast();
   const [role, setRole] = useState<'ALL' | UserRole>('ALL');
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [refreshing, setRefreshing] = useState(false);
-  const toast = useToast();
+  const [pendingId, setPendingId] = useState<string | null>(null);
 
   useEffect(() => {
-    const timeout = setTimeout(() => {
-      setDebouncedSearch(search.trim());
-    }, 350);
-
+    const timeout = setTimeout(() => setDebouncedSearch(search.trim()), SEARCH_DEBOUNCE_MS);
     return () => clearTimeout(timeout);
   }, [search]);
 
   const query = useQuery({
     queryKey: ['admin', 'users', role, debouncedSearch],
     queryFn: async () => {
-      const params = new URLSearchParams({
-        page: '1',
-        limit: '25',
-      });
+      const params = new URLSearchParams({ page: '1', limit: '25' });
 
       if (role !== 'ALL') {
         params.set('role', role);
@@ -41,81 +54,157 @@ export default function AdminUsersScreen() {
         params.set('search', debouncedSearch);
       }
 
-      const url = `/admin/users?${params.toString()}`;
-      return (await api.get<AdminUsersResponse>(url)).data;
+      return (await api.get<AdminUsersResponse>(`/admin/users?${params.toString()}`)).data;
     },
   });
 
   const toggleMutation = useMutation({
     mutationFn: async (id: string) => api.patch(`/admin/users/${id}/toggle-status`),
-    onError: (error) => toast.error(error, 'Could not update user status.'),
+    onMutate: (id) => setPendingId(id),
+    onError: (error) => toast.error(error, 'Could not update the account status.'),
     onSuccess: async () => {
       await query.refetch();
-      toast.success('User status updated.');
+      toast.success('Account status updated.');
+      announce('Account status updated');
     },
+    onSettled: () => setPendingId(null),
   });
 
-  const onRefresh = async () => {
+  const confirmToggle = (user: AdminUser) => {
+    const action = user.isActive ? 'Disable' : 'Enable';
+
+    Alert.alert(
+      `${action} account`,
+      user.isActive
+        ? `${user.name} will not be able to sign in until the account is enabled again.`
+        : `${user.name} will be able to sign in again.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: action,
+          style: user.isActive ? 'destructive' : 'default',
+          onPress: () => toggleMutation.mutate(user.id),
+        },
+      ],
+    );
+  };
+
+  const onRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
       await query.refetch();
     } finally {
       setRefreshing(false);
     }
-  };
-
-  const renderUser = ({ item }: { item: AdminUser }) => (
-    <View className="rounded-2xl bg-white p-5">
-      <View className="flex-row items-start justify-between gap-4">
-        <View className="flex-1">
-          <Text className="text-base font-bold text-slate-900">{item.name}</Text>
-          <Text className="mt-1 text-sm text-slate-500">{item.email}</Text>
-        </View>
-        <View className="rounded-full bg-blue-100 px-3 py-1">
-          <Text className="text-xs font-bold text-blue-700">{item.role}</Text>
-        </View>
-      </View>
-      <View className="mt-4 flex-row items-center justify-between">
-        <Text className={`text-sm font-bold ${item.isActive ? 'text-green-700' : 'text-red-700'}`}>
-          {item.isActive ? 'Active' : 'Inactive'}
-        </Text>
-        <Pressable className="rounded-xl bg-slate-100 px-4 py-2" onPress={() => toggleMutation.mutate(item.id)}>
-          <Text className="text-sm font-bold text-primary">{item.isActive ? 'Disable' : 'Enable'}</Text>
-        </Pressable>
-      </View>
-    </View>
-  );
+  }, [query]);
 
   return (
-    <View className="flex-1 bg-slate-50">
+    <Screen
+      header={{
+        title: 'Users',
+        subtitle: query.data ? `${query.data.total} matching accounts` : 'Search and manage accounts.',
+        showBack: false,
+      }}
+      padded={false}
+      scroll={false}
+    >
       <FlatList
-        contentContainerStyle={{ gap: 12, padding: 24, paddingBottom: 32 }}
+        contentContainerStyle={{
+          gap: 12,
+          paddingHorizontal: SCREEN_GUTTER,
+          paddingTop: 8,
+          paddingBottom: 32,
+          flexGrow: 1,
+        }}
         data={query.data?.users ?? []}
+        keyboardShouldPersistTaps="handled"
         keyExtractor={(item) => item.id}
-        ListHeaderComponent={
-          <View>
-            <Text className="text-2xl font-bold text-primary">Users</Text>
-            <TextInput className="mt-4 rounded-2xl bg-white px-4 py-3 text-slate-900" placeholder="Search name or email" value={search} onChangeText={setSearch} />
-            <FlatList
-              className="mt-4"
-              horizontal
-              data={roles}
-              keyExtractor={(item) => item}
-              showsHorizontalScrollIndicator={false}
-              renderItem={({ item }) => (
-                <Pressable className={`mr-2 rounded-full px-4 py-2 ${role === item ? 'bg-primary' : 'bg-white'}`} onPress={() => setRole(item)}>
-                  <Text className={`text-xs font-bold ${role === item ? 'text-white' : 'text-slate-600'}`}>{item}</Text>
-                </Pressable>
-              )}
+        ListEmptyComponent={
+          query.isLoading ? (
+            <SkeletonList count={4} lines={1} />
+          ) : query.isError ? (
+            <ErrorState onRetry={() => void query.refetch()} title="Could not load users" />
+          ) : (
+            <EmptyState
+              description={
+                debouncedSearch ? `Nothing matches “${debouncedSearch}”.` : 'No accounts match this filter.'
+              }
+              icon="person-outline"
+              title="No users found"
             />
+          )
+        }
+        ListHeaderComponent={
+          <View style={{ paddingBottom: 4 }}>
+            <Input
+              autoCapitalize="none"
+              autoCorrect={false}
+              clearButtonMode="while-editing"
+              icon="search-outline"
+              label="Search"
+              onChangeText={setSearch}
+              placeholder="Name or email"
+              returnKeyType="search"
+              value={search}
+            />
+            <FilterChips label="Role" onChange={setRole} options={ROLES} value={role} />
           </View>
         }
-        ListEmptyComponent={
-          query.isLoading ? <View className="h-24 rounded-2xl bg-white" /> : <Text className="rounded-2xl bg-white p-5 text-center text-slate-500">No users found</Text>
+        refreshControl={
+          <RefreshControl
+            colors={[colors.primaryText]}
+            onRefresh={onRefresh}
+            progressBackgroundColor={colors.surface}
+            refreshing={refreshing}
+            tintColor={colors.primaryText}
+          />
         }
-        refreshControl={<RefreshControl colors={[COLORS.primary]} refreshing={refreshing} tintColor={COLORS.primary} onRefresh={onRefresh} />}
-        renderItem={renderUser}
+        renderItem={({ item }) => (
+          <Card padding="md">
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+              <Avatar name={item.name} size={42} />
+              <View style={{ flex: 1 }}>
+                <Text numberOfLines={1} variant="bodyStrong">
+                  {item.name}
+                </Text>
+                <Text numberOfLines={1} style={{ marginTop: 2 }} tone="muted" variant="caption">
+                  {item.email}
+                </Text>
+              </View>
+              <Badge label={item.role} tone="primary" />
+            </View>
+
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 12,
+                marginTop: 14,
+              }}
+            >
+              <Badge
+                icon={item.isActive ? 'checkmark-circle' : 'close-circle'}
+                label={item.isActive ? 'Active' : 'Disabled'}
+                tone={item.isActive ? 'success' : 'danger'}
+              />
+              <Button
+                accessibilityHint={
+                  item.isActive ? `Blocks ${item.name} from signing in` : `Restores access for ${item.name}`
+                }
+                accessibilityLabel={`${item.isActive ? 'Disable' : 'Enable'} ${item.name}`}
+                fullWidth={false}
+                label={item.isActive ? 'Disable' : 'Enable'}
+                loading={pendingId === item.id}
+                onPress={() => confirmToggle(item)}
+                size="sm"
+                variant={item.isActive ? 'secondary' : 'tonal'}
+              />
+            </View>
+          </Card>
+        )}
+        showsVerticalScrollIndicator={false}
       />
-    </View>
+    </Screen>
   );
 }

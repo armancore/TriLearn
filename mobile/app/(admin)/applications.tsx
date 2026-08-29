@@ -1,38 +1,78 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { useState } from 'react';
-import { FlatList, Modal, Pressable, RefreshControl, Text, TextInput, View } from 'react-native';
+import { useCallback, useState } from 'react';
+import { FlatList, RefreshControl, View } from 'react-native';
 
-import { COLORS } from '@/src/constants/colors';
+import {
+  Button,
+  Card,
+  EmptyState,
+  ErrorState,
+  Input,
+  SCREEN_GUTTER,
+  Screen,
+  Sheet,
+  SkeletonList,
+  StatTile,
+  Text,
+} from '@/src/components/ui';
+import { announce } from '@/src/hooks/useA11y';
+import { useToast } from '@/src/hooks/useToast';
 import { api } from '@/src/services/api';
+import { useTheme } from '@/src/theme/ThemeProvider';
 import type { StudentApplication, StudentApplicationsResponse } from '@/src/types/admin';
 
+const formatDate = (value: string) =>
+  new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(value));
+
 export default function AdminApplicationsScreen() {
+  const { colors } = useTheme();
+  const toast = useToast();
   const [refreshing, setRefreshing] = useState(false);
   const [selected, setSelected] = useState<StudentApplication | null>(null);
+  const [pendingReviewId, setPendingReviewId] = useState<string | null>(null);
   const [form, setForm] = useState({ studentId: '', department: '', semester: '', section: '' });
+
   const query = useQuery({
     queryKey: ['admin', 'applications', 'PENDING'],
-    queryFn: async () => (await api.get<StudentApplicationsResponse>('/admin/student-applications?status=PENDING&page=1&limit=50')).data,
+    queryFn: async () =>
+      (
+        await api.get<StudentApplicationsResponse>(
+          '/admin/student-applications?status=PENDING&page=1&limit=50',
+        )
+      ).data,
   });
 
   const reviewMutation = useMutation({
-    mutationFn: async (id: string) => api.patch(`/admin/student-applications/${id}/status`, { status: 'REVIEWED' }),
-    onSuccess: async () => query.refetch(),
+    mutationFn: async (id: string) =>
+      api.patch(`/admin/student-applications/${id}/status`, { status: 'REVIEWED' }),
+    onMutate: (id) => setPendingReviewId(id),
+    onError: (error) => toast.error(error, 'Could not mark the application as reviewed.'),
+    onSuccess: async () => {
+      await query.refetch();
+      toast.success('Application marked as reviewed.');
+    },
+    onSettled: () => setPendingReviewId(null),
   });
 
   const createMutation = useMutation({
     mutationFn: async () => {
-      if (!selected) return;
+      if (!selected) {
+        return;
+      }
+
       await api.post(`/admin/student-applications/${selected.id}/create-account`, {
-        studentId: form.studentId,
-        department: form.department || selected.preferredDepartment,
+        studentId: form.studentId.trim(),
+        department: form.department.trim() || selected.preferredDepartment,
         semester: Number(form.semester || selected.preferredSemester),
-        section: form.section || selected.preferredSection || '',
+        section: form.section.trim() || selected.preferredSection || '',
       });
     },
+    onError: (error) => toast.error(error, 'Could not create the student account.'),
     onSuccess: async () => {
       setSelected(null);
       await query.refetch();
+      toast.success('Student account created.');
+      announce('Student account created');
     },
   });
 
@@ -46,52 +86,169 @@ export default function AdminApplicationsScreen() {
     });
   };
 
-  const onRefresh = async () => {
+  const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    try { await query.refetch(); } finally { setRefreshing(false); }
-  };
+    try {
+      await query.refetch();
+    } finally {
+      setRefreshing(false);
+    }
+  }, [query]);
+
+  const canCreate = form.studentId.trim().length > 0 && Number(form.semester) > 0;
 
   return (
-    <View className="flex-1 bg-slate-50">
-      <FlatList
-        contentContainerStyle={{ gap: 12, padding: 24, paddingBottom: 32 }}
-        data={query.data?.applications ?? []}
-        keyExtractor={(item) => item.id}
-        ListHeaderComponent={<><Text className="text-2xl font-bold text-primary">Applications</Text><Text className="mt-2 text-sm text-slate-600">Pending student intake requests.</Text></>}
-        ListEmptyComponent={query.isLoading ? <View className="h-24 rounded-2xl bg-white" /> : <Text className="rounded-2xl bg-white p-5 text-center text-slate-500">No pending applications</Text>}
-        refreshControl={<RefreshControl colors={[COLORS.primary]} refreshing={refreshing} tintColor={COLORS.primary} onRefresh={onRefresh} />}
-        renderItem={({ item }) => (
-          <View className="rounded-2xl bg-white p-5">
-            <Text className="text-lg font-bold text-slate-900">{item.name}</Text>
-            <Text className="mt-1 text-sm text-slate-500">{item.email}</Text>
-            <Text className="mt-2 text-sm text-slate-600">{item.preferredDepartment} • Sem {item.preferredSemester}</Text>
-            <View className="mt-4 flex-row gap-3">
-              <Pressable className="flex-1 rounded-xl bg-slate-100 px-4 py-3" onPress={() => reviewMutation.mutate(item.id)}>
-                <Text className="text-center font-bold text-primary">Review</Text>
-              </Pressable>
-              <Pressable className="flex-1 rounded-xl bg-primary px-4 py-3" onPress={() => openCreate(item)}>
-                <Text className="text-center font-bold text-white">Create account</Text>
-              </Pressable>
-            </View>
+    <>
+      <Screen
+        header={{
+          title: 'Applications',
+          subtitle: query.data ? `${query.data.total} pending` : 'Student intake requests.',
+          showBack: false,
+        }}
+        padded={false}
+        scroll={false}
+      >
+        <FlatList
+          contentContainerStyle={{
+            gap: 12,
+            paddingHorizontal: SCREEN_GUTTER,
+            paddingTop: 8,
+            paddingBottom: 32,
+            flexGrow: 1,
+          }}
+          data={query.data?.applications ?? []}
+          keyExtractor={(item) => item.id}
+          ListEmptyComponent={
+            query.isLoading ? (
+              <SkeletonList count={3} />
+            ) : query.isError ? (
+              <ErrorState onRetry={() => void query.refetch()} title="Could not load applications" />
+            ) : (
+              <EmptyState
+                description="New student intake requests will appear here."
+                icon="checkmark-done-outline"
+                title="No pending applications"
+              />
+            )
+          }
+          refreshControl={
+            <RefreshControl
+              colors={[colors.primaryText]}
+              onRefresh={onRefresh}
+              progressBackgroundColor={colors.surface}
+              refreshing={refreshing}
+              tintColor={colors.primaryText}
+            />
+          }
+          renderItem={({ item }) => (
+            <Card padding="lg">
+              <Text numberOfLines={1} variant="subheading">
+                {item.name}
+              </Text>
+              <Text numberOfLines={1} style={{ marginTop: 3 }} tone="muted" variant="caption">
+                {item.email}
+                {item.phone ? ` · ${item.phone}` : ''}
+              </Text>
+
+              <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
+                <StatTile icon="business-outline" label="Department" value={item.preferredDepartment} />
+                <StatTile icon="layers-outline" label="Semester" value={item.preferredSemester} />
+                <StatTile icon="grid-outline" label="Section" value={item.preferredSection ?? '—'} />
+              </View>
+
+              <Text style={{ marginTop: 12 }} tone="subtle" variant="caption">
+                Applied {formatDate(item.createdAt)}
+              </Text>
+
+              <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
+                <View style={{ flex: 1 }}>
+                  <Button
+                    accessibilityHint={`Marks ${item.name}'s application as reviewed`}
+                    accessibilityLabel={`Mark ${item.name} as reviewed`}
+                    label="Mark reviewed"
+                    loading={pendingReviewId === item.id}
+                    onPress={() => reviewMutation.mutate(item.id)}
+                    size="sm"
+                    variant="secondary"
+                  />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Button
+                    accessibilityHint={`Opens the account form for ${item.name}`}
+                    accessibilityLabel={`Create account for ${item.name}`}
+                    label="Create account"
+                    onPress={() => openCreate(item)}
+                    size="sm"
+                  />
+                </View>
+              </View>
+            </Card>
+          )}
+          showsVerticalScrollIndicator={false}
+        />
+      </Screen>
+
+      <Sheet
+        footer={
+          <Button
+            disabled={!canCreate}
+            icon="person-add-outline"
+            label="Create student account"
+            loading={createMutation.isPending}
+            onPress={() => createMutation.mutate()}
+          />
+        }
+        onClose={() => setSelected(null)}
+        subtitle={selected ? `${selected.name} · ${selected.email}` : undefined}
+        title="Create account"
+        visible={Boolean(selected)}
+      >
+        <Input
+          autoCapitalize="characters"
+          autoCorrect={false}
+          hint="This becomes the student's roll number."
+          icon="id-card-outline"
+          label="Student ID"
+          onChangeText={(studentId) => setForm((current) => ({ ...current, studentId }))}
+          placeholder="e.g. CS2026001"
+          required
+          value={form.studentId}
+        />
+
+        <Input
+          icon="business-outline"
+          label="Department"
+          onChangeText={(department) => setForm((current) => ({ ...current, department }))}
+          placeholder="Department"
+          value={form.department}
+        />
+
+        <View style={{ flexDirection: 'row', gap: 12 }}>
+          <View style={{ flex: 1 }}>
+            <Input
+              icon="layers-outline"
+              keyboardType="number-pad"
+              label="Semester"
+              onChangeText={(semester) =>
+                setForm((current) => ({ ...current, semester: semester.replace(/[^0-9]/g, '') }))
+              }
+              placeholder="1"
+              required
+              value={form.semester}
+            />
           </View>
-        )}
-      />
-      <Modal animationType="slide" transparent visible={Boolean(selected)} onRequestClose={() => setSelected(null)}>
-        <Pressable className="flex-1 justify-end bg-black/40" onPress={() => setSelected(null)}>
-          <Pressable className="rounded-t-3xl bg-white p-6" onPress={(event) => event.stopPropagation()}>
-            <Text className="text-xl font-bold text-slate-900">Create account</Text>
-            <TextInput className="mt-4 rounded-xl bg-slate-100 px-4 py-3" placeholder="Student ID / roll number" value={form.studentId} onChangeText={(studentId) => setForm((f) => ({ ...f, studentId }))} />
-            <TextInput className="mt-3 rounded-xl bg-slate-100 px-4 py-3" placeholder="Department" value={form.department} onChangeText={(department) => setForm((f) => ({ ...f, department }))} />
-            <View className="mt-3 flex-row gap-3">
-              <TextInput className="flex-1 rounded-xl bg-slate-100 px-4 py-3" placeholder="Semester" keyboardType="number-pad" value={form.semester} onChangeText={(semester) => setForm((f) => ({ ...f, semester }))} />
-              <TextInput className="flex-1 rounded-xl bg-slate-100 px-4 py-3" placeholder="Section" value={form.section} onChangeText={(section) => setForm((f) => ({ ...f, section }))} />
-            </View>
-            <Pressable className="mt-5 rounded-xl bg-primary px-5 py-4" onPress={() => createMutation.mutate()}>
-              <Text className="text-center font-bold text-white">{createMutation.isPending ? 'Creating...' : 'Create account'}</Text>
-            </Pressable>
-          </Pressable>
-        </Pressable>
-      </Modal>
-    </View>
+          <View style={{ flex: 1 }}>
+            <Input
+              autoCapitalize="characters"
+              icon="grid-outline"
+              label="Section"
+              onChangeText={(section) => setForm((current) => ({ ...current, section }))}
+              placeholder="A"
+              value={form.section}
+            />
+          </View>
+        </View>
+      </Sheet>
+    </>
   );
 }

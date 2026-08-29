@@ -1,46 +1,52 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
+import { useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Image, Modal, Pressable, RefreshControl, ScrollView, Text, TextInput, View } from 'react-native';
+import { Image, TextInput, View } from 'react-native';
 
-import { COLORS } from '@/src/constants/colors';
+import {
+  Button,
+  Card,
+  ErrorState,
+  InlineNotice,
+  Input,
+  ProgressBar,
+  Screen,
+  Select,
+  SkeletonList,
+  Text,
+} from '@/src/components/ui';
 import { api } from '@/src/services/api';
+import { useTheme } from '@/src/theme/ThemeProvider';
+import { MAX_FONT_SCALE, radius } from '@/src/theme/tokens';
 import type { GenerateQrResponse } from '@/src/types/instructorOps';
 import type { Subject, SubjectsResponse } from '@/src/types/subject';
 
 const DEFAULT_VALID_MINUTES = 5;
+const MAX_VALID_MINUTES = 60;
 
 const getTodayInputValue = () => new Date().toISOString().slice(0, 10);
 
-const isValidDate = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value) && !isNaN(Date.parse(value));
+const isValidDate = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(value));
 
 const getSubjects = async (): Promise<Subject[]> => {
   const response = await api.get<Subject[] | SubjectsResponse>('/subjects');
   return Array.isArray(response.data) ? response.data : response.data.subjects;
 };
 
-const formatCountdown = (seconds: number) => {
-  const minutes = Math.floor(seconds / 60);
-  const remainingSeconds = seconds % 60;
-  return `${minutes}:${String(remainingSeconds).padStart(2, '0')}`;
-};
-
-const ScreenSkeleton = () => (
-  <View className="gap-4">
-    <View className="h-14 rounded-2xl bg-white" />
-    <View className="h-14 rounded-2xl bg-white" />
-    <View className="h-64 rounded-2xl bg-white" />
-  </View>
-);
+const formatCountdown = (seconds: number) =>
+  `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
 
 export default function InstructorQrScreen() {
+  const { colors } = useTheme();
+  const { subjectId } = useLocalSearchParams<{ subjectId?: string }>();
+
   const [selectedSubject, setSelectedSubject] = useState<Subject | null>(null);
   const [date, setDate] = useState(getTodayInputValue);
   const [validMinutes, setValidMinutes] = useState(String(DEFAULT_VALID_MINUTES));
-  const [pickerOpen, setPickerOpen] = useState(false);
   const [generatedQr, setGeneratedQr] = useState<GenerateQrResponse | null>(null);
   const [expiresAt, setExpiresAt] = useState<number | null>(null);
   const [secondsRemaining, setSecondsRemaining] = useState(0);
-  const [isRefreshing, setIsRefreshing] = useState(false);
+
   const autoRefreshIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const generateRef = useRef<(() => void) | null>(null);
 
@@ -51,28 +57,36 @@ export default function InstructorQrScreen() {
     }
   }, []);
 
-  const resetAutoRefresh = useCallback((delayMs: number) => {
-    clearAutoRefresh();
-    autoRefreshIntervalRef.current = setInterval(() => {
-      generateRef.current?.();
-    }, delayMs);
-  }, [clearAutoRefresh]);
+  const resetAutoRefresh = useCallback(
+    (delayMs: number) => {
+      clearAutoRefresh();
+      autoRefreshIntervalRef.current = setInterval(() => generateRef.current?.(), delayMs);
+    },
+    [clearAutoRefresh],
+  );
 
-  const subjectsQuery = useQuery({
-    queryKey: ['subjects', 'instructor'],
-    queryFn: getSubjects,
-  });
+  const subjectsQuery = useQuery({ queryKey: ['subjects', 'instructor'], queryFn: getSubjects });
 
+  // Same hand-off as the attendance screen: a subjectId from the dashboard
+  // preselects that class.
   useEffect(() => {
-    if (!selectedSubject && subjectsQuery.data?.[0]) {
-      setSelectedSubject(subjectsQuery.data[0]);
+    if (selectedSubject || !subjectsQuery.data?.length) {
+      return;
     }
-  }, [selectedSubject, subjectsQuery.data]);
+
+    const requested = typeof subjectId === 'string' ? subjectId : undefined;
+    setSelectedSubject(
+      subjectsQuery.data.find((subject) => subject.id === requested) ?? subjectsQuery.data[0],
+    );
+  }, [selectedSubject, subjectId, subjectsQuery.data]);
 
   const parsedValidMinutes = useMemo(() => {
     const parsed = Number.parseInt(validMinutes, 10);
-    if (Number.isNaN(parsed) || parsed < 1) return DEFAULT_VALID_MINUTES;
-    return Math.min(parsed, 60);
+    if (Number.isNaN(parsed) || parsed < 1) {
+      return DEFAULT_VALID_MINUTES;
+    }
+
+    return Math.min(parsed, MAX_VALID_MINUTES);
   }, [validMinutes]);
 
   const isDateValid = isValidDate(date);
@@ -80,7 +94,7 @@ export default function InstructorQrScreen() {
   const generateMutation = useMutation({
     mutationFn: async () => {
       if (!selectedSubject) {
-        throw new Error('Select a subject first');
+        throw new Error('Select a subject first.');
       }
 
       const response = await api.post<GenerateQrResponse>('/attendance/generate-qr', {
@@ -88,6 +102,7 @@ export default function InstructorQrScreen() {
         date,
         validMinutes: parsedValidMinutes,
       });
+
       return response.data;
     },
     onSuccess: (data) => {
@@ -112,154 +127,209 @@ export default function InstructorQrScreen() {
   }, [clearAutoRefresh, selectedSubject?.id]);
 
   useEffect(() => {
-    if (!expiresAt) return undefined;
+    if (!expiresAt) {
+      return undefined;
+    }
 
     const interval = setInterval(() => {
-      const nextSeconds = Math.max(0, Math.ceil((expiresAt - Date.now()) / 1000));
-      setSecondsRemaining(nextSeconds);
+      setSecondsRemaining(Math.max(0, Math.ceil((expiresAt - Date.now()) / 1000)));
     }, 1000);
 
     return () => clearInterval(interval);
   }, [expiresAt]);
 
-  const handleRefresh = useCallback(async () => {
-    setIsRefreshing(true);
-    try {
-      await subjectsQuery.refetch();
-      if (selectedSubject) {
-        await generateMutation.mutateAsync();
-      }
-    } finally {
-      setIsRefreshing(false);
+  const onRefresh = useCallback(async () => {
+    await subjectsQuery.refetch();
+    if (selectedSubject) {
+      await generateMutation.mutateAsync();
     }
   }, [generateMutation, selectedSubject, subjectsQuery]);
 
+  const canGenerate = Boolean(selectedSubject) && isDateValid;
+  const totalSeconds = parsedValidMinutes * 60;
+  const isExpired = Boolean(generatedQr) && secondsRemaining === 0;
+
   if (subjectsQuery.isLoading) {
     return (
-      <View className="flex-1 bg-slate-50 p-6">
-        <Text className="text-2xl font-bold text-primary">QR Attendance</Text>
-        <Text className="mt-2 text-sm text-slate-600">Generate a class QR for today.</Text>
-        <View className="mt-6">
-          <ScreenSkeleton />
-        </View>
-      </View>
+      <Screen header={{ title: 'Class QR', subtitle: 'Generate a scannable attendance code.', showBack: false }}>
+        <SkeletonList count={3} />
+      </Screen>
     );
   }
 
   if (subjectsQuery.isError) {
     return (
-      <View className="flex-1 items-center justify-center bg-slate-50 p-6">
-        <Text className="text-lg font-bold text-slate-900">Could not load subjects</Text>
-        <Text className="mt-2 text-center text-sm text-slate-500">Check your connection and try again.</Text>
-        <Pressable className="mt-5 rounded-xl bg-primary px-5 py-3" onPress={() => void subjectsQuery.refetch()}>
-          <Text className="font-bold text-white">Retry</Text>
-        </Pressable>
-      </View>
+      <Screen header={{ title: 'Class QR', showBack: false }}>
+        <ErrorState onRetry={() => void subjectsQuery.refetch()} title="Could not load your subjects" />
+      </Screen>
     );
   }
 
   return (
-    <>
-      <ScrollView
-        className="flex-1 bg-slate-50"
-        contentContainerStyle={{ padding: 24, paddingBottom: 32 }}
-        refreshControl={
-          <RefreshControl
-            colors={[COLORS.primary]}
-            refreshing={isRefreshing}
-            tintColor={COLORS.primary}
-            onRefresh={handleRefresh}
-          />
-        }
-      >
-        <Text className="text-2xl font-bold text-primary">QR Attendance</Text>
-        <Text className="mt-2 text-sm text-slate-600">Generate a scannable QR for the selected class.</Text>
+    <Screen
+      header={{ title: 'Class QR', subtitle: 'Generate a scannable attendance code.', showBack: false }}
+      onRefresh={onRefresh}
+    >
+      <View style={{ gap: 12 }}>
+        <Select
+          icon="book-outline"
+          label="Subject"
+          onChange={(id) =>
+            setSelectedSubject(subjectsQuery.data?.find((subject) => subject.id === id) ?? null)
+          }
+          options={(subjectsQuery.data ?? []).map((subject) => ({
+            value: subject.id,
+            label: subject.name,
+            description: `${subject.code} · Semester ${subject.semester}`,
+          }))}
+          placeholder="Select a subject"
+          value={selectedSubject?.id ?? null}
+        />
 
-        <View className="mt-6 gap-4">
-          <Pressable className="rounded-2xl bg-white p-4" onPress={() => setPickerOpen(true)}>
-            <Text className="text-xs font-medium text-slate-500">Subject</Text>
-            <Text className="mt-1 text-base font-bold text-slate-900">
-              {selectedSubject ? `${selectedSubject.name} (${selectedSubject.code})` : 'Select subject'}
-            </Text>
-          </Pressable>
-
-          <View className="flex-row gap-3">
-            <View className="flex-1 rounded-2xl bg-white p-4">
-              <Text className="text-xs font-medium text-slate-500">Date</Text>
-              <TextInput className="mt-1 text-base font-bold text-slate-900" value={date} onChangeText={setDate} />
-              {date && !isDateValid ? <Text className="mt-2 text-xs font-semibold text-red-600">Please enter a valid date.</Text> : null}
-            </View>
-            <View className="w-28 rounded-2xl bg-white p-4">
-              <Text className="text-xs font-medium text-slate-500">Minutes</Text>
-              <TextInput
-                className="mt-1 text-base font-bold text-slate-900"
-                keyboardType="number-pad"
-                value={validMinutes}
-                onChangeText={setValidMinutes}
-              />
-            </View>
+        <View style={{ flexDirection: 'row', gap: 12, alignItems: 'flex-start' }}>
+          <View style={{ flex: 1 }}>
+            <Input
+              autoCapitalize="none"
+              error={isDateValid ? undefined : 'Use the format YYYY-MM-DD.'}
+              icon="calendar-outline"
+              keyboardType="numbers-and-punctuation"
+              label="Date"
+              onChangeText={setDate}
+              placeholder="YYYY-MM-DD"
+              value={date}
+            />
           </View>
 
-          <Pressable
-            className={`rounded-xl px-5 py-4 ${selectedSubject && isDateValid ? 'bg-primary' : 'bg-slate-300'}`}
-            disabled={!selectedSubject || !isDateValid || generateMutation.isPending}
-            onPress={() => generateMutation.mutate()}
+          <View
+            style={{
+              width: 108,
+              marginTop: 22,
+              justifyContent: 'center',
+              paddingHorizontal: 14,
+              paddingVertical: 12,
+              borderRadius: radius.md,
+              borderWidth: 1,
+              borderColor: colors.border,
+              backgroundColor: colors.surface,
+            }}
           >
-            <Text className="text-center font-bold text-white">{generateMutation.isPending ? 'Generating...' : 'Generate QR'}</Text>
-          </Pressable>
+            <Text tone="subtle" uppercase variant="label">
+              Minutes
+            </Text>
+            <TextInput
+              accessibilityHint={`How long the code stays valid, up to ${MAX_VALID_MINUTES} minutes`}
+              accessibilityLabel="Minutes the QR code stays valid"
+              keyboardType="number-pad"
+              maxFontSizeMultiplier={MAX_FONT_SCALE}
+              onChangeText={(value) => setValidMinutes(value.replace(/[^0-9]/g, ''))}
+              style={{ marginTop: 2, fontSize: 15, fontWeight: '600', color: colors.text, paddingVertical: 4 }}
+              value={validMinutes}
+            />
+          </View>
         </View>
+
+        <Button
+          accessibilityHint="Creates a QR code students can scan to mark attendance"
+          disabled={!canGenerate}
+          icon="qr-code-outline"
+          label="Generate QR code"
+          loading={generateMutation.isPending}
+          onPress={() => generateMutation.mutate()}
+          size="lg"
+        />
 
         {generateMutation.isError ? (
-          <View className="mt-5 rounded-2xl bg-red-50 p-4">
-            <Text className="font-bold text-red-700">Could not generate QR</Text>
-            <Text className="mt-1 text-sm text-red-600">Check the selected subject and try again.</Text>
+          <InlineNotice
+            description="Check the selected subject and date, then try again."
+            title="Could not generate the QR code"
+            tone="danger"
+          />
+        ) : null}
+      </View>
+
+      <Card padding="lg" style={{ marginTop: 20 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+          <View style={{ flex: 1 }}>
+            <Text tone="muted" variant="caption">
+              {isExpired ? 'Expired' : 'Expires in'}
+            </Text>
+            <Text
+              accessibilityLabel={
+                generatedQr
+                  ? isExpired
+                    ? 'This code has expired'
+                    : `Expires in ${formatCountdown(secondsRemaining)}`
+                  : 'No code generated yet'
+              }
+              accessibilityLiveRegion="polite"
+              style={{ marginTop: 4, color: isExpired ? colors.danger : undefined }}
+              tone={isExpired ? 'inherit' : 'default'}
+              variant="display"
+            >
+              {generatedQr ? formatCountdown(secondsRemaining) : '––:––'}
+            </Text>
           </View>
+
+          <Button
+            accessibilityLabel="Regenerate the QR code"
+            disabled={!canGenerate}
+            fullWidth={false}
+            icon="refresh"
+            label="Regenerate"
+            loading={generateMutation.isPending}
+            onPress={() => generateMutation.mutate()}
+            size="sm"
+            variant="secondary"
+          />
+        </View>
+
+        {generatedQr ? (
+          <ProgressBar
+            color={isExpired ? colors.danger : colors.primaryText}
+            label="Time remaining on this code"
+            style={{ marginTop: 14 }}
+            value={totalSeconds === 0 ? 0 : (secondsRemaining / totalSeconds) * 100}
+          />
         ) : null}
 
-        <View className="mt-6 rounded-2xl bg-white p-5">
-          <View className="flex-row items-center justify-between">
-            <View>
-              <Text className="text-sm font-semibold text-slate-500">Expires in</Text>
-              <Text className="mt-1 text-3xl font-bold text-slate-900">{generatedQr ? formatCountdown(secondsRemaining) : '--:--'}</Text>
-            </View>
-            <Pressable className="rounded-xl bg-slate-100 px-4 py-3" disabled={!selectedSubject || !isDateValid} onPress={() => generateMutation.mutate()}>
-              <Text className="text-sm font-bold text-primary">Regenerate</Text>
-            </Pressable>
+        {generatedQr?.qrCode ? (
+          <Image
+            accessibilityLabel="Class attendance QR code"
+            resizeMode="contain"
+            source={{ uri: generatedQr.qrCode }}
+            style={{
+              width: '100%',
+              aspectRatio: 1,
+              marginTop: 20,
+              borderRadius: radius.md,
+              // A white quiet zone keeps the code scannable in dark mode.
+              backgroundColor: '#FFFFFF',
+              opacity: isExpired ? 0.35 : 1,
+            }}
+          />
+        ) : (
+          <View
+            style={{
+              width: '100%',
+              aspectRatio: 1,
+              marginTop: 20,
+              borderRadius: radius.md,
+              alignItems: 'center',
+              justifyContent: 'center',
+              backgroundColor: colors.surfaceMuted,
+            }}
+          >
+            <Text center tone="muted" variant="caption">
+              Your QR code will appear here.
+            </Text>
           </View>
+        )}
 
-          {generatedQr?.qrCode ? (
-            <Image className="mt-6 aspect-square w-full rounded-2xl bg-white" resizeMode="contain" source={{ uri: generatedQr.qrCode }} />
-          ) : (
-            <View className="mt-6 aspect-square w-full items-center justify-center rounded-2xl bg-slate-100">
-              <Text className="text-sm font-semibold text-slate-500">QR will appear here</Text>
-            </View>
-          )}
-        </View>
-      </ScrollView>
-
-      <Modal animationType="slide" transparent visible={pickerOpen} onRequestClose={() => setPickerOpen(false)}>
-        <Pressable className="flex-1 justify-end bg-black/40" onPress={() => setPickerOpen(false)}>
-          <Pressable className="max-h-[75%] rounded-t-3xl bg-white p-6" onPress={(event) => event.stopPropagation()}>
-            <View className="h-1 w-12 self-center rounded-full bg-slate-200" />
-            <Text className="mt-6 text-xl font-bold text-slate-900">Select subject</Text>
-            <ScrollView className="mt-4">
-              {(subjectsQuery.data ?? []).map((subject) => (
-                <Pressable
-                  className="border-b border-slate-100 py-4"
-                  key={subject.id}
-                  onPress={() => {
-                    setSelectedSubject(subject);
-                    setPickerOpen(false);
-                  }}
-                >
-                  <Text className="text-base font-bold text-slate-900">{subject.name}</Text>
-                  <Text className="mt-1 text-sm text-slate-500">{subject.code}</Text>
-                </Pressable>
-              ))}
-            </ScrollView>
-          </Pressable>
-        </Pressable>
-      </Modal>
-    </>
+        <Text center style={{ marginTop: 14 }} tone="subtle" variant="caption">
+          Students scan this from the Scanner screen. A new code is generated automatically when this
+          one expires.
+        </Text>
+      </Card>
+    </Screen>
   );
 }
