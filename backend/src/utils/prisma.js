@@ -7,12 +7,12 @@ const { PrismaClient } = require('@prisma/client')
 const { PrismaPg } = require('@prisma/adapter-pg')
 const { Pool } = require('pg')
 
-const parseInteger = (value, fallback) => {
-  const parsed = parseInt(value, 10)
+const parseInteger = (/** @type {string | undefined} */ value, /** @type {number} */ fallback) => {
+  const parsed = parseInt(value || "", 10)
   return Number.isNaN(parsed) ? fallback : parsed
 }
 
-const parseBoolean = (value, fallback) => {
+const parseBoolean = (/** @type {string | null | undefined} */ value, /** @type {boolean} */ fallback) => {
   if (value === undefined || value === null || value === '') {
     return fallback
   }
@@ -20,9 +20,9 @@ const parseBoolean = (value, fallback) => {
   return String(value).trim().toLowerCase() === 'true'
 }
 
-const normalizeCertificate = (value) => String(value || '').replace(/\\n/g, '\n').trim()
+const normalizeCertificate = (/** @type {string | undefined} */ value) => String(value || '').replace(/\\n/g, '\n').trim()
 
-const applyPgSslCaCertificate = (sslOptions) => {
+const applyPgSslCaCertificate = (/** @type {import("tls").ConnectionOptions} */ sslOptions) => {
   const ca = normalizeCertificate(process.env.PGSSL_CA_CERT)
   if (ca) {
     sslOptions.ca = ca
@@ -31,13 +31,12 @@ const applyPgSslCaCertificate = (sslOptions) => {
   return sslOptions
 }
 
-const buildConnectionOptions = (connectionString) => {
-  const options = {
-    connectionString
-  }
+const buildConnectionOptions = (/** @type {string | URL | undefined} */ connectionString) => {
+  /** @type {import("pg").PoolConfig} */
+  const options = { connectionString: connectionString?.toString() }
 
   try {
-    const parsedUrl = new URL(connectionString)
+    const parsedUrl = new URL(connectionString || "")
     const sslMode = String(parsedUrl.searchParams.get('sslmode') || '').toLowerCase()
 
     if (sslMode === 'require' || sslMode === 'no-verify') {

@@ -1,3 +1,4 @@
+/** @typedef {{id: string, role: string, coordinator?: {department?: string}, instructor?: {id: string}, student?: {id: string}} | null} UploadUser */
 const { createServiceResponder } = require('../utils/serviceResult')
 const fs = require('fs')
 const path = require('path')
@@ -12,19 +13,19 @@ const { recordAuditLog } = require('../utils/audit')
 
 const UPLOAD_NOT_FOUND_MIN_RESPONSE_MS = 25
 
-const waitForUploadNegativeResponseFloor = async (startedAt) => {
+const waitForUploadNegativeResponseFloor = async (/** @type {number} */ startedAt) => {
   const remainingMs = UPLOAD_NOT_FOUND_MIN_RESPONSE_MS - (Date.now() - startedAt)
   if (remainingMs > 0) {
     await new Promise((resolve) => setTimeout(resolve, remainingMs))
   }
 }
 
-const uploadNegativeResponse = async (result, startedAt, statusCode, message) => {
+const uploadNegativeResponse = async (/** @type {import("../utils/serviceResult").ServiceResponder} */ result, /** @type {number} */ startedAt, /** @type {number} */ statusCode, /** @type {string} */ message) => {
   await waitForUploadNegativeResponseFloor(startedAt)
   return result.withStatus(statusCode, { message })
 }
 
-const setUploadSecurityHeaders = (result) => {
+const setUploadSecurityHeaders = (/** @type {{ header: (arg0: string, arg1: string) => void; }} */ result) => {
   const allowedFrameAncestors = ["'self'"]
   const trustedOrigins = getTrustedOrigins()
 
@@ -39,7 +40,7 @@ const setUploadSecurityHeaders = (result) => {
   result.header('Content-Security-Policy', `default-src 'none'; frame-ancestors ${allowedFrameAncestors.join(' ')}; sandbox allow-scripts allow-downloads`)
 }
 
-const getSafeContentType = (fileName) => {
+const getSafeContentType = (/** @type {string} */ fileName) => {
   const extension = path.extname(String(fileName || '')).toLowerCase()
 
   if (extension === '.pdf') {
@@ -53,7 +54,7 @@ const getSafeContentType = (fileName) => {
       '.jpeg': 'image/jpeg',
       '.webp': 'image/webp',
       '.gif': 'image/gif'
-    })[extension]
+    })[extension] || 'application/octet-stream'
   }
 
   return 'application/octet-stream'
@@ -62,9 +63,9 @@ const getSafeContentType = (fileName) => {
 // Excludes \s deliberately: \s matches CR/LF, which must never survive into the
 // Content-Disposition header. Keep the class strict so the helper is safe
 // regardless of how callers build the header value.
-const getSafeDownloadFileName = (filePath) => path.basename(filePath).replace(/[^\w.-]/g, '_')
+const getSafeDownloadFileName = (/** @type {string} */ filePath) => path.basename(filePath).replace(/[^\w.-]/g, '_')
 
-const resolveUploadFilePath = (basePath, fileName) => {
+const resolveUploadFilePath = (/** @type {string} */ basePath, /** @type {string} */ fileName) => {
   const uploadDir = path.resolve(basePath)
   const absolutePath = path.resolve(uploadDir, fileName)
 
@@ -75,7 +76,7 @@ const resolveUploadFilePath = (basePath, fileName) => {
   return absolutePath
 }
 
-const resolveExistingUploadFilePath = (fileName) => {
+const resolveExistingUploadFilePath = (/** @type {string} */ fileName) => {
   const candidatePaths = [uploadPath, ...(Array.isArray(legacyUploadPaths) ? legacyUploadPaths : [])]
     .filter(Boolean)
 
@@ -89,7 +90,7 @@ const resolveExistingUploadFilePath = (fileName) => {
   return resolveUploadFilePath(uploadPath, fileName)
 }
 
-const sendUploadFile = async (result, fileName) => {
+const sendUploadFile = async (/** @type {import("../utils/serviceResult").ServiceResponder} */ result, /** @type {string} */ fileName) => {
   const contentType = getSafeContentType(fileName)
   const absolutePath = resolveExistingUploadFilePath(fileName)
   // Force download - prevents inline rendering of PDFs with embedded JavaScript.
@@ -119,21 +120,10 @@ const sendUploadFile = async (result, fileName) => {
       'Content-Type': contentType,
       'Content-Disposition': `attachment; filename="${safeFilename}"`
     }
-  }, (error) => {
-    if (!error || result.headersSent) {
-      return
-    }
-
-    if (error.code === 'ENOENT') {
-      result.withStatus(404, { message: 'File not found' })
-      return
-    }
-
-    result.withStatus(500, { message: 'Something went wrong' })
   })
 }
 
-const isStudentEnrolledInSubject = async (studentId, subjectId) => {
+const isStudentEnrolledInSubject = async (/** @type {string} */ studentId, /** @type {string} */ subjectId) => {
   const enrollment = await prisma.subjectEnrollment.findUnique({
     where: {
       subjectId_studentId: {
@@ -149,12 +139,22 @@ const isStudentEnrolledInSubject = async (studentId, subjectId) => {
   return Boolean(enrollment)
 }
 
+/** @param {{ coordinator?: { department?: string } }} user @param {string} subjectId */
+const canCoordinatorAccessSubject = async (user, subjectId) => {
+  const department = user.coordinator?.department
+  if (!department || !subjectId) return false
+  const subject = await prisma.subject.findUnique({ where: { id: subjectId }, select: { department: true } })
+  return subject?.department === department
+}
+
+/** @param {UploadUser} user @param {{subjectId: string, instructorId: string}} assignment */
 const canAccessAssignmentFile = async (user, assignment) => {
   if (!user) {
     return false
   }
 
-  if (['ADMIN', 'COORDINATOR'].includes(user.role)) {
+  if (user.role === 'COORDINATOR') return canCoordinatorAccessSubject(user, assignment.subjectId)
+  if (user.role === 'ADMIN') {
     return true
   }
 
@@ -169,12 +169,14 @@ const canAccessAssignmentFile = async (user, assignment) => {
   return false
 }
 
+/** @param {UploadUser} user @param {{studentId: string, assignment: {subjectId: string, instructorId: string}}} submission */
 const canAccessSubmissionFile = async (user, submission) => {
   if (!user) {
     return false
   }
 
-  if (['ADMIN', 'COORDINATOR'].includes(user.role)) {
+  if (user.role === 'COORDINATOR') return canCoordinatorAccessSubject(user, submission.assignment?.subjectId)
+  if (user.role === 'ADMIN') {
     return true
   }
 
@@ -189,12 +191,14 @@ const canAccessSubmissionFile = async (user, submission) => {
   return false
 }
 
+/** @param {UploadUser} user @param {{subjectId: string, instructorId: string}} task */
 const canAccessTaskFile = async (user, task) => {
   if (!user) {
     return false
   }
 
-  if (['ADMIN', 'COORDINATOR'].includes(user.role)) {
+  if (user.role === 'COORDINATOR') return canCoordinatorAccessSubject(user, task.subjectId)
+  if (user.role === 'ADMIN') {
     return true
   }
 
@@ -209,12 +213,14 @@ const canAccessTaskFile = async (user, task) => {
   return false
 }
 
+/** @param {UploadUser} user @param {{studentId: string, task: {subjectId: string, instructorId: string}}} submission */
 const canAccessTaskSubmissionFile = async (user, submission) => {
   if (!user) {
     return false
   }
 
-  if (['ADMIN', 'COORDINATOR'].includes(user.role)) {
+  if (user.role === 'COORDINATOR') return canCoordinatorAccessSubject(user, submission.task?.subjectId)
+  if (user.role === 'ADMIN') {
     return true
   }
 
@@ -229,12 +235,14 @@ const canAccessTaskSubmissionFile = async (user, submission) => {
   return false
 }
 
+/** @param {UploadUser} user @param {{subjectId: string, instructorId: string}} material */
 const canAccessMaterialFile = async (user, material) => {
   if (!user) {
     return false
   }
 
-  if (['ADMIN', 'COORDINATOR'].includes(user.role)) {
+  if (user.role === 'COORDINATOR') return canCoordinatorAccessSubject(user, material.subjectId)
+  if (user.role === 'ADMIN') {
     return true
   }
 
@@ -249,7 +257,7 @@ const canAccessMaterialFile = async (user, material) => {
   return false
 }
 
-const logUploadAccessDenied = async (context, fileName, resourceType) => {
+const logUploadAccessDenied = async (/** @type {ReturnType<typeof import('../utils/controllerAdapter').buildServiceContext>} */ context, /** @type {string} */ fileName, /** @type {string} */ resourceType) => {
   await recordAuditLog({
     actorId: context.user?.id || null,
     actorRole: context.user?.role || null,
@@ -264,19 +272,22 @@ const logUploadAccessDenied = async (context, fileName, resourceType) => {
   })
 }
 
+/** @param {UploadUser} user @param {Pick<import("@prisma/client").UploadedFile, "entityType" | "entityId" | "uploadedById"> | null} uploadedFile */
 const canAccessUploadedFileRecord = (user, uploadedFile) => {
   if (!user || !uploadedFile) {
     return false
   }
 
-  return uploadedFile.uploadedById === user.id ||
+  return (uploadedFile.uploadedById === user.id &&
+    (user.role !== 'COORDINATOR' || !uploadedFile.entityType || uploadedFile.entityType === 'USER_AVATAR')) ||
     // Only USER_AVATAR records store a user id in entityId. Scope the match to
     // that entity type so a future entity storing an attacker-influenced id that
     // collides with a user id cannot become an authorization bypass.
     (uploadedFile.entityType === 'USER_AVATAR' && uploadedFile.entityId === user.id) ||
-    ['ADMIN', 'COORDINATOR'].includes(user.role)
+    user.role === 'ADMIN'
 }
 
+/** @param {UploadUser} user @param {Pick<import("@prisma/client").UploadedFile, "entityType" | "entityId" | "uploadedById"> | null} uploadedFile */
 const canAccessUploadedFileEntity = async (user, uploadedFile) => {
   if (canAccessUploadedFileRecord(user, uploadedFile)) {
     return true
@@ -307,6 +318,7 @@ const canAccessUploadedFileEntity = async (user, uploadedFile) => {
         studentId: true,
         assignment: {
           select: {
+            subjectId: true,
             instructorId: true
           }
         }
@@ -350,6 +362,7 @@ const canAccessUploadedFileEntity = async (user, uploadedFile) => {
         studentId: true,
         task: {
           select: {
+            subjectId: true,
             instructorId: true
           }
         }

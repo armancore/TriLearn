@@ -1,3 +1,4 @@
+const { errorInfo } = require('../utils/errorInfo')
 const { ipKeyGenerator, rateLimit } = require('express-rate-limit')
 const { RedisStore } = require('rate-limit-redis')
 const { hashToken, verifyRefreshToken } = require('../utils/token')
@@ -6,7 +7,7 @@ const logger = require('../utils/logger')
 
 let memoryStoreWarningShown = false
 let rateLimitDisabledWarningShown = false
-const parsePositiveInteger = (value, fallback) => {
+const parsePositiveInteger = (/** @type {string | undefined} */ value, /** @type {number} */ fallback) => {
   const parsed = Number.parseInt(String(value ?? ''), 10)
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback
 }
@@ -47,7 +48,7 @@ const getRedisStore = (prefixSuffix = 'global') => {
   })
 }
 
-const createRedisAvailabilityGuard = (prefixSuffix) => async (_req, res, next) => {
+const createRedisAvailabilityGuard = (/** @type {string | undefined} */ prefixSuffix) => async (/** @type {import('express').Request} */ _req, /** @type {import('express').Response} */ res, /** @type {import('express').NextFunction} */ next) => {
   if (!isRedisConfigured()) {
     return next()
   }
@@ -59,7 +60,7 @@ const createRedisAvailabilityGuard = (prefixSuffix) => async (_req, res, next) =
     }
   } catch (error) {
     logger.warn('Rate limiting Redis availability check failed', {
-      message: error.message,
+      message: errorInfo(error).message,
       limiter: prefixSuffix || 'global'
     })
   }
@@ -69,6 +70,7 @@ const createRedisAvailabilityGuard = (prefixSuffix) => async (_req, res, next) =
   })
 }
 
+/** @param {{ max: number, message: string, windowMs?: number, keyGenerator?: import("express-rate-limit").Options["keyGenerator"], prefixSuffix?: string, useRedisStore?: boolean }} options */
 const createLimiter = ({ max, message, windowMs = 15 * 60 * 1000, keyGenerator, prefixSuffix, useRedisStore = true }) => {
   if (areRateLimitsDisabled()) {
     if (!rateLimitDisabledWarningShown) {
@@ -76,7 +78,7 @@ const createLimiter = ({ max, message, windowMs = 15 * 60 * 1000, keyGenerator, 
       logger.warn('Rate limiting is DISABLED (DISABLE_RATE_LIMITS=true). This must not be used in production.')
     }
 
-    return (_req, _res, next) => next()
+    return (/** @type {import('express').Request} */ _req, /** @type {import('express').Response} */ _res, /** @type {import('express').NextFunction} */ next) => next()
   }
 
   const limiter = rateLimit({
@@ -94,7 +96,7 @@ const createLimiter = ({ max, message, windowMs = 15 * 60 * 1000, keyGenerator, 
   }
 
   const redisAvailabilityGuard = createRedisAvailabilityGuard(prefixSuffix)
-  return async (req, res, next) => {
+  return async (/** @type {import('express').Request} */ req, /** @type {import('express').Response} */ res, /** @type {import('express').NextFunction} */ next) => {
     await redisAvailabilityGuard(req, res, (error) => {
       if (error) {
         return next(error)
@@ -105,29 +107,29 @@ const createLimiter = ({ max, message, windowMs = 15 * 60 * 1000, keyGenerator, 
   }
 }
 
-const actorRateLimitKey = (req) => (
+const actorRateLimitKey = (/** @type {import('express').Request} */ req) => (
   req.user?.id
     ? `${req.user.role || 'USER'}:${req.user.id}`
     : ipKeyGenerator(req.ip || '')
 )
 
-const forgotPasswordRateLimitKey = (req) => {
+const forgotPasswordRateLimitKey = (/** @type {import('express').Request} */ req) => {
   const email = String(req.body?.email || '').trim().toLowerCase()
   const ipKey = ipKeyGenerator(req.ip || '')
   return `${ipKey}:${email || 'unknown-email'}`
 }
 
-const emailRateLimitKey = (req) => {
+const emailRateLimitKey = (/** @type {import('express').Request} */ req) => {
   const email = String(req.body?.email || '').trim().toLowerCase()
   return email || ipKeyGenerator(req.ip || '')
 }
 
-const loginRateLimitKey = (req) => {
+const loginRateLimitKey = (/** @type {import('express').Request} */ req) => {
   const email = String(req.body?.email || '').trim().toLowerCase()
   return email || ipKeyGenerator(req.ip || '')
 }
 
-const refreshRateLimitKey = (req) => {
+const refreshRateLimitKey = (/** @type {import('express').Request} */ req) => {
   const refreshToken = req.cookies?.refreshToken || req.body?.refreshToken
 
   if (!refreshToken) {

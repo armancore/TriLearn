@@ -490,6 +490,16 @@ test('csrfProtection allows native mobile login requests with Expo origin and no
   assert.deepEqual(response.body, { ok: true })
 })
 
+test('native refresh-only logout is allowed, but cookies and browser origins still require CSRF', async () => {
+  const testApp = express()
+  testApp.use(csrfProtection)
+  testApp.post('/api/v1/auth/logout/mobile', (_req, res) => res.json({ ok: true }))
+  const send = () => request(testApp).post('/api/v1/auth/logout/mobile').set('X-Client-Type', 'mobile')
+  assert.equal((await send().send({ refreshToken: 'explicit-refresh' })).status, 200)
+  assert.equal((await send().set('Cookie', 'refreshToken=ambient').send({ refreshToken: 'explicit-refresh' })).status, 403)
+  assert.equal((await send().set('Origin', 'https://evil.example').send({ refreshToken: 'explicit-refresh' })).status, 403)
+})
+
 test('csrfProtection rejects spoofed mobile login requests from untrusted browser origins', async () => {
   const testApp = express()
   testApp.use(csrfProtection)

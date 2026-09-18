@@ -1,4 +1,4 @@
-const inferNoticeLink = (role) => (
+const inferNoticeLink = (/** @type {string} */ role) => (
   role === 'STUDENT'
     ? '/student/notices'
     : role === 'INSTRUCTOR'
@@ -8,7 +8,7 @@ const inferNoticeLink = (role) => (
         : '/admin/notices'
 )
 
-const inferRoutineLink = (role) => (
+const inferRoutineLink = (/** @type {string} */ role) => (
   role === 'STUDENT'
     ? '/student/routine'
     : role === 'INSTRUCTOR'

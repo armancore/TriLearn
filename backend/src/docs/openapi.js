@@ -275,6 +275,7 @@ const registerRoute = ({
   })
 }
 
+/** @type {Record<string, [Parameters<typeof registerRoute>[0]['method'], string, string, Parameters<typeof registerRoute>[0]['schema']?, Parameters<typeof registerRoute>[0]['responses']?, Parameters<typeof registerRoute>[0]['security']?][]>} */
 const routeGroups = {
   Auth: [
     ['post', '/auth/register', 'Register a user', schemas.auth.register, { 201: jsonResponse('Created', UserResponse) }, []],

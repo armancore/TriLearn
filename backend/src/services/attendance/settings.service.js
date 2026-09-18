@@ -2,6 +2,7 @@ const { createServiceResponder } = require('../../utils/serviceResult')
 const { prisma, getDayRange, normalizeSemesterList } = require('./shared.service')
 const { sanitizePlainText } = require('../../utils/sanitize')
 
+/** @param {{id?: string, dayOfWeek: import('@prisma/client').DayOfWeek, startTime: string, endTime: string, allowedSemesters: (number | string)[]}} options */
 const findConflictingGateWindow = async ({ id, dayOfWeek, startTime, endTime, allowedSemesters }) => prisma.gateScanWindow.findFirst({
   where: {
     dayOfWeek,

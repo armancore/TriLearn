@@ -4,15 +4,15 @@ const { recordAuditLog } = require('../utils/audit')
 const { sanitizePlainText } = require('../utils/sanitize')
 const { departmentsMatch } = require('../utils/departments')
 
-const isAdmin = (context) => context.user?.role === 'ADMIN'
-const isCoordinator = (context) => context.user?.role === 'COORDINATOR'
+const isAdmin = (/** @type {{ user: { role: string; }; }} */ context) => context.user?.role === 'ADMIN'
+const isCoordinator = (/** @type {{ user: { role: string; }; }} */ context) => context.user?.role === 'COORDINATOR'
 
-const parseRecordDate = (date) => {
+const parseRecordDate = (/** @type {string | number | Date} */ date) => {
   const parsedDate = new Date(date)
   return Number.isNaN(parsedDate.getTime()) ? null : parsedDate
 }
 
-const createDisciplinaryRecord = async (context, result = createServiceResponder()) => {
+const createDisciplinaryRecord = async (/** @type {ReturnType<typeof import('../utils/controllerAdapter').buildServiceContext>} */ context, result = createServiceResponder()) => {
   if (!isAdmin(context) && !isCoordinator(context)) {
     return result.withStatus(403, { message: 'You are not authorized to add disciplinary records.' })
   }
@@ -70,7 +70,7 @@ const createDisciplinaryRecord = async (context, result = createServiceResponder
   return result.withStatus(201, { message: 'Disciplinary record added.', record })
 }
 
-const updateDisciplinaryRecord = async (context, result = createServiceResponder()) => {
+const updateDisciplinaryRecord = async (/** @type {ReturnType<typeof import('../utils/controllerAdapter').buildServiceContext>} */ context, result = createServiceResponder()) => {
   if (!isAdmin(context)) {
     return result.withStatus(403, { message: 'Only admins can update disciplinary records.' })
   }
@@ -121,7 +121,7 @@ const updateDisciplinaryRecord = async (context, result = createServiceResponder
   return result.ok({ message: 'Record updated.', record })
 }
 
-const deleteDisciplinaryRecord = async (context, result = createServiceResponder()) => {
+const deleteDisciplinaryRecord = async (/** @type {ReturnType<typeof import('../utils/controllerAdapter').buildServiceContext>} */ context, result = createServiceResponder()) => {
   if (!isAdmin(context)) {
     return result.withStatus(403, { message: 'Only admins can delete disciplinary records.' })
   }

@@ -4,6 +4,7 @@ const { isPrivateIpv4, isPrivateIpv6, normalizeIpAddress } = require('./network'
 
 const HEALTHCHECK_KEY_HEADER = 'x-health-check-key'
 const DEFAULT_HEALTHCHECK_CACHE_TTL_MS = 60_000
+/** @type {{expiresAt: number, error: unknown} | null} */
 let cachedHealthCheck = null
 
 const parseCacheTtlMs = () => {
@@ -15,13 +16,13 @@ const parseCacheTtlMs = () => {
   return DEFAULT_HEALTHCHECK_CACHE_TTL_MS
 }
 
-const isPrivateHealthCheckRequest = (req) => {
+const isPrivateHealthCheckRequest = (/** @type {import("express").Request} */ req) => {
   const ip = normalizeIpAddress(req.ip || req.socket?.remoteAddress)
 
   return isPrivateIpv4(ip) || isPrivateIpv6(ip)
 }
 
-const hasValidHealthCheckKey = (req) => {
+const hasValidHealthCheckKey = (/** @type {import("express").Request} */ req) => {
   const configuredKey = String(process.env.HEALTHCHECK_KEY || '').trim()
   if (!configuredKey) {
     return false
@@ -30,7 +31,7 @@ const hasValidHealthCheckKey = (req) => {
   return String(req.get(HEALTHCHECK_KEY_HEADER) || '').trim() === configuredKey
 }
 
-const isHealthCheckRequestAllowed = (req) => {
+const isHealthCheckRequestAllowed = (/** @type {import("express").Request} */ req) => {
   if (process.env.NODE_ENV !== 'production') {
     return true
   }
@@ -94,7 +95,7 @@ const runHealthChecks = async () => {
   }
 }
 
-const healthCheckHandler = async (req, res) => {
+const healthCheckHandler = async (/** @type {import("express").Request} */ req, /** @type {import("express").Response} */ res) => {
   if (!isHealthCheckRequestAllowed(req)) {
     return res.status(404).json({ message: 'Route not found' })
   }

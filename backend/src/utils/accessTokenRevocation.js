@@ -1,3 +1,4 @@
+const { errorInfo } = require('./errorInfo')
 const jwt = require('jsonwebtoken')
 const logger = require('./logger')
 const { getReadyRedisClient } = require('./redis')
@@ -12,10 +13,10 @@ const REVOKED_JTI_CACHE_CLEANUP_MS = 5 * 60 * 1000
 // Process-local optimization only: Redis remains the authoritative revocation
 // store. In multi-process or multi-replica deployments, a JTI cached in one
 // worker is not visible to another until that worker checks Redis.
-const revokedJtiCache = new Map()
+const revokedJtiCache = new Map(/** @type {[string, number][]} */ ([]))
 
 // REDIS-SAVE: in-memory negative cache avoids Redis EXISTS on every protected request
-const cacheRevokedJti = (jti, ttlMs = REVOKED_JTI_CACHE_TTL_MS) => {
+const cacheRevokedJti = (/** @type {string} */ jti, ttlMs = REVOKED_JTI_CACHE_TTL_MS) => {
   if (!jti || ttlMs <= 0) {
     return
   }
@@ -23,7 +24,7 @@ const cacheRevokedJti = (jti, ttlMs = REVOKED_JTI_CACHE_TTL_MS) => {
   revokedJtiCache.set(jti, Date.now() + ttlMs)
 }
 
-const isRevokedJtiCached = (jti) => {
+const isRevokedJtiCached = (/** @type {string} */ jti) => {
   const expiresAt = revokedJtiCache.get(jti)
   if (!expiresAt) {
     return false
@@ -51,12 +52,12 @@ if (typeof revokedJtiCacheCleanupTimer.unref === 'function') {
   revokedJtiCacheCleanupTimer.unref()
 }
 
-const getBearerToken = (req) => {
+const getBearerToken = (/** @type {Pick<import("express").Request, "headers" | "cookies">} */ req) => {
   const [scheme, token] = String(req?.headers?.authorization || '').split(' ')
   return scheme?.toLowerCase() === 'bearer' && token ? token : null
 }
 
-const getRequestAccessToken = (req) => {
+const getRequestAccessToken = (/** @type {Pick<import("express").Request, "headers" | "cookies">} */ req) => {
   const bearerToken = getBearerToken(req)
   if (bearerToken) {
     return bearerToken
@@ -66,8 +67,8 @@ const getRequestAccessToken = (req) => {
   return typeof cookieToken === 'string' && cookieToken.trim() ? cookieToken.trim() : null
 }
 
-const getRemainingTtlSeconds = (exp) => {
-  if (!Number.isFinite(exp)) {
+const getRemainingTtlSeconds = (/** @type {unknown} */ exp) => {
+  if (typeof exp !== "number" || !Number.isFinite(exp)) {
     return 0
   }
 
@@ -79,7 +80,7 @@ const createRevocationUnavailableError = () => Object.assign(
   { code: 'ACCESS_TOKEN_REVOCATION_UNAVAILABLE' }
 )
 
-const revokeAccessTokenPayload = async (payload, { throwOnFailure = false } = {}) => {
+const revokeAccessTokenPayload = async (/** @type {{jti?: string, exp?: number} | null | undefined} */ payload, { throwOnFailure = false } = {}) => {
   const jti = payload?.jti
   const ttlSeconds = getRemainingTtlSeconds(payload?.exp)
 
@@ -100,7 +101,7 @@ const revokeAccessTokenPayload = async (payload, { throwOnFailure = false } = {}
     cacheRevokedJti(jti, Math.min(ttlSeconds * 1000, REVOKED_JTI_CACHE_TTL_MS))
     return true
   } catch (error) {
-    logger.warn('Failed to revoke access token jti in Redis', { message: error.message })
+    logger.warn('Failed to revoke access token jti in Redis', { message: errorInfo(error).message })
     if (throwOnFailure) {
       throw error
     }
@@ -108,7 +109,7 @@ const revokeAccessTokenPayload = async (payload, { throwOnFailure = false } = {}
   }
 }
 
-const revokeAccessToken = async (token, options) => {
+const revokeAccessToken = async (/** @type {string | null} */ token, /** @type {{ throwOnFailure?: boolean | undefined; } | undefined} */ options) => {
   if (!token) {
     return false
   }
@@ -117,7 +118,7 @@ const revokeAccessToken = async (token, options) => {
   return revokeAccessTokenPayload(payload, options)
 }
 
-const revokeAccessTokenFromRequest = async (req, options) => {
+const revokeAccessTokenFromRequest = async (/** @type {Pick<import("express").Request, "headers" | "cookies" | "accessTokenPayload">} */ req, /** @type {{throwOnFailure?: boolean}} */ options = {}) => {
   if (req?.accessTokenPayload) {
     return revokeAccessTokenPayload(req.accessTokenPayload, options)
   }
@@ -125,9 +126,9 @@ const revokeAccessTokenFromRequest = async (req, options) => {
   return revokeAccessToken(getRequestAccessToken(req), options)
 }
 
-const getUserAccessJtiKey = (userId) => `${USER_ACCESS_JTI_PREFIX}${userId}`
+const getUserAccessJtiKey = (/** @type {string} */ userId) => `${USER_ACCESS_JTI_PREFIX}${userId}`
 
-const trackAccessToken = async (token) => {
+const trackAccessToken = async (/** @type {string} */ token) => {
   const payload = jwt.decode(token)
   const ttlSeconds = getRemainingTtlSeconds(payload?.exp)
 
@@ -146,12 +147,12 @@ const trackAccessToken = async (token) => {
     await redis.expire(userJtiKey, ttlSeconds)
     return true
   } catch (error) {
-    logger.warn('Failed to track access token jti in Redis', { message: error.message })
+    logger.warn('Failed to track access token jti in Redis', { message: errorInfo(error).message })
     return false
   }
 }
 
-const revokeAllAccessTokensForUser = async (userId, { throwOnFailure = false } = {}) => {
+const revokeAllAccessTokensForUser = async (/** @type {string} */ userId, { throwOnFailure = false } = {}) => {
   if (!userId) {
     return 0
   }
@@ -195,7 +196,7 @@ const revokeAllAccessTokensForUser = async (userId, { throwOnFailure = false } =
 
     return revokedCount
   } catch (error) {
-    logger.warn('Failed to revoke user access token jtis in Redis', { message: error.message, userId })
+    logger.warn('Failed to revoke user access token jtis in Redis', { message: errorInfo(error).message, userId })
     if (throwOnFailure) {
       throw error
     }

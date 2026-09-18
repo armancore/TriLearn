@@ -1,3 +1,4 @@
+const { errorInfo } = require('../utils/errorInfo')
 const fs = require('fs')
 const path = require('path')
 const crypto = require('crypto')
@@ -17,6 +18,7 @@ const {
 } = fileStorage
 const isS3Configured = fileStorage.isS3Configured || (() => false)
 
+/** @type {Record<string, number>} */
 const DEFAULT_ROLE_LIMITS = {
   ADMIN: 15 * 1024 * 1024,
   COORDINATOR: 15 * 1024 * 1024,
@@ -24,7 +26,7 @@ const DEFAULT_ROLE_LIMITS = {
   STUDENT: 10 * 1024 * 1024
 }
 
-const parseUploadLimit = (envKey, fallback) => {
+const parseUploadLimit = (/** @type {string} */ envKey, /** @type {number} */ fallback) => {
   const rawValue = process.env[envKey]
   if (!rawValue) {
     return fallback
@@ -34,32 +36,32 @@ const parseUploadLimit = (envKey, fallback) => {
   return Number.isFinite(parsedValue) && parsedValue > 0 ? parsedValue : fallback
 }
 
-const getUploadLimitForRole = (role) => {
+const getUploadLimitForRole = (/** @type {string} */ role) => {
   const resolvedRole = role || 'STUDENT'
   const fallbackLimit = DEFAULT_ROLE_LIMITS[resolvedRole] || DEFAULT_ROLE_LIMITS.STUDENT
   return parseUploadLimit(`MAX_PDF_UPLOAD_BYTES_${resolvedRole}`, fallbackLimit)
 }
 
-const formatBytesInMb = (bytes) => `${Math.round((bytes / (1024 * 1024)) * 10) / 10} MB`
-const sanitizeUploadedOriginalName = (originalname, fallback = 'upload.pdf') => {
+const formatBytesInMb = (/** @type {number} */ bytes) => `${Math.round((bytes / (1024 * 1024)) * 10) / 10} MB`
+const sanitizeUploadedOriginalName = (/** @type {string} */ originalname, fallback = 'upload.pdf') => {
   const normalized = String(originalname || fallback).replace(/\\/g, '/')
   const baseName = normalized.split('/').pop() || fallback
   const safeName = baseName.replace(/[^a-zA-Z0-9.-]/g, '_')
   return safeName || fallback
 }
 
-const generateUploadedFileName = (originalname) => {
+const generateUploadedFileName = (/** @type {string} */ originalname) => {
   const safeName = sanitizeUploadedOriginalName(originalname)
   return `${crypto.randomUUID()}-${safeName}`
 }
 
-const generateReencodedImageFileName = (originalname) => {
+const generateReencodedImageFileName = (/** @type {string} */ originalname) => {
   const baseName = sanitizeUploadedOriginalName(originalname, 'upload-image')
     .replace(/\.[^.]*$/, '')
   return `${crypto.randomUUID()}-${baseName || 'upload-image'}.png`
 }
 
-const storeValidatedUpload = async (buffer, fileName, mimeType) => {
+const storeValidatedUpload = async (/** @type {Buffer} */ buffer, /** @type {string} */ fileName, /** @type {string} */ mimeType) => {
   const localPath = path.join(uploadPath, fileName)
   if (typeof uploadFile !== 'function') {
     await fs.promises.writeFile(localPath, buffer)
@@ -67,13 +69,14 @@ const storeValidatedUpload = async (buffer, fileName, mimeType) => {
   }
 
   const storedFile = await uploadFile(buffer, fileName, mimeType)
+  if (!storedFile.url) throw new Error("Storage returned no file URL")
   return {
     path: isS3Configured() ? storedFile.url : localPath,
     url: storedFile.url
   }
 }
 
-const registerUploadedFile = async (req) => {
+const registerUploadedFile = async (/** @type {import('express').Request} */ req) => {
   if (!req.user?.id || !req.file?.filename || !req.file?.url) {
     return
   }
@@ -99,7 +102,7 @@ const registerUploadedFile = async (req) => {
     }
   })
 }
-const getUploadedFileName = (fileUrl) => {
+const getUploadedFileName = (/** @type {string | null | undefined} */ fileUrl) => {
   const rawValue = String(fileUrl || '').trim()
   if (!rawValue) return ''
 
@@ -110,7 +113,11 @@ const getUploadedFileName = (fileUrl) => {
     return path.basename(rawValue)
   }
 }
-const lookupPdfObject = (pdfDoc, object) => {
+/** @param {import('pdf-lib').PDFObject | undefined} object @returns {object is import('pdf-lib').PDFDict} */
+const isPdfDictionary = (object) => Boolean(object && typeof object === 'object' && 'entries' in object && typeof object.entries === 'function')
+/** @param {import('pdf-lib').PDFObject | undefined} object @returns {object is import('pdf-lib').PDFArray} */
+const isPdfArray = (object) => Boolean(object && typeof object === 'object' && 'asArray' in object && typeof object.asArray === 'function')
+const lookupPdfObject = (/** @type {import('pdf-lib').PDFDocument} */ pdfDoc, /** @type {import("pdf-lib").PDFObject | undefined} */ object) => {
   if (!object || !pdfDoc?.context?.lookup) {
     return object
   }
@@ -118,9 +125,9 @@ const lookupPdfObject = (pdfDoc, object) => {
   return pdfDoc.context.lookup(object)
 }
 
-const buildPdfNameMap = (names) => Object.fromEntries(names.map((name) => [name, PDFName.of(name)]))
+const buildPdfNameMap = (/** @type {string[]} */ names) => Object.fromEntries(names.map((/** @type {string} */ name) => [name, PDFName.of(name)]))
 
-const deletePdfDictionaryKeys = (dictionary, keys) => {
+const deletePdfDictionaryKeys = (/** @type {import("pdf-lib").PDFDict | undefined} */ dictionary, /** @type {PDFName[]} */ keys) => {
   if (!dictionary?.delete) {
     return
   }
@@ -130,7 +137,7 @@ const deletePdfDictionaryKeys = (dictionary, keys) => {
   })
 }
 
-const sanitizePdfObject = (pdfDoc, object, activeContentKeys, visited = new Set()) => {
+const sanitizePdfObject = (/** @type {import('pdf-lib').PDFDocument} */ pdfDoc, /** @type {import("pdf-lib").PDFObject | undefined} */ object, /** @type {PDFName[]} */ activeContentKeys, visited = new Set()) => {
   const resolvedObject = lookupPdfObject(pdfDoc, object)
   if (!resolvedObject || visited.has(resolvedObject)) {
     return
@@ -138,27 +145,27 @@ const sanitizePdfObject = (pdfDoc, object, activeContentKeys, visited = new Set(
 
   visited.add(resolvedObject)
 
-  if (resolvedObject.entries) {
+  if (isPdfDictionary(resolvedObject)) {
     for (const [, value] of Array.from(resolvedObject.entries())) {
       sanitizePdfObject(pdfDoc, value, activeContentKeys, visited)
     }
     deletePdfDictionaryKeys(resolvedObject, activeContentKeys)
   }
 
-  if (resolvedObject.asArray) {
+  if (isPdfArray(resolvedObject)) {
     for (const value of resolvedObject.asArray()) {
       sanitizePdfObject(pdfDoc, value, activeContentKeys, visited)
     }
   }
 }
 
-const sanitizePdfAnnotations = (pdfDoc, pdfNames, activeContentKeys) => {
+const sanitizePdfAnnotations = (/** @type {import('pdf-lib').PDFDocument} */ pdfDoc, /** @type {Record<string, PDFName>} */ pdfNames, /** @type {PDFName[]} */ activeContentKeys) => {
   for (const page of pdfDoc.getPages()) {
     deletePdfDictionaryKeys(page.node, [pdfNames.AA])
 
     const annotations = lookupPdfObject(pdfDoc, page.node.get(pdfNames.Annots))
 
-    if (!annotations?.asArray) {
+    if (!isPdfArray(annotations)) {
       continue
     }
 
@@ -169,7 +176,7 @@ const sanitizePdfAnnotations = (pdfDoc, pdfNames, activeContentKeys) => {
   }
 }
 
-const sanitizePdfCatalog = (pdfDoc, pdfNames, activeContentKeys) => {
+const sanitizePdfCatalog = (/** @type {import('pdf-lib').PDFDocument} */ pdfDoc, /** @type {Record<string, PDFName>} */ pdfNames, /** @type {PDFName[]} */ activeContentKeys) => {
   if (!pdfDoc.catalog) {
     return
   }
@@ -180,7 +187,7 @@ const sanitizePdfCatalog = (pdfDoc, pdfNames, activeContentKeys) => {
   sanitizePdfObject(pdfDoc, pdfDoc.catalog.get?.(pdfNames.AcroForm), activeContentKeys)
 
   const names = lookupPdfObject(pdfDoc, pdfDoc.catalog.get?.(pdfNames.Names))
-  if (names) {
+  if (isPdfDictionary(names)) {
     sanitizePdfObject(pdfDoc, names.get?.(pdfNames.JavaScript), activeContentKeys)
     sanitizePdfObject(pdfDoc, names.get?.(pdfNames.EmbeddedFiles), activeContentKeys)
     deletePdfDictionaryKeys(names, [
@@ -199,7 +206,7 @@ const sanitizePdfCatalog = (pdfDoc, pdfNames, activeContentKeys) => {
   sanitizePdfObject(pdfDoc, pdfDoc.catalog, activeContentKeys)
 }
 
-const sanitizePdfForm = (pdfDoc, pdfNames, activeContentKeys) => {
+const sanitizePdfForm = (/** @type {import('pdf-lib').PDFDocument} */ pdfDoc, /** @type {Record<string, PDFName>} */ pdfNames, /** @type {PDFName[]} */ activeContentKeys) => {
   if (!pdfDoc.getForm) {
     return
   }
@@ -219,7 +226,7 @@ const sanitizePdfForm = (pdfDoc, pdfNames, activeContentKeys) => {
   form.flatten()
 }
 
-const sanitizePdfIndirectObjects = (pdfDoc, activeContentKeys) => {
+const sanitizePdfIndirectObjects = (/** @type {import('pdf-lib').PDFDocument} */ pdfDoc, /** @type {PDFName[]} */ activeContentKeys) => {
   if (!pdfDoc.context?.enumerateIndirectObjects) {
     return
   }
@@ -229,7 +236,7 @@ const sanitizePdfIndirectObjects = (pdfDoc, activeContentKeys) => {
   }
 }
 
-const sanitizePdfActiveContent = async (pdfDoc) => {
+const sanitizePdfActiveContent = async (/** @type {PDFDocument} */ pdfDoc) => {
   if (!PDFName || !pdfDoc?.getPages) {
     return null
   }
@@ -256,10 +263,10 @@ const sanitizePdfActiveContent = async (pdfDoc) => {
     pdfNames.XFA
   ]
 
-  sanitizePdfAnnotations(pdfDoc, pdfNames, activeContentKeys)
-  sanitizePdfCatalog(pdfDoc, pdfNames, activeContentKeys)
-  sanitizePdfForm(pdfDoc, pdfNames, activeContentKeys)
-  sanitizePdfIndirectObjects(pdfDoc, activeContentKeys)
+  sanitizePdfAnnotations(pdfDoc, /** @type {Record<string, PDFName>} */ pdfNames, /** @type {PDFName[]} */ activeContentKeys)
+  sanitizePdfCatalog(pdfDoc, /** @type {Record<string, PDFName>} */ pdfNames, /** @type {PDFName[]} */ activeContentKeys)
+  sanitizePdfForm(pdfDoc, /** @type {Record<string, PDFName>} */ pdfNames, /** @type {PDFName[]} */ activeContentKeys)
+  sanitizePdfIndirectObjects(pdfDoc, /** @type {PDFName[]} */ activeContentKeys)
 
   if (!pdfDoc.save) {
     return null
@@ -268,7 +275,7 @@ const sanitizePdfActiveContent = async (pdfDoc) => {
   return Buffer.from(await pdfDoc.save())
 }
 
-const pdfOnly = (_req, file, cb) => {
+const pdfOnly = (/** @type {import('express').Request} */ _req, /** @type {Express.Multer.File} */ file, /** @type {import("multer").FileFilterCallback} */ cb) => {
   file.originalname = sanitizeUploadedOriginalName(file.originalname)
   const isPdf = String(file.mimetype || '').toLowerCase() === 'application/pdf'
 
@@ -279,7 +286,7 @@ const pdfOnly = (_req, file, cb) => {
   cb(null, true)
 }
 
-const spreadsheetOnly = (_req, file, cb) => {
+const spreadsheetOnly = (/** @type {import('express').Request} */ _req, /** @type {Express.Multer.File} */ file, /** @type {import("multer").FileFilterCallback} */ cb) => {
   file.originalname = sanitizeUploadedOriginalName(file.originalname, 'upload.csv')
   const mimeType = String(file.mimetype || '').toLowerCase()
   const fileName = String(file.originalname || '').toLowerCase()
@@ -299,7 +306,7 @@ const spreadsheetOnly = (_req, file, cb) => {
   cb(null, true)
 }
 
-const imageOnly = (_req, file, cb) => {
+const imageOnly = (/** @type {import('express').Request} */ _req, /** @type {Express.Multer.File} */ file, /** @type {import("multer").FileFilterCallback} */ cb) => {
   file.originalname = sanitizeUploadedOriginalName(file.originalname, 'upload-image')
   const mimeType = String(file.mimetype || '').toLowerCase()
   const isImage = mimeType.startsWith('image/')
@@ -311,7 +318,7 @@ const imageOnly = (_req, file, cb) => {
   cb(null, true)
 }
 
-const getImageSignatureFlags = (buffer) => {
+const getImageSignatureFlags = (/** @type {Buffer} */ buffer) => {
   const signatureBuffer = Buffer.from(buffer || []).subarray(0, 12)
   const header = signatureBuffer.toString('hex')
 
@@ -323,7 +330,7 @@ const getImageSignatureFlags = (buffer) => {
   }
 }
 
-const createUploadMiddleware = (role) => multer({
+const createUploadMiddleware = (/** @type {string} */ role) => multer({
   storage: multer.memoryStorage(),
   fileFilter: pdfOnly,
   limits: {
@@ -348,7 +355,7 @@ const createSpreadsheetUploadMiddleware = (maxBytes = 5 * 1024 * 1024) => multer
 })
 
 const uploadPdf = {
-  single: (fieldName) => (req, res, next) => {
+  single: (/** @type {string} */ fieldName) => (/** @type {import('express').Request} */ req, /** @type {import('express').Response} */ res, /** @type {import('express').NextFunction} */ next) => {
     const uploadLimit = getUploadLimitForRole(req.user?.role)
 
     createUploadMiddleware(req.user?.role).single(fieldName)(req, res, (error) => {
@@ -372,7 +379,7 @@ const uploadPdf = {
 }
 
 const uploadImage = {
-  single: (fieldName, { maxBytes = 3 * 1024 * 1024 } = {}) => (req, res, next) => {
+  single: (/** @type {string} */ fieldName, { maxBytes = 3 * 1024 * 1024 } = {}) => (/** @type {import('express').Request} */ req, /** @type {import('express').Response} */ res, /** @type {import('express').NextFunction} */ next) => {
     createImageUploadMiddleware(maxBytes).single(fieldName)(req, res, (error) => {
       if (!error) {
         return next()
@@ -394,7 +401,7 @@ const uploadImage = {
 }
 
 const uploadSpreadsheet = {
-  single: (fieldName, { maxBytes = 5 * 1024 * 1024 } = {}) => (req, res, next) => {
+  single: (/** @type {string} */ fieldName, { maxBytes = 5 * 1024 * 1024 } = {}) => (/** @type {import('express').Request} */ req, /** @type {import('express').Response} */ res, /** @type {import('express').NextFunction} */ next) => {
     createSpreadsheetUploadMiddleware(maxBytes).single(fieldName)(req, res, (error) => {
       if (!error) {
         return next()
@@ -415,7 +422,7 @@ const uploadSpreadsheet = {
   }
 }
 
-const validateUploadedPdf = async (req, res, next) => {
+const validateUploadedPdf = async (/** @type {import('express').Request} */ req, /** @type {import('express').Response} */ res, /** @type {import('express').NextFunction} */ next) => {
   if (!req.file?.buffer) {
     return next()
   }
@@ -444,12 +451,12 @@ const validateUploadedPdf = async (req, res, next) => {
 
     next()
   } catch (error) {
-    logger.error(error.message, { stack: error.stack })
+    logger.error(errorInfo(error).message, { stack: errorInfo(error).stack })
     res.status(400).json({ message: 'Unable to validate uploaded file' })
   }
 }
 
-const validateUploadedImage = async (req, res, next) => {
+const validateUploadedImage = async (/** @type {import('express').Request} */ req, /** @type {import('express').Response} */ res, /** @type {import('express').NextFunction} */ next) => {
   if (!req.file?.buffer) {
     return next()
   }
@@ -463,7 +470,7 @@ const validateUploadedImage = async (req, res, next) => {
     }
 
     const fileName = generateReencodedImageFileName(req.file.originalname)
-    let processedBuffer
+    let processedBuffer = Buffer.alloc(0)
 
     try {
       const processor = sharp(req.file.buffer).rotate().png()
@@ -473,7 +480,7 @@ const validateUploadedImage = async (req, res, next) => {
         await processor.toFile(path.join(uploadPath, fileName))
       }
     } catch (sharpError) {
-      logger.error(sharpError.message, { stack: sharpError.stack })
+      logger.error(errorInfo(sharpError).message, { stack: errorInfo(sharpError).stack })
       return res.status(400).json({ message: 'Could not process uploaded image' })
     }
 
@@ -489,7 +496,7 @@ const validateUploadedImage = async (req, res, next) => {
 
     next()
   } catch (error) {
-    logger.error(error.message, { stack: error.stack })
+    logger.error(errorInfo(error).message, { stack: errorInfo(error).stack })
     if (req.file?.path) {
       await deleteFile(req.file.path).catch(() => {})
     }
@@ -502,12 +509,12 @@ const SPREADSHEET_MIME_ALLOWLIST = new Set([
   'application/vnd.ms-excel'
 ])
 
-const hasLegacyXlsSignature = (buffer) => (
+const hasLegacyXlsSignature = (/** @type {Buffer} */ buffer) => (
   Buffer.from(buffer || []).subarray(0, 8).toString('hex').toLowerCase() === 'd0cf11e0a1b11ae1'
 )
 
 const csvUtf8Decoder = new TextDecoder('utf-8', { fatal: true })
-const isUtf8TextBuffer = (buffer) => {
+const isUtf8TextBuffer = (/** @type {Buffer} */ buffer) => {
   try {
     csvUtf8Decoder.decode(buffer)
     return true
@@ -516,7 +523,7 @@ const isUtf8TextBuffer = (buffer) => {
   }
 }
 
-const isLikelyCsvUpload = (file, detectedType) => {
+const isLikelyCsvUpload = (/** @type {Express.Multer.File} */ file, /** @type {import("file-type").FileTypeResult | undefined} */ detectedType) => {
   if (detectedType) {
     return false
   }
@@ -537,7 +544,7 @@ const isLikelyCsvUpload = (file, detectedType) => {
   return isUtf8TextBuffer(content)
 }
 
-const validateUploadedSpreadsheet = async (req, res, next) => {
+const validateUploadedSpreadsheet = async (/** @type {import('express').Request} */ req, /** @type {import('express').Response} */ res, /** @type {import('express').NextFunction} */ next) => {
   if (!req.file?.buffer) {
     return next()
   }
@@ -572,7 +579,7 @@ const validateUploadedSpreadsheet = async (req, res, next) => {
 
     return next()
   } catch (error) {
-    logger.error(error.message, { stack: error.stack })
+    logger.error(errorInfo(error).message, { stack: errorInfo(error).stack })
     if (req.file?.path) {
       await deleteFile(req.file.path).catch(() => {})
     }
@@ -580,7 +587,7 @@ const validateUploadedSpreadsheet = async (req, res, next) => {
   }
 }
 
-const removeUploadedFile = async (fileUrl) => {
+const removeUploadedFile = async (/** @type {string | null | undefined} */ fileUrl) => {
   if (!fileUrl) return
 
   try {
@@ -599,7 +606,7 @@ const removeUploadedFile = async (fileUrl) => {
       })
     }
   } catch (error) {
-    logger.error(error.message, { stack: error.stack })
+    logger.error(errorInfo(error).message, { stack: errorInfo(error).stack })
   }
 }
 

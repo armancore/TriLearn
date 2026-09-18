@@ -14,6 +14,7 @@ export const connectSocket = (token: string): Socket => {
   }
 
   socket = io(SOCKET_URL, {
+    path: '/api/v1/socket.io',
     transports: ['websocket'],
     auth: { token },
   });

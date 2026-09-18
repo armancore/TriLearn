@@ -1,10 +1,11 @@
+const { errorInfo } = require('./errorInfo')
 const fs = require('fs')
 const path = require('path')
 const logger = require('./logger')
 
 const backendRoot = path.resolve(__dirname, '..', '..')
 
-const normalizePublicPath = (value, fallback = '/api/v1/uploads') => {
+const normalizePublicPath = (/** @type {string | undefined} */ value, fallback = '/api/v1/uploads') => {
   const normalizedValue = String(value || fallback).trim()
   if (!normalizedValue) {
     return fallback
@@ -13,7 +14,7 @@ const normalizePublicPath = (value, fallback = '/api/v1/uploads') => {
   return `/${normalizedValue.replace(/^\/+/, '').replace(/\/+$/, '')}`
 }
 
-const resolveUploadPath = (value) => {
+const resolveUploadPath = (/** @type {string | undefined} */ value) => {
   if (!value) {
     return path.join(backendRoot, 'uploads')
   }
@@ -41,6 +42,9 @@ const uploadPublicPaths = [...new Set([
 ])]
 const uploadBaseUrl = (process.env.UPLOAD_BASE_URL || '').trim().replace(/\/$/, '')
 
+/**
+ * @type {import("@aws-sdk/client-s3").S3Client | null}
+ */
 let s3Client = null
 let localStorageWarningShown = false
 
@@ -61,7 +65,7 @@ const getS3Config = () => {
 
 const isS3Configured = () => Boolean(getS3Config())
 
-const buildUploadedFileUrl = (file) => {
+const buildUploadedFileUrl = (/** @type {{url?: string, filename?: string} | null | undefined} */ file) => {
   if (file?.url) return file.url
   if (!file?.filename) return undefined
 
@@ -95,7 +99,7 @@ const getS3Client = () => {
   return s3Client
 }
 
-const uploadFile = async (fileBuffer, fileName, mimeType) => {
+const uploadFile = async (/** @type {Buffer} */ fileBuffer, /** @type {string} */ fileName, /** @type {string} */ mimeType) => {
   const s3Config = getS3Config()
   const s3 = getS3Client()
 
@@ -110,8 +114,8 @@ const uploadFile = async (fileBuffer, fileName, mimeType) => {
       }))
     } catch (error) {
       logger.error('S3 upload failed', {
-        message: error.message,
-        stack: error.stack,
+        message: errorInfo(error).message,
+        stack: errorInfo(error).stack,
         bucket: s3Config.bucket,
         region: s3Config.region,
         endpoint: s3Config.endpoint || null,
@@ -136,7 +140,7 @@ const uploadFile = async (fileBuffer, fileName, mimeType) => {
   return { url: buildUploadedFileUrl({ filename: fileName }) }
 }
 
-const deleteFile = async (fileUrl) => {
+const deleteFile = async (/** @type {string | null | undefined} */ fileUrl) => {
   if (!fileUrl) return
 
   const fileName = path.basename(String(fileUrl))
@@ -157,11 +161,11 @@ const deleteFile = async (fileUrl) => {
   await fs.promises.unlink(path.join(uploadPath, fileName)).catch(() => {})
 }
 
-const getSafeResponseHeaderValue = (value) => String(value || '')
+const getSafeResponseHeaderValue = (/** @type {unknown} */ value) => String(value || '')
   .replace(/[\r\n"]/g, '_')
   .trim()
 
-const getPresignedDownloadUrl = async (fileName, options = {}) => {
+const getPresignedDownloadUrl = async (/** @type {string} */ fileName, /** @type {{downloadName?: string, contentType?: string}} */ options = {}) => {
   const s3Config = getS3Config()
   const s3 = getS3Client()
 
@@ -185,7 +189,7 @@ const getPresignedDownloadUrl = async (fileName, options = {}) => {
   })
 }
 
-const streamToBuffer = async (stream) => {
+const streamToBuffer = async (/** @type {AsyncIterable<Uint8Array | string>} */ stream) => {
   const chunks = []
 
   for await (const chunk of stream) {
@@ -195,7 +199,7 @@ const streamToBuffer = async (stream) => {
   return Buffer.concat(chunks)
 }
 
-const getFileBuffer = async (fileName) => {
+const getFileBuffer = async (/** @type {string} */ fileName) => {
   const s3Config = getS3Config()
   const s3 = getS3Client()
 
@@ -217,7 +221,8 @@ const getFileBuffer = async (fileName) => {
     return Buffer.from(await response.Body.transformToByteArray())
   }
 
-  return streamToBuffer(response.Body)
+  if (Symbol.asyncIterator in response.Body) return streamToBuffer(response.Body)
+  throw new Error("Unsupported object storage response body")
 }
 
 module.exports = {

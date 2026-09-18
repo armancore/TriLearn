@@ -1,9 +1,18 @@
+const { errorInfo } = require('./errorInfo')
 const { createErrorResponse, ERROR_CODES, normalizeErrorCode } = require('./apiError')
 const { createServiceResponder } = require('./serviceResult')
 
+/** @param {import('express').Request['params']} params */
+const scalarRouteParams = (params) => Object.fromEntries(Object.entries(params || {}).map(([key, value]) => {
+  if (typeof value !== 'string') throw Object.assign(new Error('Invalid route parameter'), { status: 400 })
+  return [key, value]
+}))
+
+/** @param {import('express').Request} request */
 const buildServiceContext = (request) => ({
   body: request.body || {},
-  params: request.params || {},
+  originalUrl: request.originalUrl,
+  params: scalarRouteParams(request.params),
   query: request.validatedQuery ?? request.query ?? {},
   user: request.user || null,
   student: request.student || null,
@@ -20,9 +29,10 @@ const buildServiceContext = (request) => ({
     remoteAddress: request.socket?.remoteAddress || null
   },
   accessTokenPayload: request.accessTokenPayload || null,
-  get: (name) => request.get(name)
+  get: (/** @type {string} */ name) => request.get(name)
 })
 
+/** @param {import('express').Response} response @param {import('./serviceResult').ServiceResult | undefined} result */
 const applyServiceResult = (response, result) => {
   if (!result) {
     return typeof response.end === 'function' ? response.end() : response
@@ -33,7 +43,7 @@ const applyServiceResult = (response, result) => {
   })
 
   ;(result.cookies || []).forEach(([name, value, options]) => {
-    response.cookie(name, value, options)
+    response.cookie(name, value, options || {})
   })
 
   ;(result.clears || []).forEach(([name, options]) => {
@@ -50,7 +60,7 @@ const applyServiceResult = (response, result) => {
   }
 
   if (result.filePath) {
-    return response.sendFile(result.filePath, result.fileOptions)
+    return response.sendFile(result.filePath, result.fileOptions || {})
   }
 
   if (result.redirectUrl) {
@@ -64,8 +74,10 @@ const applyServiceResult = (response, result) => {
   return response.json(result.body !== undefined ? result.body : result)
 }
 
+/** @param {import('express').Response} response @param {unknown} error @param {string} [fallbackMessage] */
 const handleControllerError = (response, error, fallbackMessage) => {
-  if (error?.code === 'P2024') {
+  const info = errorInfo(error)
+  if (info.code === 'P2024') {
     response.setHeader('Retry-After', '5')
     return response.status(503).json(createErrorResponse({
       code: ERROR_CODES.DATABASE_BUSY,
@@ -73,15 +85,15 @@ const handleControllerError = (response, error, fallbackMessage) => {
     }))
   }
 
-  if (error?.status) {
+  if (info.status) {
     const payload = createErrorResponse({
-      code: normalizeErrorCode(error.code),
-      message: error.message
+      code: normalizeErrorCode(info.code),
+      message: info.message
     })
-    if (error.details !== undefined) {
-      payload.details = error.details
+    if (info.details !== undefined) {
+      payload.details = info.details
     }
-    return response.status(error.status).json(payload)
+    return response.status(info.status).json(payload)
   }
 
   return response.internalError
@@ -92,6 +104,11 @@ const handleControllerError = (response, error, fallbackMessage) => {
     }))
 }
 
+/**
+ * @param {(context: ReturnType<typeof buildServiceContext>, result: import('./serviceResult').ServiceResponder) => Promise<import('./serviceResult').ServiceResult | void> | import('./serviceResult').ServiceResult | void} serviceFn
+ * @param {{ fallbackMessage?: string }} [options]
+ * @returns {import('express').RequestHandler}
+ */
 const createController = (serviceFn, options = {}) => async (request, response) => {
   try {
     const serviceResponder = createServiceResponder()

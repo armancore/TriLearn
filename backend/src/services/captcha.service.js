@@ -1,3 +1,4 @@
+const { errorInfo } = require('../utils/errorInfo')
 const crypto = require('crypto')
 const { setTimeout: sleep } = require('node:timers/promises')
 const logger = require('../utils/logger')
@@ -21,7 +22,7 @@ const getLoginCaptchaSecret = () => {
   return null
 }
 
-const signLoginCaptchaPayload = (payload) => {
+const signLoginCaptchaPayload = (/** @type {{ email: string; nonce: `${string}-${string}-${string}-${string}-${string}`; answerHash: string; exp: number; }} */ payload) => {
   const captchaSecret = getLoginCaptchaSecret()
   if (!captchaSecret) {
     return null
@@ -39,7 +40,7 @@ const signLoginCaptchaPayload = (payload) => {
   return `${encodedPayload}.${signature}`
 }
 
-const createLoginCaptchaChallenge = (email) => {
+const createLoginCaptchaChallenge = (/** @type {string} */ email) => {
   const left = crypto.randomInt(1, 10)
   const right = crypto.randomInt(1, 10)
   const nonce = crypto.randomUUID()
@@ -61,7 +62,7 @@ const createLoginCaptchaChallenge = (email) => {
   }
 }
 
-const consumeLoginCaptchaNonce = async (nonce) => {
+const consumeLoginCaptchaNonce = async (/** @type {string} */ nonce) => {
   if (!nonce) {
     return false
   }
@@ -81,7 +82,7 @@ const consumeLoginCaptchaNonce = async (nonce) => {
         return result === 'OK'
       }
     } catch (error) {
-      logger.warn('Failed to consume login captcha nonce in Redis', { message: error.message, attempt })
+      logger.warn('Failed to consume login captcha nonce in Redis', { message: errorInfo(error).message, attempt })
     }
 
     if (attempt < LOGIN_CAPTCHA_REDIS_ATTEMPTS) {
@@ -92,6 +93,7 @@ const consumeLoginCaptchaNonce = async (nonce) => {
   return false
 }
 
+/** @param {{email: string, captchaToken?: unknown, captchaAnswer?: unknown}} options */
 const validateLoginCaptcha = async ({ email, captchaToken, captchaAnswer }) => {
   const captchaSecret = getLoginCaptchaSecret()
   if (!captchaSecret) {
@@ -139,9 +141,9 @@ const validateLoginCaptcha = async ({ email, captchaToken, captchaAnswer }) => {
   return consumeLoginCaptchaNonce(payload.nonce)
 }
 
-const shouldRequireLoginCaptcha = (user) => (user?.failedLoginAttempts || 0) >= LOGIN_CAPTCHA_THRESHOLD
+const shouldRequireLoginCaptcha = (/** @type {{failedLoginAttempts?: number} | null} */ user) => (user?.failedLoginAttempts || 0) >= LOGIN_CAPTCHA_THRESHOLD
 
-const buildLoginCaptchaResponse = (email) => {
+const buildLoginCaptchaResponse = (/** @type {string} */ email) => {
   if (getLoginCaptchaSecret() === null) {
     return {
       statusCode: 503,

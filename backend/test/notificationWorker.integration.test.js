@@ -266,3 +266,31 @@ test('notification worker cleans up failed bulk import uploads', async () => {
   assert.deepEqual(deletedFiles, ['https://storage.example/imports/students.xlsx'])
   assert.deepEqual(deletedRecords, [{ where: { fileName: 'students.xlsx' } }])
 })
+
+test('worker preserves retry input and cleans up on exhausted or unrecoverable failure', async () => {
+  const { EventEmitter } = require('node:events')
+  const { UnrecoverableError } = require('bullmq')
+  const deleted = []
+  const { startNotificationWorker } = loadWithMocks(resolveFromTest('src', 'jobs', 'notificationWorker.js'), {
+    '../utils/prisma': { uploadedFile: { deleteMany: async () => ({ count: 1 }) } },
+    '../utils/logger': { info() {}, warn() {}, error() {} },
+    '../utils/monitoring': { captureException() {} },
+    '../utils/mailer': { sendMail: async () => {} },
+    '../utils/fcm': { sendPushNotification: async () => [] },
+    '../utils/fileStorage': { deleteFile: async file => deleted.push(file) },
+    '../utils/realtime': { emitNotificationCreated() {} },
+    './notificationQueue': { NOTIFICATION_QUEUE_NAME: 'notifications', BULK_STUDENT_IMPORT_JOB: 'bulk-student-import', getNotificationQueueConnection: () => ({}) },
+    bullmq: { Worker: class extends EventEmitter {}, UnrecoverableError }
+  })
+  const worker = startNotificationWorker()
+  const job = { name: 'bulk-student-import', opts: { attempts: 3 }, attemptsMade: 1, data: { file: { path: '/uploads/retry.csv', filename: 'retry.csv' } } }
+  worker.emit('failed', job, new Error('transient'))
+  await new Promise(resolve => setImmediate(resolve))
+  assert.deepEqual(deleted, [])
+  worker.emit('failed', { ...job, attemptsMade: 3 }, new Error('exhausted'))
+  await new Promise(resolve => setImmediate(resolve))
+  assert.deepEqual(deleted, ['/uploads/retry.csv'])
+  worker.emit('failed', job, new UnrecoverableError('invalid input'))
+  await new Promise(resolve => setImmediate(resolve))
+  assert.equal(deleted.length, 2)
+})

@@ -5,10 +5,10 @@ const { PassThrough } = require('stream')
  * @property {number} [statusCode]
  * @property {unknown} [body]
  * @property {Record<string, string>} headers
- * @property {unknown[][]} cookies
- * @property {unknown[][]} clears
+ * @property {[string, unknown, import('express').CookieOptions?][]} cookies
+ * @property {[string, import('express').CookieOptions?][]} clears
  * @property {string} [filePath]
- * @property {unknown} [fileOptions]
+ * @property {import('express-serve-static-core').SendFileOptions} [fileOptions]
  * @property {string} [redirectUrl]
  * @property {PassThrough} [stream]
  */
@@ -16,11 +16,11 @@ const { PassThrough } = require('stream')
 /**
  * @typedef {object} ServiceResponderMethods
  * @property {(name: string, value: string) => ServiceResponder} header
- * @property {(name: string, value: unknown, options?: unknown) => ServiceResponder} setCookie
- * @property {(name: string, options?: unknown) => ServiceResponder} expireCookie
+ * @property {(name: string, value: unknown, options?: import('express').CookieOptions) => ServiceResponder} setCookie
+ * @property {(name: string, options?: import('express').CookieOptions) => ServiceResponder} expireCookie
  * @property {(statusCode: number, body: unknown) => ServiceResult} withStatus
  * @property {(body: unknown) => ServiceResult} ok
- * @property {(filePath: string, options?: unknown) => ServiceResult} sendFile
+ * @property {(filePath: string, options?: import('express-serve-static-core').SendFileOptions) => ServiceResult} sendFile
  * @property {(url: string, statusCode?: number) => ServiceResult} redirect
  * @property {(error: Error) => never} internalError
  * @property {() => ServiceResult | undefined} toServiceResult
@@ -34,7 +34,8 @@ const { PassThrough } = require('stream')
  * @param {number} statusCode
  * @param {string} message
  * @param {unknown} [details]
- * @returns {Error & { status: number, details?: unknown }}
+ * @param {string} [code]
+ * @returns {Error & { status: number, details?: unknown, code?: string }}
  */
 const createServiceError = (statusCode, message, details, code) => {
   const error = Object.assign(new Error(message), {
@@ -51,9 +52,9 @@ const createServiceError = (statusCode, message, details, code) => {
 const createServiceResponder = () => {
   /** @type {Record<string, string>} */
   const headers = {}
-  /** @type {unknown[][]} */
+  /** @type {[string, unknown, import('express').CookieOptions?][]} */
   const cookies = []
-  /** @type {unknown[][]} */
+  /** @type {[string, import('express').CookieOptions?][]} */
   const clears = []
   /** @type {any} */
   const stream = new PassThrough()
@@ -70,13 +71,13 @@ const createServiceResponder = () => {
     return responder
   }
 
-  /** @type {(name: string, value: unknown, options?: unknown) => ServiceResponder} */
+  /** @type {(name: string, value: unknown, options?: import('express').CookieOptions) => ServiceResponder} */
   responder.setCookie = (name, value, options) => {
     cookies.push([name, value, options])
     return responder
   }
 
-  /** @type {(name: string, options?: unknown) => ServiceResponder} */
+  /** @type {(name: string, options?: import('express').CookieOptions) => ServiceResponder} */
   responder.expireCookie = (name, options) => {
     clears.push([name, options])
     return responder
@@ -105,7 +106,7 @@ const createServiceResponder = () => {
     return lastResult
   }
 
-  /** @type {(filePath: string, options?: unknown) => ServiceResult} */
+  /** @type {(filePath: string, options?: import('express-serve-static-core').SendFileOptions) => ServiceResult} */
   responder.sendFile = (filePath, options) => {
     lastResult = {
       filePath,

@@ -1,9 +1,9 @@
-const getPercentage = (obtainedMarks, totalMarks) => {
+const getPercentage = (/** @type {number} */ obtainedMarks, /** @type {number} */ totalMarks) => {
   if (!totalMarks) return 0
   return Number(((obtainedMarks / totalMarks) * 100).toFixed(2))
 }
 
-const getGradeFromPercentage = (percentage) => {
+const getGradeFromPercentage = (/** @type {number} */ percentage) => {
   if (percentage >= 90) return 'A+'
   if (percentage >= 80) return 'A'
   if (percentage >= 70) return 'B+'
@@ -13,7 +13,7 @@ const getGradeFromPercentage = (percentage) => {
   return 'F'
 }
 
-const getGradePointFromPercentage = (percentage) => {
+const getGradePointFromPercentage = (/** @type {number} */ percentage) => {
   if (percentage >= 90) return 4.0
   if (percentage >= 80) return 3.6
   if (percentage >= 70) return 3.2
@@ -23,7 +23,7 @@ const getGradePointFromPercentage = (percentage) => {
   return 0.0
 }
 
-const getGradeSnapshot = (obtainedMarks, totalMarks) => {
+const getGradeSnapshot = (/** @type {number} */ obtainedMarks, /** @type {number} */ totalMarks) => {
   const percentage = getPercentage(obtainedMarks, totalMarks)
 
   return {
@@ -32,6 +32,7 @@ const getGradeSnapshot = (obtainedMarks, totalMarks) => {
   }
 }
 
+/** @template {Pick<import("@prisma/client").Mark, "obtainedMarks" | "totalMarks" | "grade" | "gradePoint">} T @param {T} mark */
 const decorateMark = (mark) => {
   const percentage = getPercentage(mark.obtainedMarks, mark.totalMarks)
   const fallbackSnapshot = getGradeSnapshot(mark.obtainedMarks, mark.totalMarks)
@@ -44,7 +45,7 @@ const decorateMark = (mark) => {
   }
 }
 
-const buildStudentResultSheet = (marks) => {
+const buildStudentResultSheet = (/** @type {(import("@prisma/client").Mark & {subject: {name: string, code: string}})[]} */ marks) => {
   const subjects = marks.map((mark) => {
     const percentage = getPercentage(mark.obtainedMarks, mark.totalMarks)
     const fallbackSnapshot = getGradeSnapshot(mark.obtainedMarks, mark.totalMarks)

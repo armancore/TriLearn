@@ -1,8 +1,12 @@
 const { createClient } = require('redis')
 const logger = require('./logger')
 
+/** @type {ReturnType<typeof createClient> | null} */
 let redisClient = null
 let redisClientReady = false
+/**
+ * @type {Promise<void | null> | null}
+ */
 let redisConnectPromise = null
 const connectionWarningsShown = new Set()
 
@@ -26,7 +30,7 @@ const ensureRedisClient = () => {
   return redisClient
 }
 
-const markConnectionWarningShown = (contextKey, message) => {
+const markConnectionWarningShown = (/** @type {string} */ contextKey, /** @type {string} */ message) => {
   if (connectionWarningsShown.has(contextKey)) {
     return
   }

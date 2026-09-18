@@ -13,7 +13,8 @@ const {
   notificationQueue
 } = require('../jobs/notificationQueue')
 
-const validateSanitizedNotice = ({ title, content }, result) => {
+/** @param {{title: string, content: string}} notice @param {import("../utils/serviceResult").ServiceResponder} result */
+const validateSanitizedNotice = ({ title, content }, /** @type {import("../utils/serviceResult").ServiceResponder} */ result) => {
   if (title.length < 3) {
     result.withStatus(400, { message: 'Notice title must contain at least 3 plain-text characters' })
     return false
@@ -27,12 +28,14 @@ const validateSanitizedNotice = ({ title, content }, result) => {
   return true
 }
 
-const buildContainsSearch = (search) => ({
+/** @returns {import("@prisma/client").Prisma.StringFilter} */
+const buildContainsSearch = (/** @type {string} */ search) => ({
   contains: search,
   mode: 'insensitive'
 })
 
-const getStudentNoticeVisibilityFilters = (student) => {
+/** @returns {import("@prisma/client").Prisma.NoticeWhereInput} */
+const getStudentNoticeVisibilityFilters = (/** @type {{department: string | null, semester: number} | null} */ student) => {
   if (!student) {
     return {
       id: { equals: '__no_visible_notice__' }
@@ -57,7 +60,8 @@ const getStudentNoticeVisibilityFilters = (student) => {
   }
 }
 
-const getVisibleNoticeFilters = (context, { type, audience } = {}) => {
+const getVisibleNoticeFilters = (/** @type {ReturnType<typeof import('../utils/controllerAdapter').buildServiceContext>} */ context, /** @type {{type?: import("@prisma/client").NoticeType, audience?: import("@prisma/client").NoticeAudience}} */ { type, audience } = {}) => {
+  /** @type {import("@prisma/client").Prisma.NoticeWhereInput} */
   const filters = {}
 
   if (type) {
@@ -70,10 +74,10 @@ const getVisibleNoticeFilters = (context, { type, audience } = {}) => {
   }
 
   if (context.user.role === 'INSTRUCTOR') {
+    /** @type {import('@prisma/client').NoticeAudience[]} */
     const visibleAudiences = ['ALL', 'INSTRUCTORS_ONLY']
-    filters.audience = audience
-      ? (visibleAudiences.includes(audience) ? audience : '__no_visible_notice__')
-      : { in: visibleAudiences }
+    if (audience && !visibleAudiences.includes(audience)) return { id: '__no_visible_notice__' }
+    filters.audience = audience || { in: visibleAudiences }
     return filters
   }
 
@@ -84,12 +88,12 @@ const getVisibleNoticeFilters = (context, { type, audience } = {}) => {
   return filters
 }
 
-const resolveNoticeTargeting = (context, { audience, targetDepartment, targetSemester }) => {
+const resolveNoticeTargeting = (/** @type {ReturnType<typeof import('../utils/controllerAdapter').buildServiceContext>} */ context, /** @type {{audience?: import("@prisma/client").NoticeAudience, targetDepartment?: string | null, targetSemester?: number | null}} */ { audience, targetDepartment, targetSemester }) => {
   const normalizedAudience = audience || 'ALL'
   const normalizedTarget = {
     audience: normalizedAudience,
     targetDepartment: targetDepartment || null,
-    targetSemester: Number.isInteger(targetSemester) ? targetSemester : null
+    targetSemester: typeof targetSemester === "number" && Number.isInteger(targetSemester) ? targetSemester : null
   }
 
   if (normalizedAudience === 'INSTRUCTORS_ONLY') {
@@ -156,7 +160,7 @@ const resolveNoticeTargeting = (context, { audience, targetDepartment, targetSem
   return { data: normalizedTarget }
 }
 
-const notifyUsersAboutNotice = async (notice) => {
+const notifyUsersAboutNotice = async (/** @type {import('@prisma/client').Notice & { user: Pick<import('@prisma/client').User, 'name' | 'role'> }} */ notice) => {
   const job = await notificationQueue.add(NOTICE_POSTED_JOB, {
     notice: {
       id: notice.id,
@@ -177,13 +181,13 @@ const notifyUsersAboutNotice = async (notice) => {
   }
 }
 
-const coordinatorCanManageNotice = (context, notice) => (
+const coordinatorCanManageNotice = (/** @type {ReturnType<typeof import('../utils/controllerAdapter').buildServiceContext>} */ context, /** @type {import("@prisma/client").Notice} */ notice) => (
   context.user.role === 'COORDINATOR' &&
   context.coordinator?.department &&
   notice.targetDepartment === context.coordinator.department
 )
 
-const canManageNotice = (context, notice) => (
+const canManageNotice = (/** @type {ReturnType<typeof import('../utils/controllerAdapter').buildServiceContext>} */ context, /** @type {import("@prisma/client").Notice} */ notice) => (
   notice.postedBy === context.user.id ||
   context.user.role === 'ADMIN' ||
   coordinatorCanManageNotice(context, notice)
@@ -264,7 +268,7 @@ const getAllNotices = async (context, result = createServiceResponder()) => {
   const filters = getVisibleNoticeFilters(context, { type, audience })
   if (search) {
     filters.AND = [
-      ...(filters.AND || []),
+      ...(Array.isArray(filters.AND) ? filters.AND : filters.AND ? [filters.AND] : []),
       {
         OR: [
           { title: buildContainsSearch(search) },

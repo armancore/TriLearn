@@ -9,12 +9,13 @@ const PASSWORD_RESET_EMAIL_JOB = 'password-reset-email'
 const BULK_STUDENT_IMPORT_JOB = 'bulk-student-import'
 const ROUTINE_NOTIFICATION_JOB = 'routine-notification'
 
+/** @type {Queue | null} */
 let queue = null
 let redisWarningShown = false
 
 const getRedisUrl = () => String(process.env.REDIS_URL || '').trim()
 
-const normalizeQueueOptions = (options = {}) => {
+const normalizeQueueOptions = (/** @type {import("bullmq").JobsOptions} */ options = {}) => {
   if (typeof options.jobId !== 'string' || !options.jobId.includes(':')) {
     return options
   }
@@ -65,7 +66,7 @@ const getNotificationQueue = () => {
 }
 
 const notificationQueue = {
-  add: async (jobName, payload, options = {}) => {
+  add: async (/** @type {string} */ jobName, /** @type {unknown} */ payload, /** @type {import("bullmq").JobsOptions} */ options = {}) => {
     const activeQueue = getNotificationQueue()
     if (!activeQueue) {
       return null
@@ -73,7 +74,7 @@ const notificationQueue = {
 
     return activeQueue.add(jobName, payload, normalizeQueueOptions(options))
   },
-  getJob: async (jobId) => {
+  getJob: async (/** @type {string} */ jobId) => {
     const activeQueue = getNotificationQueue()
     if (!activeQueue) {
       return null

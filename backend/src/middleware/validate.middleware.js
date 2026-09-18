@@ -1,6 +1,7 @@
 const { ZodError } = require('zod')
 
-const validate = (schema) => (req, res, next) => {
+/** @param {{body?: import("zod").ZodType, query?: import("zod").ZodType<Record<string, unknown>>, params?: import("zod").ZodType<import("express").Request["params"]>}} schema */
+const validate = (schema) => (/** @type {import('express').Request} */ req, /** @type {import('express').Response} */ res, /** @type {import('express').NextFunction} */ next) => {
   try {
     if (schema.body) {
       req.body = schema.body.parse(req.body)

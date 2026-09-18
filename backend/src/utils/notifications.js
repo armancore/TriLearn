@@ -6,8 +6,10 @@ const {
   notificationQueue
 } = require('../jobs/notificationQueue')
 
+/** @param {string[]} userIds */
 const uniqueUserIds = (userIds = []) => [...new Set(userIds.filter(Boolean))]
 
+/** @param {string[]} userIds */
 const loadPushTargets = async (userIds = []) => {
   const recipients = uniqueUserIds(userIds)
 
@@ -27,6 +29,7 @@ const loadPushTargets = async (userIds = []) => {
   })
 }
 
+/** @param {{ userIds: string[] }} options */
 const dispatchPushNotifications = async ({ userIds }) => {
   if (!hasFcmServiceAccount()) return { count: 0 }
 
@@ -37,6 +40,17 @@ const dispatchPushNotifications = async ({ userIds }) => {
   return { count: pushTargets.length }
 }
 
+/**
+ * @typedef {object} NotificationInput
+ * @property {string} userId
+ * @property {import('@prisma/client').NotificationType} type
+ * @property {string} title
+ * @property {string} message
+ * @property {string | null} [link]
+ * @property {import('@prisma/client').Prisma.InputJsonObject | null} [metadata]
+ * @property {string | null} [dedupeKey]
+ */
+/** @param {NotificationInput} options */
 const insertNotificationRecord = async ({
   userId,
   type,
@@ -55,7 +69,7 @@ const insertNotificationRecord = async ({
       title,
       message,
       link: safeLink,
-      metadata,
+      metadata: metadata ?? undefined,
       dedupeKey
     }
   }).catch((error) => {
@@ -67,6 +81,7 @@ const insertNotificationRecord = async ({
   })
 }
 
+/** @param {NotificationInput} options */
 const createNotification = async ({
   userId,
   type,
@@ -100,6 +115,7 @@ const createNotification = async ({
   })
 }
 
+/** @param {Omit<NotificationInput, 'userId' | 'dedupeKey'> & { userIds: string[], dedupeKeyFactory?: ((userId: string) => string) | null, requestId?: string | null }} options */
 const createNotifications = async ({
   userIds,
   type,
@@ -136,7 +152,7 @@ const createNotifications = async ({
   if (!job) {
     const createdNotifications = (await Promise.all(
       notifications.map((notification) => insertNotificationRecord(notification))
-    )).filter(Boolean)
+    )).filter(notification => notification !== null)
 
     createdNotifications.forEach((notification) => {
       emitNotificationCreated(notification.userId, notification)

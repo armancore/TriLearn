@@ -2,7 +2,7 @@ const nodemailer = require('nodemailer')
 const https = require('https')
 const logger = require('./logger')
 
-const parseBoolean = (value, fallback) => {
+const parseBoolean = (/** @type {string | null | undefined} */ value, /** @type {boolean} */ fallback) => {
   if (value === undefined || value === null || value === '') {
     return fallback
   }
@@ -24,7 +24,7 @@ const createTransport = () => nodemailer.createTransport({
   }
 })
 
-const sendViaResendApi = async ({ to, subject, html, text }) => {
+const sendViaResendApi = async (/** @type {import("nodemailer").SendMailOptions} */ { to, subject, html, text }) => {
   const apiKey = String(process.env.RESEND_API_KEY || '').trim()
   if (!apiKey) {
     return false
@@ -73,8 +73,8 @@ const sendViaResendApi = async ({ to, subject, html, text }) => {
   })
 }
 
-const sendMail = async ({ to, subject, html, text }) => {
-  if (await sendViaResendApi({ to, subject, html, text })) {
+const sendMail = async (/** @type {import("nodemailer").SendMailOptions} */ { to, subject, html, text }) => {
+  if (await sendViaResendApi(/** @type {import("nodemailer").SendMailOptions} */ { to, subject, html, text })) {
     return
   }
 

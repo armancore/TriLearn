@@ -5,6 +5,7 @@ const escapeHtml = (value = '') => String(value)
   .replaceAll('"', '&quot;')
   .replaceAll("'", '&#39;')
 
+/** @param {{eyebrow?: string, title: string, preview?: string, content: string}} options */
 const base = ({ eyebrow, title, preview, content }) => `
 <!doctype html>
 <html>
@@ -45,16 +46,16 @@ const base = ({ eyebrow, title, preview, content }) => `
   </body>
 </html>`
 
-const button = (url, label) => (
+const button = (/** @type {string | undefined} */ url, /** @type {string | undefined} */ label) => (
   `<a href="${escapeHtml(url)}"
      style="display:inline-block;background:#f4a623;color:#10233e;
             text-decoration:none;padding:12px 20px;border-radius:6px;
             font-weight:700;margin:16px 0">${escapeHtml(label)}</a>`
 )
 
-const detailTable = (rows) => `
+const detailTable = (/** @type {[string, string][]} */ rows) => `
   <table role="presentation" cellspacing="0" cellpadding="0" width="100%" style="border-collapse:collapse;margin:16px 0;border:1px solid #e5edf5">
-    ${rows.map(([label, value], index) => `
+    ${rows.map(([label, value], /** @type {number} */ index) => `
       <tr style="${index % 2 === 1 ? 'background:#f8fafc' : ''}">
         <td style="padding:10px 12px;color:#64748b;width:34%;font-size:14px">${escapeHtml(label)}</td>
         <td style="padding:10px 12px;color:#10233e;font-weight:700;font-size:14px">${escapeHtml(value)}</td>
@@ -62,6 +63,7 @@ const detailTable = (rows) => `
     `).join('')}
   </table>`
 
+/** @param {{name: string, resetUrl: string}} options */
 const passwordResetTemplate = ({ name, resetUrl }) => ({
   subject: 'Reset your TriLearn password',
   html: base({
@@ -77,6 +79,7 @@ const passwordResetTemplate = ({ name, resetUrl }) => ({
   text: `Hi ${name},\n\nReset your password: ${resetUrl}\n\nExpires in 30 minutes.`
 })
 
+/** @param {{name: string, email: string, tempPassword: string, verificationUrl?: string}} options */
 const welcomeTemplate = ({ name, email, tempPassword, verificationUrl }) => ({
   subject: 'Welcome to TriLearn - your account is ready',
   html: base({
@@ -108,6 +111,7 @@ const welcomeTemplate = ({ name, email, tempPassword, verificationUrl }) => ({
   ].join('\n')
 })
 
+/** @param {{name: string, verificationUrl: string}} options */
 const emailVerificationTemplate = ({ name, verificationUrl }) => ({
   subject: 'Verify your TriLearn email',
   html: base({
@@ -122,6 +126,7 @@ const emailVerificationTemplate = ({ name, verificationUrl }) => ({
   text: `Hi ${name},\n\nVerify your email: ${verificationUrl}\n\nExpires in 24 hours.`
 })
 
+/** @param {{title: string, content: string, audience: string, type: string}} options */
 const noticeTemplate = ({ title, content, audience, type }) => ({
   subject: `[TriLearn Notice] ${title}`,
   html: base({

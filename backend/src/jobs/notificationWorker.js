@@ -1,4 +1,5 @@
-const { Worker } = require('bullmq')
+const { errorInfo } = require('../utils/errorInfo')
+const { Worker, UnrecoverableError } = require('bullmq')
 const prisma = require('../utils/prisma')
 const logger = require('../utils/logger')
 const { captureException } = require('../utils/monitoring')
@@ -17,16 +18,17 @@ const {
   getNotificationQueueConnection
 } = require('./notificationQueue')
 
+/** @type {Worker | null} */
 let notificationWorker = null
 
-const parsePositiveInteger = (value, fallback) => {
+const parsePositiveInteger = (/** @type {string | undefined} */ value, /** @type {number} */ fallback) => {
   const parsed = Number.parseInt(String(value ?? ''), 10)
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback
 }
 
-const uniqueUserIds = (userIds = []) => [...new Set(userIds.filter(Boolean))]
+const uniqueUserIds = (/** @type {string[]} */ userIds = []) => [...new Set(userIds.filter(Boolean))]
 
-const normalizeNotificationRecords = (notifications = []) => notifications
+const normalizeNotificationRecords = (/** @type {import("@prisma/client").Prisma.NotificationCreateManyInput[]} */ notifications = []) => notifications
   .filter((notification) => notification?.userId)
   .map((notification) => {
     const safeLink = notification.link && String(notification.link).startsWith('/') ? String(notification.link) : null
@@ -37,13 +39,13 @@ const normalizeNotificationRecords = (notifications = []) => notifications
       title: notification.title,
       message: notification.message,
       link: safeLink,
-      metadata: notification.metadata || null,
+      metadata: notification.metadata || undefined,
       dedupeKey: notification.dedupeKey || null
     }
   })
 
-const emitCreatedNotifications = async (records) => {
-  const dedupeKeys = records.map((record) => record.dedupeKey).filter(Boolean)
+const emitCreatedNotifications = async (/** @type {ReturnType<typeof normalizeNotificationRecords>} */ records) => {
+  const dedupeKeys = records.map((record) => record.dedupeKey).filter((key) => typeof key === "string")
   if (!dedupeKeys.length) {
     return []
   }
@@ -63,14 +65,14 @@ const emitCreatedNotifications = async (records) => {
   return notifications
 }
 
-const buildPushData = (notification) => ({
+const buildPushData = (/** @type {import("@prisma/client").Notification} */ notification) => ({
   notificationId: notification.id,
   type: notification.type,
   link: notification.link || '',
   metadata: notification.metadata || {}
 })
 
-const removeStaleDeviceTokens = async (results = []) => {
+const removeStaleDeviceTokens = async (/** @type {Awaited<ReturnType<typeof sendPushNotification>>} */ results = []) => {
   const staleTokens = results
     .filter((result) => result?.stale && result.token)
     .map((result) => result.token)
@@ -90,7 +92,7 @@ const removeStaleDeviceTokens = async (results = []) => {
   return deleteResult.count || 0
 }
 
-const deliverPushNotifications = async (notifications = []) => {
+const deliverPushNotifications = async (/** @type {import("@prisma/client").Notification[]} */ notifications = []) => {
   if (!notifications.length || !prisma.deviceToken?.findMany) {
     return { attempted: 0, staleRemoved: 0 }
   }
@@ -153,13 +155,13 @@ const deliverPushNotifications = async (notifications = []) => {
   }
 }
 
-const deliverPushNotificationsSafely = async (notifications, requestId = null) => {
+const deliverPushNotificationsSafely = async (/** @type {import("@prisma/client").Notification[]} */ notifications, /** @type {string | null} */ requestId = null) => {
   try {
     return await deliverPushNotifications(notifications)
   } catch (error) {
     logger.error('FCM push delivery failed without failing notification job', {
-      message: error.message,
-      stack: error.stack,
+      message: errorInfo(error).message,
+      stack: errorInfo(error).stack,
       requestId
     })
     captureException(error, { tags: { job: 'deliverPushNotifications', requestId } })
@@ -168,7 +170,7 @@ const deliverPushNotificationsSafely = async (notifications, requestId = null) =
   }
 }
 
-const createNotificationRecords = async (notifications = [], requestId = null) => {
+const createNotificationRecords = async (/** @type {import("@prisma/client").Prisma.NotificationCreateManyInput[]} */ notifications = [], /** @type {string | null} */ requestId = null) => {
   const records = normalizeNotificationRecords(notifications)
   if (!records.length) {
     return { count: 0 }
@@ -184,7 +186,7 @@ const createNotificationRecords = async (notifications = [], requestId = null) =
   return { count: result.count }
 }
 
-const processNotificationJob = async (job) => {
+const processNotificationJob = async (/** @type {import("bullmq").Job} */ job) => {
   if (job.name === NOTICE_POSTED_JOB) {
     return createNoticeNotifications({ notice: job.data.notice })
   }
@@ -217,7 +219,7 @@ const processNotificationJob = async (job) => {
   throw new Error(`Unknown notification job: ${job.name}`)
 }
 
-const cleanupFailedBulkStudentImportUpload = async (job) => {
+const cleanupFailedBulkStudentImportUpload = async (/** @type {import("bullmq").Job | undefined} */ job) => {
   if (job?.name !== BULK_STUDENT_IMPORT_JOB) {
     return
   }
@@ -242,7 +244,7 @@ const cleanupFailedBulkStudentImportUpload = async (job) => {
     logger.warn('Failed to clean up student import upload after job failure', {
       jobId: job?.id,
       fileName: fileName || null,
-      message: cleanupError.message
+      message: errorInfo(cleanupError).message
     })
   }
 }
@@ -263,7 +265,9 @@ const startNotificationWorker = () => {
   })
 
   notificationWorker.on('failed', (job, error) => {
-    void cleanupFailedBulkStudentImportUpload(job)
+    if (job && (error instanceof UnrecoverableError || job.attemptsMade >= (job.opts.attempts || 1))) {
+      void cleanupFailedBulkStudentImportUpload(job)
+    }
 
     logger.error('Notification job failed', {
       jobId: job?.id,
@@ -279,6 +283,13 @@ const startNotificationWorker = () => {
         requestId: job?.data?.requestId || null
       }
     })
+  })
+
+  notificationWorker.on('completed', (job) => {
+    if (job.name === BULK_STUDENT_IMPORT_JOB) {
+      const { cleanupStudentImportUpload } = require('../services/bulkImport.service')
+      void cleanupStudentImportUpload(job.data.file)
+    }
   })
 
   notificationWorker.on('error', (error) => {

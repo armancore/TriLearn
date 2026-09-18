@@ -1,3 +1,4 @@
+const { errorInfo } = require('./errorInfo')
 const logger = require('./logger')
 const { captureException } = require('./monitoring')
 const { startTokenCleanupJob } = require('../jobs/cleanupTokens')
@@ -8,8 +9,8 @@ const DEFAULT_AUDIT_LOG_RETENTION_DAYS = 180
 const DEFAULT_AUDIT_LOG_CLEANUP_INTERVAL_MS = 24 * 60 * 60 * 1000
 const DEFAULT_ATTENDANCE_SYNC_INTERVAL_MS = 5 * 60 * 1000
 
-const parsePositiveInteger = (value, fallback) => {
-  const parsed = Number.parseInt(value, 10)
+const parsePositiveInteger = (/** @type {string | undefined} */ value, /** @type {number} */ fallback) => {
+  const parsed = Number.parseInt(value || "", 10)
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback
 }
 
@@ -18,7 +19,7 @@ const getAuditLogCutoff = () => {
   return new Date(Date.now() - (retentionDays * 24 * 60 * 60 * 1000))
 }
 
-const runAuditLogCleanup = async (prisma) => {
+const runAuditLogCleanup = async (/** @type {import('@prisma/client').Prisma.TransactionClient} */ prisma) => {
   const cutoff = getAuditLogCutoff()
   const result = await prisma.auditLog.deleteMany({
     where: {
@@ -34,7 +35,7 @@ const runAuditLogCleanup = async (prisma) => {
   }
 }
 
-const runAssignmentDueNotifications = async (prisma) => {
+const runAssignmentDueNotifications = async (/** @type {import('@prisma/client').Prisma.TransactionClient} */ prisma) => {
   const now = new Date()
   const nextDay = new Date(now.getTime() + (24 * 60 * 60 * 1000))
 
@@ -88,7 +89,7 @@ const runClosedRoutineAbsenceSync = async () => {
   await syncClosedRoutineAbsences(new Date())
 }
 
-const scheduleMaintenance = (prisma) => {
+const scheduleMaintenance = (/** @type {import('@prisma/client').Prisma.TransactionClient} */ prisma) => {
   const auditLogCleanupInterval = parsePositiveInteger(
     process.env.AUDIT_LOG_CLEANUP_INTERVAL_MS,
     DEFAULT_AUDIT_LOG_CLEANUP_INTERVAL_MS
@@ -98,7 +99,7 @@ const scheduleMaintenance = (prisma) => {
     DEFAULT_ATTENDANCE_SYNC_INTERVAL_MS
   )
 
-  const createScheduledTask = (taskName, task) => {
+  const createScheduledTask = (/** @type {string} */ taskName, /** @type {(client: import("@prisma/client").Prisma.TransactionClient) => Promise<unknown>} */ task) => {
     let running = false
 
     return async () => {
@@ -112,7 +113,7 @@ const scheduleMaintenance = (prisma) => {
       try {
         await task(prisma)
       } catch (error) {
-        logger.error(`Maintenance task failed: ${taskName}`, { message: error.message, stack: error.stack })
+        logger.error(`Maintenance task failed: ${taskName}`, { message: errorInfo(error).message, stack: errorInfo(error).stack })
         captureException(error, { tags: { taskName } })
       } finally {
         running = false
@@ -120,7 +121,7 @@ const scheduleMaintenance = (prisma) => {
     }
   }
 
-  const runScheduledTask = (taskName, task) => {
+  const runScheduledTask = (/** @type {string} */ taskName, /** @type {() => Promise<void>} */ task) => {
     task().catch((error) => {
       logger.error(`Maintenance scheduler failed to start task: ${taskName}`, {
         message: error.message,

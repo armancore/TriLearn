@@ -35,6 +35,7 @@ const KNOWN_PLACEHOLDER_SUBSTRINGS = [
   'trilearn_password',
   'trilearn_redis_password'
 ]
+/** @type {Record<string, number>} */
 const secretMinimumLengths = {
   JWT_ACCESS_SECRET: 32,
   CSRF_SECRET: 32,
@@ -44,7 +45,7 @@ const secretMinimumLengths = {
 }
 const secretEnvVars = Object.keys(secretMinimumLengths)
 
-const containsKnownPlaceholder = (value) => {
+const containsKnownPlaceholder = (/** @type {string | undefined} */ value) => {
   const normalizedValue = String(value || '').toLowerCase()
 
   return KNOWN_PLACEHOLDER_SUBSTRINGS.some((placeholder) => (
@@ -80,7 +81,7 @@ const validateEnv = () => {
     logger.warn('Warning: RESEND_SMTP_PORT=465 uses SSL instead of STARTTLS. Prefer port 587 with STARTTLS unless legacy SSL is required.')
   }
 
-  if (!validNodeEnvironments.has(process.env.NODE_ENV)) {
+  if (!validNodeEnvironments.has(process.env.NODE_ENV || "")) {
     logger.error(`Invalid NODE_ENV value: ${process.env.NODE_ENV}. Expected one of: development, test, production`)
     process.exit(1)
   }
@@ -154,7 +155,7 @@ const validateEnv = () => {
 
   if (process.env.NODE_ENV === 'production') {
     try {
-      const databaseUrl = new URL(process.env.DATABASE_URL)
+      const databaseUrl = new URL(process.env.DATABASE_URL || "")
       const sslMode = String(databaseUrl.searchParams.get('sslmode') || '').trim().toLowerCase()
 
       if (sslMode === 'no-verify') {

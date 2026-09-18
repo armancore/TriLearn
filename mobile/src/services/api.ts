@@ -2,7 +2,7 @@ import axios, { AxiosError, type InternalAxiosRequestConfig } from 'axios';
 import Constants from 'expo-constants';
 
 import { API_BASE_URL } from '@/src/constants/config';
-import { refreshAccessToken } from '@/src/services/auth.service';
+import { refreshAccessToken, logout as revokeSession } from '@/src/services/auth.service';
 import { APP_PLATFORM, CLIENT_TYPE } from '@/src/services/mobileClientSignature';
 import { updateSocketToken } from '@/src/services/socket.service';
 import { useAuthStore } from '@/src/store/auth.store';
@@ -10,15 +10,16 @@ import type { RefreshTokenResponse } from '@/src/types/auth';
 
 interface RetryableRequestConfig extends InternalAxiosRequestConfig {
   _retry?: boolean;
+  _sessionVersion?: number;
 }
 
 let refreshPromise: Promise<RefreshTokenResponse> | null = null;
-let isSessionInvalidated = false;
+let refreshVersion: number | null = null;
 const APP_VERSION = Constants.expoConfig?.version ?? '1.0.0';
 
 export const resetRefreshState = (): void => {
   refreshPromise = null;
-  isSessionInvalidated = false;
+  refreshVersion = null;
 };
 
 export const api = axios.create({
@@ -34,7 +35,11 @@ export const api = axios.create({
 });
 
 api.interceptors.request.use((config) => {
-  const token = useAuthStore.getState().accessToken;
+  const state = useAuthStore.getState();
+  const token = state.accessToken;
+  const request = config as RetryableRequestConfig;
+  if (request._sessionVersion !== undefined && request._sessionVersion !== state.sessionVersion) throw new Error('Session changed');
+  request._sessionVersion = state.sessionVersion;
 
   if (token) {
     config.headers = config.headers ?? {};
@@ -51,13 +56,17 @@ api.interceptors.request.use((config) => {
 });
 
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    const version = (response.config as RetryableRequestConfig)._sessionVersion;
+    if (version !== undefined && version !== useAuthStore.getState().sessionVersion) return Promise.reject(new Error('Session changed'));
+    return response;
+  },
   async (error: AxiosError) => {
     const originalRequest = error.config as RetryableRequestConfig | undefined;
     const authState = useAuthStore.getState();
+    if (originalRequest?._sessionVersion !== undefined && originalRequest._sessionVersion !== authState.sessionVersion) return Promise.reject(error);
 
     if (error.response?.status === 426) {
-      isSessionInvalidated = true;
       authState.clearSession();
       refreshPromise = null;
       return Promise.reject(error);
@@ -67,12 +76,7 @@ api.interceptors.response.use(
       return Promise.reject(error);
     }
 
-    if (isSessionInvalidated) {
-      return Promise.reject(error);
-    }
-
     if (!authState.refreshToken) {
-      isSessionInvalidated = true;
       authState.clearSession();
       return Promise.reject(error);
     }
@@ -80,11 +84,16 @@ api.interceptors.response.use(
     originalRequest._retry = true;
 
     try {
-      if (!refreshPromise) {
+      if (!refreshPromise || refreshVersion !== authState.sessionVersion) {
+        refreshVersion = authState.sessionVersion;
         refreshPromise = refreshAccessToken(authState.refreshToken);
       }
 
       const refreshed = await refreshPromise;
+      if (useAuthStore.getState().sessionVersion !== authState.sessionVersion) {
+        await revokeSession(refreshed.accessToken, refreshed.refreshToken ?? authState.refreshToken, null).catch(() => {});
+        return Promise.reject(new Error('Session changed'));
+      }
       const nextRefreshToken = refreshed.refreshToken ?? authState.refreshToken;
 
       authState.setTokens({
@@ -103,7 +112,7 @@ api.interceptors.response.use(
 
       return api(originalRequest);
     } catch (refreshError) {
-      isSessionInvalidated = true;
+      if (useAuthStore.getState().sessionVersion !== authState.sessionVersion) return Promise.reject(refreshError);
       authState.clearSession();
       refreshPromise = null;
       return Promise.reject(refreshError);

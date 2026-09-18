@@ -11,7 +11,7 @@
 - Configure `FRONTEND_URL` with the exact deployed frontend origin
 - Configure `TRUST_PROXY` for the deployment proxy chain
 - On Render, set `ATTENDANCE_TIMEZONE=Asia/Kathmandu` and `FORCE_HTTPS=true`
-- Set upload storage env vars explicitly if you keep local-disk uploads
+- Configure all required S3 storage variables in production; local disk is development-only
 - Set `FORCE_HTTPS=true` after confirming the reverse proxy forwards HTTPS metadata
 
 ## Database migrations
@@ -66,7 +66,7 @@ PGPOOL_MAX=5
 PGPOOL_MIN=0
 PGPOOL_IDLE_TIMEOUT_MS=10000
 PGPOOL_CONNECTION_TIMEOUT_MS=10000
-PGSSL_REJECT_UNAUTHORIZED=false
+PGSSL_REJECT_UNAUTHORIZED=true
 ```
 
 Use Supabase's **Session pooler** URL for a persistent Render web service when
@@ -74,11 +74,7 @@ you need IPv4 compatibility. Use the direct database URL only from environments
 that can reach Supabase over IPv6, or when your Supabase project has the IPv4
 add-on enabled.
 
-`PGSSL_REJECT_UNAUTHORIZED=false` disables TLS certificate validation. Keep this
-only for managed-provider connection modes that require it, such as some
-Supabase pooler deployments. Do not carry it into a self-hosted or custom
-Postgres deployment unless you have explicitly accepted that TLS trust tradeoff;
-prefer a valid CA chain and certificate verification.
+`PGSSL_REJECT_UNAUTHORIZED=true` verifies the database certificate. Production rejects disabling verification. Use a trusted CA chain for your provider.
 
 If the database password contains reserved URL characters such as `@`, `#`, `?`,
 `&`, `/`, or `%`, percent-encode the password before putting it in
@@ -89,12 +85,9 @@ If the database password contains reserved URL characters such as `@`, `#`, `?`,
 The BullMQ notification worker runs inside the same process as the HTTP server.
 This is intentional for single-instance deployments (Railway, Render, single VPS).
 
-If you scale to multiple backend instances, each instance will run its own worker.
-To avoid duplicate job processing in a multi-instance setup, either:
-- Run a dedicated worker process: NODE_ROLE=worker node src/jobs/notificationWorker.js
-- Or use BullMQ's built-in job deduplication (jobId) on enqueue.
+Multiple embedded workers are supported: BullMQ assigns each queued attempt to one worker. Jobs must still tolerate retries.
 
-For the initial college deployment, single-instance is recommended.
+For a dedicated process, run `npm run start:worker` from `backend` with the same database, Redis, storage and signing configuration. Set `NOTIFICATION_WORKER_ENABLED=false` on API processes to disable their embedded workers. The standalone worker publishes through the Socket.IO Redis adapter, preserving recipient authorization checks, and drains active work on SIGTERM/SIGINT.
 
 ## Timezone configuration
 
@@ -186,8 +179,7 @@ prompts the user to install an updated app before continuing.
 
 ## Web session persistence
 
-The web app keeps access tokens in memory and uses the httpOnly refresh cookie
-to restore a session after a tab or browser restart. For deployed browsers to
+The web app uses httpOnly access and refresh cookies. It restores sessions through the refresh endpoint after a tab or browser restart. For deployed browsers to
 stay signed in for the 7-day refresh lifetime, deploy the frontend and backend
 under the same site, for example:
 
@@ -377,6 +369,6 @@ S3_SECRET_KEY=
 
 Important:
 
-When all `S3_*` values are set, uploads are stored in S3. If any are blank,
+Production requires all four S3 variables. In development, when all `S3_*` values are set, uploads are stored in S3. If any are blank,
 the backend falls back to local disk and logs a warning. Local-disk uploads are
 not suitable for stateless production platforms or multi-instance deployments.

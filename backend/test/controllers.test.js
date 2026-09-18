@@ -932,6 +932,8 @@ test('changePassword updates passwordChangedAt when password is changed', async 
       isKnownWeakPassword: () => false
     },
     '../utils/prisma': {
+      $transaction: async function (fn) { return fn(this) },
+      refreshToken: { updateMany: async () => ({ count: 1 }) },
       user: {
         findUnique: async () => ({
           id: 'user-1',
@@ -1352,6 +1354,7 @@ test('logout does not run token revocation when no refresh token is provided', a
   }))
 
   const req = {
+    get: () => '',
     body: {},
     cookies: {},
     ip: '127.0.0.1'
@@ -1384,6 +1387,7 @@ test('logout revokes the current access token jti when bearer token is provided'
   }))
 
   const req = {
+    get: () => '',
     body: {},
     cookies: {},
     headers: {
@@ -1777,6 +1781,7 @@ test('refreshMobile rotates only the body refresh token and does not set a cooki
         }
       },
       $transaction: async (callback) => callback({
+        user: { findUnique: async () => ({ id: 'user-1', isActive: true }) },
         refreshToken: {
           updateMany: async (payload) => {
             updateManyCalls.push(payload)
@@ -3965,6 +3970,27 @@ test('getAbsenceTicketsForStaff returns paginated metadata', async () => {
   assert.equal(res.body.page, 4)
   assert.equal(res.body.limit, 10)
   assert.equal(res.body.total, 8)
+})
+
+test('absence ticket review persists the validated response and uses it in the notification', async () => {
+  const updates = [], notifications = []
+  const { reviewAbsenceTicket } = loadWithMocks(resolveFromTest('src', 'controllers', 'attendance', 'tickets.controller.js'), {
+    './shared': {
+      prisma: { absenceTicket: {
+        findUnique: async () => ({ id: 'ticket-1', status: 'PENDING', attendance: { instructorId: 'teacher', student: { userId: 'student', department: 'CS' } } }),
+        update: async input => { updates.push(input); return { id: 'ticket-1', attendanceId: 'attendance-1', ...input.data } }
+      } },
+      hasAbsenceTicketDelegate: () => true,
+      respondAttendanceTicketUnavailable() {}
+    },
+    '../../utils/notifications': { createNotification: async input => notifications.push(input) }
+  })
+  const res = createResponse()
+  await reviewAbsenceTicket({ params: { id: 'ticket-1' }, body: { status: 'APPROVED', response: 'Medical documentation accepted.' }, user: { id: 'admin', role: 'ADMIN' } }, res)
+  assert.equal(res.statusCode, 200)
+  assert.equal(updates[0].data.response, 'Medical documentation accepted.')
+  assert.equal(Object.prototype.hasOwnProperty.call(updates[0].data, 'result'), false)
+  assert.equal(notifications[0].message, 'Medical documentation accepted.')
 })
 
 test('updateStudentApplicationStatus blocks manual conversion without account creation', async () => {
@@ -6384,3 +6410,32 @@ test('addMarks sanitizes remarks before storing them', async () => {
   assert.equal(res.body.mark.remarks, 'Great work')
 })
 
+
+
+test('controller adapter rejects array route parameters before calling a service', async () => {
+  const { createController } = require('../src/utils/controllerAdapter');
+  let called = false;
+  const handler = createController(() => { called = true });
+  const res = createResponse();
+  await handler({ params: { id: ['unexpected', 'segments'] } }, res);
+  assert.equal(called, false);
+  assert.equal(res.statusCode, 400);
+});
+
+test('controller adapter retains scalar route parameters and request path', async () => {
+  const { createController } = require('../src/utils/controllerAdapter');
+  const handler = createController((context, result) => result.ok({ id: context.params.id, path: context.originalUrl }));
+  const res = createResponse();
+  await handler({ params: { id: 'record-1' }, originalUrl: '/api/v1/files/record-1', get: () => undefined }, res);
+  assert.deepEqual(res.body, { id: 'record-1', path: '/api/v1/files/record-1' });
+});
+
+test('controller adapter handles non-Error integration failures without exposing details', async () => {
+  const { createController } = require('../src/utils/controllerAdapter');
+  const handler = createController(() => { throw 'private integration failure' });
+  const res = createResponse();
+  delete res.internalError;
+  await handler({ get: () => undefined }, res);
+  assert.equal(res.statusCode, 500);
+  assert.equal(JSON.stringify(res.body).includes('private integration failure'), false);
+});

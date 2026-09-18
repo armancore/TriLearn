@@ -153,7 +153,7 @@ const reviewAbsenceTicket = async (context, result = createServiceResponder()) =
   }
 
   const { id } = context.params
-  const { status, result: reviewResponse } = context.body
+  const { status, response: reviewResponse } = context.body
   const existing = await prisma.absenceTicket.findUnique({
     where: { id },
     include: {
@@ -172,7 +172,7 @@ const reviewAbsenceTicket = async (context, result = createServiceResponder()) =
 
   const ticket = await prisma.absenceTicket.update({
     where: { id },
-    data: { status, result: reviewResponse, reviewedBy: context.user.id, reviewedAt: new Date() }
+    data: { status, response: reviewResponse, reviewedBy: context.user.id, reviewedAt: new Date() }
   })
 
   result.ok({ message: 'Absence ticket reviewed successfully.', ticket })

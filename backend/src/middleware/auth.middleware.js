@@ -1,3 +1,4 @@
+const { errorInfo } = require('../utils/errorInfo')
 const jwt = require('jsonwebtoken')
 const prisma = require('../utils/prisma')
 const logger = require('../utils/logger')
@@ -7,7 +8,7 @@ const { cacheRevokedJti, isRevokedJtiCached } = require('../utils/accessTokenRev
 const { REVOKED_JTI_PREFIX } = require('../constants/auth')
 const { ACCESS_TOKEN_COOKIE_NAME } = require('../utils/token')
 
-const getUserSelectShape = () => ({
+const getUserSelectShape = () => /** @type {const} */ ({
   id: true,
   role: true,
   isActive: true,
@@ -49,7 +50,7 @@ const getUserSelectShape = () => ({
   }
 })
 
-const findAuthorizedUser = async (userId) => prisma.user.findUnique({
+const findAuthorizedUser = async (/** @type {string} */ userId) => prisma.user.findUnique({
   where: {
     id: userId,
     deletedAt: null
@@ -66,7 +67,7 @@ const getAccessSecret = () => {
   return accessSecret
 }
 
-const resolveAccessToken = (req) => {
+const resolveAccessToken = (/** @type {import('express').Request} */ req) => {
   const [scheme, bearerToken] = String(req.headers.authorization || '').split(' ')
   if (scheme?.toLowerCase() === 'bearer' && bearerToken) {
     return bearerToken
@@ -76,7 +77,7 @@ const resolveAccessToken = (req) => {
   return typeof cookieToken === 'string' && cookieToken.trim() ? cookieToken.trim() : null
 }
 
-const protect = async (req, res, next) => {
+const protect = async (/** @type {import('express').Request} */ req, /** @type {import('express').Response} */ res, /** @type {import('express').NextFunction} */ next) => {
   try {
     const token = resolveAccessToken(req)
 
@@ -123,14 +124,13 @@ const protect = async (req, res, next) => {
     }
 
     if (user.instructor) {
-      const instructor = { ...user.instructor }
-      delete instructor.departmentMemberships
+      const { departmentMemberships, ...instructor } = user.instructor
 
       req.user = {
         ...user,
         instructor: {
           ...instructor,
-          departments: getInstructorDepartments(user.instructor)
+          departments: getInstructorDepartments({ ...instructor, departmentMemberships })
         }
       }
     } else {
@@ -141,13 +141,13 @@ const protect = async (req, res, next) => {
     next()
 
   } catch (error) {
-    logger.error(error.message, { stack: error.stack })
+    logger.error(errorInfo(error).message, { stack: errorInfo(error).stack })
     res.status(401).json({ message: 'Invalid token' })
   }
 }
 
-const allowRoles = (...roles) => {
-  return (req, res, next) => {
+const allowRoles = (/** @type {string[]} */ ...roles) => {
+  return (/** @type {import('express').Request} */ req, /** @type {import('express').Response} */ res, /** @type {import('express').NextFunction} */ next) => {
     if (!req.user) {
       return res.status(401).json({ message: 'Authentication required' })
     }

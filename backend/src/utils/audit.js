@@ -2,12 +2,10 @@ const logger = require('./logger')
 const prisma = require('./prisma')
 
 /**
- * @typedef {Object} AuditMetadata
- * @property {string} [ipAddress]
- * @property {string} [userAgent]
- * @property {string} [sessionId]
- * @property {string} [targetUserId]
- * @property {Record<string, unknown>} [extra]
+ * @param {{ actorId: string, actorRole?: import('@prisma/client').Role | null, action: string,
+ * entityType: string, entityId?: string | null,
+ * metadata?: import('@prisma/client').Prisma.InputJsonObject | null,
+ * db?: Pick<typeof prisma, 'auditLog'> }} options
  */
 const recordAuditLog = async ({
   actorId,
@@ -39,11 +37,11 @@ const recordAuditLog = async ({
         action,
         entityType,
         entityId,
-        metadata: normalizedMetadata
+        metadata: normalizedMetadata ?? undefined
       }
     })
   } catch (error) {
-    logger.error(error.message, { stack: error.stack })
+    logger.error(error instanceof Error ? error.message : String(error), { error })
   }
 }
 

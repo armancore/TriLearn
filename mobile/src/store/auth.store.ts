@@ -4,6 +4,8 @@ import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
 import { queryClient } from '@/src/services/queryClient';
+import { disconnectSocket } from '@/src/services/socket.service';
+import { useNotificationsStore } from '@/src/store/notifications.store';
 import type { AuthUser } from '@/src/types/auth';
 
 interface AuthState {
@@ -12,6 +14,7 @@ interface AuthState {
   refreshToken: string | null;
   pushToken: string | null;
   isHydrated: boolean;
+  sessionVersion: number;
   setSession: (payload: { user: AuthUser; accessToken: string; refreshToken: string }) => void;
   setTokens: (payload: { accessToken: string; refreshToken: string }) => void;
   setPushToken: (token: string | null) => void;
@@ -64,16 +67,25 @@ const webMemoryStorage = (() => {
 
 const authStorage = Platform.OS === 'web' ? webMemoryStorage : nativeSecureStorage;
 
+const clearPrivateState = () => {
+  disconnectSocket();
+  useNotificationsStore.getState().reset();
+  void queryClient.cancelQueries();
+  queryClient.clear();
+};
+
 export const useAuthStore = create<AuthState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       user: null,
       accessToken: null,
       refreshToken: null,
       pushToken: null,
       isHydrated: false,
+      sessionVersion: 0,
       setSession: ({ user, accessToken, refreshToken }) => {
-        set({ user, accessToken, refreshToken });
+        clearPrivateState();
+        set({ user, accessToken, refreshToken, pushToken: null, sessionVersion: get().sessionVersion + 1 });
       },
       setTokens: ({ accessToken, refreshToken }) => {
         set({ accessToken, refreshToken });
@@ -85,12 +97,12 @@ export const useAuthStore = create<AuthState>()(
         set({ user });
       },
       logout: () => {
-        queryClient.removeQueries({ queryKey: ['student-id-qr'] });
-        set({ user: null, accessToken: null, refreshToken: null, pushToken: null });
+        clearPrivateState();
+        set({ user: null, accessToken: null, refreshToken: null, pushToken: null, sessionVersion: get().sessionVersion + 1 });
       },
       clearSession: () => {
-        queryClient.removeQueries({ queryKey: ['student-id-qr'] });
-        set({ user: null, accessToken: null, refreshToken: null, pushToken: null });
+        clearPrivateState();
+        set({ user: null, accessToken: null, refreshToken: null, pushToken: null, sessionVersion: get().sessionVersion + 1 });
       },
       setHydrated: (value) => {
         set({ isHydrated: value });

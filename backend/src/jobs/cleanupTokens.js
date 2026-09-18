@@ -1,6 +1,7 @@
+const { errorInfo } = require('../utils/errorInfo')
 const logger = require('../utils/logger')
 
-const cleanupExpiredTokens = async (prisma) => {
+const cleanupExpiredTokens = async (/** @type {import('@prisma/client').Prisma.TransactionClient} */ prisma) => {
   const result = await prisma.refreshToken.deleteMany({
     where: {
       OR: [
@@ -17,7 +18,7 @@ const cleanupExpiredTokens = async (prisma) => {
   return result.count
 }
 
-const startTokenCleanupJob = (prisma) => {
+const startTokenCleanupJob = (/** @type {import('@prisma/client').Prisma.TransactionClient} */ prisma) => {
   const intervalMs = Number.parseInt(process.env.REFRESH_TOKEN_CLEANUP_INTERVAL_MS || `${6 * 60 * 60 * 1000}`, 10)
   const safeIntervalMs = Number.isFinite(intervalMs) && intervalMs > 0 ? intervalMs : 6 * 60 * 60 * 1000
 
@@ -25,7 +26,7 @@ const startTokenCleanupJob = (prisma) => {
     try {
       await cleanupExpiredTokens(prisma)
     } catch (error) {
-      logger.error('Token cleanup job failed', { message: error.message, stack: error.stack })
+      logger.error('Token cleanup job failed', { message: errorInfo(error).message, stack: errorInfo(error).stack })
     }
   }
 

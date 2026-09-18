@@ -11,12 +11,14 @@ const {
   buildStatusSummary
 } = require('./subject.helpers')
 
+/** @param {{subjectId: string, date?: unknown, month?: unknown, context: ReturnType<typeof import('../../utils/controllerAdapter').buildServiceContext>}} options */
 const getAttendanceExportPayload = async ({ subjectId, date, month, context }) => {
   const access = await getOwnedSubject(subjectId, context)
   if (access.error) {
     return { error: access.error }
   }
 
+  /** @type {import("@prisma/client").Prisma.AttendanceWhereInput} */
   const filters = { subjectId }
   const dayRange = date ? getDayRange(date) : null
   const monthRange = month ? getMonthRange(month) : null
@@ -70,6 +72,7 @@ const getAttendanceExportPayload = async ({ subjectId, date, month, context }) =
   }
 }
 
+/** @param {{coordinator: {department?: string | null} | null, month: unknown, semester: unknown, section?: unknown}} options */
 const getCoordinatorDepartmentReportPayload = async ({ coordinator, month, semester, section }) => {
   if (!coordinator || !coordinator.department) {
     return { error: { status: 403, message: 'Coordinator department is not configured yet' } }
@@ -80,14 +83,15 @@ const getCoordinatorDepartmentReportPayload = async ({ coordinator, month, semes
     return { error: { status: 400, message: 'Please provide a valid month in YYYY-MM format' } }
   }
 
-  const normalizedSemester = parseInt(semester, 10)
+  const normalizedSemester = parseInt(String(semester), 10)
+  /** @type {import("@prisma/client").Prisma.StudentWhereInput} */
   const studentFilters = {
     department: coordinator.department,
     semester: normalizedSemester,
     user: { isActive: true, deletedAt: null }
   }
 
-  if (section) {
+  if (typeof section === "string" && section) {
     studentFilters.section = section
   }
 
@@ -139,7 +143,7 @@ const getCoordinatorDepartmentReportPayload = async ({ coordinator, month, semes
 
   const studentSummaries = students.map((student) => {
     const records = attendanceByStudent.get(student.id) || []
-    const counts = records.reduce((acc, record) => {
+    const counts = records.reduce((/** @type {{ [x: string]: number; total: number; }} */ acc, /** @type {{ status: string | number; }} */ record) => {
       acc.total += 1
       acc[record.status] += 1
       return acc
@@ -165,7 +169,7 @@ const getCoordinatorDepartmentReportPayload = async ({ coordinator, month, semes
     month,
     monthLabel: formatMonthLabel(month),
     semester: normalizedSemester,
-    section: section || '',
+    section: typeof section === 'string' ? section : '',
     totalStudents: students.length,
     summary: buildAttendanceSummary(attendance),
     students: studentSummaries,

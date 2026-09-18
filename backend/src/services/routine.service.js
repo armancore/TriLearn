@@ -1,3 +1,4 @@
+const { errorInfo } = require('../utils/errorInfo')
 const { createServiceResponder } = require('../utils/serviceResult')
 const prisma = require('../utils/prisma')
 const {
@@ -5,12 +6,12 @@ const {
   enqueueRoutineNotification,
   getRoutineInclude
 } = require('../utils/routineNotifications')
-const ensureCoordinatorDepartmentScope = async (context, result, departmentValue, message = 'You can only manage routines in your own department') => {
+const ensureCoordinatorDepartmentScope = async (/** @type {ReturnType<typeof import('../utils/controllerAdapter').buildServiceContext>} */ context, /** @type {import('../utils/serviceResult').ServiceResponder} */ result, /** @type {string | null | undefined} */ departmentValue, message = 'You can only manage routines in your own department') => {
   if (context.user.role !== 'COORDINATOR') {
     return null
   }
 
-  const coordinatorDepartments = [context.coordinator?.department].filter(Boolean)
+  const coordinatorDepartments = [context.coordinator?.department].filter((entry) => entry !== null)
 
   if (coordinatorDepartments.length === 0) {
     result.withStatus(403, { message: 'Coordinator department is not configured yet' })
@@ -25,22 +26,23 @@ const ensureCoordinatorDepartmentScope = async (context, result, departmentValue
   return coordinatorDepartments
 }
 
-const applySectionScope = (studentSection) => (
+const applySectionScope = (/** @type {string | null} */ studentSection) => (
   studentSection
     ? [{ section: null }, { section: studentSection }]
     : undefined
 )
 
-const applyDepartmentScope = (studentDepartment) => (
+const applyDepartmentScope = (/** @type {string | null} */ studentDepartment) => (
   studentDepartment
     ? [{ department: null }, { department: '' }, { department: studentDepartment }]
     : [{ department: null }, { department: '' }]
 )
 
-const normalizeRoutineClassType = (classType) => (
-  ['LECTURE', 'TUTORIAL', 'WORKSHOP'].includes(classType) ? classType : 'LECTURE'
+const normalizeRoutineClassType = (/** @type {string} */ classType) => (
+  (classType === 'LECTURE' || classType === 'TUTORIAL' || classType === 'WORKSHOP') ? classType : 'LECTURE'
 )
 
+/** @param {{classType: string, note?: string | null}} input */
 const buildRoutineNote = ({ classType, note }) => {
   const normalizedNote = String(note || '').trim()
   if (normalizedNote) {
@@ -50,14 +52,15 @@ const buildRoutineNote = ({ classType, note }) => {
   return normalizeRoutineClassType(classType) === 'WORKSHOP' ? WORKSHOP_NOTE : null
 }
 
-const buildRoutineFilters = async (context) => {
+const buildRoutineFilters = async (/** @type {ReturnType<typeof import('../utils/controllerAdapter').buildServiceContext>} */ context) => {
   const { dayOfWeek, semester, department, section } = context.query
+  /** @type {import("@prisma/client").Prisma.RoutineWhereInput} */
   const filters = {}
 
-  if (dayOfWeek) filters.dayOfWeek = dayOfWeek
-  if (semester) filters.semester = parseInt(semester, 10)
-  if (department) filters.department = department
-  if (section) filters.section = section
+  if (typeof dayOfWeek === "string" && dayOfWeek) filters.dayOfWeek = Object.values(require("@prisma/client").DayOfWeek).find(day => day === dayOfWeek)
+  if (semester) filters.semester = parseInt(String(semester), 10)
+  if (typeof department === "string" && department) filters.department = department
+  if (typeof section === "string" && section) filters.section = section
 
   if (context.user.role === 'INSTRUCTOR') {
     const instructor = await prisma.instructor.findUnique({
@@ -113,6 +116,7 @@ const buildRoutineFilters = async (context) => {
   return filters
 }
 
+/** @param {{subjectId: string, instructorId: string, department?: string | null, semester: number, context: ReturnType<typeof import("../utils/controllerAdapter").buildServiceContext>}} input */
 const validateRoutineAcademicScope = async ({ subjectId, instructorId, department, semester, context }) => {
   const subject = await prisma.subject.findUnique({ where: { id: subjectId } })
   if (!subject) return { error: { status: 404, message: 'Subject not found' } }
@@ -163,6 +167,7 @@ const validateRoutineAcademicScope = async ({ subjectId, instructorId, departmen
   return { subject, instructor }
 }
 
+/** @param {{dayOfWeek: import("@prisma/client").DayOfWeek, startTime: string, endTime: string, section?: string | null, room?: string | null, department?: string | null, semester: number, instructorId: string, combinedGroupId?: string | null, excludeId?: string}} input */
 const getOverlapFilter = ({ dayOfWeek, startTime, endTime, section, room, department, semester, instructorId, combinedGroupId, excludeId }) => {
   const overlapConditions = [
     { startTime: { lte: startTime }, endTime: { gt: startTime } },
@@ -192,10 +197,11 @@ const getOverlapFilter = ({ dayOfWeek, startTime, endTime, section, room, depart
         combinedGroupId: combinedGroupId ? { not: combinedGroupId } : undefined,
         OR: overlapConditions
       }
-    ].filter(Boolean)
+    ].filter(entry => entry !== null)
   }
 }
 
+/** @param {{result: import("../utils/serviceResult").ServiceResponder, conflict: import("@prisma/client").Routine, room?: string | null, instructorId: string}} input */
 const respondToRoutineConflict = ({ result, conflict, room, instructorId }) => {
   if (room && conflict.room === room) {
     return result.withStatus(400, { message: `Room ${room} is already booked at this time.` })
@@ -257,7 +263,7 @@ const createRoutine = async (context, result = createServiceResponder()) => {
 
     result.withStatus(201, { message: 'Routine created successfully!', routine })
   } catch (error) {
-    if (error?.code === 'P2002') {
+    if (errorInfo(error).code === 'P2002') {
       return result.withStatus(400, { message: 'This instructor already has a class at this time.' })
     }
 
@@ -383,7 +389,7 @@ const updateRoutine = async (context, result = createServiceResponder()) => {
 
     result.ok({ message: 'Routine updated successfully!', routine: updated })
   } catch (error) {
-    if (error?.code === 'P2002') {
+    if (errorInfo(error).code === 'P2002') {
       return result.withStatus(400, { message: 'This instructor already has a class at this time.' })
     }
 

@@ -5,7 +5,7 @@ const { attachUploadedFileToEntity } = require('../utils/uploadRecords')
 const { getPagination } = require('../utils/pagination')
 const { sanitizePlainText } = require('../utils/sanitize')
 
-const resolveInstructorTaskSubject = async (context, subjectId) => {
+const resolveInstructorTaskSubject = async (/** @type {ReturnType<typeof import('../utils/controllerAdapter').buildServiceContext>} */ context, /** @type {string} */ subjectId) => {
   const { user, instructor } = context
 
   if (user.role !== 'INSTRUCTOR') {
@@ -38,7 +38,7 @@ const resolveInstructorTaskSubject = async (context, subjectId) => {
   return { subject, instructorId: instructor.id }
 }
 
-const getTaskSubmissionViewForRole = (submission, role) => {
+const getTaskSubmissionViewForRole = (/** @type {import('@prisma/client').TaskSubmission} */ submission, /** @type {string} */ role) => {
   if (role === 'STUDENT') {
     return {
       id: submission.id,
@@ -56,7 +56,7 @@ const getTaskSubmissionViewForRole = (submission, role) => {
   return submission
 }
 
-const createTask = async (context, result = createServiceResponder()) => {
+const createTask = async (/** @type {ReturnType<typeof import('../utils/controllerAdapter').buildServiceContext>} */ context, result = createServiceResponder()) => {
   const { title, description, subjectId, dueDate } = context.body
   const questionPdfUrl = buildUploadedFileUrl(context.file)
 
@@ -89,7 +89,7 @@ const createTask = async (context, result = createServiceResponder()) => {
   })
 }
 
-const getAllTasks = async (context, result = createServiceResponder()) => {
+const getAllTasks = async (/** @type {ReturnType<typeof import('../utils/controllerAdapter').buildServiceContext>} */ context, result = createServiceResponder()) => {
   const { subjectId } = context.query
   const { page, limit, skip } = getPagination(context.query)
   const filters = {}
@@ -133,7 +133,7 @@ const getAllTasks = async (context, result = createServiceResponder()) => {
   result.ok({ total, page, limit, tasks })
 }
 
-const getTaskById = async (context, result = createServiceResponder()) => {
+const getTaskById = async (/** @type {ReturnType<typeof import('../utils/controllerAdapter').buildServiceContext>} */ context, result = createServiceResponder()) => {
   const { id } = context.params
 
   const task = await prisma.task.findUnique({
@@ -195,7 +195,7 @@ const getTaskById = async (context, result = createServiceResponder()) => {
   result.ok({ task })
 }
 
-const updateTask = async (context, result = createServiceResponder()) => {
+const updateTask = async (/** @type {ReturnType<typeof import('../utils/controllerAdapter').buildServiceContext>} */ context, result = createServiceResponder()) => {
   const { id } = context.params
   const { title, description, dueDate } = context.body
   const questionPdfUrl = buildUploadedFileUrl(context.file)
@@ -225,7 +225,7 @@ const updateTask = async (context, result = createServiceResponder()) => {
   result.ok({ message: 'Task updated successfully!', task: updated })
 }
 
-const deleteTask = async (context, result = createServiceResponder()) => {
+const deleteTask = async (/** @type {ReturnType<typeof import('../utils/controllerAdapter').buildServiceContext>} */ context, result = createServiceResponder()) => {
   const { id } = context.params
 
   const task = await prisma.task.findUnique({ where: { id } })
@@ -242,7 +242,7 @@ const deleteTask = async (context, result = createServiceResponder()) => {
   result.ok({ message: 'Task deleted successfully!' })
 }
 
-const submitTask = async (context, result = createServiceResponder()) => {
+const submitTask = async (/** @type {ReturnType<typeof import('../utils/controllerAdapter').buildServiceContext>} */ context, result = createServiceResponder()) => {
   const { id } = context.params
   const { note } = context.body
   const fileUrl = buildUploadedFileUrl(context.file)
@@ -310,7 +310,7 @@ const submitTask = async (context, result = createServiceResponder()) => {
   })
 }
 
-const getMyTaskSubmissions = async (context, result = createServiceResponder()) => {
+const getMyTaskSubmissions = async (/** @type {ReturnType<typeof import('../utils/controllerAdapter').buildServiceContext>} */ context, result = createServiceResponder()) => {
   const student = context.student
 
   if (!student) {
@@ -335,7 +335,7 @@ const getMyTaskSubmissions = async (context, result = createServiceResponder()) 
   })
 }
 
-const reviewTaskSubmission = async (context, result = createServiceResponder()) => {
+const reviewTaskSubmission = async (/** @type {ReturnType<typeof import('../utils/controllerAdapter').buildServiceContext>} */ context, result = createServiceResponder()) => {
   const { submissionId } = context.params
   const { feedback } = context.body
 

@@ -2,8 +2,9 @@ const prisma = require('./prisma')
 const { createNotifications } = require('./notifications')
 const { inferNoticeLink } = require('./notificationLinks')
 
-const uniqueUserIds = (userIds = []) => [...new Set(userIds.filter(Boolean))]
+const uniqueUserIds = (/** @type {string[]} */ userIds = []) => [...new Set(userIds.filter(Boolean))]
 
+/** @param {import("@prisma/client").Notice} notice @returns {import("@prisma/client").Prisma.UserWhereInput} */
 const getNoticeRecipientWhere = (notice) => {
   if (notice.audience === 'INSTRUCTORS_ONLY') {
     return {
@@ -50,6 +51,7 @@ const getNoticeRecipientWhere = (notice) => {
   }
 }
 
+/** @param {{notice: import("@prisma/client").Notice, title?: string, message?: string, event?: string, excludeUserId?: string}} options */
 const createNoticeNotifications = async ({
   notice,
   title = notice.title,

@@ -1,5 +1,6 @@
 const DOMPurify = require('isomorphic-dompurify')
 
+/** @type {Record<string, string>} */
 const HTML_ENTITY_MAP = {
   amp: '&',
   apos: '\'',
@@ -15,7 +16,7 @@ const PLAIN_TEXT_SANITIZE_POLICY = Object.freeze({
   KEEP_CONTENT: true
 })
 
-const decodeHtmlEntities = (value) => value.replace(/&(#x?[0-9a-f]+|[a-z]+);/gi, (match, entity) => {
+const decodeHtmlEntities = (/** @type {string} */ value) => value.replace(/&(#x?[0-9a-f]+|[a-z]+);/gi, (match, entity) => {
   const normalizedEntity = String(entity).toLowerCase()
 
   if (normalizedEntity in HTML_ENTITY_MAP) {
@@ -35,12 +36,12 @@ const decodeHtmlEntities = (value) => value.replace(/&(#x?[0-9a-f]+|[a-z]+);/gi,
   return match
 })
 
-const sanitizePlainText = (value) => {
+const sanitizePlainText = (/** @type {unknown} */ value) => {
   if (typeof value !== 'string') {
     return ''
   }
 
-  const sanitized = DOMPurify.sanitize(value, PLAIN_TEXT_SANITIZE_POLICY)
+  const sanitized = DOMPurify.sanitize(value, { ...PLAIN_TEXT_SANITIZE_POLICY, ALLOWED_TAGS: [...PLAIN_TEXT_SANITIZE_POLICY.ALLOWED_TAGS], ALLOWED_ATTR: [...PLAIN_TEXT_SANITIZE_POLICY.ALLOWED_ATTR] })
 
   return decodeHtmlEntities(sanitized)
     .replace(/\r\n/g, '\n')
@@ -51,6 +52,7 @@ const sanitizePlainText = (value) => {
     .trim()
 }
 
+/** @template T @param {T} value @returns {T | string} */
 const sanitizeXlsxCell = (value) => {
   if (typeof value !== 'string') {
     return value

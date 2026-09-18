@@ -17,6 +17,7 @@ const devicePlatform = Platform.select({
 
 export const useNotifications = () => {
   const { isAuthenticated } = useAuth();
+  const sessionVersion = useAuthStore((state) => state.sessionVersion);
   const storedPushToken = useAuthStore((state) => state.pushToken);
   const setPushToken = useAuthStore((state) => state.setPushToken);
   const items = useNotificationsStore((state) => state.items);
@@ -26,7 +27,7 @@ export const useNotifications = () => {
   const setNotifications = useNotificationsStore((state) => state.setNotifications);
 
   const query = useQuery({
-    queryKey: ['notifications'],
+    queryKey: ['notifications', sessionVersion],
     queryFn: async () => {
       const response = await api.get<NotificationsResponse>('/notifications');
       return response.data;
@@ -35,10 +36,10 @@ export const useNotifications = () => {
   });
 
   useEffect(() => {
-    if (query.data?.notifications) {
+    if (isAuthenticated && useAuthStore.getState().sessionVersion === sessionVersion && query.data?.notifications) {
       setNotifications(query.data.notifications);
     }
-  }, [query.data, setNotifications]);
+  }, [isAuthenticated, query.data, sessionVersion, setNotifications]);
 
   useEffect(() => {
     if (!isAuthenticated || isPushUnsupportedRuntime || !devicePlatform) {

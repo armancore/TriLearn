@@ -1,3 +1,4 @@
+const { errorInfo } = require('./errorInfo')
 const { Server } = require('socket.io')
 const { createAdapter } = require('@socket.io/redis-adapter')
 const jwt = require('jsonwebtoken')
@@ -8,11 +9,15 @@ const { cacheRevokedJti, isRevokedJtiCached } = require('./accessTokenRevocation
 const { REVOKED_JTI_PREFIX } = require('../constants/auth')
 const { ACCESS_TOKEN_COOKIE_NAME } = require('./token')
 
+/** @type {import('socket.io').Server | null} */
 let io = null
+/** @type {ReturnType<typeof import("./redis").getRedisClient>} */
 let redisAdapterSubClient = null
 let memoryAdapterWarningShown = false
-const socketEventCounts = new Map()
-const parsePositiveInteger = (value, fallback) => {
+const socketSessions = new WeakMap(/** @type {[import("socket.io").Socket, {token: string, expiresAt: number, timer: NodeJS.Timeout}][]} */ ([]))
+const AUTHORIZED_DELIVERY_EVENT = 'trilearn:authorized-delivery'
+const socketEventCounts = new Map(/** @type {[string, {count: number, windowStart: number}][]} */ ([]))
+const parsePositiveInteger = (/** @type {string | undefined} */ value, /** @type {number} */ fallback) => {
   const parsed = Number.parseInt(String(value ?? ''), 10)
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback
 }
@@ -20,7 +25,7 @@ const SOCKET_EVENT_RATE_LIMIT_MAX = parsePositiveInteger(process.env.SOCKET_EVEN
 const SOCKET_EVENT_RATE_LIMIT_WINDOW_MS = parsePositiveInteger(process.env.SOCKET_EVENT_RATE_LIMIT_WINDOW_MS, 10_000)
 const SOCKET_MAX_HTTP_BUFFER_SIZE = parsePositiveInteger(process.env.SOCKET_MAX_HTTP_BUFFER_SIZE, 1_000_000)
 
-const getRoomName = (userId) => `user:${userId}`
+const getRoomName = (/** @type {string} */ userId) => `user:${userId}`
 
 const getSocketAccessSecret = () => {
   const accessSecret = process.env.JWT_ACCESS_SECRET
@@ -37,7 +42,7 @@ const isSocketNoOriginAllowed = () => (
   String(process.env.ALLOW_SOCKET_NO_ORIGIN || '').trim().toLowerCase() === 'true'
 )
 
-const buildCorsOriginValidator = (allowedOrigins = []) => (origin, callback) => {
+const buildCorsOriginValidator = (/** @type {string[]} */ allowedOrigins = []) => (/** @type {string | undefined} */ origin, /** @type {(error: Error | null, allow?: boolean) => void} */ callback) => {
   if (!origin) {
     return isSocketNoOriginAllowed()
       ? callback(null, true)
@@ -51,7 +56,7 @@ const buildCorsOriginValidator = (allowedOrigins = []) => (origin, callback) => 
   return callback(new Error('Not allowed by CORS'))
 }
 
-const resolveSocketToken = (socket) => {
+const resolveSocketToken = (/** @type {import("socket.io").Socket} */ socket) => {
   const authToken = socket.handshake.auth?.token
   if (typeof authToken === 'string' && authToken.trim()) {
     return authToken.trim()
@@ -77,11 +82,12 @@ const resolveSocketToken = (socket) => {
   return null
 }
 
-const verifySocketTokenUser = async (token) => {
+const verifySocketTokenUser = async (/** @type {string} */ token) => {
   const decoded = jwt.verify(token, getSocketAccessSecret())
   if (decoded?.type !== 'access') {
     throw new Error('Invalid token type')
   }
+  if (!Number.isFinite(decoded.exp) || !Number.isFinite(decoded.iat)) throw new Error('Invalid token lifetime')
 
   if (decoded.jti) {
     if (isRevokedJtiCached(decoded.jti)) {
@@ -89,6 +95,7 @@ const verifySocketTokenUser = async (token) => {
     }
 
     const redis = await getReadyRedisClient({ context: 'Socket.io access token revocation check' })
+    if (!redis && isRedisConfigured()) throw new Error('Access token revocation store is unavailable')
     if (redis && await redis.exists(`${REVOKED_JTI_PREFIX}${decoded.jti}`)) {
       cacheRevokedJti(decoded.jti)
       throw new Error('Token has been revoked')
@@ -101,6 +108,7 @@ const verifySocketTokenUser = async (token) => {
       id: true,
       role: true,
       isActive: true,
+      passwordChangedAt: true,
       deletedAt: true
     }
   })
@@ -109,10 +117,46 @@ const verifySocketTokenUser = async (token) => {
     throw new Error('User is not authorized')
   }
 
+  if (user.passwordChangedAt && decoded.iat <= Math.floor(user.passwordChangedAt.getTime() / 1000)) {
+    throw new Error('Password was changed. Please log in again.')
+  }
   return user
 }
 
+/** @param {import('socket.io').Socket} socket @param {string} token */
+const bindSocketSession = (socket, token) => {
+  const previous = socketSessions.get(socket)
+  if (previous) clearTimeout(previous.timer)
+  const expiresAt = /** @type {{ exp: number }} */ (jwt.decode(token)).exp * 1000
+  const timer = setTimeout(() => {
+    if (Date.now() < expiresAt) bindSocketSession(socket, token)
+    else socket.disconnect(true)
+  }, Math.min(2_147_483_647, Math.max(0, expiresAt - Date.now())))
+  timer.unref?.()
+  socketSessions.set(socket, { token, expiresAt, timer })
+}
+
+// Every replica checks its local subscribers before delivering sensitive data.
+/** @param {string} userId @param {string} eventName @param {unknown} payload */
+const deliverToLocalUser = async (userId, eventName, payload) => {
+  if (!io) return
+  await Promise.all(Array.from(io.sockets.sockets.values()).map(async (socket) => {
+    if (socket.data.user?.id !== userId) return
+    const session = socketSessions.get(socket)
+    try {
+      if (!session) throw new Error('Authentication required')
+      const user = await verifySocketTokenUser(session.token)
+      if (socketSessions.get(socket) !== session) return
+      if (user.id !== userId || Date.now() >= session.expiresAt) throw new Error('Session expired')
+      if (socket.connected) socket.emit(eventName, payload)
+    } catch {
+      if (socketSessions.get(socket) === session) socket.disconnect(true)
+    }
+  }))
+}
+
 // REDIS-SAVE: in-memory socket limiter, clients mostly listen
+/** @param {{maxEvents: number, windowMs: number, now?: () => number, socket?: import("socket.io").Socket | null}} options */
 const createSocketEventRateLimiter = ({ maxEvents, windowMs, now = () => Date.now(), socket = null }) => {
   let tokens = maxEvents
   let lastRefillAt = now()
@@ -153,7 +197,7 @@ const createSocketEventRateLimiter = ({ maxEvents, windowMs, now = () => Date.no
   }
 }
 
-const getSocketPacketPayloadSizeBytes = (packet) => {
+const getSocketPacketPayloadSizeBytes = (/** @type {unknown} */ packet) => {
   if (!Array.isArray(packet)) {
     return 0
   }
@@ -165,7 +209,7 @@ const getSocketPacketPayloadSizeBytes = (packet) => {
   return Buffer.byteLength(JSON.stringify(serializablePacket), 'utf8')
 }
 
-const isSocketPacketWithinSizeLimit = (packet, maxBytes = SOCKET_MAX_HTTP_BUFFER_SIZE) => {
+const isSocketPacketWithinSizeLimit = (/** @type {import("socket.io").Event} */ packet, maxBytes = SOCKET_MAX_HTTP_BUFFER_SIZE) => {
   try {
     return getSocketPacketPayloadSizeBytes(packet) <= maxBytes
   } catch {
@@ -173,7 +217,7 @@ const isSocketPacketWithinSizeLimit = (packet, maxBytes = SOCKET_MAX_HTTP_BUFFER
   }
 }
 
-const attachRedisAdapter = async (socketServer) => {
+const attachRedisAdapter = async (/** @type {import("socket.io").Server} */ socketServer) => {
   if (!isRedisConfigured()) {
     if (!memoryAdapterWarningShown) {
       memoryAdapterWarningShown = true
@@ -198,7 +242,7 @@ const attachRedisAdapter = async (socketServer) => {
     socketServer.adapter(createAdapter(pubClient, subClient))
     redisAdapterSubClient = subClient
   } catch (error) {
-    logger.warn(`Warning: Socket.io Redis adapter unavailable, falling back to in-memory adapter (${error.message})`)
+    logger.warn(`Warning: Socket.io Redis adapter unavailable, falling back to in-memory adapter (${errorInfo(error).message})`)
     try {
       await subClient.quit()
     } catch {
@@ -207,6 +251,7 @@ const attachRedisAdapter = async (socketServer) => {
   }
 }
 
+/** @param {{server: import("http").Server, allowedOrigins?: string[]}} options */
 const initRealtime = async ({ server, allowedOrigins = [] }) => {
   if (io) {
     return io
@@ -222,6 +267,9 @@ const initRealtime = async ({ server, allowedOrigins = [] }) => {
   })
 
   await attachRedisAdapter(io)
+  io.on(AUTHORIZED_DELIVERY_EVENT, (userId, eventName, payload) => {
+    void deliverToLocalUser(userId, eventName, payload)
+  })
 
   io.use(async (socket, next) => {
     try {
@@ -231,9 +279,10 @@ const initRealtime = async ({ server, allowedOrigins = [] }) => {
       }
 
       socket.data.user = await verifySocketTokenUser(token)
+      bindSocketSession(socket, token)
       next()
     } catch (error) {
-      next(error)
+      next(error instanceof Error ? error : new Error(errorInfo(error).message))
     }
   })
 
@@ -272,6 +321,8 @@ const initRealtime = async ({ server, allowedOrigins = [] }) => {
     // REDIS-SAVE: in-memory socket limiter, clients mostly listen
     socket.on('disconnect', () => {
       socketEventCounts.delete(socket.id)
+      clearTimeout(socketSessions.get(socket)?.timer)
+      socketSessions.delete(socket)
     })
 
     socket.on('auth:refresh', async (payload, ack) => {
@@ -282,11 +333,13 @@ const initRealtime = async ({ server, allowedOrigins = [] }) => {
         }
 
         const nextUser = await verifySocketTokenUser(token)
+        if (!socket.connected) return
         if (nextUser.id !== socket.data.user?.id) {
           throw new Error('Cannot switch socket users')
         }
 
         socket.data.user = nextUser
+        bindSocketSession(socket, token)
         if (typeof ack === 'function') {
           ack({ ok: true })
         }
@@ -302,24 +355,25 @@ const initRealtime = async ({ server, allowedOrigins = [] }) => {
   return io
 }
 
-const emitToUser = (userId, eventName, payload) => {
+const emitToUser = async (/** @type {string} */ userId, /** @type {string} */ eventName, /** @type {unknown} */ payload) => {
   if (!io || !userId) {
     return
   }
 
-  io.to(getRoomName(userId)).emit(eventName, payload)
+  if (redisAdapterSubClient) io.serverSideEmit(AUTHORIZED_DELIVERY_EVENT, userId, eventName, payload)
+  await deliverToLocalUser(userId, eventName, payload)
 }
 
-const emitNotificationCreated = (userId, notification) => {
-  emitToUser(userId, 'notification:new', { notification })
+const emitNotificationCreated = (/** @type {string} */ userId, /** @type {unknown} */ notification) => {
+  return emitToUser(userId, 'notification:new', { notification })
 }
 
-const emitNotificationRead = (userId, notificationId, readAt, unreadCount) => {
-  emitToUser(userId, 'notification:read', { notificationId, readAt, unreadCount })
+const emitNotificationRead = (/** @type {string} */ userId, /** @type {string} */ notificationId, /** @type {Date | string | null} */ readAt, /** @type {number} */ unreadCount) => {
+  return emitToUser(userId, 'notification:read', { notificationId, readAt, unreadCount })
 }
 
-const emitNotificationsReadAll = (userId, readAt) => {
-  emitToUser(userId, 'notification:read-all', { readAt, unreadCount: 0 })
+const emitNotificationsReadAll = (/** @type {string} */ userId, /** @type {Date | string | null} */ readAt) => {
+  return emitToUser(userId, 'notification:read-all', { readAt, unreadCount: 0 })
 }
 
 const closeRealtime = async () => {

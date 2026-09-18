@@ -1,8 +1,8 @@
 import { useCallback, useEffect } from 'react';
 
 import { disconnectSocket } from '@/src/services/socket.service';
-import { api, resetRefreshState } from '@/src/services/api';
-import { login as loginRequest } from '@/src/services/auth.service';
+import { resetRefreshState } from '@/src/services/api';
+import { login as loginRequest, logout as logoutRequest } from '@/src/services/auth.service';
 import { useAuthStore } from '@/src/store/auth.store';
 import { useNotificationsStore } from '@/src/store/notifications.store';
 import type { LoginRequest } from '@/src/types/auth';
@@ -12,7 +12,6 @@ export const useAuth = () => {
   const accessToken = useAuthStore((state) => state.accessToken);
   const refreshToken = useAuthStore((state) => state.refreshToken);
   const isHydrated = useAuthStore((state) => state.isHydrated);
-  const pushToken = useAuthStore((state) => state.pushToken);
   const setSession = useAuthStore((state) => state.setSession);
   const updateUser = useAuthStore((state) => state.updateUser);
   const clearSession = useAuthStore((state) => state.logout);
@@ -40,15 +39,16 @@ export const useAuth = () => {
   );
 
   const logout = useCallback(() => {
-    if (pushToken) {
-      void api.delete('/notifications/device-token', { data: { token: pushToken } }).catch(() => {});
-    }
-    void api.post('/auth/logout').catch(() => {});
+    const session = useAuthStore.getState();
+    const revocation = logoutRequest(session.accessToken, session.refreshToken, session.pushToken);
     clearSession();
     resetRefreshState();
     resetNotifications();
     disconnectSocket();
-  }, [clearSession, pushToken, resetNotifications]);
+    return revocation.catch(() => {
+      console.warn('Signed out locally, but server session revocation failed.');
+    });
+  }, [clearSession, resetNotifications]);
 
   return {
     user,

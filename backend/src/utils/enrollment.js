@@ -1,6 +1,6 @@
 const prisma = require('./prisma')
 
-const getMatchingSubjectFilter = (semester, department) => ({
+const getMatchingSubjectFilter = (/** @type {number} */ semester, /** @type {string | null | undefined} */ department) => ({
   semester,
   OR: [
     { department: null },
@@ -9,9 +9,9 @@ const getMatchingSubjectFilter = (semester, department) => ({
   ]
 })
 
-const enrollStudentInMatchingSubjects = async ({ studentId, semester, department }) => {
+const enrollStudentInMatchingSubjects = async (/** @type {{studentId: string, semester: number, department?: string | null}} */ { studentId, semester, department }) => {
   const matchingSubjects = await prisma.subject.findMany({
-    where: getMatchingSubjectFilter(semester, department),
+    where: getMatchingSubjectFilter(/** @type {number} */ semester, /** @type {string | null | undefined} */ department),
     select: { id: true }
   })
 
@@ -33,10 +33,10 @@ const enrollStudentInMatchingSubjects = async ({ studentId, semester, department
   }
 }
 
-const syncStudentEnrollmentForSemester = async ({ studentId, semester, department }) => {
+const syncStudentEnrollmentForSemester = async (/** @type {{studentId: string, semester: number, department?: string | null}} */ { studentId, semester, department }) => {
   const [matchingSubjects, existingEnrollments] = await Promise.all([
     prisma.subject.findMany({
-      where: getMatchingSubjectFilter(semester, department),
+      where: getMatchingSubjectFilter(/** @type {number} */ semester, /** @type {string | null | undefined} */ department),
       select: { id: true }
     }),
     prisma.subjectEnrollment.findMany({
@@ -83,15 +83,15 @@ const syncStudentEnrollmentForSemester = async ({ studentId, semester, departmen
   }
 }
 
-const getMatchingStudentFilter = (semester, department) => ({
+const getMatchingStudentFilter = (/** @type {number} */ semester, /** @type {string | null | undefined} */ department) => ({
   semester,
   user: { isActive: true, deletedAt: null },
   ...(department ? { department } : {})
 })
 
-const enrollMatchingStudentsInSubject = async ({ subjectId, semester, department }) => {
+const enrollMatchingStudentsInSubject = async (/** @type {{subjectId: string, semester: number, department?: string | null}} */ { subjectId, semester, department }) => {
   const matchingStudents = await prisma.student.findMany({
-    where: getMatchingStudentFilter(semester, department),
+    where: getMatchingStudentFilter(/** @type {number} */ semester, /** @type {string | null | undefined} */ department),
     select: { id: true }
   })
 
@@ -113,9 +113,9 @@ const enrollMatchingStudentsInSubject = async ({ subjectId, semester, department
   }
 }
 
-const syncMatchingStudentsForSubject = async ({ subjectId, semester, department }) => {
+const syncMatchingStudentsForSubject = async (/** @type {{subjectId: string, semester: number, department?: string | null}} */ { subjectId, semester, department }) => {
   const matchingStudents = await prisma.student.findMany({
-    where: getMatchingStudentFilter(semester, department),
+    where: getMatchingStudentFilter(/** @type {number} */ semester, /** @type {string | null | undefined} */ department),
     select: { id: true }
   })
 

@@ -1,3 +1,4 @@
+const { errorInfo } = require('../utils/errorInfo')
 const { createServiceResponder } = require('../utils/serviceResult')
 const ExcelJS = require('exceljs')
 const fs = require('fs')
@@ -30,36 +31,38 @@ const {
 
 const MAX_STUDENT_SEMESTER = 8
 
-const buildContainsSearch = (search) => ({
+/** @returns {import("@prisma/client").Prisma.StringFilter} */
+const buildContainsSearch = (/** @type {string} */ search) => ({
   contains: search,
   mode: 'insensitive'
 })
 const getGraduationYear = (date = new Date()) => date.getFullYear()
 
+/** @template {Record<string, unknown>} T @param {T} data */
 const omitUndefined = (data) => Object.fromEntries(
   Object.entries(data).filter(([, value]) => value !== undefined)
 )
 
-const sanitizeFilenamePart = (value) => String(value || 'students')
+const sanitizeFilenamePart = (/** @type {string} */ value) => String(value || 'students')
   .replace(/[^a-z0-9-_]+/gi, '-')
   .replace(/-+/g, '-')
   .replace(/^-|-$/g, '')
   .toLowerCase()
 
-const normalizeSpreadsheetHeader = (value) => String(value || '')
+const normalizeSpreadsheetHeader = (/** @type {unknown} */ value) => String(value || '')
   .trim()
   .toLowerCase()
   .replace(/[^a-z0-9]/g, '')
 
-const normalizeStudentIdValue = (value) => String(value || '').trim().toUpperCase()
+const normalizeStudentIdValue = (/** @type {unknown} */ value) => String(value || '').trim().toUpperCase()
 
-const studentExportFiltersFromQuery = (context) => {
+const studentExportFiltersFromQuery = (/** @type {ReturnType<typeof import('../utils/controllerAdapter').buildServiceContext>} */ context) => {
   const { semester, section, graduated } = context.query
   const filters = {
-    role: 'STUDENT',
+    role: /** @type {const} */ ('STUDENT'),
     deletedAt: null,
     student: {
-      is: {}
+      is: /** @type {import("@prisma/client").Prisma.StudentWhereInput} */ ({})
     }
   }
   const coordinatorDepartments = getCoordinatorDepartments(context)
@@ -73,7 +76,7 @@ const studentExportFiltersFromQuery = (context) => {
   }
 
   if (section) {
-    filters.student.is.section = section.trim().toUpperCase()
+    filters.student.is.section = String(section).trim().toUpperCase()
   }
 
   if (graduated !== undefined) {
@@ -83,11 +86,11 @@ const studentExportFiltersFromQuery = (context) => {
   return filters
 }
 
-const buildDeletedEmail = (user, deletedAt = new Date()) => (
+const buildDeletedEmail = (/** @type {Pick<import('@prisma/client').User, 'id' | 'email'>} */ user, deletedAt = new Date()) => (
   `deleted:${deletedAt.getTime()}:${user.id}:${user.email}`
 )
 
-const releaseDeletedUserEmail = async (tx, existingUser) => {
+const releaseDeletedUserEmail = async (/** @type {import('@prisma/client').Prisma.TransactionClient} */ tx, /** @type {import('@prisma/client').User | null} */ existingUser) => {
   if (!existingUser?.deletedAt) {
     return
   }
@@ -99,6 +102,7 @@ const releaseDeletedUserEmail = async (tx, existingUser) => {
 }
 
 
+/** @param {{name: string, email: string, studentId: string, phone?: string | null, address?: string | null, semester: number, section?: string | null, department: string}} input */
 const createStudentAccountRecord = async ({
   name,
   email,
@@ -142,6 +146,7 @@ const createStudentAccountRecord = async ({
     include: { student: true }
   })
 
+  if (!user.student) throw new Error("Created student profile is missing")
   await enrollStudentInMatchingSubjects({
     studentId: user.student.id,
     semester: user.student.semester,
@@ -155,6 +160,7 @@ const createStudentAccountRecord = async ({
   }
 }
 
+/** @param {{name: string, email: string, temporaryPassword: string, userId: string, emailVerificationToken?: string}} input */
 const sendStudentWelcomeEmail = async ({ name, email, temporaryPassword, userId, emailVerificationToken }) => {
   const { subject, html, text } = welcomeTemplate({
     name,
@@ -168,16 +174,16 @@ const sendStudentWelcomeEmail = async ({ name, email, temporaryPassword, userId,
     return true
   } catch (error) {
     logger.error('Welcome email failed', {
-      message: error.message,
-      stack: error.stack,
+      message: errorInfo(error).message,
+      stack: errorInfo(error).stack,
       userId
     })
     return false
   }
 }
 
-const normalizeDepartmentValue = (value) => String(value || '').trim()
-const normalizeSectionValue = (value) => {
+const normalizeDepartmentValue = (/** @type {unknown} */ value) => String(value || '').trim()
+const normalizeSectionValue = (/** @type {string | null | undefined} */ value) => {
   const sanitizedSection = sanitizeOptionalPlainText(value)
   return sanitizedSection ? sanitizedSection.toUpperCase() : null
 }
@@ -189,6 +195,7 @@ const getDepartmentSectionDelegate = () => (
     : null
 )
 
+/** @param {{department?: string | null, semester?: number | string, section?: string | null}} input */
 const hasDepartmentSection = async ({ department, semester, section }) => {
   if (!department || !semester || !section) {
     return false
@@ -202,7 +209,7 @@ const hasDepartmentSection = async ({ department, semester, section }) => {
   const record = await departmentSectionDelegate.findFirst({
     where: {
       semester: Number(semester),
-      section: normalizeSectionValue(section),
+      section: normalizeSectionValue(section) || "",
       department: {
         is: {
           name: normalizeDepartmentValue(department)
@@ -215,6 +222,7 @@ const hasDepartmentSection = async ({ department, semester, section }) => {
   return Boolean(record)
 }
 
+/** @param {{department?: string | null, departments?: string[]}} input */
 const resolveInstructorDepartmentsInput = async ({ department, departments }) => {
   const requestedDepartments = normalizeDepartmentList(
     Array.isArray(departments) && departments.length > 0
@@ -244,6 +252,7 @@ const resolveInstructorDepartmentsInput = async ({ department, departments }) =>
   }
 }
 
+/** @satisfies {import('@prisma/client').Prisma.InstructorInclude} */
 const instructorDepartmentMembershipInclude = {
   departmentMemberships: {
     include: {
@@ -255,6 +264,7 @@ const instructorDepartmentMembershipInclude = {
   }
 }
 
+/** @template {import("@prisma/client").Instructor & {departmentMemberships?: {department?: {name: string}, departmentName?: string}[]}} T @param {T | null | undefined} instructor */
 const addInstructorDepartments = (instructor) => {
   if (!instructor) {
     return instructor
@@ -269,6 +279,7 @@ const addInstructorDepartments = (instructor) => {
   }
 }
 
+/** @template {object} T @param {T & { instructor?: import('@prisma/client').Instructor | null }} user */
 const addUserInstructorDepartments = (user) => (
   user?.instructor
     ? {
@@ -278,7 +289,7 @@ const addUserInstructorDepartments = (user) => (
     : user
 )
 
-const syncInstructorDepartmentMemberships = async (tx, instructorId, departments) => {
+const syncInstructorDepartmentMemberships = async (/** @type {import('@prisma/client').Prisma.TransactionClient} */ tx, /** @type {string} */ instructorId, /** @type {string[]} */ departments) => {
   await tx.instructorDepartmentMembership.deleteMany({
     where: { instructorId }
   })
@@ -301,7 +312,7 @@ const syncInstructorDepartmentMemberships = async (tx, instructorId, departments
   )))
 }
 
-const getCoordinatorDepartments = (context) => {
+const getCoordinatorDepartments = (/** @type {ReturnType<typeof import('../utils/controllerAdapter').buildServiceContext>} */ context) => {
   if (context?.user?.role !== 'COORDINATOR') {
     return []
   }
@@ -312,7 +323,8 @@ const getCoordinatorDepartments = (context) => {
   ])
 }
 
-const getManagedUserDepartments = (user) => {
+/** @typedef {{role: string, student?: {department: string | null} | null, instructor?: import("../utils/instructorDepartments").DepartmentSource, gatekeeper?: {department: string | null} | null, coordinator?: {department: string | null, departments?: string[]} | null}} ManagedUser */
+const getManagedUserDepartments = (/** @type {ManagedUser | null | undefined} */ user) => {
   if (!user || typeof user !== 'object') {
     return []
   }
@@ -339,13 +351,13 @@ const getManagedUserDepartments = (user) => {
   return []
 }
 
-const isCoordinatorInstructorDepartmentUpdate = (context, user, hasInstructorDepartmentUpdate) => (
+const isCoordinatorInstructorDepartmentUpdate = (/** @type {ReturnType<typeof import('../utils/controllerAdapter').buildServiceContext>} */ context, /** @type {ManagedUser | null} */ user, /** @type {boolean} */ hasInstructorDepartmentUpdate) => (
   context?.user?.role === 'COORDINATOR' &&
   user?.role === 'INSTRUCTOR' &&
   hasInstructorDepartmentUpdate
 )
 
-const coordinatorCanManageUser = (context, user) => {
+const coordinatorCanManageUser = (/** @type {ReturnType<typeof import('../utils/controllerAdapter').buildServiceContext>} */ context, /** @type {ManagedUser | null} */ user) => {
   if (context?.user?.role !== 'COORDINATOR') {
     return true
   }
@@ -377,25 +389,27 @@ const coordinatorCanManageUser = (context, user) => {
 // GET ALL USERS
 // ================================
 /**
- * @param {object} context - The request context passed by controllerAdapter
- * @param {object} [result] - The serviceResult responder
- * @returns {Promise<object>} Service result
+ * @param {ReturnType<typeof import('../utils/controllerAdapter').buildServiceContext>} context - The request context passed by controllerAdapter
+ * @param {import('../utils/serviceResult').ServiceResponder} [result] - The serviceResult responder
+ * @returns {Promise<import('../utils/serviceResult').ServiceResult | void>} Service result
  */
 const getAllUsers = async (context, result = createServiceResponder()) => {
     const { role, excludeRole, isActive, search, includeAssignable, semester, section, graduated } = context.query
   const { page, limit, skip } = getPagination(context.query)
 
+  /** @type {import("@prisma/client").Prisma.UserWhereInput} */
   const filters = { deletedAt: null }
+  /** @type {import("@prisma/client").Prisma.UserWhereInput[]} */
   const andFilters = []
   if (context.user?.role === 'COORDINATOR') {
-    const allowedRoles = ['STUDENT', 'INSTRUCTOR', 'GATEKEEPER'].filter((allowedRole) => allowedRole !== excludeRole)
+    const allowedRoles = /** @type {import('@prisma/client').Role[]} */ (['STUDENT', 'INSTRUCTOR', 'GATEKEEPER']).filter((allowedRole) => allowedRole !== excludeRole)
     const canSearchAssignableInstructors = includeAssignable === 'true' && role === 'INSTRUCTOR'
     const coordinatorDepartments = getCoordinatorDepartments(context)
 
     if (canSearchAssignableInstructors) {
       filters.role = 'INSTRUCTOR'
     } else if (role) {
-      if (!allowedRoles.includes(role)) {
+      if (!allowedRoles.some(allowedRole => allowedRole === role)) {
         return result.ok({ total: 0, page, limit, users: [] })
       }
 
@@ -405,6 +419,7 @@ const getAllUsers = async (context, result = createServiceResponder()) => {
     }
 
     if (coordinatorDepartments.length > 0) {
+      /** @type {import("@prisma/client").Prisma.UserWhereInput[]} */
       const departmentScopedRoles = []
 
       if ((!role || role === 'STUDENT') && allowedRoles.includes('STUDENT')) {
@@ -475,6 +490,7 @@ const getAllUsers = async (context, result = createServiceResponder()) => {
 
   if (isActive !== undefined) filters.isActive = isActive === 'true'
   if (semester !== undefined || section || graduated !== undefined) {
+    /** @type {import("@prisma/client").Prisma.StudentWhereInput} */
     const studentFilters = {}
 
     if (semester !== undefined) {
@@ -482,7 +498,7 @@ const getAllUsers = async (context, result = createServiceResponder()) => {
     }
 
     if (section) {
-      studentFilters.section = section.trim().toUpperCase()
+      studentFilters.section = String(section).trim().toUpperCase()
     }
 
     if (graduated !== undefined) {
@@ -497,7 +513,7 @@ const getAllUsers = async (context, result = createServiceResponder()) => {
     })
   }
 
-  if (search) {
+  if (typeof search === "string" && search) {
     andFilters.push({
       OR: [
       { name: buildContainsSearch(search) },
@@ -556,9 +572,9 @@ const getAllUsers = async (context, result = createServiceResponder()) => {
 // GET USER BY ID
 // ================================
 /**
- * @param {object} context - The request context passed by controllerAdapter
- * @param {object} [result] - The serviceResult responder
- * @returns {Promise<object>} Service result
+ * @param {ReturnType<typeof import('../utils/controllerAdapter').buildServiceContext>} context - The request context passed by controllerAdapter
+ * @param {import('../utils/serviceResult').ServiceResponder} [result] - The serviceResult responder
+ * @returns {Promise<import('../utils/serviceResult').ServiceResult | void>} Service result
  */
 const getUserById = async (context, result = createServiceResponder()) => {
     const { id } = context.params
@@ -596,7 +612,7 @@ const getUserById = async (context, result = createServiceResponder()) => {
 
 }
 
-const exportStudents = async (context, result = createServiceResponder()) => {
+const exportStudents = async (/** @type {ReturnType<typeof import('../utils/controllerAdapter').buildServiceContext>} */ context, result = createServiceResponder()) => {
   const { semester, section, graduated } = context.query
   const filters = studentExportFiltersFromQuery(context)
 
@@ -664,7 +680,7 @@ const exportStudents = async (context, result = createServiceResponder()) => {
   result.end()
 }
 
-const getStudentsForIdTemplate = async (context) => prisma.user.findMany({
+const getStudentsForIdTemplate = async (/** @type {ReturnType<typeof import('../utils/controllerAdapter').buildServiceContext>} */ context) => prisma.user.findMany({
   where: studentExportFiltersFromQuery(context),
   select: {
     name: true,
@@ -683,7 +699,7 @@ const getStudentsForIdTemplate = async (context) => prisma.user.findMany({
   ]
 })
 
-const exportStudentIdUpdateTemplate = async (context, result = createServiceResponder()) => {
+const exportStudentIdUpdateTemplate = async (/** @type {ReturnType<typeof import('../utils/controllerAdapter').buildServiceContext>} */ context, result = createServiceResponder()) => {
   const { semester, section, graduated } = context.query
   const students = await getStudentsForIdTemplate(context)
   const workbook = new ExcelJS.Workbook()
@@ -720,9 +736,9 @@ const exportStudentIdUpdateTemplate = async (context, result = createServiceResp
   result.end()
 }
 
-const resolveStudentIdUpdateColumns = (headers = []) => {
+const resolveStudentIdUpdateColumns = (/** @type {unknown[]} */ headers = []) => {
   const normalizedHeaders = headers.map((value) => normalizeSpreadsheetHeader(value))
-  const findColumn = (aliases) => {
+  const findColumn = (/** @type {string | string[]} */ aliases) => {
     const index = normalizedHeaders.findIndex((header) => aliases.includes(header))
     return index >= 0 ? index + 1 : null
   }
@@ -733,7 +749,7 @@ const resolveStudentIdUpdateColumns = (headers = []) => {
   }
 }
 
-const buildStudentIdUpdateRowsFromWorksheet = (worksheet) => {
+const buildStudentIdUpdateRowsFromWorksheet = (/** @type {ExcelJS.Worksheet} */ worksheet) => {
   const headerRow = worksheet.getRow(1)
   const headers = Array.from({ length: headerRow.cellCount }, (_, index) => headerRow.getCell(index + 1).text)
   const columns = resolveStudentIdUpdateColumns(headers)
@@ -756,7 +772,7 @@ const buildStudentIdUpdateRowsFromWorksheet = (worksheet) => {
   return rows
 }
 
-const loadStudentIdUpdateRows = async (filePath, originalName) => {
+const loadStudentIdUpdateRows = async (/** @type {string} */ filePath, /** @type {string} */ originalName) => {
   const extension = path.extname(String(originalName || filePath)).toLowerCase()
   const workbook = new ExcelJS.Workbook()
 
@@ -767,7 +783,7 @@ const loadStudentIdUpdateRows = async (filePath, originalName) => {
       await workbook.xlsx.readFile(filePath)
     } catch {
       const workbookBuffer = await fs.promises.readFile(filePath)
-      await workbook.xlsx.load(workbookBuffer)
+      await workbook.xlsx.load(Uint8Array.from(workbookBuffer).buffer)
     }
   } else {
     throw new Error('Please upload a CSV or XLSX file')
@@ -781,14 +797,14 @@ const loadStudentIdUpdateRows = async (filePath, originalName) => {
   return buildStudentIdUpdateRowsFromWorksheet(worksheet)
 }
 
-const buildStudentIdUpdateError = (rowNumber, message, row = {}) => ({
+const buildStudentIdUpdateError = (/** @type {number} */ rowNumber, /** @type {string} */ message, /** @type {{currentStudentId?: string, newStudentId?: string}} */ row = {}) => ({
   rowNumber,
   currentStudentId: row.currentStudentId || '',
   newStudentId: row.newStudentId || '',
   message
 })
 
-const bulkUpdateStudentIds = async (context, result = createServiceResponder()) => {
+const bulkUpdateStudentIds = async (/** @type {ReturnType<typeof import('../utils/controllerAdapter').buildServiceContext>} */ context, result = createServiceResponder()) => {
   if (!context.file?.path) {
     return result.withStatus(400, { message: 'Please upload a CSV or XLSX file' })
   }
@@ -797,16 +813,20 @@ const bulkUpdateStudentIds = async (context, result = createServiceResponder()) 
   try {
     rows = await loadStudentIdUpdateRows(context.file.path, context.file.originalname)
   } catch (error) {
-    return result.withStatus(400, { message: error.message || 'Unable to read uploaded file' })
+    return result.withStatus(400, { message: errorInfo(error).message || 'Unable to read uploaded file' })
   }
 
   if (rows.length === 0) {
     return result.withStatus(400, { message: 'No Student ID updates found in the uploaded file' })
   }
 
+  /** @type {ReturnType<typeof buildStudentIdUpdateError>[]} */
   const failures = []
   const seenCurrentIds = new Set()
   const seenNewIds = new Set()
+  /**
+   * @type {{ rowNumber: number; currentStudentId: string; newStudentId: string; }[]}
+   */
   const candidateRows = []
 
   rows.forEach((row) => {
@@ -880,7 +900,7 @@ const bulkUpdateStudentIds = async (context, result = createServiceResponder()) 
       return
     }
 
-    if (coordinatorDepartments.length > 0 && !coordinatorDepartments.includes(student.department)) {
+    if (coordinatorDepartments.length > 0 && !coordinatorDepartments.includes(student.department || "")) {
       failures.push(buildStudentIdUpdateError(row.rowNumber, 'You can only update students in your own department', row))
       return
     }
@@ -926,9 +946,9 @@ const bulkUpdateStudentIds = async (context, result = createServiceResponder()) 
 // CREATE COORDINATOR
 // ================================
 /**
- * @param {object} context - The request context passed by controllerAdapter
- * @param {object} [result] - The serviceResult responder
- * @returns {Promise<object>} Service result
+ * @param {ReturnType<typeof import('../utils/controllerAdapter').buildServiceContext>} context - The request context passed by controllerAdapter
+ * @param {import('../utils/serviceResult').ServiceResponder} [result] - The serviceResult responder
+ * @returns {Promise<import('../utils/serviceResult').ServiceResult | void>} Service result
  */
 const createCoordinator = async (context, result = createServiceResponder()) => {
     const { name, email, password, phone, address, department } = context.body
@@ -972,6 +992,7 @@ const createCoordinator = async (context, result = createServiceResponder()) => 
   })
   clearStatsCache()
 
+  if (!user.coordinator) throw new Error('Created coordinator profile is missing')
   result.withStatus(201, {
     message: 'Coordinator created successfully!',
     user: {
@@ -1000,9 +1021,9 @@ const createCoordinator = async (context, result = createServiceResponder()) => 
 // CREATE GATEKEEPER
 // ================================
 /**
- * @param {object} context - The request context passed by controllerAdapter
- * @param {object} [result] - The serviceResult responder
- * @returns {Promise<object>} Service result
+ * @param {ReturnType<typeof import('../utils/controllerAdapter').buildServiceContext>} context - The request context passed by controllerAdapter
+ * @param {import('../utils/serviceResult').ServiceResponder} [result] - The serviceResult responder
+ * @returns {Promise<import('../utils/serviceResult').ServiceResult | void>} Service result
  */
 const createGatekeeper = async (context, result = createServiceResponder()) => {
     const { name, email, password, phone, address, department } = context.body
@@ -1085,9 +1106,9 @@ const createGatekeeper = async (context, result = createServiceResponder()) => {
 // CREATE INSTRUCTOR
 // ================================
 /**
- * @param {object} context - The request context passed by controllerAdapter
- * @param {object} [result] - The serviceResult responder
- * @returns {Promise<object>} Service result
+ * @param {ReturnType<typeof import('../utils/controllerAdapter').buildServiceContext>} context - The request context passed by controllerAdapter
+ * @param {import('../utils/serviceResult').ServiceResponder} [result] - The serviceResult responder
+ * @returns {Promise<import('../utils/serviceResult').ServiceResult | void>} Service result
  */
 const createInstructor = async (context, result = createServiceResponder()) => {
     const { name, email, password, phone, address, department, departments } = context.body
@@ -1140,6 +1161,7 @@ const createInstructor = async (context, result = createServiceResponder()) => {
     include: { instructor: { include: instructorDepartmentMembershipInclude } }
   })
   const createdInstructor = addInstructorDepartments(user.instructor)
+  if (!createdInstructor) throw new Error("Created instructor profile is missing")
   clearStatsCache()
 
   result.withStatus(201, {
@@ -1173,9 +1195,9 @@ const createInstructor = async (context, result = createServiceResponder()) => {
 // CREATE STUDENT
 // ================================
 /**
- * @param {object} context - The request context passed by controllerAdapter
- * @param {object} [result] - The serviceResult responder
- * @returns {Promise<object>} Service result
+ * @param {ReturnType<typeof import('../utils/controllerAdapter').buildServiceContext>} context - The request context passed by controllerAdapter
+ * @param {import('../utils/serviceResult').ServiceResponder} [result] - The serviceResult responder
+ * @returns {Promise<import('../utils/serviceResult').ServiceResult | void>} Service result
  */
 const createStudent = async (context, result = createServiceResponder()) => {
     const { name, email, studentId, phone, address, semester, section, department } = context.body
@@ -1233,6 +1255,7 @@ const createStudent = async (context, result = createServiceResponder()) => {
     section: normalizedSection,
     department: normalizedDepartment
   })
+  if (!user.student) throw new Error("Created student profile is missing")
   const welcomeEmailSent = await sendStudentWelcomeEmail({
     name: user.name,
     email: user.email,
@@ -1278,9 +1301,9 @@ const createStudent = async (context, result = createServiceResponder()) => {
 // UPDATE USER
 // ================================
 /**
- * @param {object} context - The request context passed by controllerAdapter
- * @param {object} [result] - The serviceResult responder
- * @returns {Promise<object>} Service result
+ * @param {ReturnType<typeof import('../utils/controllerAdapter').buildServiceContext>} context - The request context passed by controllerAdapter
+ * @param {import('../utils/serviceResult').ServiceResponder} [result] - The serviceResult responder
+ * @returns {Promise<import('../utils/serviceResult').ServiceResult | void>} Service result
  */
 const updateUser = async (context, result = createServiceResponder()) => {
     const { id } = context.params
@@ -1499,7 +1522,7 @@ const updateUser = async (context, result = createServiceResponder()) => {
 /**
  * Enables or disables a managed user after scope checks and revokes access
  * tokens when disabling the account.
- * @param {Record<string, any> & { params: { id: string }, user: { id: string, role: string } }} context - Toggle-status request context.
+ * @param {ReturnType<typeof import("../utils/controllerAdapter").buildServiceContext>} context - Toggle-status request context.
  * @param {import('../utils/serviceResult').ServiceResponder} [result] - Service result responder.
  * @returns {Promise<import('../utils/serviceResult').ServiceResult | void>} Service result.
  */
@@ -1569,6 +1592,7 @@ const toggleUserStatus = async (context, result = createServiceResponder()) => {
     }
   })
 
+  if (!updatedUser) return result.withStatus(409, { message: "User changed before the status could be confirmed. Please refresh." })
   result.ok({
     message: `User ${updatedUser.isActive ? 'enabled' : 'disabled'} successfully!`,
     isActive: updatedUser.isActive
@@ -1595,9 +1619,9 @@ const toggleUserStatus = async (context, result = createServiceResponder()) => {
 // DELETE USER
 // ================================
 /**
- * @param {object} context - The request context passed by controllerAdapter
- * @param {object} [result] - The serviceResult responder
- * @returns {Promise<object>} Service result
+ * @param {ReturnType<typeof import('../utils/controllerAdapter').buildServiceContext>} context - The request context passed by controllerAdapter
+ * @param {import('../utils/serviceResult').ServiceResponder} [result] - The serviceResult responder
+ * @returns {Promise<import('../utils/serviceResult').ServiceResult | void>} Service result
  */
 const deleteUser = async (context, result = createServiceResponder()) => {
     const { id } = context.params
@@ -1680,9 +1704,9 @@ const deleteUser = async (context, result = createServiceResponder()) => {
 }
 
 /**
- * @param {object} context - The request context passed by controllerAdapter
- * @param {object} [result] - The serviceResult responder
- * @returns {Promise<object>} Service result
+ * @param {ReturnType<typeof import('../utils/controllerAdapter').buildServiceContext>} context - The request context passed by controllerAdapter
+ * @param {import('../utils/serviceResult').ServiceResponder} [result] - The serviceResult responder
+ * @returns {Promise<import('../utils/serviceResult').ServiceResult | void>} Service result
  */
 const bulkAssignStudentSection = async (context, result = createServiceResponder()) => {
     const { userIds, department, semester, section } = context.body
@@ -1794,9 +1818,9 @@ const bulkAssignStudentSection = async (context, result = createServiceResponder
 }
 
 /**
- * @param {object} context - The request context passed by controllerAdapter
- * @param {object} [result] - The serviceResult responder
- * @returns {Promise<object>} Service result
+ * @param {ReturnType<typeof import('../utils/controllerAdapter').buildServiceContext>} context - The request context passed by controllerAdapter
+ * @param {import('../utils/serviceResult').ServiceResponder} [result] - The serviceResult responder
+ * @returns {Promise<import('../utils/serviceResult').ServiceResult | void>} Service result
  */
 const promoteStudentSemester = async (context, result = createServiceResponder()) => {
     const { id } = context.params

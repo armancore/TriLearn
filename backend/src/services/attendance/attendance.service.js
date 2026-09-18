@@ -17,16 +17,16 @@ const {
   recordAuditLog
 } = require('./shared.service')
 
-const sanitizeFilenamePart = (value) => String(value || 'attendance')
+const sanitizeFilenamePart = (/** @type {string} */ value) => String(value || 'attendance')
   .replace(/[^a-z0-9-_]+/gi, '-')
   .replace(/-+/g, '-')
   .replace(/^-|-$/g, '')
   .toLowerCase()
 
 /**
- * @param {object} context - The request context passed by controllerAdapter
- * @param {object} [result] - The serviceResult responder
- * @returns {Promise<object>} Service result
+ * @param {ReturnType<typeof import('../../utils/controllerAdapter').buildServiceContext>} context - The request context passed by controllerAdapter
+ * @param {import('../../utils/serviceResult').ServiceResponder} [result] - The serviceResult responder
+ * @returns {Promise<import('../../utils/serviceResult').ServiceResult | void>} Service result
  */
 const markAttendanceManual = async (context, result = createServiceResponder()) => {
     const { subjectId, attendanceDate, attendanceList, semester, section } = context.body
@@ -96,9 +96,9 @@ const markAttendanceManual = async (context, result = createServiceResponder()) 
 }
 
 /**
- * @param {object} context - The request context passed by controllerAdapter
- * @param {object} [result] - The serviceResult responder
- * @returns {Promise<object>} Service result
+ * @param {ReturnType<typeof import('../../utils/controllerAdapter').buildServiceContext>} context - The request context passed by controllerAdapter
+ * @param {import('../../utils/serviceResult').ServiceResponder} [result] - The serviceResult responder
+ * @returns {Promise<import('../../utils/serviceResult').ServiceResult | void>} Service result
  */
 const getAttendanceBySubject = async (context, result = createServiceResponder()) => {
     const { subjectId } = context.params
@@ -108,9 +108,10 @@ const getAttendanceBySubject = async (context, result = createServiceResponder()
   const access = await getOwnedSubject(subjectId, context)
   if (access.error) return result.withStatus(access.error.status, { message: access.error.message })
 
+  /** @type {import("@prisma/client").Prisma.AttendanceWhereInput} */
   const filters = {
     subjectId,
-    ...(semester || section ? { student: { ...(semester ? { semester: parseInt(semester, 10) } : {}), ...(section ? { section } : {}) } } : {})
+    ...(semester || section ? { student: { ...(semester ? { semester: parseInt(String(semester), 10) } : {}), ...(typeof section === "string" && section ? { section } : {}) } } : {})
   }
   const dayRange = date ? getDayRange(date) : null
   if (date && !dayRange) return result.withStatus(400, { message: 'Please provide a valid date filter' })
@@ -135,12 +136,13 @@ const getAttendanceBySubject = async (context, result = createServiceResponder()
 }
 
 /**
- * @param {object} context - The request context passed by controllerAdapter
- * @param {object} [result] - The serviceResult responder
- * @returns {Promise<object>} Service result
+ * @param {ReturnType<typeof import('../../utils/controllerAdapter').buildServiceContext>} context - The request context passed by controllerAdapter
+ * @param {import('../../utils/serviceResult').ServiceResponder} [result] - The serviceResult responder
+ * @returns {Promise<import('../../utils/serviceResult').ServiceResult | void>} Service result
  */
 const getBulkAttendanceSummary = async (context, result = createServiceResponder()) => {
     const { subjectIds, date } = context.query
+  if (!Array.isArray(subjectIds) || !subjectIds.every(id => typeof id === "string")) return result.withStatus(400, { message: "Subject IDs must be a list of strings" })
   const uniqueSubjectIds = [...new Set(subjectIds)]
   const dayRange = date ? getDayRange(date) : null
 
@@ -210,9 +212,9 @@ const getBulkAttendanceSummary = async (context, result = createServiceResponder
 }
 
 /**
- * @param {object} context - The request context passed by controllerAdapter
- * @param {object} [result] - The serviceResult responder
- * @returns {Promise<object>} Service result
+ * @param {ReturnType<typeof import('../../utils/controllerAdapter').buildServiceContext>} context - The request context passed by controllerAdapter
+ * @param {import('../../utils/serviceResult').ServiceResponder} [result] - The serviceResult responder
+ * @returns {Promise<import('../../utils/serviceResult').ServiceResult | void>} Service result
  */
 const getMyAttendance = async (context, result = createServiceResponder()) => {
     const { page, limit, skip } = getPagination(context.query)
@@ -244,6 +246,7 @@ const getMyAttendance = async (context, result = createServiceResponder()) => {
     : []
 
   const subjectLookup = new Map(subjects.map((subject) => [subject.id, subject]))
+  /** @type {Record<string, {total: number, present: number, absent: number, late: number, subject?: {name: string, code: string}}>} */
   const subjectMap = {}
   groupedAttendance.forEach((record) => {
     const key = record.subjectId
@@ -277,9 +280,9 @@ const getMyAttendance = async (context, result = createServiceResponder()) => {
 }
 
 /**
- * @param {object} context - The request context passed by controllerAdapter
- * @param {object} [result] - The serviceResult responder
- * @returns {Promise<object>} Service result
+ * @param {ReturnType<typeof import('../../utils/controllerAdapter').buildServiceContext>} context - The request context passed by controllerAdapter
+ * @param {import('../../utils/serviceResult').ServiceResponder} [result] - The serviceResult responder
+ * @returns {Promise<import('../../utils/serviceResult').ServiceResult | void>} Service result
  */
 const exportMyAttendancePdf = async (context, result = createServiceResponder()) => {
     const student = context.student
@@ -308,6 +311,7 @@ const exportMyAttendancePdf = async (context, result = createServiceResponder())
     return result.withStatus(404, { message: 'Student profile not found' })
   }
 
+  /** @type {Record<string, {total: number, present: number, absent: number, late: number, subject: {name: string, code: string}}>} */
   const summaryMap = {}
   attendance.forEach((record) => {
     const key = record.subjectId
@@ -395,9 +399,9 @@ const exportMyAttendancePdf = async (context, result = createServiceResponder())
 }
 
 /**
- * @param {object} context - The request context passed by controllerAdapter
- * @param {object} [result] - The serviceResult responder
- * @returns {Promise<object>} Service result
+ * @param {ReturnType<typeof import('../../utils/controllerAdapter').buildServiceContext>} context - The request context passed by controllerAdapter
+ * @param {import('../../utils/serviceResult').ServiceResponder} [result] - The serviceResult responder
+ * @returns {Promise<import('../../utils/serviceResult').ServiceResult | void>} Service result
  */
 const getSubjectRoster = async (context, result = createServiceResponder()) => {
     const { subjectId } = context.params
@@ -413,7 +417,7 @@ const getSubjectRoster = async (context, result = createServiceResponder()) => {
     prisma.attendance.findMany({
       where: {
         subjectId,
-        ...(semester || section ? { student: { ...(semester ? { semester: parseInt(semester, 10) } : {}), ...(section ? { section } : {}) } } : {}),
+        ...(semester || section ? { student: { ...(semester ? { semester: parseInt(String(semester), 10) } : {}), ...(typeof section === "string" && section ? { section } : {}) } } : {}),
         date: { gte: dayRange.start, lt: dayRange.end }
       }
     })
@@ -435,7 +439,7 @@ const getSubjectRoster = async (context, result = createServiceResponder()) => {
   result.ok({
     subject: access.subject,
     date: dayRange.start,
-    semester: semester ? parseInt(semester, 10) : null,
+    semester: semester ? parseInt(String(semester), 10) : null,
     section: section || '',
     total: roster.length,
     roster,
@@ -444,9 +448,9 @@ const getSubjectRoster = async (context, result = createServiceResponder()) => {
 }
 
 /**
- * @param {object} context - The request context passed by controllerAdapter
- * @param {object} [result] - The serviceResult responder
- * @returns {Promise<object>} Service result
+ * @param {ReturnType<typeof import('../../utils/controllerAdapter').buildServiceContext>} context - The request context passed by controllerAdapter
+ * @param {import('../../utils/serviceResult').ServiceResponder} [result] - The serviceResult responder
+ * @returns {Promise<import('../../utils/serviceResult').ServiceResult | void>} Service result
  */
 const getCoordinatorDepartmentAttendanceReport = async (context, result = createServiceResponder()) => {
     const { month, semester, section } = context.query
@@ -456,9 +460,9 @@ const getCoordinatorDepartmentAttendanceReport = async (context, result = create
 }
 
 /**
- * @param {object} context - The request context passed by controllerAdapter
- * @param {object} [result] - The serviceResult responder
- * @returns {Promise<object>} Service result
+ * @param {ReturnType<typeof import('../../utils/controllerAdapter').buildServiceContext>} context - The request context passed by controllerAdapter
+ * @param {import('../../utils/serviceResult').ServiceResponder} [result] - The serviceResult responder
+ * @returns {Promise<import('../../utils/serviceResult').ServiceResult | void>} Service result
  */
 const getMonthlyAttendanceReport = async (context, result = createServiceResponder()) => {
     const { subjectId } = context.params
@@ -468,7 +472,8 @@ const getMonthlyAttendanceReport = async (context, result = createServiceRespond
 
   const monthRange = getMonthRange(month)
   if (!monthRange) return result.withStatus(400, { message: 'Please provide a valid month in YYYY-MM format' })
-  const [year, monthNumber] = month.split('-').map((value) => Number.parseInt(value, 10))
+  if (typeof month !== "string") return result.withStatus(400, { message: "Please provide a valid month" })
+  const [year, monthNumber] = month.split('-').map((/** @type {string} */ value) => Number.parseInt(value, 10))
 
   const [students, attendance] = await Promise.all([
     getSubjectStudents(access.subject),

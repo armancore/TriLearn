@@ -36,7 +36,7 @@ jest.mock('expo-secure-store', () => ({
 
 jest.mock('@/src/services/queryClient', () => ({
   queryClient: {
-    removeQueries: jest.fn(),
+    cancelQueries: jest.fn(), clear: jest.fn(),
   },
 }));
 

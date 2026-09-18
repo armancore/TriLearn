@@ -1,3 +1,4 @@
+/** @satisfies {import('@prisma/client').Prisma.UserSelect} */
 const userRoleSelect = {
   student: {
     select: {
@@ -30,7 +31,7 @@ const userRoleSelect = {
   }
 }
 
-const getUserSelect = ({ includeProfileDetails = false } = {}) => ({
+const getUserSelect = ({ includeProfileDetails = false } = {}) => /** @type {const} */ ({
   id: true,
   name: true,
   email: true,
@@ -70,13 +71,13 @@ const getUserSelect = ({ includeProfileDetails = false } = {}) => ({
 
 const getProfileSelect = () => getUserSelect({ includeProfileDetails: true })
 
-const getRequestUserAgent = (context) => String(context.get('user-agent') || '').slice(0, 255) || null
+const getRequestUserAgent = (/** @type {ReturnType<typeof import('../utils/controllerAdapter').buildServiceContext>} */ context) => String(context.get('user-agent') || '').slice(0, 255) || null
 
-const getRequestIpAddress = (context) => {
+const getRequestIpAddress = (/** @type {ReturnType<typeof import('../utils/controllerAdapter').buildServiceContext>} */ context) => {
   return String(context.ip || context.socket?.remoteAddress || '').slice(0, 64) || null
 }
 
-const waitForMinimumDuration = async (startedAt, minDurationMs) => {
+const waitForMinimumDuration = async (/** @type {number} */ startedAt, /** @type {number} */ minDurationMs) => {
   const elapsed = Date.now() - startedAt
   if (elapsed >= minDurationMs) {
     return

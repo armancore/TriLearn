@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { io } from 'socket.io-client'
-import { API_ORIGIN } from '../utils/api'
+import { API_ORIGIN, refreshSession } from '../utils/api'
 
 const useLiveNotifications = ({
   enabled,
@@ -38,6 +38,22 @@ const useLiveNotifications = ({
       transports: ['polling', 'websocket']
     })
     let disposed = false
+    let renewing = false
+    const reconnectSession = async () => {
+      if (disposed || renewing) return
+      renewing = true
+      try {
+        await refreshSession()
+        if (!disposed) socket.connect()
+      } catch {
+        // The auth layer clears invalid sessions; never reconnect with stale cookies.
+      } finally {
+        renewing = false
+      }
+    }
+    socket.on('disconnect', (reason) => {
+      if (reason === 'io server disconnect') void reconnectSession()
+    })
     const connectTimer = window.setTimeout(() => {
       if (!disposed) {
         socket.connect()
@@ -62,9 +78,8 @@ const useLiveNotifications = ({
       socket.off('notification:new')
       socket.off('notification:read')
       socket.off('notification:read-all')
-      if (socket.connected) {
-        socket.disconnect()
-      }
+      socket.off('disconnect')
+      socket.disconnect()
     }
   }, [enabled])
 }

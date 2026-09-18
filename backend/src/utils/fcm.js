@@ -1,3 +1,4 @@
+const { errorInfo } = require('./errorInfo')
 const https = require('node:https')
 const { JWT } = require('google-auth-library')
 const logger = require('./logger')
@@ -12,8 +13,10 @@ const STALE_ERROR_CODES = new Set([
   'UNREGISTERED',
   'registration-token-not-registered'
 ])
+/** @type {{cacheKey: string, projectId: string, client: JWT} | null} */
 let cachedFcmAuth = null
 
+/** @param {Record<string, unknown>} [data] */
 const normalizeDataPayload = (data = {}) => Object.entries(data || {}).reduce((acc, [key, value]) => {
   if (value === undefined || value === null) {
     return acc
@@ -21,11 +24,11 @@ const normalizeDataPayload = (data = {}) => Object.entries(data || {}).reduce((a
 
   acc[key] = typeof value === 'string' ? value : JSON.stringify(value)
   return acc
-}, {})
+}, /** @type {Record<string, string>} */ ({}))
 
-const getTokenSuffix = (token) => String(token || '').slice(-8)
+const getTokenSuffix = (/** @type {string} */ token) => String(token || '').slice(-8)
 
-const parseFcmResponseBody = (text) => {
+const parseFcmResponseBody = (/** @type {string} */ text) => {
   if (!text) {
     return null
   }
@@ -37,6 +40,7 @@ const parseFcmResponseBody = (text) => {
   }
 }
 
+/** @param {{token: string, success?: boolean, skipped?: boolean, status?: number | null, messageId?: string | null, errorCode?: string | null, errorMessage?: string | null}} options */
 const buildTokenResult = ({
   token,
   success = false,
@@ -53,8 +57,8 @@ const buildTokenResult = ({
   messageId,
   errorCode,
   errorMessage,
-  stale: status === 404 || STALE_ERROR_CODES.has(errorCode),
-  retryable: RETRYABLE_STATUS_CODES.has(status)
+  stale: status === 404 || STALE_ERROR_CODES.has(errorCode || ""),
+  retryable: RETRYABLE_STATUS_CODES.has(status || 0)
 })
 
 const parseServiceAccountJson = () => {
@@ -72,7 +76,7 @@ const parseServiceAccountJson = () => {
 
     return serviceAccount
   } catch (error) {
-    logger.error('Invalid FCM_SERVICE_ACCOUNT_JSON configuration', { message: error.message })
+    logger.error('Invalid FCM_SERVICE_ACCOUNT_JSON configuration', { message: errorInfo(error).message })
     return null
   }
 }
@@ -101,11 +105,11 @@ const getFcmAuth = () => {
   return cachedFcmAuth
 }
 
-const getFcmAccessToken = async (client) => {
+const getFcmAccessToken = async (/** @type {JWT} */ client) => {
   const headers = await client.getRequestHeaders()
   const authorization = typeof headers.get === 'function'
     ? headers.get('authorization')
-    : headers.Authorization || headers.authorization
+    : Reflect.get(headers, 'Authorization') || Reflect.get(headers, 'authorization')
   const token = String(authorization || '').replace(/^Bearer\s+/i, '').trim()
 
   if (!token) {
@@ -115,6 +119,8 @@ const getFcmAccessToken = async (client) => {
   return token
 }
 
+/** @param {{projectId: string, accessToken: string, payload: unknown}} options
+ * @returns {Promise<{ok: boolean, status: number, statusText: string, body: string}>} */
 const postFcmPayload = ({ projectId, accessToken, payload }) => new Promise((resolve, reject) => {
   const requestBody = JSON.stringify(payload)
   const request = https.request({
@@ -127,6 +133,7 @@ const postFcmPayload = ({ projectId, accessToken, payload }) => new Promise((res
       'Content-Length': Buffer.byteLength(requestBody)
     }
   }, (response) => {
+    /** @type {Buffer[]} */
     const chunks = []
 
     response.on('data', (chunk) => {
@@ -135,9 +142,9 @@ const postFcmPayload = ({ projectId, accessToken, payload }) => new Promise((res
 
     response.on('end', () => {
       resolve({
-        ok: response.statusCode >= 200 && response.statusCode < 300,
-        status: response.statusCode,
-        statusText: response.statusMessage,
+        ok: (response.statusCode || 0) >= 200 && (response.statusCode || 0) < 300,
+        status: response.statusCode || 0,
+        statusText: response.statusMessage || "",
         body: Buffer.concat(chunks).toString('utf8')
       })
     })
@@ -148,6 +155,7 @@ const postFcmPayload = ({ projectId, accessToken, payload }) => new Promise((res
   request.end()
 })
 
+/** @param {{token: string, title: string, body: string, data: Record<string, unknown>, projectId: string, accessToken: string}} options */
 const sendToToken = async ({ token, title, body, data, projectId, accessToken }) => {
   const response = await postFcmPayload({
     projectId,
@@ -165,7 +173,7 @@ const sendToToken = async ({ token, title, body, data, projectId, accessToken })
   })
 
   const payload = parseFcmResponseBody(response.body)
-  const fcmError = payload?.error?.details?.find((detail) => detail?.['@type'] === 'type.googleapis.com/google.firebase.fcm.v1.FcmError')
+  const fcmError = payload?.error?.details?.find((/** @type {{ [x: string]: string; }} */ detail) => detail?.['@type'] === 'type.googleapis.com/google.firebase.fcm.v1.FcmError')
   const errorCode = fcmError?.errorCode || payload?.error?.status || payload?.error
   const messageId = payload?.name || null
 
@@ -187,6 +195,7 @@ const sendToToken = async ({ token, title, body, data, projectId, accessToken })
   })
 }
 
+/** @param {string[]} tokens @param {string} title @param {string} body @param {Record<string, unknown>} [data] */
 const sendPushNotification = async (tokens = [], title, body, data = {}) => {
   const uniqueTokens = [...new Set(tokens.filter(Boolean))]
 
@@ -233,6 +242,7 @@ const sendPushNotification = async (tokens = [], title, body, data = {}) => {
         })
       }
 
+      if (!result) throw new Error("No FCM delivery attempt completed")
       if (result.success) {
         logger.info('FCM push delivered', {
           tokenSuffix: getTokenSuffix(token),
@@ -254,15 +264,15 @@ const sendPushNotification = async (tokens = [], title, body, data = {}) => {
     } catch (error) {
       logger.error('FCM push failed', {
         tokenSuffix: getTokenSuffix(token),
-        message: error.message,
-        stack: error.stack,
+        message: errorInfo(error).message,
+        stack: errorInfo(error).stack,
         retryable: true
       })
 
       return buildTokenResult({
         token,
         errorCode: 'FCM_REQUEST_FAILED',
-        errorMessage: error.message
+        errorMessage: errorInfo(error).message
       })
     }
   }))

@@ -1,16 +1,20 @@
+const { errorInfo } = require('./errorInfo')
 const logger = require('./logger')
 
+/**
+ * @type {typeof import("@sentry/node") | null | undefined}
+ */
 let sentry = null
 let initialized = false
 
-const parseSampleRate = (value, fallback = 0) => {
+const parseSampleRate = (/** @type {string | undefined} */ value, fallback = 0) => {
   const parsed = Number.parseFloat(String(value ?? ''))
   return Number.isFinite(parsed) && parsed >= 0 && parsed <= 1 ? parsed : fallback
 }
 
 const getEnvironment = () => process.env.SENTRY_ENVIRONMENT || process.env.NODE_ENV || 'development'
 
-const sanitizeExtra = (value) => JSON.parse(JSON.stringify(value || {}, (_key, nestedValue) => {
+const sanitizeExtra = (/** @type {unknown} */ value) => JSON.parse(JSON.stringify(value || {}, (_key, nestedValue) => {
   if (nestedValue instanceof Error) {
     return {
       message: nestedValue.message,
@@ -42,19 +46,21 @@ const initMonitoring = () => {
   } catch (error) {
     sentry = null
     logger.warn('Sentry monitoring requested but could not be initialized', {
-      message: error.message
+      message: errorInfo(error).message
     })
   }
 
   return { enabled: Boolean(sentry), sentry }
 }
 
+/** @param {unknown} error @param {{level?: import("@sentry/node").SeverityLevel, tags?: Record<string, unknown>, user?: import("@sentry/node").User, extra?: Record<string, unknown>}} [context] */
 const captureException = (error, context = {}) => {
   if (!sentry) {
     return null
   }
 
-  return sentry.withScope((scope) => {
+  const client = sentry
+  return client.withScope((scope) => {
     if (context.level) {
       scope.setLevel(context.level)
     }
@@ -75,11 +81,11 @@ const captureException = (error, context = {}) => {
       scope.setExtras(sanitizeExtra(context.extra))
     }
 
-    return sentry.captureException(error)
+    return client.captureException(error)
   })
 }
 
-const captureRequestException = (error, req) => captureException(error, {
+const captureRequestException = (/** @type {unknown} */ error, /** @type {import("express").Request} */ req) => captureException(error, {
   tags: {
     requestId: req?.id,
     method: req?.method,

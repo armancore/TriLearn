@@ -5,40 +5,40 @@ const {
   buildDateWithTime
 } = require('./time.helpers')
 
-const normalizeSemesterList = (semesters = []) => (
+const normalizeSemesterList = (/** @type {(number | string)[]} */ semesters = []) => (
   [...new Set(
     semesters
-      .map((value) => parseInt(value, 10))
+      .map((value) => parseInt(String(value), 10))
       .filter((value) => Number.isInteger(value) && value >= 1 && value <= 12)
   )].sort((left, right) => left - right)
 )
 
-const getDepartmentScope = (department) => (
+const getDepartmentScope = (/** @type {string | null} */ department) => (
   department
     ? [{ department: null }, { department: '' }, { department }]
     : [{ department: null }, { department: '' }]
 )
 
-const hasPrismaDelegateMethod = (delegate, methodName) => (
-  Boolean(delegate && typeof delegate[methodName] === 'function')
+const hasPrismaDelegateMethod = (/** @type {unknown} */ delegate, /** @type {string} */ methodName) => (
+  Boolean(delegate && typeof delegate === 'object' && typeof Reflect.get(delegate, methodName) === 'function')
 )
 
 const hasAbsenceTicketDelegate = () => hasPrismaDelegateMethod(prisma.absenceTicket, 'findMany')
 const hasAttendanceHolidayDelegate = () => hasPrismaDelegateMethod(prisma.attendanceHoliday, 'findFirst')
 
-const respondAttendanceTicketUnavailable = (result) => (
+const respondAttendanceTicketUnavailable = (/** @type {import('../../utils/serviceResult').ServiceResponder} */ result) => (
   result.withStatus(503, {
     message: 'Attendance tickets are not available yet. Run the latest Prisma generate and migrations for this feature.'
   })
 )
 
-const getGateWindowRange = (baseDate, gateWindow) => ({
+const getGateWindowRange = (/** @type {Date} */ baseDate, /** @type {import('@prisma/client').GateScanWindow} */ gateWindow) => ({
   startsAt: buildDateWithTime(baseDate, gateWindow.startTime),
   endsAt: buildDateWithTime(baseDate, gateWindow.endTime)
 })
 
-const rangesOverlap = (leftStart, leftEnd, rightStart, rightEnd) => (
-  leftStart < rightEnd && leftEnd > rightStart
+const rangesOverlap = (/** @type {number | Date} */ leftStart, /** @type {number | Date} */ leftEnd, /** @type {number | Date} */ rightStart, /** @type {number | Date} */ rightEnd) => (
+  Number(leftStart) < Number(rightEnd) && Number(leftEnd) > Number(rightStart)
 )
 
 const getHolidayForDate = async (referenceDate = new Date()) => {
@@ -47,6 +47,7 @@ const getHolidayForDate = async (referenceDate = new Date()) => {
   }
 
   const dayRange = getDayRange(referenceDate)
+  if (!dayRange) throw new Error("Invalid attendance date")
   return prisma.attendanceHoliday.findFirst({
     where: {
       date: dayRange.start,
@@ -57,6 +58,7 @@ const getHolidayForDate = async (referenceDate = new Date()) => {
 
 const getDailyGateWindows = async (referenceDate = new Date()) => {
   const dayRange = getDayRange(referenceDate)
+  if (!dayRange) throw new Error("Invalid attendance date")
   const dayOfWeek = getCurrentDayName(dayRange.start)
   const holiday = await getHolidayForDate(dayRange.start)
 
@@ -78,11 +80,15 @@ const getDailyGateWindows = async (referenceDate = new Date()) => {
     }
   })
 
+  /**
+   * @type {typeof enrichedWindows}
+   */
   const active = []
+  /** @type {(typeof enrichedWindows)[number] | null} */
   let nextWindow = null
   const semesterCutoffMap = new Map()
 
-  enrichedWindows.forEach((window) => {
+  for (const window of enrichedWindows) {
     window.allowedSemesters.forEach((semester) => {
       const currentCutoff = semesterCutoffMap.get(semester)
       if (!currentCutoff || window.endsAt > currentCutoff) {
@@ -92,7 +98,7 @@ const getDailyGateWindows = async (referenceDate = new Date()) => {
 
     if (referenceDate >= window.startsAt && referenceDate <= window.endsAt) {
       active.push(window)
-      return
+      continue
     }
 
     if (referenceDate < window.startsAt) {
@@ -100,7 +106,7 @@ const getDailyGateWindows = async (referenceDate = new Date()) => {
         nextWindow = window
       }
     }
-  })
+  }
 
   return {
     dayRange,
@@ -113,8 +119,9 @@ const getDailyGateWindows = async (referenceDate = new Date()) => {
   }
 }
 
+/** @template {{subjectId: string}} T @param {T[]} routines */
 const dedupeRoutinesBySubject = (routines) => {
-  const routineMap = new Map()
+  const routineMap = new Map(/** @type {[string, T][]} */ ([]))
 
   routines.forEach((routine) => {
     if (!routineMap.has(routine.subjectId)) {
@@ -125,6 +132,7 @@ const dedupeRoutinesBySubject = (routines) => {
   return [...routineMap.values()]
 }
 
+/** @param {{studentId: string, dayOfWeek: import("@prisma/client").DayOfWeek}} options */
 const getStudentScheduledRoutinesForDay = async ({ studentId, dayOfWeek }) => {
   const student = await prisma.student.findUnique({
     where: { id: studentId },
@@ -177,6 +185,7 @@ const getStudentScheduledRoutinesForDay = async ({ studentId, dayOfWeek }) => {
   return dedupeRoutinesBySubject(routines)
 }
 
+/** @template {import("@prisma/client").Routine} T @param {{routines: T[], baseDate: Date, semester: number, windows: {allowedSemesters: number[], startsAt: Date, endsAt: Date}[]}} options */
 const filterRoutinesForSemesterWindows = ({ routines, baseDate, semester, windows }) => {
   if (!windows.length) {
     return []
@@ -193,7 +202,7 @@ const filterRoutinesForSemesterWindows = ({ routines, baseDate, semester, window
   })
 }
 
-const getEligibleGateAttendanceForStudent = async (student, referenceDate = new Date()) => {
+const getEligibleGateAttendanceForStudent = async (/** @type {Pick<import("@prisma/client").Student, "id" | "semester">} */ student, referenceDate = new Date()) => {
   const gateDay = await getDailyGateWindows(referenceDate)
 
   if (gateDay.holiday) {
@@ -277,6 +286,7 @@ const syncClosedRoutineAbsences = async (referenceDate = new Date()) => {
   })
 
   const existingKeys = new Set(existingAttendance.map((record) => `${record.studentId}:${record.subjectId}`))
+  /** @type {import("@prisma/client").Prisma.AttendanceCreateManyInput[]} */
   const absencesToCreate = []
 
   students.forEach((student) => {
@@ -290,7 +300,7 @@ const syncClosedRoutineAbsences = async (referenceDate = new Date()) => {
     }
 
     const semesterRoutines = routines.filter((routine) => (
-      routine.subject.enrollments.some((enrollment) => enrollment.studentId === student.id) &&
+      routine.subject.enrollments.some((/** @type {{ studentId: string; }} */ enrollment) => enrollment.studentId === student.id) &&
       routine.semester === student.semester &&
       (!routine.department || routine.department === student.department) &&
       (!routine.section || routine.section === student.section)

@@ -1,5 +1,6 @@
 const logger = require('../../utils/logger')
 
+/** @type {import("@prisma/client").DayOfWeek[]} */
 const DAYS = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY']
 const DEFAULT_ATTENDANCE_TIMEZONE = 'Asia/Kathmandu'
 const formatterCache = new Map()
@@ -20,7 +21,7 @@ const getAttendanceTimezone = () => {
   return DEFAULT_ATTENDANCE_TIMEZONE
 }
 
-const getFormatter = (cacheKey, options) => {
+const getFormatter = (/** @type {string} */ cacheKey, /** @type {Intl.DateTimeFormatOptions | undefined} */ options) => {
   if (!formatterCache.has(cacheKey)) {
     formatterCache.set(cacheKey, new Intl.DateTimeFormat('en-US', options))
   }
@@ -28,7 +29,7 @@ const getFormatter = (cacheKey, options) => {
   return formatterCache.get(cacheKey)
 }
 
-const parseDateOnly = (value) => {
+const parseDateOnly = (/** @type {unknown} */ value) => {
   if (typeof value !== 'string') {
     return null
   }
@@ -45,7 +46,7 @@ const parseDateOnly = (value) => {
   }
 }
 
-const getZonedDateParts = (dateValue, timeZone) => {
+const getZonedDateParts = (/** @type {Date | null} */ dateValue, /** @type {string} */ timeZone) => {
   const formatter = getFormatter(`date:${timeZone}`, {
     timeZone,
     year: 'numeric',
@@ -55,13 +56,13 @@ const getZonedDateParts = (dateValue, timeZone) => {
   const parts = formatter.formatToParts(dateValue)
 
   return {
-    year: Number.parseInt(parts.find((part) => part.type === 'year')?.value || '', 10),
-    month: Number.parseInt(parts.find((part) => part.type === 'month')?.value || '', 10),
-    day: Number.parseInt(parts.find((part) => part.type === 'day')?.value || '', 10)
+    year: Number.parseInt(parts.find((/** @type {{ type: string; }} */ part) => part.type === 'year')?.value || '', 10),
+    month: Number.parseInt(parts.find((/** @type {{ type: string; }} */ part) => part.type === 'month')?.value || '', 10),
+    day: Number.parseInt(parts.find((/** @type {{ type: string; }} */ part) => part.type === 'day')?.value || '', 10)
   }
 }
 
-const parseOffsetMinutes = (offsetValue) => {
+const parseOffsetMinutes = (/** @type {string} */ offsetValue) => {
   if (offsetValue === 'GMT' || offsetValue === 'UTC') {
     return 0
   }
@@ -77,7 +78,7 @@ const parseOffsetMinutes = (offsetValue) => {
   return sign * ((hours * 60) + minutes)
 }
 
-const getTimeZoneOffsetMs = (dateValue, timeZone) => {
+const getTimeZoneOffsetMs = (/** @type {Date} */ dateValue, /** @type {string} */ timeZone) => {
   const formatter = getFormatter(`offset:${timeZone}`, {
     timeZone,
     timeZoneName: 'shortOffset',
@@ -85,12 +86,12 @@ const getTimeZoneOffsetMs = (dateValue, timeZone) => {
   })
   const offsetValue = formatter
     .formatToParts(dateValue)
-    .find((part) => part.type === 'timeZoneName')?.value || 'GMT'
+    .find((/** @type {{ type: string; }} */ part) => part.type === 'timeZoneName')?.value || 'GMT'
 
   return parseOffsetMinutes(offsetValue) * 60 * 1000
 }
 
-const createZonedDate = (year, month, day, hours = 0, minutes = 0, seconds = 0, milliseconds = 0, timeZone = getAttendanceTimezone()) => {
+const createZonedDate = (/** @type {number} */ year, /** @type {number} */ month, /** @type {number | undefined} */ day, hours = 0, minutes = 0, seconds = 0, milliseconds = 0, timeZone = getAttendanceTimezone()) => {
   const utcGuess = Date.UTC(year, month - 1, day, hours, minutes, seconds, milliseconds)
   const firstOffset = getTimeZoneOffsetMs(new Date(utcGuess), timeZone)
   let zonedDate = new Date(utcGuess - firstOffset)
@@ -103,10 +104,11 @@ const createZonedDate = (year, month, day, hours = 0, minutes = 0, seconds = 0, 
   return zonedDate
 }
 
-const getDayRange = (dateValue) => {
+const getDayRange = (/** @type {unknown} */ dateValue = undefined) => {
+  if (dateValue != null && typeof dateValue !== "string" && typeof dateValue !== "number" && !(dateValue instanceof Date)) return null
   const timeZone = getAttendanceTimezone()
   const parsedDateOnly = parseDateOnly(dateValue)
-  const baseDate = parsedDateOnly ? null : (dateValue ? new Date(dateValue) : new Date())
+  const baseDate = dateValue ? new Date(dateValue) : new Date()
 
   if (!parsedDateOnly && Number.isNaN(baseDate.getTime())) {
     return null
@@ -129,12 +131,12 @@ const getDayRange = (dateValue) => {
   return { start, end }
 }
 
-const getMonthRange = (monthValue) => {
-  if (!monthValue || !/^\d{4}-\d{2}$/.test(monthValue)) {
+const getMonthRange = (/** @type {unknown} */ monthValue) => {
+  if (typeof monthValue !== "string" || !monthValue || !/^\d{4}-\d{2}$/.test(monthValue)) {
     return null
   }
 
-  const [year, month] = monthValue.split('-').map((value) => parseInt(value, 10))
+  const [year, month] = monthValue.split('-').map((/** @type {string} */ value) => parseInt(value, 10))
   const timeZone = getAttendanceTimezone()
   const start = createZonedDate(year, month, 1, 0, 0, 0, 0, timeZone)
 
@@ -156,17 +158,17 @@ const getCurrentDayName = (date = new Date()) => {
     weekday: 'long'
   })
   const weekday = formatter.format(date).toUpperCase()
-  return DAYS.includes(weekday) ? weekday : DAYS[date.getUTCDay()]
+  return DAYS.find(day => day === weekday) || DAYS[date.getUTCDay()]
 }
 
-const buildDateWithTime = (baseDate, timeValue) => {
-  const [hours, minutes] = timeValue.split(':').map((value) => parseInt(value, 10))
+const buildDateWithTime = (/** @type {Date} */ baseDate, /** @type {string} */ timeValue) => {
+  const [hours, minutes] = timeValue.split(':').map((/** @type {string} */ value) => parseInt(value, 10))
   const timezone = getAttendanceTimezone()
   const { year, month, day } = getZonedDateParts(baseDate, timezone)
   return createZonedDate(year, month, day, hours, minutes, 0, 0, timezone)
 }
 
-const formatDisplayDate = (dateValue) => {
+const formatDisplayDate = (/** @type {string | number | Date} */ dateValue) => {
   const timezone = getAttendanceTimezone()
   const formatter = getFormatter(`display:${timezone}`, {
     timeZone: timezone,
@@ -178,9 +180,9 @@ const formatDisplayDate = (dateValue) => {
   return formatter.format(new Date(dateValue))
 }
 
-const formatMonthLabel = (monthValue) => {
+const formatMonthLabel = (/** @type {unknown} */ monthValue) => {
   const range = getMonthRange(monthValue)
-  if (!range) return monthValue
+  if (!range) return typeof monthValue === "string" ? monthValue : ""
   return range.start.toLocaleString('en-US', { month: 'long', year: 'numeric', timeZone: getAttendanceTimezone() })
 }
 

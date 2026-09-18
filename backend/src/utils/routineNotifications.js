@@ -1,3 +1,5 @@
+/** @typedef {import('@prisma/client').Routine & {subject?: {name: string, code: string}}} RoutineSnapshot */
+/** @typedef {{event: string, routineId?: string, routine?: RoutineSnapshot}} RoutineJob */
 const prisma = require('./prisma')
 const { createNotifications } = require('./notifications')
 const { inferRoutineLink } = require('./notificationLinks')
@@ -27,6 +29,7 @@ const getRoutineInclude = () => ({
   }
 })
 
+/** @param {{department: string | null, semester: number, section: string | null, instructorId: string}} options */
 const getRoutineNotificationRecipients = async ({ department, semester, section, instructorId }) => {
   const [students, instructor, coordinators] = await Promise.all([
     prisma.student?.findMany
@@ -67,14 +70,16 @@ const getRoutineNotificationRecipients = async ({ department, semester, section,
     ...students.map((student) => ({ userId: student.userId, role: 'STUDENT' })),
     ...coordinators.map((coordinator) => ({ userId: coordinator.userId, role: 'COORDINATOR' })),
     instructor?.userId ? { userId: instructor.userId, role: 'INSTRUCTOR' } : null
-  ].filter(Boolean)
+  ].filter((recipient) => recipient !== null)
 }
 
+/** @param {{department: string | null, semester: number, section: string | null}} scope */
 const getRoutineAudienceLabel = ({ department, semester, section }) => {
   const scope = section ? `Section ${section}` : 'All Sections'
   return `${department || 'General'} • Semester ${semester} • ${scope}`
 }
 
+/** @param {{recipients: {userId: string, role: string}[], routine: RoutineSnapshot, event: string, title: string, message: string, dedupeKeyFactory: (userId: string) => string}} options */
 const notifyRoutineRecipients = async ({ recipients, routine, event, title, message, dedupeKeyFactory }) => {
   if (!recipients.length) {
     return { count: 0 }
@@ -117,7 +122,7 @@ const notifyRoutineRecipients = async ({ recipients, routine, event, title, mess
   }
 }
 
-const notifyRoutineCreated = async (routine) => {
+const notifyRoutineCreated = async (/** @type {RoutineSnapshot} */ routine) => {
   const recipients = await getRoutineNotificationRecipients({
     department: routine.department,
     semester: routine.semester,
@@ -131,11 +136,11 @@ const notifyRoutineCreated = async (routine) => {
     event: 'ROUTINE_CREATED',
     title: 'Subject added to routine',
     message: `${routine.subject?.name || 'A subject'} (${routine.subject?.code || 'N/A'}) ${routine.classType === 'WORKSHOP' ? 'workshop' : 'class'} was added on ${routine.dayOfWeek} ${routine.startTime}-${routine.endTime} for ${getRoutineAudienceLabel(routine)}.${routine.note ? ` ${routine.note}` : ''}`,
-    dedupeKeyFactory: (userId) => `routine-created:${routine.combinedGroupId || routine.id}:${userId}`
+    dedupeKeyFactory: (/** @type {string} */ userId) => `routine-created:${routine.combinedGroupId || routine.id}:${userId}`
   })
 }
 
-const notifyRoutineDeleted = async (routine) => {
+const notifyRoutineDeleted = async (/** @type {RoutineSnapshot} */ routine) => {
   const recipients = await getRoutineNotificationRecipients({
     department: routine.department,
     semester: routine.semester,
@@ -149,11 +154,11 @@ const notifyRoutineDeleted = async (routine) => {
     event: 'ROUTINE_DELETED',
     title: 'Subject removed from routine',
     message: `${routine.subject?.name || 'A subject'} (${routine.subject?.code || 'N/A'}) was removed from ${routine.dayOfWeek} ${routine.startTime}-${routine.endTime} for ${getRoutineAudienceLabel(routine)}.`,
-    dedupeKeyFactory: (userId) => `routine-deleted:${routine.id}:${userId}`
+    dedupeKeyFactory: (/** @type {string} */ userId) => `routine-deleted:${routine.id}:${userId}`
   })
 }
 
-const notifyRoutineUpdated = async (routine) => {
+const notifyRoutineUpdated = async (/** @type {RoutineSnapshot} */ routine) => {
   const recipients = await getRoutineNotificationRecipients({
     department: routine.department,
     semester: routine.semester,
@@ -167,11 +172,11 @@ const notifyRoutineUpdated = async (routine) => {
     event: 'ROUTINE_UPDATED',
     title: 'Routine updated',
     message: `${routine.subject?.name || 'A subject'} (${routine.subject?.code || 'N/A'}) is now scheduled as ${String(routine.classType || 'LECTURE').toLowerCase()} on ${routine.dayOfWeek} ${routine.startTime}-${routine.endTime} for ${getRoutineAudienceLabel(routine)}.${routine.note ? ` ${routine.note}` : ''}`,
-    dedupeKeyFactory: (userId) => `routine-updated:${routine.id}:${Date.now()}:${userId}`
+    dedupeKeyFactory: (/** @type {string} */ userId) => `routine-updated:${routine.id}:${Date.now()}:${userId}`
   })
 }
 
-const loadRoutine = async (routineId, routineSnapshot) => {
+const loadRoutine = async (/** @type {string | undefined} */ routineId, /** @type {RoutineSnapshot | undefined} */ routineSnapshot) => {
   if (routineSnapshot) {
     return routineSnapshot
   }
@@ -186,6 +191,7 @@ const loadRoutine = async (routineId, routineSnapshot) => {
   })
 }
 
+/** @param {RoutineJob} options */
 const processRoutineNotificationJob = async ({ event, routineId, routine }) => {
   const loadedRoutine = await loadRoutine(routineId, routine)
   if (!loadedRoutine) {
@@ -207,6 +213,7 @@ const processRoutineNotificationJob = async ({ event, routineId, routine }) => {
   throw new Error(`Unknown routine notification event: ${event}`)
 }
 
+/** @param {RoutineJob} options */
 const enqueueRoutineNotification = async ({ event, routineId, routine }) => {
   const job = await notificationQueue.add(ROUTINE_NOTIFICATION_JOB, {
     event,

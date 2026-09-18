@@ -23,7 +23,7 @@ const getRefreshSecret = () => {
   return process.env.JWT_REFRESH_SECRET
 }
 
-const signAccessToken = (user) => jwt.sign(
+const signAccessToken = (/** @type {{id: string, role: string}} */ user) => jwt.sign(
   {
     id: user.id,
     role: user.role,
@@ -34,7 +34,7 @@ const signAccessToken = (user) => jwt.sign(
   { expiresIn: ACCESS_TOKEN_EXPIRES_IN }
 )
 
-const signRefreshToken = (user) => jwt.sign(
+const signRefreshToken = (/** @type {{id: string, role: string}} */ user) => jwt.sign(
   {
     id: user.id,
     role: user.role,
@@ -45,9 +45,9 @@ const signRefreshToken = (user) => jwt.sign(
   { expiresIn: `${REFRESH_TOKEN_EXPIRES_DAYS}d` }
 )
 
-const verifyRefreshToken = (token) => jwt.verify(token, getRefreshSecret())
+const verifyRefreshToken = (/** @type {string} */ token) => jwt.verify(token, getRefreshSecret())
 
-const hashToken = (token) => crypto
+const hashToken = (/** @type {crypto.BinaryLike} */ token) => crypto
   .createHash('sha256')
   .update(token)
   .digest('hex')
@@ -58,7 +58,8 @@ const getRefreshTokenExpiry = (from = new Date()) => {
   return expiresAt
 }
 
-const getRefreshCookieOptions = (req, expiresAt = getRefreshTokenExpiry()) => {
+/** @returns {import("express").CookieOptions} */
+const getRefreshCookieOptions = (/** @type {import("./cookieSecurity").CookieRequest} */ req, expiresAt = getRefreshTokenExpiry()) => {
   const secure = getCookieSecurity(req)
 
   return {
@@ -74,7 +75,7 @@ const getRefreshCookieOptions = (req, expiresAt = getRefreshTokenExpiry()) => {
   }
 }
 
-const getAccessCookieExpiry = (token, fallbackFrom = new Date()) => {
+const getAccessCookieExpiry = (/** @type {string} */ token, fallbackFrom = new Date()) => {
   const decoded = jwt.decode(token)
   const expiresAtSeconds = Number(decoded?.exp)
 
@@ -85,7 +86,8 @@ const getAccessCookieExpiry = (token, fallbackFrom = new Date()) => {
   return new Date(fallbackFrom.getTime() + 15 * 60 * 1000)
 }
 
-const getAccessCookieOptions = (req, token = null) => {
+/** @returns {import("express").CookieOptions} */
+const getAccessCookieOptions = (/** @type {import("./cookieSecurity").CookieRequest} */ req, /** @type {string | null} */ token = null) => {
   const secure = getCookieSecurity(req)
 
   return {

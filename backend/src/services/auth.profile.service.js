@@ -274,6 +274,10 @@ const completeProfile = async (context, result = createServiceResponder()) => {
       return result.withStatus(404, { message: 'Student profile not found' })
     }
 
+    if (section !== undefined && sanitizedProfile.section !== (student.section || null)) {
+      return result.withStatus(403, { message: 'Students cannot update their section through profile settings' })
+    }
+
     const updatedUser = await prisma.$transaction(async (tx) => {
       const userRecord = await tx.user.update({
         where: { id: context.user.id },
@@ -297,7 +301,6 @@ const completeProfile = async (context, result = createServiceResponder()) => {
           localGuardianPhone: sanitizedProfile.localGuardianPhone,
           permanentAddress: sanitizedProfile.permanentAddress,
           temporaryAddress: sanitizedProfile.temporaryAddress,
-          section: sanitizedProfile.section,
           dateOfBirth
         }
       })

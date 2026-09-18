@@ -1,7 +1,7 @@
 const { createServiceResponder } = require('../utils/serviceResult')
 const prisma = require('../utils/prisma')
 
-const serializeSubject = (subject) => ({
+const serializeSubject = (/** @type {{ code: string; id: string; name: string; department: string | null; semester: number; }} */ subject) => ({
   id: subject.id,
   name: subject.name,
   code: subject.code,
@@ -9,7 +9,7 @@ const serializeSubject = (subject) => ({
   department: subject.department
 })
 
-const getInstructorStudents = async (context, result = createServiceResponder()) => {
+const getInstructorStudents = async (/** @type {ReturnType<typeof import('../utils/controllerAdapter').buildServiceContext>} */ context, result = createServiceResponder()) => {
   if (!context.instructor) {
     return result.withStatus(403, { message: 'Instructor profile not found' })
   }

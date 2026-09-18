@@ -1,9 +1,10 @@
 const { sanitizePlainText } = require('./sanitize')
 
-const normalizeEmail = (value) => String(value || '').trim().toLowerCase()
+const normalizeEmail = (/** @type {unknown} */ value) => String(value || '').trim().toLowerCase()
 
-const sanitizeOptionalPlainText = (value) => (value == null ? value : sanitizePlainText(value))
+const sanitizeOptionalPlainText = (/** @type {string | null | undefined} */ value) => (value == null ? value : sanitizePlainText(value))
 
+/** @param {import("@prisma/client").Prisma.TransactionClient} client @param {{emails?: string[], studentIds?: string[]}} [options] */
 const deleteStaleDeletedStudentAccounts = async (client, { emails = [], studentIds = [] } = {}) => {
   if (
     !client?.user ||

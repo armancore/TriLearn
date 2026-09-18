@@ -1,4 +1,4 @@
-import { Component, useEffect, type ReactNode } from 'react';
+import { Component, useEffect, useState, type ReactNode } from 'react';
 import { Redirect, Stack, useSegments } from 'expo-router';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -10,6 +10,7 @@ import Toast, { BaseToast, ErrorToast, type ToastConfig } from 'react-native-toa
 import OfflineBanner from '@/src/components/OfflineBanner';
 import { Button, Text } from '@/src/components/ui';
 import { ROLE_GROUP_MAP, ROLE_HOME_MAP } from '@/src/constants/routes';
+import { restoreSession } from '@/src/services/restoreSession';
 import { useAuth } from '@/src/hooks/useAuth';
 import { useNotifications } from '@/src/hooks/useNotifications';
 import { queryClient } from '@/src/services/queryClient';
@@ -151,6 +152,13 @@ function AppLayout() {
   const segments = useSegments();
   const { colors, isDark, isHydrated: isThemeHydrated } = useTheme();
   const { isHydrated, isAuthenticated, user } = useAuth();
+  const [sessionRestored, setSessionRestored] = useState(false);
+  useEffect(() => {
+    if (!isHydrated) return;
+    let active = true;
+    void restoreSession().finally(() => { if (active) setSessionRestored(true); });
+    return () => { active = false; };
+  }, [isHydrated]);
   const activeGroup = segments[0];
 
   useSocket();
@@ -208,7 +216,7 @@ function AppLayout() {
   // the first paint instead of flashing the default and snapping over.
   // Waiting on auth *and* theme so a stored light/dark choice applies before
   // the first paint. The navigator still mounts underneath — see SplashOverlay.
-  const isBooting = !isHydrated || !isThemeHydrated;
+  const isBooting = !isHydrated || !isThemeHydrated || !sessionRestored;
 
   // Routing decisions wait until the session is known; until then the render
   // below draws the navigator with the boot overlay on top.

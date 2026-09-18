@@ -1,20 +1,21 @@
-const normalizeDepartmentValue = (value) => String(value || '').trim()
+/** @typedef {{ department?: string | null, departments?: string[], departmentMemberships?: {department?: {name?: string} | string, departmentName?: string}[] } | string | null | undefined | unknown[]} DepartmentSource */
+const normalizeDepartmentValue = (/** @type {unknown} */ value) => String(value || '').trim()
 
-const normalizeDepartmentList = (values = []) => Array.from(new Set(
+const normalizeDepartmentList = (/** @type {unknown[]} */ values = []) => Array.from(new Set(
   values
     .map((value) => normalizeDepartmentValue(value))
     .filter(Boolean)
 ))
 
-const getInstructorDepartments = (instructorOrValue) => {
-  if (Array.isArray(instructorOrValue)) {
-    return normalizeDepartmentList(instructorOrValue)
+const getInstructorDepartments = (/** @type {DepartmentSource} */ instructorOrValue) => {
+  if (Array.isArray(/** @type {DepartmentSource} */ instructorOrValue)) {
+    return normalizeDepartmentList(/** @type {DepartmentSource} */ instructorOrValue)
   }
 
   if (instructorOrValue && typeof instructorOrValue === 'object') {
     const membershipDepartments = Array.isArray(instructorOrValue.departmentMemberships)
       ? instructorOrValue.departmentMemberships.map((membership) => (
-        membership?.department?.name || membership?.departmentName || membership?.department
+        (typeof membership?.department === "object" ? membership.department?.name : undefined) || membership?.departmentName || membership?.department
       ))
       : []
 
@@ -36,17 +37,17 @@ const getInstructorDepartments = (instructorOrValue) => {
   return normalizeDepartmentList([instructorOrValue])
 }
 
-const getPrimaryInstructorDepartment = (instructorOrValue) => (
-  getInstructorDepartments(instructorOrValue)[0] || null
+const getPrimaryInstructorDepartment = (/** @type {DepartmentSource} */ instructorOrValue) => (
+  getInstructorDepartments(/** @type {DepartmentSource} */ instructorOrValue)[0] || null
 )
 
-const instructorHasDepartment = (instructorOrValue, departmentValue) => {
+const instructorHasDepartment = (/** @type {DepartmentSource} */ instructorOrValue, /** @type {unknown} */ departmentValue) => {
   const normalizedDepartment = normalizeDepartmentValue(departmentValue)
   if (!normalizedDepartment) {
     return true
   }
 
-  return getInstructorDepartments(instructorOrValue)
+  return getInstructorDepartments(/** @type {DepartmentSource} */ instructorOrValue)
     .some((department) => department.toLowerCase() === normalizedDepartment.toLowerCase())
 }
 

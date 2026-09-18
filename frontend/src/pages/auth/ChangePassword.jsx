@@ -1,18 +1,15 @@
 import { useState } from 'react'
 import { ArrowRight, KeyRound, LockKeyhole, ShieldCheck } from 'lucide-react'
-import { useNavigate } from 'react-router'
 import Alert from '../../components/Alert'
 import AuthSplitLayout from '../../components/AuthSplitLayout'
 import FormInput from '../../components/common/FormInput'
 import { useAuth } from '../../context/AuthContext'
 import useForm from '../../hooks/useForm'
 import api from '../../utils/api'
-import { getHomeRouteForUser } from '../../utils/auth'
 import { getFriendlyErrorMessage } from '../../utils/errors'
 
 const ChangePassword = () => {
-  const navigate = useNavigate()
-  const { user, updateUser } = useAuth()
+  const { logout } = useAuth()
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const features = [
@@ -29,7 +26,7 @@ const ChangePassword = () => {
     {
       icon: LockKeyhole,
       title: 'Immediate activation',
-      description: 'After a successful update, your account continues with the new credential only.'
+      description: 'After a successful update, sign in again with your new password.'
     }
   ]
   const { values, errors, handleChange, handleSubmit } = useForm({
@@ -52,17 +49,11 @@ const ChangePassword = () => {
     try {
       setLoading(true)
       setError('')
-      const res = await api.post('/auth/change-password', {
+      await api.post('/auth/change-password', {
         currentPassword: values.currentPassword,
         newPassword: values.newPassword
       })
-      const nextUser = {
-        ...user,
-        ...res.data.user,
-        profileCompleted: res.data.user?.profileCompleted ?? user?.profileCompleted
-      }
-      updateUser(res.data.user)
-      navigate(getHomeRouteForUser(nextUser))
+      await logout({ skipRequest: true })
     } catch (requestError) {
       setError(getFriendlyErrorMessage(requestError, 'Unable to change your password.'))
     } finally {

@@ -9,7 +9,7 @@ const isLegacyKeyDisabled = () => String(process.env.QR_DISABLE_LEGACY_KEY || ''
 
 const parseConfiguredKeys = () => {
   const configured = String(process.env.QR_SIGNING_SECRET_KEYS || '').trim()
-  const keys = new Map()
+  const keys = new Map(/** @type {[string, string][]} */ ([]))
 
   if (configured) {
     configured
@@ -40,6 +40,7 @@ const parseConfiguredKeys = () => {
   return keys
 }
 
+/** @type {Map<string, string> | null} */
 let _cachedKeys = null
 const clearQrSigningKeyCache = () => {
   _cachedKeys = null
@@ -70,10 +71,12 @@ const getActiveQrSigningKey = () => {
     return { kid: firstNonLegacy[0], secret: firstNonLegacy[1] }
   }
 
-  return { kid: LEGACY_QR_KID, secret: keys.get(LEGACY_QR_KID) }
+  const secret = keys.get(LEGACY_QR_KID)
+  if (!secret) throw new Error("No QR signing key is configured")
+  return { kid: LEGACY_QR_KID, secret }
 }
 
-const signQrPayload = (payload) => {
+const signQrPayload = (/** @type {unknown} */ payload) => {
   const { kid, secret } = getActiveQrSigningKey()
   const signature = crypto
     .createHmac('sha256', secret)
@@ -83,7 +86,7 @@ const signQrPayload = (payload) => {
   return JSON.stringify({ payload, signature, kid })
 }
 
-const verifyQrPayload = (qrData) => {
+const verifyQrPayload = (/** @type {string} */ qrData) => {
   try {
     const parsed = JSON.parse(qrData)
     if (!parsed || typeof parsed !== 'object') return null

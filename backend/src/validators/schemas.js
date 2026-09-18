@@ -2,7 +2,7 @@ const { z } = require('zod')
 const { isKnownWeakPassword } = require('../utils/security')
 const { isPrivateIpv4, isPrivateIpv6 } = require('../utils/network')
 
-const emptyToUndefined = (value) => {
+const emptyToUndefined = (/** @type {unknown} */ value) => {
   if (typeof value !== 'string') return value
   const trimmed = value.trim()
   return trimmed === '' ? undefined : trimmed
@@ -58,7 +58,7 @@ const searchQuery = optionalString(100)
 const studentSemesterSchema = z.coerce.number().int().min(1).max(8)
 const MIN_DATE_OF_BIRTH = new Date(Date.UTC(1920, 0, 1))
 
-const parseDateOnlyToUtc = (value) => {
+const parseDateOnlyToUtc = (/** @type {string} */ value) => {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value)
   if (!match) {
     return null
@@ -81,7 +81,7 @@ const parseDateOnlyToUtc = (value) => {
   return parsed
 }
 
-const isDateOfBirthInRange = (value) => {
+const isDateOfBirthInRange = (/** @type {number | Date} */ value) => {
   const today = new Date()
   const maxDate = new Date(Date.UTC(
     today.getUTCFullYear(),
@@ -169,7 +169,7 @@ const strongPasswordSchema = z.string()
   .refine((value) => !isKnownWeakPassword(value), 'Password is too common. Please choose a stronger password')
 
 const timeSchema = z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, 'Invalid time format')
-const minutesFromTime = (timeValue) => {
+const minutesFromTime = (/** @type {string} */ timeValue) => {
   const [hours, minutes] = String(timeValue).split(':').map((value) => parseInt(value, 10))
   return (hours * 60) + minutes
 }
@@ -199,7 +199,7 @@ const selfProfileBody = z.object({
   permanentAddress: z.string().trim().min(5).max(255),
   temporaryAddress: z.string().trim().min(5).max(255),
   dateOfBirth: dateOfBirthSchema,
-  section: z.string().trim().min(1).max(20)
+  section: optionalString(20)
 })
 
 const studentApplicationBody = z.object({

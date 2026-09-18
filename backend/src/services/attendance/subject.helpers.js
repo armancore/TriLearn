@@ -3,7 +3,7 @@ const prisma = require('../../utils/prisma')
 const ATTENDANCE_STATUSES = ['PRESENT', 'ABSENT', 'LATE']
 const QR_VALIDITY_MINUTES = 15
 
-const getOwnedSubject = async (subjectId, context) => {
+const getOwnedSubject = async (/** @type {string} */ subjectId, /** @type {ReturnType<typeof import('../../utils/controllerAdapter').buildServiceContext>} */ context) => {
   const { user, instructor } = context
   const subject = await prisma.subject.findUnique({
     where: { id: subjectId },
@@ -53,8 +53,9 @@ const getOwnedSubject = async (subjectId, context) => {
   return { subject }
 }
 
+/** @param {{id: string}} subject @param {{semester?: unknown, section?: unknown}} [filters] */
 const getSubjectStudents = async (subject, filters = {}) => {
-  const normalizedSemester = filters.semester ? parseInt(filters.semester, 10) : null
+  const normalizedSemester = filters.semester ? parseInt(String(filters.semester), 10) : null
   const normalizedSection = filters.section ? String(filters.section).trim() : ''
 
   return prisma.student.findMany({
@@ -84,8 +85,9 @@ const getSubjectStudents = async (subject, filters = {}) => {
   })
 }
 
+/** @param {{status: import('@prisma/client').AttendanceStatus}[]} attendance */
 const buildAttendanceSummary = (attendance) => {
-  const totals = attendance.reduce((acc, record) => {
+  const totals = attendance.reduce((/** @type {{ [x: string]: number; total: number; }} */ acc, /** @type {{ status: string | number; }} */ record) => {
     acc.total += 1
     acc[record.status] += 1
     return acc
@@ -99,6 +101,7 @@ const buildAttendanceSummary = (attendance) => {
   }
 }
 
+/** @param {{status: import('@prisma/client').AttendanceStatus, _count: {_all: number}}[]} groups */
 const buildStatusSummary = (groups) => {
   const totals = groups.reduce((acc, group) => {
     acc.total += group._count._all

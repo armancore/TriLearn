@@ -1,4 +1,4 @@
-const attachActorProfiles = async (req, _res, next) => {
+const attachActorProfiles = async (/** @type {import('express').Request} */ req, /** @type {import('express').Response} */ _res, /** @type {import('express').NextFunction} */ next) => {
   if (!req.user?.id || !req.user?.role) {
     return next()
   }

@@ -1,6 +1,6 @@
-const normalizeDepartment = (department) => String(department || '').trim().toLowerCase()
+const normalizeDepartment = (/** @type {unknown} */ department) => String(department || '').trim().toLowerCase()
 
-const departmentsMatch = (left, right) => {
+const departmentsMatch = (/** @type {unknown} */ left, /** @type {unknown} */ right) => {
   const normalizedLeft = normalizeDepartment(left)
   const normalizedRight = normalizeDepartment(right)
 

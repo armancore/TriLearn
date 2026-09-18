@@ -1,10 +1,11 @@
 const { createServiceResponder } = require('../utils/serviceResult')
+const { errorInfo } = require('../utils/errorInfo')
 const prisma = require('../utils/prisma')
 const { getInstructorDepartments } = require('../utils/instructorDepartments')
 const { normalizeDepartmentList } = require('../utils/instructorDepartments')
 
-const normalizeDepartment = (value) => value ? value.trim() : ''
-const normalizeSection = (value) => String(value || '').trim().toUpperCase()
+const normalizeDepartment = (/** @type {string | undefined} */ value) => value ? value.trim() : ''
+const normalizeSection = (/** @type {unknown} */ value) => String(value || '').trim().toUpperCase()
 const MAX_SECTION_LENGTH = 20
 const activeStudentWhere = {
   user: {
@@ -15,10 +16,9 @@ const activeStudentWhere = {
 
 /**
  * Handles ensure department exists business logic.
- * @param {any} context - Service context.
- * @returns {Promise<any>} Service result.
+ * @param {string | undefined} departmentName
  */
-const ensureDepartmentExists = async (departmentName) => {
+const ensureDepartmentExists = async (/** @type {string | undefined} */ departmentName) => {
   const normalized = normalizeDepartment(departmentName)
   if (!normalized) return null
   if (typeof prisma.department?.findUnique !== 'function') {
@@ -49,7 +49,7 @@ const ensureDepartmentExistsService = async (context, result = createServiceResp
   return result.ok({ department })
 }
 
-const getCoordinatorDepartments = (context) => (
+const getCoordinatorDepartments = (/** @type {ReturnType<typeof import('../utils/controllerAdapter').buildServiceContext>} */ context) => (
   context?.user?.role === 'COORDINATOR'
     ? normalizeDepartmentList([
       ...(Array.isArray(context.coordinator?.departments) ? context.coordinator.departments : []),
@@ -58,7 +58,7 @@ const getCoordinatorDepartments = (context) => (
     : []
 )
 
-const canManageDepartment = (context, department) => {
+const canManageDepartment = (/** @type {ReturnType<typeof import('../utils/controllerAdapter').buildServiceContext>} */ context, /** @type {{name: string} | null} */ department) => {
   if (!department) {
     return false
   }
@@ -71,8 +71,8 @@ const canManageDepartment = (context, department) => {
   return coordinatorDepartments.includes(department.name)
 }
 
-const buildDepartmentSectionSummary = (sections = []) => {
-  const semesterMap = sections.reduce((acc, item) => {
+const buildDepartmentSectionSummary = (/** @type {{semester: number, section: string}[]} */ sections = []) => {
+  const semesterMap = sections.reduce((/** @type {Record<string, string[]>} */ acc, item) => {
     const semesterKey = String(item.semester)
     if (!acc[semesterKey]) {
       acc[semesterKey] = []
@@ -160,7 +160,7 @@ const getAllDepartments = async (context, result = createServiceResponder()) => 
     })
   ])
 
-  const toCountMap = (groups) => groups.reduce((acc, group) => {
+  const toCountMap = (/** @type {{department: string | null, _count: {_all: number}}[]} */ groups) => groups.reduce((/** @type {Record<string, number>} */ acc, group) => {
     if (group.department) {
       acc[group.department] = group._count._all
     }
@@ -169,7 +169,7 @@ const getAllDepartments = async (context, result = createServiceResponder()) => 
   }, {})
 
   const studentCountMap = toCountMap(studentCounts)
-  const instructorCountMap = instructors.reduce((acc, instructor) => {
+  const instructorCountMap = instructors.reduce((/** @type {Record<string, number>} */ acc, instructor) => {
     getInstructorDepartments(instructor).forEach((departmentName) => {
       acc[departmentName] = (acc[departmentName] || 0) + 1
     })
@@ -193,10 +193,9 @@ const getAllDepartments = async (context, result = createServiceResponder()) => 
 
 /**
  * Handles get public departments business logic.
- * @param {any} context - Service context.
- * @returns {Promise<any>} Service result.
+ * @param {unknown} _req
  */
-const getPublicDepartments = async (_req, result) => {
+const getPublicDepartments = async (_req, /** @type {import('../utils/serviceResult').ServiceResponder} */ result) => {
     const departments = await prisma.department.findMany({
     orderBy: { name: 'asc' },
     select: {
@@ -372,7 +371,7 @@ const createDepartmentSection = async (context, result = createServiceResponder(
       section: createdSection
     })
   } catch (error) {
-    if (error?.code === 'P2002') {
+    if (errorInfo(error).code === 'P2002') {
       return result.withStatus(400, { message: 'This section already exists for the selected semester' })
     }
     throw error

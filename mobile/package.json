@@ -65,15 +65,19 @@
     }
   },
   "overrides": {
+    "metro": "0.83.8",
+    "metro-config": "0.83.8",
+    "metro-transform-worker": "0.83.8",
     "@babel/core": "7.29.7",
     "@tootallnate/once": "^3.0.1",
     "form-data": "4.0.6",
-    "js-yaml": "4.3.1",
+    "js-yaml": "^4.3.2",
     "postcss": "8.5.25",
     "shell-quote": "1.10.0",
     "socket.io-parser": "4.2.7",
     "uuid": "^14.0.0",
-    "ws": "8.21.0"
+    "ws": "8.21.0",
+    "decode-uri-component": "file:./vendor/decode-uri-component"
   },
   "private": true
 }

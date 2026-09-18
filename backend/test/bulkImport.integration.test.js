@@ -7,6 +7,10 @@ const { createRequire } = require('node:module')
 const resolveFromTest = (...segments) => path.resolve(__dirname, '..', ...segments)
 const testUploadPath = resolveFromTest('test', '.tmp-bulk-import-uploads')
 
+test.after(async () => {
+  await fs.promises.rm(testUploadPath, { recursive: true, force: true })
+})
+
 const loadWithMocks = (targetPath, mocks) => {
   const modulePath = path.resolve(targetPath)
   const localRequire = createRequire(modulePath)
@@ -162,6 +166,8 @@ const createNotificationQueueMock = () => {
           const id = String(jobs.size + 1)
           const job = {
             id,
+            name: _jobName,
+            data: payload,
             payload,
             progress: 100,
             failedReason: null,
@@ -178,6 +184,10 @@ const createNotificationQueueMock = () => {
 }
 
 const createServiceMocks = (prismaMock, queueModule) => ({
+  '../utils/fileStorage': {
+    getFileBuffer: async () => null,
+    isS3Configured: () => false
+  },
   '../utils/prisma': prismaMock,
   '../jobs/notificationQueue': queueModule,
   '../utils/logger': {
@@ -329,7 +339,7 @@ test('valid CSV upload queues a job, tracks status, and creates students when pr
   assert.equal(enrollments.length, 4)
 
   const statusRes = createResponse()
-  await getStudentImportJob({ params: { jobId: '1' } }, statusRes)
+  await getStudentImportJob({ params: { jobId: '1' }, user: req.user }, statusRes)
 
   assert.equal(statusRes.statusCode, 200)
   assert.equal(statusRes.body.id, '1')
@@ -562,4 +572,76 @@ test('empty student import file returns 400', async () => {
 
   assert.equal(responder.serviceResult.statusCode, 400)
   assert.equal(responder.serviceResult.body.message, 'The uploaded file does not contain any student rows')
+})
+
+test('S3 CSV and XLSX imports read stored bytes and retain uploads until job completion', async () => {
+  const ExcelJS = require('exceljs')
+  for (const extension of ['csv', 'xlsx']) {
+    const { prisma, createdUsers } = createPrismaMock()
+    const { queueModule } = createNotificationQueueMock()
+    const csv = makeCsv([{ name: 'Stored Student', email: 'stored@example.edu', rollNumber: 'CS-099', department: 'CS', semester: '1', section: 'A' }])
+    const workbook = new ExcelJS.Workbook()
+    const sheet = workbook.addWorksheet('Students')
+    csv.split('\n').forEach(line => sheet.addRow(line.split(',')))
+    const bytes = extension === 'csv' ? Buffer.from(csv) : Buffer.from(await workbook.xlsx.writeBuffer())
+    const deleted = []
+    const records = []
+    prisma.uploadedFile.deleteMany = async ({ where }) => records.push(where.fileName)
+    const { processStudentImportJob, cleanupStudentImportUpload } = loadWithMocks(resolveFromTest('src', 'services', 'bulkImport.service.js'), {
+      ...createServiceMocks(prisma, queueModule),
+      '../utils/fileStorage': {
+        getFileBuffer: async name => { assert.equal(name, `stored.${extension}`); return bytes },
+        isS3Configured: () => true,
+        deleteFile: async name => deleted.push(name)
+      }
+    })
+    const file = { path: `https://storage.invalid/stored.${extension}`, filename: `stored.${extension}`, originalname: `stored.${extension}` }
+    const result = await processStudentImportJob({ file, user: { id: 'admin-1', role: 'ADMIN' } })
+    assert.equal(result.summary.created, 1)
+    assert.equal(createdUsers.length, 1)
+    assert.deepEqual(deleted, [])
+    await cleanupStudentImportUpload(file)
+    assert.deepEqual(deleted, [file.filename])
+    assert.deepEqual(records, [file.filename])
+  }
+})
+
+test('a failed import attempt keeps its input available for the next attempt', async () => {
+  const { prisma } = createPrismaMock()
+  const { queueModule } = createNotificationQueueMock()
+  const { processStudentImportJob, cleanupStudentImportUpload } = loadWithMocks(resolveFromTest('src', 'services', 'bulkImport.service.js'), createServiceMocks(prisma, queueModule))
+  const file = { path: await writeTempCsv('retry.csv', makeCsv([])), originalname: 'retry.csv', filename: 'retry.csv' }
+  try {
+    await assert.rejects(processStudentImportJob({ file, user: { id: 'admin-1', role: 'ADMIN' } }))
+    assert.equal(fs.existsSync(file.path), true)
+    await fs.promises.writeFile(file.path, makeCsv([{ name: 'Retry Student', email: 'retry@example.edu', rollNumber: 'CS-098', department: 'CS', semester: '1', section: 'A' }]))
+    const result = await processStudentImportJob({ file, user: { id: 'admin-1', role: 'ADMIN' } })
+    assert.equal(result.summary.created, 1)
+  } finally {
+    await cleanupStudentImportUpload(file)
+  }
+})
+
+
+test('XLSX fallback imports a single worksheet when ExcelJS rejects the workbook', async () => {
+  const ExcelJS = require('exceljs')
+  const { prisma, createdUsers } = createPrismaMock()
+  const { queueModule } = createNotificationQueueMock()
+  const workbook = new ExcelJS.Workbook()
+  const sheet = workbook.addWorksheet('Students')
+  makeCsv([{ name: 'Fallback Student', email: 'fallback@example.edu', rollNumber: 'CS-097', department: 'CS', semester: '1', section: 'A' }])
+    .split('\n').forEach(line => sheet.addRow(line.split(',')))
+  const bytes = Buffer.from(await workbook.xlsx.writeBuffer())
+  class RejectingWorkbook { constructor() { this.xlsx = { load: async () => { throw new Error('Primary reader rejected workbook') } } } }
+  const { processStudentImportJob } = loadWithMocks(resolveFromTest('src', 'services', 'bulkImport.service.js'), {
+    ...createServiceMocks(prisma, queueModule),
+    exceljs: { ...ExcelJS, Workbook: RejectingWorkbook },
+    '../utils/fileStorage': { getFileBuffer: async () => bytes, isS3Configured: () => true, deleteFile: async () => {} }
+  })
+  const result = await processStudentImportJob({
+    file: { path: 'https://storage.invalid/fallback.xlsx', filename: 'fallback.xlsx', originalname: 'fallback.xlsx' },
+    user: { id: 'admin-1', role: 'ADMIN' }
+  })
+  assert.equal(result.summary.created, 1)
+  assert.equal(createdUsers[0].name, 'Fallback Student')
 })

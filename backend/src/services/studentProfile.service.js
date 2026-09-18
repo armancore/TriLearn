@@ -1,40 +1,15 @@
 const { createServiceResponder } = require('../utils/serviceResult')
 const prisma = require('../utils/prisma')
 const { recordAuditLog } = require('../utils/audit')
-const { normalizeDepartment, departmentsMatch } = require('../utils/departments')
-const usersService = require('../services/users.service')
+const { departmentsMatch } = require('../utils/departments')
+const coordinatorCanViewStudent = (/** @type {ReturnType<typeof import('../utils/controllerAdapter').buildServiceContext>} */ context, /** @type {{department: string | null}} */ student) => departmentsMatch(context.coordinator?.department, student.department)
 
-const getCoordinatorDepartments = usersService.getCoordinatorDepartments
-const getManagedUserDepartments = usersService.getManagedUserDepartments
-
-const coordinatorCanViewStudent = (context, student) => {
-  if (typeof getCoordinatorDepartments === 'function' && typeof getManagedUserDepartments === 'function') {
-    const coordinatorDepartments = getCoordinatorDepartments(context)
-    const targetDepartments = getManagedUserDepartments({
-      role: 'STUDENT',
-      student
-    })
-
-    if (coordinatorDepartments.length === 0 || targetDepartments.length === 0) {
-      return false
-    }
-
-    const normalizedCoordinatorDepartments = new Set(
-      coordinatorDepartments.map((department) => normalizeDepartment(department))
-    )
-
-    return targetDepartments.some((department) => normalizedCoordinatorDepartments.has(normalizeDepartment(department)))
-  }
-
-  return departmentsMatch(context.coordinator?.department, student.department)
-}
-
-const roundTo = (value, decimals) => {
+const roundTo = (/** @type {number} */ value, /** @type {number} */ decimals) => {
   const multiplier = 10 ** decimals
   return Math.round(value * multiplier) / multiplier
 }
 
-const buildAttendanceSummary = (records) => {
+const buildAttendanceSummary = (/** @type {(import('@prisma/client').Attendance & { subject: { name: string, code: string } })[]} */ records) => {
   const bySubject = new Map()
 
   for (const attendance of records) {
@@ -70,7 +45,8 @@ const buildAttendanceSummary = (records) => {
   }))
 }
 
-const buildMarksByExamType = (marks) => marks.reduce((groupedMarks, mark) => {
+/** @typedef {{subjectName: string | null, subjectCode: string | null, examType: import('@prisma/client').ExamType, obtainedMarks: number, totalMarks: number, percentage: number, grade: string | null, gradePoint: number | null, isPublished: boolean, remarks: string | null}} ProfileMark */
+const buildMarksByExamType = (/** @type {(import('@prisma/client').Mark & {subject: {name: string, code: string}})[]} */ marks) => marks.reduce((/** @type {Record<string, ProfileMark[]>} */ groupedMarks, mark) => {
   if (!groupedMarks[mark.examType]) {
     groupedMarks[mark.examType] = []
   }
@@ -93,7 +69,7 @@ const buildMarksByExamType = (marks) => marks.reduce((groupedMarks, mark) => {
   return groupedMarks
 }, {})
 
-const getStudentProfile = async (context, result = createServiceResponder()) => {
+const getStudentProfile = async (/** @type {ReturnType<typeof import('../utils/controllerAdapter').buildServiceContext>} */ context, result = createServiceResponder()) => {
   const role = context.user?.role
 
   if (!['ADMIN', 'COORDINATOR', 'INSTRUCTOR'].includes(role)) {
@@ -268,7 +244,10 @@ const getStudentProfile = async (context, result = createServiceResponder()) => 
       orderBy: { submittedAt: 'desc' }
     }),
     prisma.absenceTicket.findMany({
-      where: { studentId: student.id },
+      where: {
+        studentId: student.id,
+        ...(role === 'INSTRUCTOR' ? { attendance: instructorSubjectFilter } : {})
+      },
       include: {
         attendance: {
           include: {

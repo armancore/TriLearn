@@ -20,7 +20,7 @@ const activeEnrollmentCountSelect = {
   where: activeStudentEnrollmentWhere
 }
 
-const ensureCoordinatorDepartmentScope = async (context, result, departmentValue, message = 'You can only manage subjects in your own department') => {
+const ensureCoordinatorDepartmentScope = async (/** @type {ReturnType<typeof import('../utils/controllerAdapter').buildServiceContext>} */ context, /** @type {import('../utils/serviceResult').ServiceResponder} */ result, /** @type {string | null | undefined} */ departmentValue, message = 'You can only manage subjects in your own department') => {
   if (context.user.role !== 'COORDINATOR') {
     return null
   }
@@ -40,7 +40,7 @@ const ensureCoordinatorDepartmentScope = async (context, result, departmentValue
   return coordinatorDepartments
 }
 
-const ensureCoordinatorInstructorScope = async (context, result, instructorId) => {
+const ensureCoordinatorInstructorScope = async (/** @type {ReturnType<typeof import('../utils/controllerAdapter').buildServiceContext>} */ context, /** @type {import('../utils/serviceResult').ServiceResponder} */ result, /** @type {string} */ instructorId) => {
   if (!instructorId) {
     return true
   }
@@ -55,7 +55,7 @@ const ensureCoordinatorInstructorScope = async (context, result, instructorId) =
   return true
 }
 
-const buildSubjectVisibilityFilter = async (context, filters = {}) => {
+const buildSubjectVisibilityFilter = async (/** @type {ReturnType<typeof import('../utils/controllerAdapter').buildServiceContext>} */ context, filters = {}) => {
   const { user } = context
 
   if (user.role === 'INSTRUCTOR') {
@@ -126,12 +126,12 @@ const subjectListInclude = {
   }
 }
 
-const buildContainsSearch = (search) => ({
+const buildContainsSearch = (/** @type {string} */ search) => ({
   contains: search,
   mode: 'insensitive'
 })
 
-const getEnrollmentTargetStudents = async (subject) => prisma.student.findMany({
+const getEnrollmentTargetStudents = async (/** @type {{ instructor: ({ user: { name: string; email: string; }; } & { id: string; department: string | null; userId: string; }) | null; enrollments: ({ student: { user: { name: string; email: string; }; } & { id: string; department: string | null; semester: number; userId: string; section: string | null; rollNumber: string; isGraduated: boolean; graduationYear: number | null; graduatedAt: Date | null; fatherName: string | null; motherName: string | null; fatherPhone: string | null; motherPhone: string | null; bloodGroup: string | null; localGuardianName: string | null; localGuardianAddress: string | null; localGuardianPhone: string | null; permanentAddress: string | null; temporaryAddress: string | null; dateOfBirth: Date | null; enrolledAt: Date; }; } & { id: string; createdAt: Date; subjectId: string; studentId: string; })[]; } & { description: string | null; code: string; id: string; name: string; createdAt: Date; department: string | null; semester: number; instructorId: string | null; }} */ subject) => prisma.student.findMany({
   where: {
     user: { isActive: true, deletedAt: null },
     semester: subject.semester,
@@ -276,7 +276,7 @@ const getSubjectById = async (context, result = createServiceResponder()) => {
           user: { select: { name: true, email: true, phone: true } }
         }
       },
-      enrollments: {
+      enrollments: context.user.role === 'STUDENT' ? false : {
         where: activeStudentEnrollmentWhere,
         include: {
           student: {

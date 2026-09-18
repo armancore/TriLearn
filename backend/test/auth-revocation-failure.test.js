@@ -122,6 +122,8 @@ test('changePassword does not return success when current access token revocatio
   let passwordUpdated = false
   const { changePassword } = loadWithMocks(resolveFromTest('src', 'services', 'auth.account.service.js'), {
     '../utils/prisma': {
+      $transaction: async function (fn) { return fn(this) },
+      refreshToken: { updateMany: async () => ({ count: 1 }) },
       user: {
         findUnique: async () => ({
           id: 'user-1',

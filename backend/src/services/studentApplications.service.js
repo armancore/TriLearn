@@ -1,3 +1,4 @@
+const { errorInfo } = require('../utils/errorInfo')
 const { createServiceResponder } = require('../utils/serviceResult')
 const prisma = require('../utils/prisma')
 const { enrollStudentInMatchingSubjects } = require('../utils/enrollment')
@@ -20,6 +21,7 @@ const {
 } = require('../utils/adminHelpers')
 const { normalizeDepartmentList } = require('../utils/instructorDepartments')
 
+/** @param {{name: string, email: string, temporaryPassword: string, userId: string, emailVerificationToken?: string}} options */
 const sendStudentWelcomeEmail = async ({ name, email, temporaryPassword, userId, emailVerificationToken }) => {
   const { subject, html, text } = welcomeTemplate({
     name,
@@ -33,20 +35,20 @@ const sendStudentWelcomeEmail = async ({ name, email, temporaryPassword, userId,
     return true
   } catch (error) {
     logger.error('Welcome email failed', {
-      message: error.message,
-      stack: error.stack,
+      message: errorInfo(error).message,
+      stack: errorInfo(error).stack,
       userId
     })
     return false
   }
 }
 
-const normalizeDepartmentValue = (value) => String(value || '').trim()
-const normalizeSectionValue = (value) => {
+const normalizeDepartmentValue = (/** @type {unknown} */ value) => String(value || '').trim()
+const normalizeSectionValue = (/** @type {string | null} */ value) => {
   const sanitizedSection = sanitizeOptionalPlainText(value)
   return sanitizedSection ? sanitizedSection.toUpperCase() : null
 }
-const buildStudentIdPrefix = (department, date = new Date()) => {
+const buildStudentIdPrefix = (/** @type {{code?: string, name?: string} | null} */ department, date = new Date()) => {
   const code = String(department?.code || department?.name || 'STU')
     .trim()
     .toUpperCase()
@@ -56,7 +58,7 @@ const buildStudentIdPrefix = (department, date = new Date()) => {
   return `${code}-${date.getFullYear()}`
 }
 
-const generateStudentId = async (department) => {
+const generateStudentId = async (/** @type {{code?: string, name?: string} | null} */ department) => {
   const prefix = buildStudentIdPrefix(department)
   const prefixWithSeparator = `${prefix}-`
   const existingStudents = await prisma.student.findMany({
@@ -93,6 +95,7 @@ const getDepartmentSectionDelegate = () => (
     : null
 )
 
+/** @param {{department: string, semester: string | number, section: string | null}} options */
 const hasDepartmentSection = async ({ department, semester, section }) => {
   if (!department || !semester || !section) {
     return false
@@ -103,10 +106,12 @@ const hasDepartmentSection = async ({ department, semester, section }) => {
     return true
   }
 
+  const normalizedSection = normalizeSectionValue(section)
+  if (!normalizedSection) return false
   const record = await departmentSectionDelegate.findFirst({
     where: {
       semester: Number(semester),
-      section: normalizeSectionValue(section),
+      section: normalizedSection,
       department: {
         is: {
           name: normalizeDepartmentValue(department)
@@ -119,7 +124,7 @@ const hasDepartmentSection = async ({ department, semester, section }) => {
   return Boolean(record)
 }
 
-const getCoordinatorDepartments = (context) => {
+const getCoordinatorDepartments = (/** @type {ReturnType<typeof import('../utils/controllerAdapter').buildServiceContext>} */ context) => {
   if (context?.user?.role !== 'COORDINATOR') {
     return []
   }
@@ -348,6 +353,8 @@ const createStudentFromApplication = async (context, result = createServiceRespo
     },
     include: { student: true }
   })
+
+  if (!user.student) throw new Error("Created user is missing student profile")
 
   await prisma.studentApplication.update({
     where: { id },

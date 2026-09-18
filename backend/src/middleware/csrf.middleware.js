@@ -19,7 +19,7 @@ const getCsrfSecret = () => {
   return secret
 }
 
-const isLocalDevelopmentOrigin = (origin) => {
+const isLocalDevelopmentOrigin = (/** @type {string | URL} */ origin) => {
   try {
     const parsed = new URL(origin)
     const hostname = parsed.hostname
@@ -55,7 +55,7 @@ const getTrustedOrigins = () => {
   return configuredOrigins
 }
 
-const isTrustedOrigin = (origin) => {
+const isTrustedOrigin = (/** @type {string} */ origin) => {
   if (!origin) {
     return false
   }
@@ -69,7 +69,7 @@ const isTrustedOrigin = (origin) => {
   return getRuntimeEnv() !== 'production' && isLocalDevelopmentOrigin(origin)
 }
 
-const resolveRequestOrigin = (req) => {
+const resolveRequestOrigin = (/** @type {import("express").Request} */ req) => {
   const originHeader = req.headers.origin
   if (originHeader) {
     return originHeader
@@ -87,7 +87,7 @@ const resolveRequestOrigin = (req) => {
   }
 }
 
-const isNativeAppOrigin = (origin) => {
+const isNativeAppOrigin = (/** @type {string | URL | null} */ origin) => {
   if (!origin) {
     return false
   }
@@ -100,7 +100,7 @@ const isNativeAppOrigin = (origin) => {
   }
 }
 
-const signCsrfNonce = (nonce) => crypto
+const signCsrfNonce = (/** @type {crypto.BinaryLike} */ nonce) => crypto
   .createHmac('sha256', getCsrfSecret())
   .update(nonce)
   .digest('base64url')
@@ -110,7 +110,8 @@ const generateCsrfToken = () => {
   return `${nonce}.${signCsrfNonce(nonce)}`
 }
 
-const getCsrfCookieOptions = (req) => {
+/** @returns {import("express").CookieOptions} */
+const getCsrfCookieOptions = (/** @type {import("../utils/cookieSecurity").CookieRequest} */ req) => {
   // Share the derivation used by the access/refresh cookies so the CSRF cookie's
   // Secure/SameSite attributes never drift from the auth cookies (which would
   // break cross-site auth on any non-local host).
@@ -125,8 +126,8 @@ const getCsrfCookieOptions = (req) => {
   }
 }
 
-const attachCsrfCookie = (res, req, token = generateCsrfToken()) => {
-  if (typeof res.setCookie === 'function') {
+const attachCsrfCookie = (/** @type {import("express").Response | import("../utils/serviceResult").ServiceResponder} */ res, /** @type {import("../utils/cookieSecurity").CookieRequest} */ req, token = generateCsrfToken()) => {
+  if ('setCookie' in res) {
     res.setCookie(CSRF_COOKIE_NAME, token, getCsrfCookieOptions(req))
   } else {
     res.cookie(CSRF_COOKIE_NAME, token, getCsrfCookieOptions(req))
@@ -135,25 +136,25 @@ const attachCsrfCookie = (res, req, token = generateCsrfToken()) => {
   return token
 }
 
-const clearCsrfCookie = (res, req) => {
+const clearCsrfCookie = (/** @type {import("express").Response | import("../utils/serviceResult").ServiceResponder} */ res, /** @type {import("../utils/cookieSecurity").CookieRequest} */ req) => {
   const options = {
     ...getCsrfCookieOptions(req),
     expires: new Date(0)
   }
 
-  if (typeof res.expireCookie === 'function') {
+  if ('expireCookie' in res) {
     res.expireCookie(CSRF_COOKIE_NAME, options)
   } else {
     res.clearCookie(CSRF_COOKIE_NAME, options)
   }
 }
 
-const getSubmittedCsrfToken = (req) => {
+const getSubmittedCsrfToken = (/** @type {import("express").Request} */ req) => {
   const headerValue = req.get(CSRF_HEADER_NAME)
   return Array.isArray(headerValue) ? headerValue[0] : headerValue
 }
 
-const timingSafeEqual = (left, right) => {
+const timingSafeEqual = (/** @type {string} */ left, /** @type {string} */ right) => {
   const leftBuffer = Buffer.from(String(left || ''))
   const rightBuffer = Buffer.from(String(right || ''))
 
@@ -163,7 +164,7 @@ const timingSafeEqual = (left, right) => {
   )
 }
 
-const isValidSignedCsrfToken = (token) => {
+const isValidSignedCsrfToken = (/** @type {unknown} */ token) => {
   const [nonce, signature, extra] = String(token || '').split('.')
   if (!nonce || !signature || extra !== undefined) {
     return false
@@ -172,22 +173,24 @@ const isValidSignedCsrfToken = (token) => {
   return timingSafeEqual(signature, signCsrfNonce(nonce))
 }
 
-const isMobileAuthRequest = (req) => {
+const isMobileAuthRequest = (/** @type {import("express").Request} */ req) => {
   const path = req.originalUrl || req.url || ''
   return (
     req.method === 'POST' &&
     (
       path === '/api/v1/auth/login' ||
       path === '/api/v1/auth/refresh/mobile' ||
+      path === '/api/v1/auth/logout/mobile' ||
       path.endsWith('/auth/login') ||
-      path.endsWith('/auth/refresh/mobile')
+      path.endsWith('/auth/refresh/mobile') ||
+      path.endsWith('/auth/logout/mobile')
     )
   )
 }
 
-const hasMobileClientType = (req) => String(req.get('x-client-type') || '').trim().toLowerCase() === 'mobile'
+const hasMobileClientType = (/** @type {import("express").Request} */ req) => String(req.get('x-client-type') || '').trim().toLowerCase() === 'mobile'
 
-const isCookieFreeMobileAuthRequest = (context) => (
+const isCookieFreeMobileAuthRequest = (/** @type {{ hasMobileClientType: boolean, isMobileAuthRequest: boolean, hasCookieHeader: boolean, hasBrowserContext: boolean, hasNativeAppOrigin: boolean, hasBearerToken: boolean, isMobileClient: boolean }} */ context) => (
   context.hasMobileClientType &&
   context.isMobileAuthRequest &&
   !context.hasCookieHeader &&
@@ -197,7 +200,7 @@ const isCookieFreeMobileAuthRequest = (context) => (
   )
 )
 
-const isCookieFreeExplicitBearerRequest = (context) => (
+const isCookieFreeExplicitBearerRequest = (/** @type {{ hasMobileClientType: boolean, isMobileAuthRequest: boolean, hasCookieHeader: boolean, hasBrowserContext: boolean, hasNativeAppOrigin: boolean, hasBearerToken: boolean, isMobileClient: boolean }} */ context) => (
   context.hasBearerToken &&
   !context.hasCookieHeader &&
   (
@@ -206,7 +209,7 @@ const isCookieFreeExplicitBearerRequest = (context) => (
   )
 )
 
-const csrfProtection = (req, res, next) => {
+const csrfProtection = (/** @type {import("express").Request} */ req, /** @type {import("express").Response} */ res, /** @type {import('express').NextFunction} */ next) => {
   /*
    * Browser requests must pass both a trusted Origin/Referer check and a signed
    * double-submit token check. Native mobile clients are exempt only when ambient

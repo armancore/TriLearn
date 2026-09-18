@@ -2,6 +2,7 @@ const prisma = require('../../utils/prisma')
 const { recordAuditLog } = require('../../utils/audit')
 const { hashQrPayload } = require('./qr-payload.helpers')
 
+/** @param {{student: {id: string}, routines: (import('@prisma/client').Routine & {subject: {name: string, code: string}})[], attendanceDate: {start: Date, end: Date}, qrData: string, actorRole: import('@prisma/client').Role, actorId: string}} options */
 const upsertPresentAttendanceForRoutines = async ({ student, routines, attendanceDate, qrData, actorRole, actorId }) => {
   const qrCodeHash = hashQrPayload(qrData)
   const existingAttendance = await prisma.attendance.findMany({
@@ -13,7 +14,7 @@ const upsertPresentAttendanceForRoutines = async ({ student, routines, attendanc
   })
 
   const existingMap = new Map(existingAttendance.map((record) => [record.subjectId, record]))
-  const routinesToMark = routines.filter((routine) => !existingMap.has(routine.subjectId))
+  const routinesToMark = routines.filter((/** @type {{ subjectId: string; }} */ routine) => !existingMap.has(routine.subjectId))
 
   if (!routinesToMark.length) {
     return { error: { status: 400, message: 'Attendance has already been recorded for the applicable class entries.' } }

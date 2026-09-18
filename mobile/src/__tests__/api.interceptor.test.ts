@@ -37,12 +37,13 @@ jest.mock('@/src/services/auth.service', () => ({
 }));
 
 jest.mock('@/src/services/socket.service', () => ({
+  disconnectSocket: jest.fn(),
   updateSocketToken: jest.fn(),
 }));
 
 jest.mock('@/src/services/queryClient', () => ({
   queryClient: {
-    removeQueries: jest.fn(),
+    cancelQueries: jest.fn(), clear: jest.fn(),
   },
 }));
 

@@ -5,7 +5,7 @@ const { buildUploadedFileUrl } = require('../utils/fileStorage')
 const { attachUploadedFileToEntity } = require('../utils/uploadRecords')
 const { sanitizePlainText } = require('../utils/sanitize')
 
-const resolveMaterialManager = async (context, subjectId) => {
+const resolveMaterialManager = async (/** @type {ReturnType<typeof import('../utils/controllerAdapter').buildServiceContext>} */ context, /** @type {string} */ subjectId) => {
   const { user, instructor } = context
   const subject = await prisma.subject.findUnique({
     where: { id: subjectId }
@@ -13,6 +13,11 @@ const resolveMaterialManager = async (context, subjectId) => {
 
   if (!subject) {
     return { error: { status: 404, message: 'Subject not found' } }
+  }
+
+  if (user.role === 'COORDINATOR' &&
+    (!context.coordinator?.department || subject.department !== context.coordinator.department)) {
+    return { error: { status: 403, message: 'You can only manage materials in your own department' } }
   }
 
   if (user.role === 'COORDINATOR' || user.role === 'ADMIN') {
@@ -94,7 +99,13 @@ const createMaterial = async (context, result = createServiceResponder()) => {
  */
 const getMaterialsBySubject = async (context, result = createServiceResponder()) => {
     const { subjectId } = context.params
+  /** @type {import('@prisma/client').Prisma.StudyMaterialWhereInput} */
   const where = { subjectId }
+
+  if (context.user.role === 'COORDINATOR') {
+    if (!context.coordinator?.department) return result.withStatus(403, { message: 'Coordinator department is not configured yet' })
+    where.subject = { department: context.coordinator.department }
+  }
 
   if (context.user.role === 'INSTRUCTOR') {
     where.instructorId = context.instructor?.id || '__no_materials__'
@@ -138,6 +149,11 @@ const getMaterialsBySubject = async (context, result = createServiceResponder())
 const getAllMaterials = async (context, result = createServiceResponder()) => {
     const { page, limit, skip } = getPagination(context.query)
   const where = {}
+
+  if (context.user.role === 'COORDINATOR') {
+    if (!context.coordinator?.department) return result.withStatus(403, { message: 'Coordinator department is not configured yet' })
+    where.subject = { department: context.coordinator.department }
+  }
 
   if (context.user.role === 'INSTRUCTOR') {
     where.instructorId = context.instructor?.id || '__no_materials__'
@@ -186,9 +202,14 @@ const getAllMaterials = async (context, result = createServiceResponder()) => {
 const deleteMaterial = async (context, result = createServiceResponder()) => {
     const { id } = context.params
 
-  const material = await prisma.studyMaterial.findUnique({ where: { id } })
+  const material = await prisma.studyMaterial.findUnique({ where: { id }, include: { subject: { select: { department: true } } } })
   if (!material) {
     return result.withStatus(404, { message: 'Material not found' })
+  }
+
+  if (context.user.role === 'COORDINATOR' &&
+    (!context.coordinator?.department || material.subject?.department !== context.coordinator.department)) {
+    return result.withStatus(403, { message: 'You can only delete materials in your own department' })
   }
 
   if (context.user.role === 'INSTRUCTOR') {

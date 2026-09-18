@@ -8,17 +8,19 @@ const {
 } = require('./shared.service')
 const { sanitizeXlsxCell } = require('../../utils/sanitize')
 
-const sanitizeFilenamePart = (value) => String(value || 'report')
+const sanitizeFilenamePart = (/** @type {unknown} */ value) => String(value || 'report')
   .replace(/[^a-z0-9-_]+/gi, '-')
   .replace(/-+/g, '-')
   .replace(/^-|-$/g, '')
   .toLowerCase()
 
-const parseAttendanceAverage = (value) => {
+const parseAttendanceAverage = (/** @type {string} */ value) => {
   const parsedValue = Number.parseFloat(value)
   return Number.isFinite(parsedValue) ? parsedValue : 0
 }
 
+/** @typedef {Extract<Awaited<ReturnType<typeof getAttendanceExportPayload>>, {attendance: unknown}> & {result: import('../../utils/serviceResult').ServiceResponder}} AttendanceExport */
+/** @param {AttendanceExport} options */
 const exportAttendancePdf = ({ result, attendance, summary, subject, dateLabel }) => {
   const fileName = `attendance-${sanitizeFilenamePart(subject.code || subject.name)}-${sanitizeFilenamePart(dateLabel)}.pdf`
   const doc = new PDFDocument({ margin: 40, size: 'A4' })
@@ -40,7 +42,7 @@ const exportAttendancePdf = ({ result, attendance, summary, subject, dateLabel }
   doc.text(`Late: ${summary.late}`)
   doc.moveDown()
 
-  attendance.forEach((record, index) => {
+  attendance.forEach((record, /** @type {number} */ index) => {
     if (doc.y > 730) {
       doc.addPage()
     }
@@ -56,6 +58,7 @@ const exportAttendancePdf = ({ result, attendance, summary, subject, dateLabel }
   doc.end()
 }
 
+/** @param {AttendanceExport} options */
 const exportAttendanceWorkbook = async ({ result, attendance, summary, subject, dateLabel }) => {
   const workbook = new ExcelJS.Workbook()
   const summarySheet = workbook.addWorksheet('Summary')
@@ -83,7 +86,7 @@ const exportAttendanceWorkbook = async ({ result, attendance, summary, subject, 
     { header: 'Date', key: 'date', width: 16 },
     { header: 'Status', key: 'status', width: 14 }
   ]
-  attendance.forEach((record, index) => {
+  attendance.forEach((record, /** @type {number} */ index) => {
     recordsSheet.addRow({
       sn: index + 1,
       name: sanitizeXlsxCell(record.student?.user?.name || 'Unknown Student'),
@@ -100,6 +103,8 @@ const exportAttendanceWorkbook = async ({ result, attendance, summary, subject, 
   result.end()
 }
 
+/** @typedef {{report: Extract<Awaited<ReturnType<typeof getCoordinatorDepartmentReportPayload>>, {students: unknown}>, result: import('../../utils/serviceResult').ServiceResponder}} DepartmentExport */
+/** @param {DepartmentExport} options */
 const exportCoordinatorDepartmentReportPdf = ({ result, report }) => {
   const fileName = `department-attendance-${sanitizeFilenamePart(report.department)}-sem-${report.semester}-${sanitizeFilenamePart(report.monthLabel)}${report.section ? `-section-${sanitizeFilenamePart(report.section)}` : ''}.pdf`
   const doc = new PDFDocument({ margin: 40, size: 'A4' })
@@ -125,7 +130,7 @@ const exportCoordinatorDepartmentReportPdf = ({ result, report }) => {
   doc.fontSize(13).text('Student Monthly Averages')
   doc.moveDown(0.5)
 
-  report.students.forEach((student, index) => {
+  report.students.forEach((student, /** @type {number} */ index) => {
     if (doc.y > 730) doc.addPage()
     doc
       .fontSize(10)
@@ -138,7 +143,7 @@ const exportCoordinatorDepartmentReportPdf = ({ result, report }) => {
     doc.addPage()
     doc.fontSize(13).text('Attendance Record List')
     doc.moveDown(0.5)
-    report.records.forEach((record, index) => {
+    report.records.forEach((record, /** @type {number} */ index) => {
       if (doc.y > 730) doc.addPage()
       doc
         .fontSize(10)
@@ -152,6 +157,7 @@ const exportCoordinatorDepartmentReportPdf = ({ result, report }) => {
   doc.end()
 }
 
+/** @param {DepartmentExport} options */
 const exportCoordinatorDepartmentReportWorkbook = async ({ result, report }) => {
   const workbook = new ExcelJS.Workbook()
   const studentsSheet = workbook.addWorksheet('Attendance Percentages')
@@ -163,7 +169,7 @@ const exportCoordinatorDepartmentReportWorkbook = async ({ result, report }) => 
     { header: 'Student ID', key: 'studentId', width: 20 },
     { header: 'Total Percentage', key: 'totalPercentage', width: 18 }
   ]
-  report.students.forEach((student, index) => {
+  report.students.forEach((student, /** @type {number} */ index) => {
     const studentRow = studentsSheet.addRow({
       sn: index + 1,
       name: sanitizeXlsxCell(student.name),

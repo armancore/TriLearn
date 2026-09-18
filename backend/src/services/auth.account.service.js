@@ -17,7 +17,7 @@ const REVOCATION_UNAVAILABLE_RESPONSE = {
   message: 'Unable to complete this security-sensitive action right now. Please try again.'
 }
 
-const respondGenericEligibility = async (result, startedAt) => {
+const respondGenericEligibility = async (/** @type {import("../utils/serviceResult").ServiceResponder} */ result, /** @type {number} */ startedAt) => {
   await waitForMinimumDuration(startedAt, STUDENT_INTAKE_MIN_RESPONSE_MS)
   return result.withStatus(200, { message: GENERIC_ELIGIBILITY_MESSAGE })
 }
@@ -26,10 +26,9 @@ const respondGenericEligibility = async (result, startedAt) => {
 // ================================
 /**
  * Handles register business logic.
- * @param {any} context - Service context.
- * @returns {Promise<any>} Service result.
+ * @param {unknown} _req
  */
-const register = (_req, result) => result.withStatus(403, {
+const register = (_req, /** @type {import('../utils/serviceResult').ServiceResponder} */ result) => result.withStatus(403, {
   message: 'Self-registration is disabled. Please apply through the student intake form.'
 })
 
@@ -162,14 +161,21 @@ const changePassword = async (context, result = createServiceResponder()) => {
     }
 
     const hashedPassword = await hashPassword(newPassword)
-    const updatedUser = await prisma.user.update({
-      where: { id: user.id },
-      data: {
-        password: hashedPassword,
-        mustChangePassword: false,
-        passwordChangedAt: new Date()
-      }
-    })
+    const updatedUser = await prisma.$transaction(async (tx) => {
+      const updated = await tx.user.update({
+        where: { id: user.id },
+        data: {
+          password: hashedPassword,
+          mustChangePassword: false,
+          passwordChangedAt: new Date()
+        }
+      })
+      await tx.refreshToken.updateMany({
+        where: { userId: user.id, revokedAt: null },
+        data: { revokedAt: new Date() }
+      })
+      return updated
+    }, { isolationLevel: 'Serializable' })
     try {
       await revokeAccessTokenFromRequest(context, { throwOnFailure: true })
     } catch {

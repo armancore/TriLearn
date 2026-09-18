@@ -1,10 +1,13 @@
+const { errorInfo } = require('../utils/errorInfo')
 const { createServiceResponder } = require('../utils/serviceResult')
 const prisma = require('../utils/prisma')
 const crypto = require('crypto')
 const fs = require('fs')
+const { Readable } = require('stream')
+const { getFileBuffer, deleteFile, isS3Configured } = require('../utils/fileStorage')
 const path = require('path')
 const ExcelJS = require('exceljs')
-const readXlsxFile = require('read-excel-file/node')
+const readXlsxFile = require('read-excel-file/node').readSheet
 const logger = require('../utils/logger')
 const { recordAuditLog } = require('../utils/audit')
 const { sendMail } = require('../utils/mailer')
@@ -26,6 +29,9 @@ const {
 } = require('../utils/adminHelpers')
 const { normalizeDepartmentList } = require('../utils/instructorDepartments')
 
+/** @typedef {{rowNumber: number, name: string, email: string, studentId: string, phone: string, address: string, department: string, semester: string, section: string}} ImportRow */
+/** @typedef {Omit<ImportRow, 'phone' | 'address' | 'semester'> & {phone: string | null, address: string | null, semester: number}} NormalizedRow */
+/** @typedef {Pick<NormalizedRow, 'rowNumber' | 'name' | 'email' | 'studentId' | 'department' | 'semester' | 'section'> & {id: string, status: string, temporaryPassword: string, emailVerificationToken: string, welcomeEmailSent: boolean}} CreatedRow */
 const MAX_STUDENT_SEMESTER = 8
 // Hard ceiling on rows parsed from an uploaded workbook. xlsx is zip-compressed,
 // so a small file can decompress into millions of rows (decompression bomb);
@@ -34,14 +40,14 @@ const MAX_IMPORT_ROWS = 5000
 const WELCOME_EMAIL_SEND_DELAY_MS = 1200
 const WELCOME_EMAIL_RATE_LIMIT_RETRY_DELAY_MS = 2500
 const WELCOME_EMAIL_MAX_ATTEMPTS = 3
-const sanitizeImportedSpreadsheetText = (value) => sanitizeXlsxCell(sanitizePlainText(value))
-const sanitizeImportedOptionalText = (value) => {
+const sanitizeImportedSpreadsheetText = (/** @type {unknown} */ value) => sanitizeXlsxCell(sanitizePlainText(value))
+const sanitizeImportedOptionalText = (/** @type {unknown} */ value) => {
   const sanitized = sanitizeImportedSpreadsheetText(value)
   return sanitized || null
 }
 
 
-const normalizeImportHeader = (value) => String(value || '')
+const normalizeImportHeader = (/** @type {unknown} */ value) => String(value || '')
   .trim()
   .toLowerCase()
   .replace(/[^a-z0-9]/g, '')
@@ -57,8 +63,8 @@ const STUDENT_IMPORT_HEADER_ALIASES = {
   section: ['section']
 }
 
-const resolveStudentImportColumns = (headerValues = []) => {
-  const normalizedHeaders = headerValues.map((value) => normalizeImportHeader(value))
+const resolveStudentImportColumns = (/** @type {unknown[]} */ headerValues = []) => {
+  const normalizedHeaders = headerValues.map((/** @type {unknown} */ value) => normalizeImportHeader(value))
 
   return Object.entries(STUDENT_IMPORT_HEADER_ALIASES).reduce((acc, [field, aliases]) => {
     const columnIndex = normalizedHeaders.findIndex((header) => aliases.includes(header))
@@ -66,10 +72,10 @@ const resolveStudentImportColumns = (headerValues = []) => {
       acc[field] = columnIndex + 1
     }
     return acc
-  }, {})
+  }, /** @type {Record<string, number>} */ ({}))
 }
 
-const buildStudentImportRowsFromTable = (headerValues = [], dataRows = []) => {
+const buildStudentImportRowsFromTable = (/** @type {unknown[]} */ headerValues = [], /** @type {unknown[][]} */ dataRows = []) => {
   const columns = resolveStudentImportColumns(headerValues)
   const requiredColumns = ['name', 'email', 'studentId', 'department', 'semester', 'section']
   const missingColumns = requiredColumns.filter((field) => !columns[field])
@@ -78,12 +84,12 @@ const buildStudentImportRowsFromTable = (headerValues = [], dataRows = []) => {
     throw new Error(`Missing required columns: ${missingColumns.join(', ')}`)
   }
 
-  const getValue = (rowValues, field) => {
+  const getValue = (/** @type {unknown[]} */ rowValues, /** @type {string} */ field) => {
     const columnIndex = columns[field]
     return columnIndex ? rowValues[columnIndex - 1] : ''
   }
 
-  return dataRows.reduce((rows, rowValues, rowIndex) => {
+  return dataRows.reduce((/** @type {ImportRow[]} */ rows, rowValues, rowIndex) => {
     const entry = {
       rowNumber: rowIndex + 2,
       name: sanitizeImportedSpreadsheetText(getValue(rowValues, 'name')),
@@ -104,16 +110,16 @@ const buildStudentImportRowsFromTable = (headerValues = [], dataRows = []) => {
     }
 
     return rows
-  }, [])
+  }, /** @type {ImportRow[]} */ ([]))
 }
 
-const assertImportRowCountWithinLimit = (rowCount) => {
+const assertImportRowCountWithinLimit = (/** @type {number} */ rowCount) => {
   if (Number(rowCount) > MAX_IMPORT_ROWS + 1) {
     throw new Error(`The uploaded file has too many rows. Split the import into files of at most ${MAX_IMPORT_ROWS} students.`)
   }
 }
 
-const buildStudentImportRowsFromExcelWorksheet = (worksheet) => {
+const buildStudentImportRowsFromExcelWorksheet = (/** @type {ExcelJS.Worksheet} */ worksheet) => {
   // rowCount includes the header row, hence the +1 allowance in the guard.
   assertImportRowCountWithinLimit(worksheet.actualRowCount ?? worksheet.rowCount)
 
@@ -130,7 +136,7 @@ const buildStudentImportRowsFromExcelWorksheet = (worksheet) => {
   return buildStudentImportRowsFromTable(headerValues, dataRows)
 }
 
-const loadStudentImportRowsWithFallbackXlsxReader = async (filePath) => {
+const loadStudentImportRowsWithFallbackXlsxReader = async (/** @type {string | Buffer} */ filePath) => {
   const table = await readXlsxFile(filePath)
 
   if (table.length === 0) {
@@ -142,29 +148,32 @@ const loadStudentImportRowsWithFallbackXlsxReader = async (filePath) => {
   return buildStudentImportRowsFromTable(table[0] || [], table.slice(1))
 }
 
-const loadStudentImportRows = async (filePath, originalName) => {
+const loadStudentImportRows = async (/** @type {string} */ filePath, /** @type {string} */ originalName, /** @type {string} */ fileName) => {
   const extension = path.extname(String(originalName || filePath)).toLowerCase()
   const workbook = new ExcelJS.Workbook()
+  const storedBuffer = fileName && typeof getFileBuffer === 'function' ? await getFileBuffer(fileName) : null
 
   if (extension === '.csv') {
-    await workbook.csv.readFile(filePath)
+    if (storedBuffer) await workbook.csv.read(Readable.from([storedBuffer]))
+    else await workbook.csv.readFile(filePath)
   } else if (extension === '.xlsx') {
     try {
-      await workbook.xlsx.readFile(filePath)
+      if (storedBuffer) await workbook.xlsx.load(Uint8Array.from(storedBuffer).buffer)
+      else await workbook.xlsx.readFile(filePath)
     } catch (readFileError) {
       try {
-        const workbookBuffer = await fs.promises.readFile(filePath)
-        await workbook.xlsx.load(workbookBuffer)
+        const workbookBuffer = storedBuffer || await fs.promises.readFile(filePath)
+        await workbook.xlsx.load(Uint8Array.from(workbookBuffer).buffer)
       } catch {
         logger.warn('Student import XLSX parse failed', {
-          message: readFileError?.message,
+          message: errorInfo(readFileError).message,
           fileName: originalName
         })
         try {
-          return await loadStudentImportRowsWithFallbackXlsxReader(filePath)
+          return await loadStudentImportRowsWithFallbackXlsxReader(storedBuffer || filePath)
         } catch (fallbackError) {
           logger.warn('Student import XLSX fallback parse failed', {
-            message: fallbackError?.message,
+            message: errorInfo(fallbackError).message,
             fileName: originalName
           })
           throw new Error('Unable to read the XLSX file. Please save/export it as a real .xlsx workbook or use the CSV template from this import dialog.')
@@ -195,10 +204,10 @@ const buildDepartmentLookup = async () => {
     acc[normalizeDepartmentValue(department.name).toLowerCase()] = department.name
     acc[normalizeDepartmentValue(department.code).toLowerCase()] = department.name
     return acc
-  }, {})
+  }, /** @type {Record<string, string>} */ ({}))
 }
 
-const buildStudentImportError = (rowNumber, message, student) => ({
+const buildStudentImportError = (/** @type {number} */ rowNumber, /** @type {string} */ message, /** @type {{name?: string, email?: string, studentId?: string}} */ student) => ({
   rowNumber,
   status: 'failed',
   name: student?.name || '',
@@ -207,7 +216,7 @@ const buildStudentImportError = (rowNumber, message, student) => ({
   message
 })
 
-const getStudentImportSubjectFilter = (semester, department) => ({
+const getStudentImportSubjectFilter = (/** @type {number} */ semester, /** @type {string | null} */ department) => ({
   semester,
   OR: [
     { department: null },
@@ -216,8 +225,8 @@ const getStudentImportSubjectFilter = (semester, department) => ({
   ]
 })
 
-const normalizeDepartmentValue = (value) => String(value || '').trim()
-const normalizeSectionValue = (value) => {
+const normalizeDepartmentValue = (/** @type {string} */ value) => String(value || '').trim()
+const normalizeSectionValue = (/** @type {string | null | undefined} */ value) => {
   const sanitizedSection = sanitizeOptionalPlainText(value)
   return sanitizedSection ? sanitizedSection.toUpperCase() : null
 }
@@ -229,11 +238,12 @@ const getDepartmentSectionDelegate = () => (
     : null
 )
 
+/** @param {{department: string, semester: number, section: string | null}} input */
 const sectionScopeKey = ({ department, semester, section }) => (
   `${normalizeDepartmentValue(department).toLowerCase()}::${Number(semester)}::${normalizeSectionValue(section) || ''}`
 )
 
-const getCoordinatorDepartments = (context) => {
+const getCoordinatorDepartments = (/** @type {ReturnType<typeof import('../utils/controllerAdapter').buildServiceContext>} */ context) => {
   if (context?.user?.role !== 'COORDINATOR') {
     return []
   }
@@ -244,14 +254,15 @@ const getCoordinatorDepartments = (context) => {
   ])
 }
 
-const wait = (ms) => new Promise((resolve) => {
+const wait = (/** @type {number | undefined} */ ms) => new Promise((resolve) => {
   setTimeout(resolve, ms)
 })
 
-const isRateLimitedEmailError = (error) => (
-  /too many requests|rate limit/i.test(String(error?.message || ''))
+const isRateLimitedEmailError = (/** @type {unknown} */ error) => (
+  /too many requests|rate limit/i.test(String(errorInfo(error).message || ''))
 )
 
+/** @param {{row: {email: string, id: string}, subject: string, html: string, text: string}} input */
 const sendWelcomeEmailWithRetry = async ({ row, subject, html, text }) => {
   for (let attempt = 1; attempt <= WELCOME_EMAIL_MAX_ATTEMPTS; attempt += 1) {
     try {
@@ -264,8 +275,8 @@ const sendWelcomeEmailWithRetry = async ({ row, subject, html, text }) => {
       }
 
       logger.error('Welcome email failed', {
-        message: emailError?.message,
-        stack: emailError?.stack,
+        message: errorInfo(emailError).message,
+        stack: errorInfo(emailError).stack,
         userId: row.id,
         attempt
       })
@@ -291,10 +302,10 @@ const processStudentImportFile = async (context, result = createServiceResponder
 
     let importedRows
     try {
-      importedRows = await loadStudentImportRows(context.file.path, context.file.originalname)
+      importedRows = await loadStudentImportRows(context.file.path, context.file.originalname, context.file.filename)
     } catch (error) {
       return result.withStatus(400, {
-        message: error?.message || 'Unable to read the uploaded student import file'
+        message: errorInfo(error).message || 'Unable to read the uploaded student import file'
       })
     }
     if (importedRows.length === 0) {
@@ -327,6 +338,7 @@ const processStudentImportFile = async (context, result = createServiceResponder
     const coordinatorDepartments = getCoordinatorDepartments(context)
     const seenEmails = new Set()
     const seenStudentIds = new Set()
+    /** @type {NormalizedRow[]} */
     const normalizedRows = []
     const failures = []
 
@@ -420,6 +432,7 @@ const processStudentImportFile = async (context, result = createServiceResponder
 
     const rowsToCreate = [...normalizedRows]
 
+    /** @type {CreatedRow[]} */
     let created = []
 
     if (rowsToCreate.length > 0) {
@@ -464,7 +477,11 @@ const processStudentImportFile = async (context, result = createServiceResponder
 
           const existingEmails = new Set(existingUsers.map((user) => user.email.toLowerCase()))
           const existingStudentIds = new Set(existingStudents.map((student) => student.rollNumber.toUpperCase()))
+          /** @type {ReturnType<typeof buildStudentImportError>[]} */
           const conflictFailures = []
+          /**
+           * @type {typeof preparedRows}
+           */
           const insertableRows = []
 
           preparedRows.forEach((row) => {
@@ -498,7 +515,7 @@ const processStudentImportFile = async (context, result = createServiceResponder
               select: { id: true }
             })
 
-            return [`${semester}::${department || ''}`, subjects]
+            return /** @type {[string, {id: string}[]]} */ ([`${semester}::${department || ''}`, subjects])
           }))
 
           const subjectMap = new Map(subjectGroups)
@@ -586,7 +603,7 @@ const processStudentImportFile = async (context, result = createServiceResponder
         }
       } catch (error) {
         rowsToCreate.forEach((row) => {
-          failures.push(buildStudentImportError(row.rowNumber, error?.message || 'Unable to create the student accounts', row))
+          failures.push(buildStudentImportError(row.rowNumber, errorInfo(error).message || 'Unable to create the student accounts', row))
         })
       }
     }
@@ -619,13 +636,31 @@ const processStudentImportFile = async (context, result = createServiceResponder
       failures
     })
   }  finally {
-    if (uploadedFilePath) {
-      await fs.promises.unlink(uploadedFilePath).catch(() => {})
+    if (uploadedFilePath && !context.keepUploadForRetry) {
+      await cleanupStudentImportUpload(context.file)
     }
   }
 }
 
-const buildStudentImportJobPayload = (context) => ({
+const cleanupStudentImportUpload = async (/** @type {{path?: string, filename?: string} | null | undefined} */ file) => {
+  if (!file) return
+  try {
+    if (typeof isS3Configured === 'function' && isS3Configured()) {
+      await deleteFile(file.filename || file.path)
+    } else if (file.path) {
+      await fs.promises.unlink(file.path).catch(error => { if (error.code !== 'ENOENT') throw error })
+    }
+    if (file.filename && prisma.uploadedFile?.deleteMany) {
+      await prisma.uploadedFile.deleteMany({ where: { fileName: file.filename } })
+    }
+  } catch (error) {
+    logger.warn('Failed to clean up student import upload', { message: errorInfo(error).message })
+  }
+}
+
+const buildStudentImportJobPayload = (/** @type {ReturnType<typeof import('../utils/controllerAdapter').buildServiceContext>} */ context) => {
+  if (!context.file) throw new Error('Import file is required')
+  return ({
   file: {
     path: context.file.path,
     originalname: context.file.originalname,
@@ -647,8 +682,9 @@ const buildStudentImportJobPayload = (context) => ({
       }
     : null
 })
+}
 
-const importStudents = async (context, result = createServiceResponder()) => {
+const importStudents = async (/** @type {ReturnType<typeof import("../utils/controllerAdapter").buildServiceContext>} */ context, result = createServiceResponder()) => {
   if (!context.file?.path) {
     return result.withStatus(400, { message: 'Please upload a CSV or XLSX file to import students' })
   }
@@ -668,8 +704,8 @@ const importStudents = async (context, result = createServiceResponder()) => {
     }
   } catch (error) {
     logger.error('Student import queue failed', {
-      message: error.message,
-      stack: error.stack
+      message: errorInfo(error).message,
+      stack: errorInfo(error).stack
     })
 
     await fs.promises.unlink(context.file.path).catch(() => {})
@@ -679,32 +715,34 @@ const importStudents = async (context, result = createServiceResponder()) => {
   return processStudentImportFile(context, result)
 }
 
-const processStudentImportJob = async (payload) => {
+const processStudentImportJob = async (/** @type {ReturnType<typeof buildStudentImportJobPayload>} */ payload) => {
   const result = createServiceResponder()
   await processStudentImportFile({
     file: payload.file,
+    keepUploadForRetry: true,
     user: payload.user,
     coordinator: payload.coordinator
   }, result)
 
   const serviceResult = result.toServiceResult()
-  if (!serviceResult || serviceResult.statusCode >= 400) {
-    const error = new Error(serviceResult?.body?.message || 'Student import failed')
-    error.result = serviceResult?.body
+  if (!serviceResult || (serviceResult.statusCode || 200) >= 400) {
+    const error = Object.assign(new Error(errorInfo(serviceResult?.body).message || 'Student import failed'), { result: serviceResult?.body })
     throw error
   }
 
   return serviceResult.body
 }
 
-const getStudentImportJob = async (context, result = createServiceResponder()) => {
+const getStudentImportJob = async (/** @type {ReturnType<typeof import('../utils/controllerAdapter').buildServiceContext>} */ context, result = createServiceResponder()) => {
   const jobId = String(context.params.jobId || '').trim()
   if (!jobId) {
     return result.withStatus(400, { message: 'Job id is required' })
   }
 
   const job = await notificationQueue.getJob(jobId)
-  if (!job) {
+  if (!job || job.name !== BULK_STUDENT_IMPORT_JOB ||
+    !context.user || (context.user.role !== 'ADMIN' &&
+      (context.user.role !== 'COORDINATOR' || job.data?.user?.id !== context.user.id))) {
     return result.withStatus(404, { message: 'Student import job not found' })
   }
 
@@ -719,11 +757,10 @@ const getStudentImportJob = async (context, result = createServiceResponder()) =
 }
 
 module.exports = {
+  cleanupStudentImportUpload,
   importStudents,
   getStudentImportJob,
   processStudentImportJob,
   processStudentImportFile
 }
-
-
 

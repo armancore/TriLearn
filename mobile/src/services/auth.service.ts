@@ -1,10 +1,9 @@
 import type { LoginRequest, LoginResponse, RefreshTokenResponse } from '@/src/types/auth';
 
 import { API_BASE_URL } from '@/src/constants/config';
-import axios, { isAxiosError } from 'axios';
+import axios from 'axios';
 import Constants from 'expo-constants';
 import { APP_PLATFORM, CLIENT_TYPE } from '@/src/services/mobileClientSignature';
-import { useAuthStore } from '@/src/store/auth.store';
 
 const APP_VERSION = Constants.expoConfig?.version ?? '1.0.0';
 
@@ -32,23 +31,27 @@ authClient.interceptors.request.use((config) => {
   return config;
 });
 
-authClient.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (isAxiosError(error) && error.response?.status === 426) {
-      useAuthStore.getState().clearSession();
-    }
-
-    return Promise.reject(error);
-  },
-);
-
 export const login = async (payload: LoginRequest): Promise<LoginResponse> => {
   const response = await authClient.post<LoginResponse>('/auth/login', payload);
   return response.data;
 };
 
-export const refreshAccessToken = async (refreshToken: string): Promise<RefreshTokenResponse> => {
-  const response = await authClient.post<RefreshTokenResponse>('/auth/refresh/mobile', { refreshToken });
-  return response.data;
+let refreshInFlight: { token: string; promise: Promise<RefreshTokenResponse> } | null = null;
+
+export const refreshAccessToken = (refreshToken: string): Promise<RefreshTokenResponse> => {
+  if (refreshInFlight?.token === refreshToken) return refreshInFlight.promise;
+  const promise = authClient.post<RefreshTokenResponse>('/auth/refresh/mobile', { refreshToken })
+    .then(response => response.data)
+    .finally(() => { if (refreshInFlight?.promise === promise) refreshInFlight = null; });
+  refreshInFlight = { token: refreshToken, promise };
+  return promise;
+};
+
+// Use captured credentials, without the API client's refresh interceptor.
+export const logout = async (accessToken: string | null, refreshToken: string | null, pushToken: string | null): Promise<void> => {
+  const headers = accessToken ? { Authorization: `Bearer ${accessToken}` } : {};
+  if (pushToken && accessToken) {
+    await authClient.delete('/notifications/device-token', { data: { token: pushToken }, headers }).catch(() => {});
+  }
+  await authClient.post('/auth/logout/mobile', { refreshToken }, { headers });
 };

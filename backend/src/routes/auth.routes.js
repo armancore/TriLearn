@@ -23,7 +23,7 @@ const {
 } = authController
 const { protect, allowRoles } = require('../middleware/auth.middleware')
 const {
-  authRouterLimiter = (_req, _res, next) => next(),
+  authRouterLimiter = (_req, _res, /** @type {import('express').NextFunction} */ next) => next(),
   authLimiter,
   forgotPasswordLimiter,
   loginLimiter,
@@ -86,6 +86,7 @@ router.post('/refresh', refreshLimiter, refresh)
  */
 router.post('/refresh/mobile', validateMobileClient, refreshLimiter, refreshMobile)
 router.post('/logout', logoutLimiter, logout)
+router.post('/logout/mobile', validateMobileClient, logoutLimiter, logout)
 router.post('/logout-all', logoutLimiter, protect, logoutAll)
 router.get('/me', protect, getMe)
 router.get('/activity', protect, getActivity)

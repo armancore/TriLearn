@@ -19,6 +19,7 @@ const {
   recordAuditLog
 } = require('./shared.service')
 
+/** @param {{studentId: string, qrData?: string}} options */
 const getStudentIdQrReplayKey = ({ studentId, qrData }) => {
   if (!studentId || typeof qrData !== 'string' || !qrData.trim()) {
     return null
@@ -28,6 +29,7 @@ const getStudentIdQrReplayKey = ({ studentId, qrData }) => {
   return `qr-used:${studentId}:${qrHash}`
 }
 
+/** @param {{student: {id: string}, qrData?: string, parsedQr?: unknown}} options */
 const reserveStudentIdQrScan = async ({ student, qrData, parsedQr }) => {
   const key = getStudentIdQrReplayKey({ studentId: student.id, qrData })
   if (!key || !parsedQr) {
@@ -104,7 +106,7 @@ const generateQR = async (context, result = createServiceResponder()) => {
 
 /**
  * Marks subject attendance from a signed QR payload for the authenticated student.
- * @param {Record<string, any> & { body: { qrData: string }, student?: { id: string }, user: { id: string, role: string } }} context - QR attendance request context.
+ * @param {Record<string, any> & { body: { qrData: string }, student?: { id: string }, user: { id: string, role: import("@prisma/client").Role } }} context - QR attendance request context.
  * @param {import('../../utils/serviceResult').ServiceResponder} [result] - Service result responder.
  * @returns {Promise<import('../../utils/serviceResult').ServiceResult | void>} Service result.
  */
@@ -146,6 +148,7 @@ const markAttendanceQR = async (context, result = createServiceResponder()) => {
   if (!enrollment) return result.withStatus(403, { message: 'You are not eligible to mark attendance for this subject' })
 
   const todayRange = getDayRange()
+  if (!todayRange) throw new Error("Invalid attendance date")
   const existingAttendance = await prisma.attendance.findUnique({
     where: {
       studentId_subjectId_date: {
@@ -209,7 +212,7 @@ const markDailyAttendanceQR = async (context, result = createServiceResponder())
   if (!student) return result.withStatus(403, { message: 'Student profile not found' })
 
   const parsedQR = parseQrPayload(qrData)
-  if (!parsedQR || parsedQR.type !== 'GATE_STUDENT_QR' || !Array.isArray(parsedQR.windowIds)) {
+  if (!parsedQR || parsedQR.type !== 'GATE_STUDENT_QR' || !Array.isArray(parsedQR.windowIds) || !parsedQR.windowIds.every((/** @type {unknown} */ id) => typeof id === 'string')) {
     return result.withStatus(400, { message: 'Invalid gate attendance QR code' })
   }
 
@@ -221,7 +224,9 @@ const markDailyAttendanceQR = async (context, result = createServiceResponder())
   if (!gateDay.active.length) return result.withStatus(400, { message: 'The scan time has passed for now. Please wait for the next active window.' })
 
   const activeMap = new Map(gateDay.active.map((window) => [window.id, window]))
-  const eligibleWindows = parsedQR.windowIds.map((windowId) => activeMap.get(windowId)).filter(Boolean)
+  /** @type {string[]} */
+  const windowIds = parsedQR.windowIds
+  const eligibleWindows = windowIds.map((windowId) => activeMap.get(windowId)).filter(window => window !== undefined)
   if (!eligibleWindows.length) return result.withStatus(400, { message: 'This gate QR is not valid for the current routine window.' })
 
   const allowedSemesters = normalizeSemesterList([...(parsedQR.allowedSemesters || []), ...eligibleWindows.flatMap((window) => window.allowedSemesters)])
@@ -248,7 +253,7 @@ const markDailyAttendanceQR = async (context, result = createServiceResponder())
   })
 }
 
-const getLiveGateAttendanceQrPayload = async (context) => {
+const getLiveGateAttendanceQrPayload = async (/** @type {ReturnType<typeof import('../../utils/controllerAdapter').buildServiceContext>} */ context) => {
   const now = new Date()
   const windows = await getDailyGateWindows(now)
 
@@ -361,7 +366,7 @@ const generateDailyAttendanceQR = async (context, result = createServiceResponde
     action: 'DAILY_GATE_QR_GENERATED',
     entityType: 'Attendance',
     metadata: {
-      windowIds: payload.periods.map((period) => period.id),
+      windowIds: (payload.periods || []).map((period) => period.id),
       allowedSemesters: payload.allowedSemesters,
       expiresAt: payload.expiresAt
     }
@@ -380,7 +385,8 @@ const scanStudentIdAttendance = async (context, result = createServiceResponder(
     ? await getStudentByRollNumber(rollNumber)
     : await getStudentByIdCardQr(qrData)
   if (scanned.error) return result.withStatus(scanned.error.status, { message: scanned.error.message })
-  const { student, parsedQr } = scanned
+  const { student } = scanned
+  const parsedQr = "parsedQr" in scanned ? scanned.parsedQr : undefined
 
   if (role === 'GATEKEEPER') {
     const eligibility = await getEligibleGateAttendanceForStudent(student, new Date())

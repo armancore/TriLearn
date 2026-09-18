@@ -7,7 +7,7 @@ const ExcelJS = require('exceljs')
 const PDFDocument = require('pdfkit')
 const { sanitizePlainText, sanitizeXlsxCell } = require('../utils/sanitize')
 
-const resolveAssignmentManager = async (context, subjectId) => {
+const resolveAssignmentManager = async (/** @type {ReturnType<typeof import('../utils/controllerAdapter').buildServiceContext>} */ context, /** @type {string} */ subjectId) => {
   const { user, instructor } = context
   const subject = await prisma.subject.findUnique({
     where: { id: subjectId },
@@ -47,7 +47,7 @@ const resolveAssignmentManager = async (context, subjectId) => {
   return { subject, instructorId: instructor.id }
 }
 
-const ensureAssignmentViewer = (context, assignment, result) => {
+const ensureAssignmentViewer = (/** @type {ReturnType<typeof import('../utils/controllerAdapter').buildServiceContext>} */ context, /** @type {{instructorId: string, subject?: {department: string | null}}} */ assignment, /** @type {import('../utils/serviceResult').ServiceResponder} */ result) => {
   if (context.user.role === 'ADMIN') {
     return true
   }
@@ -76,19 +76,20 @@ const ensureAssignmentViewer = (context, assignment, result) => {
   return true
 }
 
-const sanitizeFilenamePart = (value) => String(value || 'report')
+const sanitizeFilenamePart = (/** @type {string} */ value) => String(value || 'report')
   .replace(/[^a-z0-9-_]+/gi, '-')
   .replace(/-+/g, '-')
   .replace(/^-|-$/g, '')
   .toLowerCase()
 
-const parseOptionalDate = (value) => {
+const parseOptionalDate = (/** @type {string | number | Date} */ value) => {
   if (!value) return null
   const parsed = new Date(value)
   return Number.isNaN(parsed.getTime()) ? null : parsed
 }
 
-const getAssignmentSubmissionStatus = (assignment, now = new Date()) => {
+/** @returns {{error: {status: number, message: string}, status?: undefined} | {status: import("@prisma/client").SubmissionStatus, error?: undefined}} */
+const getAssignmentSubmissionStatus = (/** @type {{ title: string; description: string; id: string; createdAt: Date; subjectId: string; instructorId: string; totalMarks: number; dueDate: Date; extendedDueDate: Date | null; questionPdfUrl: string | null; }} */ assignment, now = new Date()) => {
   const dueDate = new Date(assignment.dueDate)
   const extendedDueDate = assignment.extendedDueDate ? new Date(assignment.extendedDueDate) : null
   const finalDeadline = extendedDueDate || dueDate
@@ -104,7 +105,7 @@ const getAssignmentSubmissionStatus = (assignment, now = new Date()) => {
   return { status: 'SUBMITTED' }
 }
 
-const getSubmissionViewForRole = (submission, role) => {
+const getSubmissionViewForRole = (/** @type {import('@prisma/client').Submission} */ submission, /** @type {string} */ role) => {
   if (role === 'STUDENT') {
     return {
       id: submission.id,
@@ -122,7 +123,7 @@ const getSubmissionViewForRole = (submission, role) => {
   return submission
 }
 
-const buildAssignmentExportRows = (assignment) => (
+const buildAssignmentExportRows = (/** @type {{ totalMarks: number, submissions: (import('@prisma/client').Submission & { student: { rollNumber: string, user: { name: string, email: string } } })[] }} */ assignment) => (
   assignment.submissions.map((submission) => ({
     studentName: submission.student?.user?.name || 'Unknown Student',
     rollNumber: submission.student?.rollNumber || '-',
@@ -219,6 +220,12 @@ const getAllAssignments = async (context, result = createServiceResponder()) => 
 
   const filters = {}
   if (subjectId) filters.subjectId = subjectId
+
+  if (context.user.role === 'COORDINATOR') {
+    const department = context.coordinator?.department
+    if (!department) return result.withStatus(403, { message: 'Coordinator department is not configured yet' })
+    filters.subject = { department }
+  }
 
   if (context.user.role === 'INSTRUCTOR') {
     filters.instructorId = context.instructor?.id || '__no_assignments__'
@@ -405,7 +412,7 @@ const deleteAssignment = async (context, result = createServiceResponder()) => {
 /**
  * Creates a student's assignment submission after enrollment, deadline, and
  * upload checks.
- * @param {Record<string, any> & { params: { id: string }, body: { note?: string }, student?: { id: string }, file?: unknown }} context - Submission request context.
+ * @param {ReturnType<typeof import('../utils/controllerAdapter').buildServiceContext>} context - Submission request context.
  * @param {import('../utils/serviceResult').ServiceResponder} [result] - Service result responder.
  * @returns {Promise<import('../utils/serviceResult').ServiceResult | void>} Service result.
  */
@@ -517,7 +524,7 @@ const getMySubmissions = async (context, result = createServiceResponder()) => {
 // ================================
 /**
  * Grades a submission after verifying the actor can manage the assignment.
- * @param {Record<string, any> & { params: { submissionId: string }, body: { obtainedMarks: number, feedback?: string }, user: { role: string }, instructor?: { id: string }, coordinator?: { department?: string } }} context - Grade request context.
+ * @param {ReturnType<typeof import('../utils/controllerAdapter').buildServiceContext>} context - Grade request context.
  * @param {import('../utils/serviceResult').ServiceResponder} [result] - Service result responder.
  * @returns {Promise<import('../utils/serviceResult').ServiceResult | void>} Service result.
  */

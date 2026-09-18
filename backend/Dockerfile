@@ -7,6 +7,7 @@ RUN npm ci --ignore-scripts
 
 COPY prisma ./prisma
 COPY src ./src
+COPY scripts ./scripts
 COPY prisma.config.ts ./
 
 RUN npx prisma generate
@@ -32,6 +33,7 @@ COPY --from=builder /app/node_modules/@prisma/client ./node_modules/@prisma/clie
 COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/src ./src
+COPY --from=builder /app/scripts ./scripts
 COPY --from=builder /app/prisma.config.ts ./
 
 RUN mkdir -p uploads && chown -R node:node /app

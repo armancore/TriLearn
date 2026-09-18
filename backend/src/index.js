@@ -1,8 +1,9 @@
+const { errorInfo } = require('./utils/errorInfo')
 const http = require('http')
 const express = require('express')
 const cors = require('cors')
 const cookieParser = require('cookie-parser')
-const helmet = require('helmet')
+const helmet = require('helmet').default
 
 if (process.env.NODE_ENV !== 'production') {
   // eslint-disable-next-line n/no-unpublished-require
@@ -34,7 +35,11 @@ initMonitoring()
 
 const app = express()
 const allowedOrigins = getTrustedOrigins()
+/**
+ * @type {http.Server<typeof http.IncomingMessage, typeof http.ServerResponse> | null}
+ */
 let server = null
+/** @type {ReturnType<typeof scheduleMaintenance> | null} */
 let maintenance = null
 let isShuttingDown = false
 
@@ -57,7 +62,7 @@ if (ENABLE_API_DOCS && process.env.NODE_ENV !== 'production') {
     }))
     logger.info('API docs enabled at /api/docs (requires authentication)')
   } catch (error) {
-    logger.warn('API docs requested but swagger-ui-express is not installed', { error: error.message })
+    logger.warn('API docs requested but swagger-ui-express is not installed', { error: errorInfo(error).message })
   }
 }
 
@@ -75,7 +80,7 @@ const getTrustProxySetting = () => {
   return configured
 }
 
-const getErrorMessage = (_error, fallbackMessage = 'Something went wrong') => fallbackMessage
+const getErrorMessage = (/** @type {unknown} */ _error, fallbackMessage = 'Something went wrong') => fallbackMessage
 
 app.set('trust proxy', getTrustProxySetting())
 app.use(requestId)
@@ -118,8 +123,8 @@ app.use(cors({
 // codeql[js/missing-token-validation] Signed double-submit CSRF tokens are enforced by csrfProtection before API routes.
 app.use(cookieParser())
 app.use(express.json({ limit: '1mb' }))
-app.use((error, _req, res, next) => {
-  if (error?.type === 'entity.too.large') {
+app.use((/** @type {unknown} */ error, /** @type {import("express").Request} */ _req, /** @type {import("express").Response} */ res, /** @type {import('express').NextFunction} */ next) => {
+  if (error && typeof error === 'object' && 'type' in error && error.type === 'entity.too.large') {
     return res.status(413).json({
       code: 'REQUEST_BODY_TOO_LARGE',
       message: 'Request body is too large. Upload large student datasets as a spreadsheet file.'
@@ -137,7 +142,7 @@ app.use((req, res, next) => {
 
   res.internalError = (error, fallbackMessage = 'Something went wrong') => {
     const errorMessage = error instanceof Error ? error.message : String(error)
-    req.logger.error(errorMessage, { stack: error?.stack })
+    ;(req.logger || logger).error(errorMessage, { stack: errorInfo(error).stack })
     captureRequestException(error, req)
     return res.status(500).json({
       ...createErrorResponse({
@@ -196,8 +201,8 @@ app.use((req, res) => {
   res.status(404).json(createErrorResponse({ code: 'ROUTE_NOT_FOUND', message: 'Route not found' }))
 })
 
-app.use((error, req, res, _next) => {
-  if (error?.code === 'P2024') {
+app.use((/** @type {unknown} */ error, /** @type {import("express").Request} */ req, /** @type {import("express").Response} */ res, /** @type {import('express').NextFunction} */ _next) => {
+  if (errorInfo(error).code === 'P2024') {
     res.setHeader('Retry-After', '5')
     return res.status(503).json(createErrorResponse({
       code: ERROR_CODES.DATABASE_BUSY,
@@ -206,7 +211,7 @@ app.use((error, req, res, _next) => {
   }
 
   const errorMessage = error instanceof Error ? error.message : String(error)
-  ;(req.logger || logger).error(errorMessage, { stack: error?.stack })
+  ;(req.logger || logger).error(errorMessage, { stack: errorInfo(error).stack })
   captureRequestException(error, req)
   res.status(500).json(createErrorResponse({
     code: ERROR_CODES.INTERNAL_ERROR,
@@ -236,7 +241,7 @@ const startServer = async () => {
     server,
     allowedOrigins
   })
-  startNotificationWorker()
+  if (process.env.NOTIFICATION_WORKER_ENABLED !== 'false') startNotificationWorker()
   server.listen(PORT, () => {
     logger.info('TriLearn server running', { port: PORT })
   })
@@ -244,7 +249,7 @@ const startServer = async () => {
   return server
 }
 
-const shutdown = async (signal) => {
+const shutdown = async (/** @type {string} */ signal) => {
   if (isShuttingDown || !server) {
     return
   }
@@ -262,7 +267,7 @@ const shutdown = async (signal) => {
       await flushMonitoring()
       process.exit(0)
     } catch (error) {
-      logger.error(error.message, { stack: error.stack })
+      logger.error(errorInfo(error).message, { stack: errorInfo(error).stack })
       captureException(error, { tags: { phase: 'shutdown' } })
       await flushMonitoring()
       process.exit(1)

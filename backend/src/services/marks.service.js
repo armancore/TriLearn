@@ -1,3 +1,4 @@
+const { errorInfo } = require('../utils/errorInfo')
 const { createServiceResponder } = require('../utils/serviceResult')
 const prisma = require('../utils/prisma')
 const { Prisma } = require('@prisma/client')
@@ -14,6 +15,7 @@ const {
 } = require('../utils/marksGrading')
 const PDFDocument = require('pdfkit')
 
+/** @type {import("@prisma/client").ExamType[]} */
 const EXAM_TYPES = ['INTERNAL', 'MIDTERM', 'FINAL', 'PREBOARD', 'PRACTICAL']
 const STUDENT_VISIBLE_EXAM_TYPES = EXAM_TYPES.filter((type) => type !== 'PRACTICAL')
 const EXAM_TYPE_LABELS = {
@@ -32,13 +34,13 @@ const emptyStudentResultSheet = () => ({
   overallGpa: 0
 })
 
-const sanitizeFilenamePart = (value) => String(value || 'marksheet')
+const sanitizeFilenamePart = (/** @type {string} */ value) => String(value || 'marksheet')
   .replace(/[^a-z0-9-_]+/gi, '-')
   .replace(/-+/g, '-')
   .replace(/^-|-$/g, '')
   .toLowerCase()
 
-const getStudentExamContext = async (studentId, requestedExamType) => {
+const getStudentExamContext = async (/** @type {string} */ studentId, /** @type {unknown} */ requestedExamType) => {
   const availableExamTypesRaw = await prisma.mark.findMany({
     where: {
       studentId,
@@ -51,13 +53,12 @@ const getStudentExamContext = async (studentId, requestedExamType) => {
   })
 
   const availableExamTypes = availableExamTypesRaw.map((item) => item.examType)
-  const selectedExamType = requestedExamType && STUDENT_VISIBLE_EXAM_TYPES.includes(requestedExamType)
-    ? requestedExamType
-    : availableExamTypes[0] || null
+  const selectedExamType = STUDENT_VISIBLE_EXAM_TYPES.find(type => type === requestedExamType) || availableExamTypes[0] || null
 
   return { availableExamTypes, selectedExamType }
 }
 
+/** @param {{studentId: string, examType: import("@prisma/client").ExamType, skip?: number, take?: number}} options */
 const getPublishedStudentMarks = async ({ studentId, examType, skip, take }) => {
   const publishedFilter = {
     studentId,
@@ -93,6 +94,7 @@ const getPublishedStudentMarks = async ({ studentId, examType, skip, take }) => 
   }
 }
 
+/** @param {{student: import("@prisma/client").Student, examType: import("@prisma/client").ExamType}} options */
 const getRankingSummary = async ({ student, examType }) => {
   // These fragments are interpolated into raw SQL below; keep them as
   // Prisma.sql/Prisma.empty values and never build them with string concat.
@@ -103,6 +105,7 @@ const getRankingSummary = async ({ student, examType }) => {
     ? Prisma.sql`AND s."section" = ${student.section}`
     : Prisma.empty
 
+  /** @type {{rank: bigint, cohortSize: bigint}[]} */
   const rankedRows = await prisma.$queryRaw(buildCohortRankingQuery({
     student,
     examType,
@@ -133,12 +136,12 @@ const getRankingSummary = async ({ student, examType }) => {
 }
 
 /**
- * @param {object} context - The request context passed by controllerAdapter
- * @param {object} [result] - The serviceResult responder
- * @returns {Promise<object>} Service result
+ * @param {ReturnType<typeof import('../utils/controllerAdapter').buildServiceContext>} context - The request context passed by controllerAdapter
+ * @param {import('../utils/serviceResult').ServiceResponder} [result] - The serviceResult responder
+ * @returns {Promise<import('../utils/serviceResult').ServiceResult | void>} Service result
  */
 const getMyMarksSummary = async (context, result = createServiceResponder()) => {
-    const { examType } = context.query
+    const examType = EXAM_TYPES.find(type => type === context.query.examType)
   const student = context.student
 
   if (!student) {
@@ -170,8 +173,8 @@ const getMyMarksSummary = async (context, result = createServiceResponder()) => 
     examType: selectedExamType
   })
 
-  const strongestSubject = [...resultSheet.subjects].sort((left, right) => right.percentage - left.percentage)[0] || null
-  const weakestSubject = [...resultSheet.subjects].sort((left, right) => left.percentage - right.percentage)[0] || null
+  const strongestSubject = [...resultSheet.subjects].sort((left, right) => right.percentage - left.percentage).at(0) ?? null
+  const weakestSubject = [...resultSheet.subjects].sort((left, right) => left.percentage - right.percentage).at(0) ?? null
   const ranking = await getRankingSummary({
     student,
     examType: selectedExamType
@@ -213,6 +216,7 @@ const getMyMarksSummary = async (context, result = createServiceResponder()) => 
   })
 }
 
+/** @param {{student: Pick<import("@prisma/client").Student, "id">, examType: unknown}} options */
 const getStudentMarksheetPayload = async ({ student, examType }) => {
   const { availableExamTypes, selectedExamType } = await getStudentExamContext(student.id, examType)
 
@@ -233,8 +237,8 @@ const getStudentMarksheetPayload = async ({ student, examType }) => {
     }
   }
 
-  const strongestSubject = [...resultSheet.subjects].sort((left, right) => right.percentage - left.percentage)[0] || null
-  const weakestSubject = [...resultSheet.subjects].sort((left, right) => left.percentage - right.percentage)[0] || null
+  const strongestSubject = [...resultSheet.subjects].sort((left, right) => right.percentage - left.percentage).at(0) ?? null
+  const weakestSubject = [...resultSheet.subjects].sort((left, right) => left.percentage - right.percentage).at(0) ?? null
 
   const studentProfile = await prisma.student.findUnique({
     where: { id: student.id },
@@ -266,6 +270,7 @@ const getStudentMarksheetPayload = async ({ student, examType }) => {
 // Prisma's ORM API cannot express the ROW_NUMBER/COUNT window functions used
 // for cohort ranking. Keep this query centralized and return Prisma.sql only;
 // callers must not pass string-built SQL fragments.
+/** @param {{student: import("@prisma/client").Student, examType: import("@prisma/client").ExamType, departmentCondition: Prisma.Sql, sectionCondition: Prisma.Sql}} options */
 const buildCohortRankingQuery = ({ student, examType, departmentCondition, sectionCondition }) => Prisma.sql`
   WITH ranked AS (
     SELECT
@@ -296,12 +301,12 @@ const buildCohortRankingQuery = ({ student, examType, departmentCondition, secti
 `
 
 /**
- * @param {object} context - The request context passed by controllerAdapter
- * @param {object} [result] - The serviceResult responder
- * @returns {Promise<object>} Service result
+ * @param {ReturnType<typeof import('../utils/controllerAdapter').buildServiceContext>} context - The request context passed by controllerAdapter
+ * @param {import('../utils/serviceResult').ServiceResponder} [result] - The serviceResult responder
+ * @returns {Promise<import('../utils/serviceResult').ServiceResult | void>} Service result
  */
 const exportMyMarksheetPdf = async (context, result = createServiceResponder()) => {
-    const { examType } = context.query
+    const examType = EXAM_TYPES.find(type => type === context.query.examType)
   const student = context.student
 
   if (!student) {
@@ -344,7 +349,7 @@ const exportMyMarksheetPdf = async (context, result = createServiceResponder()) 
   doc.fontSize(13).text('Subject-wise Marks')
   doc.moveDown(0.5)
 
-  payload.resultSheet.subjects.forEach((subject, index) => {
+  payload.resultSheet.subjects.forEach((subject, /** @type {number} */ index) => {
     if (doc.y > 720) {
       doc.addPage()
     }
@@ -376,7 +381,7 @@ const exportMyMarksheetPdf = async (context, result = createServiceResponder()) 
   doc.end()
 }
 
-const getManagedSubject = async (subjectId, context) => {
+const getManagedSubject = async (/** @type {string} */ subjectId, /** @type {ReturnType<typeof import('../utils/controllerAdapter').buildServiceContext>} */ context) => {
   const { user, instructor, coordinator } = context
   const subject = await prisma.subject.findUnique({
     where: { id: subjectId },
@@ -424,7 +429,7 @@ const getManagedSubject = async (subjectId, context) => {
   return { subject }
 }
 
-const getViewableSubject = async (subjectId, context) => {
+const getViewableSubject = async (/** @type {string} */ subjectId, /** @type {ReturnType<typeof import('../utils/controllerAdapter').buildServiceContext>} */ context) => {
   const subject = await prisma.subject.findUnique({
     where: { id: subjectId },
     include: {
@@ -463,7 +468,9 @@ const getViewableSubject = async (subjectId, context) => {
   return { subject }
 }
 
+/** @param {{subjectId?: string, examType?: import("@prisma/client").ExamType, context: ReturnType<typeof import("../utils/controllerAdapter").buildServiceContext>}} options */
 const buildStaffReviewFilters = async ({ subjectId, examType, context }) => {
+  /** @type {Prisma.MarkWhereInput} */
   const where = {}
 
   if (context.user.role === 'COORDINATOR' && !context.coordinator?.department) {
@@ -504,7 +511,7 @@ const buildStaffReviewFilters = async ({ subjectId, examType, context }) => {
   return { where }
 }
 
-const getStaffStudentResultAccessError = async (student, context) => {
+const getStaffStudentResultAccessError = async (/** @type {Pick<import("@prisma/client").Student, "id" | "department">} */ student, /** @type {ReturnType<typeof import('../utils/controllerAdapter').buildServiceContext>} */ context) => {
   if (context.user.role === 'COORDINATOR') {
     if (!context.coordinator?.department) {
       return { status: 403, message: 'Coordinator department is not configured yet' }
@@ -538,6 +545,7 @@ const getStaffStudentResultAccessError = async (student, context) => {
   return null
 }
 
+/** @param {{studentId: string, subjectId: string, instructorId: string, examType: import("@prisma/client").ExamType, totalMarks: number, obtainedMarks: number, remarks?: string}} input */
 const createMarkPayload = ({ studentId, subjectId, instructorId, examType, totalMarks, obtainedMarks, remarks }) => ({
   ...getGradeSnapshot(obtainedMarks, totalMarks),
   studentId,
@@ -553,9 +561,9 @@ const createMarkPayload = ({ studentId, subjectId, instructorId, examType, total
 })
 
 /**
- * @param {object} context - The request context passed by controllerAdapter
- * @param {object} [result] - The serviceResult responder
- * @returns {Promise<object>} Service result
+ * @param {ReturnType<typeof import('../utils/controllerAdapter').buildServiceContext>} context - The request context passed by controllerAdapter
+ * @param {import('../utils/serviceResult').ServiceResponder} [result] - The serviceResult responder
+ * @returns {Promise<import('../utils/serviceResult').ServiceResult | void>} Service result
  */
 const addMarks = async (context, result = createServiceResponder()) => {
     const { studentId, subjectId, examType, totalMarks, obtainedMarks, remarks } = context.body
@@ -602,7 +610,7 @@ const addMarks = async (context, result = createServiceResponder()) => {
       }
     })
   } catch (error) {
-    if (error.code === 'P2002') {
+    if (errorInfo(error).code === 'P2002') {
       return result.withStatus(400, { message: 'Marks already added for this exam type' })
     }
 
@@ -622,13 +630,13 @@ const addMarks = async (context, result = createServiceResponder()) => {
 }
 
 /**
- * @param {object} context - The request context passed by controllerAdapter
- * @param {object} [result] - The serviceResult responder
- * @returns {Promise<object>} Service result
+ * @param {ReturnType<typeof import('../utils/controllerAdapter').buildServiceContext>} context - The request context passed by controllerAdapter
+ * @param {import('../utils/serviceResult').ServiceResponder} [result] - The serviceResult responder
+ * @returns {Promise<import('../utils/serviceResult').ServiceResult | void>} Service result
  */
 const getStudentResultForStaff = async (context, result = createServiceResponder()) => {
   const { studentId } = context.params
-  const { examType } = context.query
+  const examType = EXAM_TYPES.find(type => type === context.query.examType)
 
   const student = await prisma.student.findUnique({
     where: { id: studentId },
@@ -654,6 +662,7 @@ const getStudentResultForStaff = async (context, result = createServiceResponder
     return result.withStatus(accessError.status, { message: accessError.message })
   }
 
+  /** @type {import("@prisma/client").Prisma.MarkWhereInput} */
   const where = {
     studentId,
     ...(examType ? { examType } : {})
@@ -679,7 +688,7 @@ const getStudentResultForStaff = async (context, result = createServiceResponder
 
   const decoratedMarks = marks.map(decorateMark)
   const selectedExamTypes = [...new Set(decoratedMarks.map((mark) => mark.examType))]
-  const resultSheets = selectedExamTypes.reduce((sheets, type) => {
+  const resultSheets = selectedExamTypes.reduce((/** @type {Partial<Record<import("@prisma/client").ExamType, ReturnType<typeof buildStudentResultSheet>>>} */ sheets, type) => {
     sheets[type] = buildStudentResultSheet(decoratedMarks.filter((mark) => mark.examType === type))
     return sheets
   }, {})
@@ -703,12 +712,13 @@ const getStudentResultForStaff = async (context, result = createServiceResponder
 }
 
 /**
- * @param {object} context - The request context passed by controllerAdapter
- * @param {object} [result] - The serviceResult responder
- * @returns {Promise<object>} Service result
+ * @param {ReturnType<typeof import('../utils/controllerAdapter').buildServiceContext>} context - The request context passed by controllerAdapter
+ * @param {import('../utils/serviceResult').ServiceResponder} [result] - The serviceResult responder
+ * @returns {Promise<import('../utils/serviceResult').ServiceResult | void>} Service result
  */
 const addMarksBulk = async (context, result = createServiceResponder()) => {
   try {
+    /** @type {{subjectId: string, examType: import("@prisma/client").ExamType, totalMarks: number, entries: {studentId: string, obtainedMarks: number, remarks?: string}[]}} */
     const { subjectId, examType, totalMarks, entries } = context.body
 
     const access = await getManagedSubject(subjectId, context)
@@ -804,7 +814,7 @@ const addMarksBulk = async (context, result = createServiceResponder()) => {
       }))
     })
   } catch (error) {
-    if (error.code === 'P2002') {
+    if (errorInfo(error).code === 'P2002') {
       return result.withStatus(400, { message: 'One or more marks already exist for this exam type' })
     }
 
@@ -813,9 +823,9 @@ const addMarksBulk = async (context, result = createServiceResponder()) => {
 }
 
 /**
- * @param {object} context - The request context passed by controllerAdapter
- * @param {object} [result] - The serviceResult responder
- * @returns {Promise<object>} Service result
+ * @param {ReturnType<typeof import('../utils/controllerAdapter').buildServiceContext>} context - The request context passed by controllerAdapter
+ * @param {import('../utils/serviceResult').ServiceResponder} [result] - The serviceResult responder
+ * @returns {Promise<import('../utils/serviceResult').ServiceResult | void>} Service result
  */
 const updateMarks = async (context, result = createServiceResponder()) => {
     const { id } = context.params
@@ -881,13 +891,13 @@ const updateMarks = async (context, result = createServiceResponder()) => {
 }
 
 /**
- * @param {object} context - The request context passed by controllerAdapter
- * @param {object} [result] - The serviceResult responder
- * @returns {Promise<object>} Service result
+ * @param {ReturnType<typeof import('../utils/controllerAdapter').buildServiceContext>} context - The request context passed by controllerAdapter
+ * @param {import('../utils/serviceResult').ServiceResponder} [result] - The serviceResult responder
+ * @returns {Promise<import('../utils/serviceResult').ServiceResult | void>} Service result
  */
 const getMarksBySubject = async (context, result = createServiceResponder()) => {
     const { subjectId } = context.params
-  const { examType } = context.query
+  const examType = EXAM_TYPES.find(type => type === context.query.examType)
   const { page, limit, skip } = getPagination(context.query)
 
   const access = await getViewableSubject(subjectId, context)
@@ -895,6 +905,7 @@ const getMarksBySubject = async (context, result = createServiceResponder()) => 
     return result.withStatus(access.error.status, { message: access.error.message })
   }
 
+  /** @type {import("@prisma/client").Prisma.MarkWhereInput} */
   const filters = { subjectId }
   if (examType) filters.examType = examType
 
@@ -941,12 +952,13 @@ const getMarksBySubject = async (context, result = createServiceResponder()) => 
 }
 
 /**
- * @param {object} context - The request context passed by controllerAdapter
- * @param {object} [result] - The serviceResult responder
- * @returns {Promise<object>} Service result
+ * @param {ReturnType<typeof import('../utils/controllerAdapter').buildServiceContext>} context - The request context passed by controllerAdapter
+ * @param {import('../utils/serviceResult').ServiceResponder} [result] - The serviceResult responder
+ * @returns {Promise<import('../utils/serviceResult').ServiceResult | void>} Service result
  */
 const getMarksReview = async (context, result = createServiceResponder()) => {
-    const { examType, subjectId } = context.query
+    const examType = EXAM_TYPES.find(type => type === context.query.examType)
+  const subjectId = typeof context.query.subjectId === "string" ? context.query.subjectId : undefined
   const { page, limit, skip } = getPagination(context.query)
 
   const filters = await buildStaffReviewFilters({ subjectId, examType, context })
@@ -997,9 +1009,9 @@ const getMarksReview = async (context, result = createServiceResponder()) => {
 }
 
 /**
- * @param {object} context - The request context passed by controllerAdapter
- * @param {object} [result] - The serviceResult responder
- * @returns {Promise<object>} Service result
+ * @param {ReturnType<typeof import('../utils/controllerAdapter').buildServiceContext>} context - The request context passed by controllerAdapter
+ * @param {import('../utils/serviceResult').ServiceResponder} [result] - The serviceResult responder
+ * @returns {Promise<import('../utils/serviceResult').ServiceResult | void>} Service result
  */
 const getEnrolledStudentsBySubject = async (context, result = createServiceResponder()) => {
     const { subjectId } = context.params
@@ -1048,13 +1060,13 @@ const getEnrolledStudentsBySubject = async (context, result = createServiceRespo
 }
 
 /**
- * @param {object} context - The request context passed by controllerAdapter
- * @param {object} [result] - The serviceResult responder
- * @returns {Promise<object>} Service result
+ * @param {ReturnType<typeof import('../utils/controllerAdapter').buildServiceContext>} context - The request context passed by controllerAdapter
+ * @param {import('../utils/serviceResult').ServiceResponder} [result] - The serviceResult responder
+ * @returns {Promise<import('../utils/serviceResult').ServiceResult | void>} Service result
  */
 const getMyMarks = async (context, result = createServiceResponder()) => {
     const { page, limit, skip } = getPagination(context.query)
-  const { examType } = context.query
+  const examType = EXAM_TYPES.find(type => type === context.query.examType)
   const student = context.student
 
   if (!student) {
@@ -1092,9 +1104,9 @@ const getMyMarks = async (context, result = createServiceResponder()) => {
 }
 
 /**
- * @param {object} context - The request context passed by controllerAdapter
- * @param {object} [result] - The serviceResult responder
- * @returns {Promise<object>} Service result
+ * @param {ReturnType<typeof import('../utils/controllerAdapter').buildServiceContext>} context - The request context passed by controllerAdapter
+ * @param {import('../utils/serviceResult').ServiceResponder} [result] - The serviceResult responder
+ * @returns {Promise<import('../utils/serviceResult').ServiceResult | void>} Service result
  */
 const deleteMarks = async (context, result = createServiceResponder()) => {
     const { id } = context.params
@@ -1128,9 +1140,9 @@ const deleteMarks = async (context, result = createServiceResponder()) => {
 }
 
 /**
- * @param {object} context - The request context passed by controllerAdapter
- * @param {object} [result] - The serviceResult responder
- * @returns {Promise<object>} Service result
+ * @param {ReturnType<typeof import('../utils/controllerAdapter').buildServiceContext>} context - The request context passed by controllerAdapter
+ * @param {import('../utils/serviceResult').ServiceResponder} [result] - The serviceResult responder
+ * @returns {Promise<import('../utils/serviceResult').ServiceResult | void>} Service result
  */
 const publishMarks = async (context, result = createServiceResponder()) => {
     const { subjectId, examType } = context.body

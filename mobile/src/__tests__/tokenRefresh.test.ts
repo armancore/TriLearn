@@ -4,7 +4,8 @@ import type { Mock } from 'jest-mock';
 
 import type { AuthUser, RefreshTokenResponse } from '@/src/types/auth';
 import { useAuthStore } from '@/src/store/auth.store';
-import { refreshAccessToken } from '@/src/services/auth.service';
+import { refreshAccessToken, logout as revokeSession } from '@/src/services/auth.service';
+import { updateSocketToken } from '@/src/services/socket.service';
 
 const mockRequestUse = jest.fn();
 const mockResponseUse = jest.fn();
@@ -15,7 +16,7 @@ const mockApiClient = Object.assign(jest.fn(async (config: InternalAxiosRequestC
   },
 });
 const mockAxiosCreate = jest.fn(() => mockApiClient);
-const mockUpdateSocketToken = jest.fn();
+const mockUpdateSocketToken = updateSocketToken as jest.Mock;
 
 jest.mock('axios', () => ({
   __esModule: true,
@@ -38,15 +39,17 @@ jest.mock('expo-secure-store', () => ({
 
 jest.mock('@/src/services/auth.service', () => ({
   refreshAccessToken: jest.fn(),
+  logout: jest.fn(async () => {}),
 }));
 
 jest.mock('@/src/services/socket.service', () => ({
-  updateSocketToken: mockUpdateSocketToken,
+  disconnectSocket: jest.fn(),
+  updateSocketToken: jest.fn(),
 }));
 
 jest.mock('@/src/services/queryClient', () => ({
   queryClient: {
-    removeQueries: jest.fn(),
+    cancelQueries: jest.fn(), clear: jest.fn(),
   },
 }));
 
@@ -97,6 +100,23 @@ describe('api token refresh interceptor', () => {
       refreshToken: null,
       isHydrated: false,
     });
+  });
+
+  it.each(['resolve', 'reject'] as const)('an old refresh cannot restore or clear a new account when it %s', async (outcome) => {
+    useAuthStore.getState().setSession({ user: testUser, accessToken: 'old', refreshToken: 'old-r' });
+    let resolve!: (value: RefreshTokenResponse) => void;
+    let reject!: (error: Error) => void;
+    refreshAccessTokenMock.mockImplementationOnce(() => new Promise((res, rej) => { resolve = res; reject = rej; }));
+    const pending = getRejectedResponseInterceptor()(createUnauthorizedError({ headers: {}, url: '/marks' } as InternalAxiosRequestConfig));
+    useAuthStore.getState().logout();
+    useAuthStore.getState().setSession({ user: { ...testUser, id: 'user-b' }, accessToken: 'new', refreshToken: 'new-r' });
+    if (outcome === 'resolve') resolve({ accessToken: 'old-restored', refreshToken: 'old-restored-r' });
+    else reject(new Error('old refresh failed'));
+    await expect(pending).rejects.toBeInstanceOf(Error);
+    expect(useAuthStore.getState().accessToken).toBe('new');
+    expect(useAuthStore.getState().user?.id).toBe('user-b');
+    expect(mockApiClient).not.toHaveBeenCalled();
+    if (outcome === 'resolve') expect(revokeSession).toHaveBeenCalledWith('old-restored', 'old-restored-r', null);
   });
 
   it('refreshes after a 401 response and retries the original request', async () => {

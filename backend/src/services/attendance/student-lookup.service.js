@@ -1,7 +1,7 @@
 const prisma = require('../../utils/prisma')
 const { parseQrPayload } = require('./qr-payload.helpers')
 
-const getStudentByIdCardQr = async (qrData) => {
+const getStudentByIdCardQr = async (/** @type {string} */ qrData) => {
   const parsedQr = parseQrPayload(qrData)
   const rollNumber = String(parsedQr?.rollNumber || '').trim()
   const isStudentIdQr = parsedQr?.type === 'Student' || parsedQr?.type === 'STUDENT_ID_CARD'
@@ -39,7 +39,7 @@ const getStudentByIdCardQr = async (qrData) => {
   return { student, parsedQr }
 }
 
-const getStudentByRollNumber = async (rollNumber) => {
+const getStudentByRollNumber = async (/** @type {string} */ rollNumber) => {
   const normalizedRollNumber = String(rollNumber || '').trim()
   if (!normalizedRollNumber) {
     return { error: { status: 400, message: 'Roll number is required' } }

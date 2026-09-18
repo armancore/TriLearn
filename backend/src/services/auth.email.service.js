@@ -25,6 +25,7 @@ const getResetTokenExpiry = () => {
   return expiresAt
 }
 
+/** @param {{user: {id: string, email: string}, subject: string, html: string, text: string, requestId?: string | null}} options */
 const queuePasswordResetEmail = async ({ user, subject, html, text, requestId = null }) => {
   const job = await notificationQueue.add(PASSWORD_RESET_EMAIL_JOB, {
     userId: user.id,

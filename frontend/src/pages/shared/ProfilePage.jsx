@@ -163,7 +163,7 @@ const ProfilePage = () => {
       setSaving(true)
       setError('')
       const endpoint = profile?.role === ROLES.STUDENT && !profile?.profileCompleted ? '/auth/complete-profile' : '/auth/profile'
-      const payload = profile?.role === ROLES.STUDENT && profile?.profileCompleted
+      const payload = profile?.role === ROLES.STUDENT
         ? Object.fromEntries(Object.entries(form).filter(([key]) => key !== 'section'))
         : form
       const res = await api.patch(endpoint, payload)

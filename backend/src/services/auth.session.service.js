@@ -1,3 +1,4 @@
+const { errorInfo } = require('../utils/errorInfo')
 const { createServiceResponder } = require('../utils/serviceResult')
 const crypto = require('crypto')
 const bcrypt = require('bcryptjs')
@@ -30,7 +31,7 @@ const {
   waitForMinimumDuration
 } = require('./auth.shared.service')
 
-const isMobileClient = (context) => String(context.get('x-client-type') || '').toLowerCase() === 'mobile'
+const isMobileClient = (/** @type {ReturnType<typeof import('../utils/controllerAdapter').buildServiceContext>} */ context) => String(context.get('x-client-type') || '').toLowerCase() === 'mobile'
 const MAX_FAILED_LOGIN_ATTEMPTS = 5
 const LOGIN_LOCKOUT_MINUTES = 15
 const LOGOUT_MIN_RESPONSE_MS = 75
@@ -42,7 +43,7 @@ const DUMMY_PASSWORD_TEST_DOUBLE_HASH = '$2b$12$EDWDkml0BGBHZEdSNK9vgOvUBfKrlwom
 const DUMMY_PASSWORD_HASH = typeof bcrypt.hashSync === 'function'
   ? bcrypt.hashSync(DUMMY_PASSWORD_INPUT, DUMMY_PASSWORD_BCRYPT_ROUNDS)
   : DUMMY_PASSWORD_TEST_DOUBLE_HASH
-const refreshUserSelect = getUserSelect()
+const refreshUserSelect = { ...getUserSelect(), passwordChangedAt: true }
 const REVOCATION_UNAVAILABLE_RESPONSE = {
   message: 'Unable to complete this security-sensitive action right now. Please try again.'
 }
@@ -60,7 +61,7 @@ const loginUserSelect = {
   deletedAt: true
 }
 
-const clearAccessCookie = (result, context) => {
+const clearAccessCookie = (/** @type {import("../utils/serviceResult").ServiceResponder} */ result, /** @type {ReturnType<typeof import('../utils/controllerAdapter').buildServiceContext>} */ context) => {
   result.expireCookie(ACCESS_TOKEN_COOKIE_NAME, getAccessCookieOptions(context))
 }
 
@@ -75,7 +76,7 @@ const getLoginLockoutExpiry = () => {
 /**
  * Authenticates a user, enforces lockout/captcha checks, creates a refresh
  * session, and returns the access token payload.
- * @param {Record<string, any> & { body: { email: string, password: string, captchaToken?: string, captchaAnswer?: string }, get: (name: string) => string | undefined }} context - Login request context.
+ * @param {ReturnType<typeof import("../utils/controllerAdapter").buildServiceContext>} context - Login request context.
  * @param {import('../utils/serviceResult').ServiceResponder} [result] - Service result responder.
  * @returns {Promise<import('../utils/serviceResult').ServiceResult | void>} Service result.
  */
@@ -189,6 +190,7 @@ const login = async (context, result = createServiceResponder()) => {
   })
 
   await waitForMinimumDuration(startedAt, LOGIN_MIN_RESPONSE_MS)
+  /** @type {{message: string, user: ReturnType<typeof buildAuthUser>, token?: string, accessToken?: string, refreshToken?: string}} */
   const responseBody = {
     message: user.mustChangePassword
       ? 'Login successful. Please change your password to continue.'
@@ -206,7 +208,7 @@ const login = async (context, result = createServiceResponder()) => {
 }
 
 
-const refreshSession = async (context, result, refreshToken, { includeRefreshToken = false, setRefreshCookie = true } = {}) => {
+const refreshSession = async (/** @type {ReturnType<typeof import('../utils/controllerAdapter').buildServiceContext>} */ context, /** @type {import('../utils/serviceResult').ServiceResponder} */ result, /** @type {string | undefined} */ refreshToken, { includeRefreshToken = false, setRefreshCookie = true } = {}) => {
   try {
     if (!refreshToken) {
       return result.withStatus(401, { message: 'Refresh token is required' })
@@ -222,7 +224,7 @@ const refreshSession = async (context, result, refreshToken, { includeRefreshTok
       }
     })
 
-    if (storedRefreshToken?.userId === decoded.id && storedRefreshToken.revokedAt) {
+    if (storedRefreshToken && storedRefreshToken.userId === decoded.id && storedRefreshToken.revokedAt) {
       await prisma.refreshToken.updateMany({
         where: {
           userId: decoded.id,
@@ -266,6 +268,8 @@ const refreshSession = async (context, result, refreshToken, { includeRefreshTok
       storedRefreshToken.revokedAt ||
       storedRefreshToken.expiresAt <= now ||
       storedRefreshToken.user.deletedAt ||
+      (storedRefreshToken.user.passwordChangedAt &&
+        (!Number.isFinite(decoded.iat) || decoded.iat <= Math.floor(storedRefreshToken.user.passwordChangedAt.getTime() / 1000))) ||
       !storedRefreshToken.user.isActive
     ) {
       return result.withStatus(401, { message: 'Refresh token is invalid or expired' })
@@ -273,7 +277,8 @@ const refreshSession = async (context, result, refreshToken, { includeRefreshTok
 
     const session = await issueAuthSession(storedRefreshToken.user, result, context, refreshToken, { setRefreshCookie })
 
-    const responseBody = {
+    /** @type {{message: string, user: ReturnType<typeof buildAuthUser>, token?: string, accessToken?: string, refreshToken?: string}} */
+  const responseBody = {
       message: 'Token refreshed successfully',
       user: buildAuthUser(storedRefreshToken.user)
     }
@@ -286,14 +291,14 @@ const refreshSession = async (context, result, refreshToken, { includeRefreshTok
 
     result.ok(responseBody)
   } catch (error) {
-    logger.error(error.message, { stack: error.stack })
+    logger.error(errorInfo(error).message, { stack: errorInfo(error).stack })
     result.withStatus(401, { message: 'Refresh token is invalid or expired' })
   }
 }
 
 /**
  * Rotates a web refresh-token cookie and returns a new access token.
- * @param {Record<string, any> & { cookies?: { refreshToken?: string }, get: (name: string) => string | undefined }} context - Refresh request context.
+ * @param {ReturnType<typeof import("../utils/controllerAdapter").buildServiceContext>} context - Refresh request context.
  * @param {import('../utils/serviceResult').ServiceResponder} [result] - Service result responder.
  * @returns {Promise<import('../utils/serviceResult').ServiceResult | void>} Service result.
  */
@@ -310,7 +315,7 @@ const refresh = async (context, result = createServiceResponder()) => {
  * @param {any} context - Service context.
  * @returns {Promise<any>} Service result.
  */
-const refreshMobile = async (context, result) => refreshSession(
+const refreshMobile = async (context, /** @type {import("../utils/serviceResult").ServiceResponder} */ result) => refreshSession(
   context,
   result,
   context.body?.refreshToken,
@@ -325,12 +330,15 @@ const refreshMobile = async (context, result) => refreshSession(
 const logout = async (context, result = createServiceResponder()) => {
   const startedAt = Date.now()
 
-  const refreshToken = context.cookies?.refreshToken
+  const refreshToken = context.cookies?.refreshToken || (isMobileClient(context) ? context.body?.refreshToken : null)
+  if (refreshToken != null && (typeof refreshToken !== 'string' || refreshToken.length > 4096)) {
+    return result.withStatus(400, { message: 'Invalid refresh token' })
+  }
   try {
     await revokeAccessTokenFromRequest(context, { throwOnFailure: true })
   } catch (error) {
     logger.warn('Logout blocked because access token revocation failed', {
-      message: error.message,
+      message: errorInfo(error).message,
       userId: context.user?.id
     })
     await waitForMinimumDuration(startedAt, LOGOUT_MIN_RESPONSE_MS)
@@ -406,7 +414,7 @@ const logoutAll = async (context, result = createServiceResponder()) => {
     await revokeAllAccessTokensForUser(context.user.id, { throwOnFailure: true })
   } catch (error) {
     logger.warn('Logout-all blocked because access token revocation failed', {
-      message: error.message,
+      message: errorInfo(error).message,
       userId: context.user?.id
     })
     return result.withStatus(503, REVOCATION_UNAVAILABLE_RESPONSE)

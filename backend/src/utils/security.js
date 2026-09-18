@@ -121,18 +121,18 @@ const LEETSPEAK_REPLACEMENTS = new Map([
   ['7', 't']
 ])
 
-const normalizePasswordCandidate = (value) => String(value || '')
+const normalizePasswordCandidate = (/** @type {unknown} */ value) => String(value || '')
   .normalize('NFKC')
   .trim()
   .toLowerCase()
 
-const stripPasswordSeparators = (value) => value.replace(/[\s._\-()[\]{}:;'",<>?/\\|`~+=]+/g, '')
+const stripPasswordSeparators = (/** @type {string} */ value) => value.replace(/[\s._\-()[\]{}:;'",<>?/\\|`~+=]+/g, '')
 
-const replaceLeetspeak = (value) => Array.from(value, (character) => (
+const replaceLeetspeak = (/** @type {string} */ value) => Array.from(value, (character) => (
   LEETSPEAK_REPLACEMENTS.get(character) || character
 )).join('')
 
-const passwordVariants = (value) => {
+const passwordVariants = (/** @type {unknown} */ value) => {
   const normalized = normalizePasswordCandidate(value)
   const compact = stripPasswordSeparators(normalized)
   const leetNormalized = replaceLeetspeak(compact)
@@ -146,14 +146,14 @@ const passwordVariants = (value) => {
   ])
 }
 
-const hasWeakRootWithCommonSuffix = (value) => {
+const hasWeakRootWithCommonSuffix = (/** @type {string} */ value) => {
   const withoutTrailingSymbols = value.replace(/[^a-z0-9]+$/g, '')
   const root = withoutTrailingSymbols.replace(/(?:19|20)?\d{2}$|(?:1234?|4321|111|000)$/g, '')
 
   return root.length >= 3 && COMMON_WEAK_PASSWORD_TERMS.has(root)
 }
 
-const isKnownWeakPassword = (value) => {
+const isKnownWeakPassword = (/** @type {unknown} */ value) => {
   for (const variant of passwordVariants(value)) {
     if (COMMON_WEAK_PASSWORD_TERMS.has(variant) || hasWeakRootWithCommonSuffix(variant)) {
       return true
@@ -163,8 +163,8 @@ const isKnownWeakPassword = (value) => {
   return false
 }
 
-const parseBcryptSaltRounds = (value) => {
-  const parsed = Number.parseInt(value, 10)
+const parseBcryptSaltRounds = (/** @type {string | undefined} */ value) => {
+  const parsed = Number.parseInt(value || "", 10)
   if (!Number.isInteger(parsed) || parsed < 10 || parsed > 16) {
     return DEFAULT_BCRYPT_SALT_ROUNDS
   }
@@ -176,9 +176,9 @@ const getBcryptSaltRounds = () => {
   return parseBcryptSaltRounds(process.env.BCRYPT_ROUNDS)
 }
 
-const hashPassword = (password) => bcrypt.hash(password, getBcryptSaltRounds())
+const hashPassword = (/** @type {string} */ password) => bcrypt.hash(password, getBcryptSaltRounds())
 
-const getRequiredSecret = (envKey) => {
+const getRequiredSecret = (/** @type {string | number} */ envKey) => {
   const value = process.env[envKey]
   if (!value) {
     throw new Error(`Missing required secret: ${envKey}`)

@@ -1,3 +1,4 @@
+const { errorInfo } = require('./errorInfo')
 const crypto = require('crypto')
 const logger = require('./logger')
 const { sendMail } = require('./mailer')
@@ -5,7 +6,7 @@ const { emailVerificationTemplate } = require('./emailTemplates')
 
 const EMAIL_VERIFICATION_EXPIRY_HOURS = 24
 
-const hashEmailVerificationToken = (token) => crypto
+const hashEmailVerificationToken = (/** @type {crypto.BinaryLike} */ token) => crypto
   .createHash('sha256')
   .update(token)
   .digest('hex')
@@ -18,12 +19,12 @@ const createEmailVerificationToken = () => {
   return { token, tokenHash, expiresAt }
 }
 
-const buildEmailVerificationUrl = (token) => {
+const buildEmailVerificationUrl = (/** @type {string | number | boolean} */ token) => {
   const frontendUrl = String(process.env.FRONTEND_URL || '').replace(/\/$/, '')
   return `${frontendUrl}/verify-email?token=${encodeURIComponent(token)}`
 }
 
-const sendEmailVerificationEmail = async ({ email, name, token, userId }) => {
+const sendEmailVerificationEmail = async (/** @type {{email: string, name: string, token: string, userId: string}} */ { email, name, token, userId }) => {
   const verificationUrl = buildEmailVerificationUrl(token)
   const { subject, html, text } = emailVerificationTemplate({ name, verificationUrl })
 
@@ -32,8 +33,8 @@ const sendEmailVerificationEmail = async ({ email, name, token, userId }) => {
     return true
   } catch (error) {
     logger.error('Email verification email failed', {
-      message: error.message,
-      stack: error.stack,
+      message: errorInfo(error).message,
+      stack: errorInfo(error).stack,
       userId
     })
     return false

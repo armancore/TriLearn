@@ -69,7 +69,7 @@ Students and staff receive real-time notifications for events that need attentio
 
 TriLearn is self-hostable.
 The institution runs the application on its own infrastructure, owns the database and uploaded files, and does not depend on per-seat licensing fees.
-PostgreSQL stores institutional records, Redis supports short-lived coordination and revocation state, and uploads can be kept on local disk for a single server or moved to S3-compatible storage for production scaling.
+PostgreSQL stores institutional records, Redis supports short-lived coordination and revocation state, and development uploads can use local disk; production requires S3-compatible storage.
 
 The system is intended for institutions that need role-based control without outsourcing core academic data to a hosted SaaS vendor.
 It gives staff a shared operational system for admission-related intake, teaching work, attendance records, and student-facing academic information.
@@ -245,7 +245,7 @@ Study materials are uploaded by authorized academic staff and served only to use
 The system checks enrollment, subject, section, and role context before returning protected files.
 
 This design matters because uploaded materials often contain course-specific documents that should not be public.
-TriLearn can store files locally for a single-server setup or in S3-compatible storage for production.
+TriLearn stores development uploads locally or in S3-compatible storage. Production requires S3-compatible storage.
 In both cases, access decisions stay in the application layer instead of relying on public file URLs.
 
 Enrollment-gated serving also keeps old links from becoming uncontrolled distribution points.
@@ -379,8 +379,7 @@ That keeps route behavior easier to test because authorization and validation ar
 ### Auth flow
 
 TriLearn uses short-lived JWT access tokens and rotating refresh tokens.
-The access token is kept in client memory and is used for normal API authorization.
-The refresh token is stored in an httpOnly cookie and is used only to obtain a new access token.
+Browser access and refresh tokens are stored in httpOnly cookies. Browser requests use cookie credentials and CSRF protection. Native clients keep access tokens in memory and refresh tokens in secure device storage.
 
 Access tokens expire after 15 minutes by default.
 Refresh tokens expire after 7 days by default and rotate when used.
@@ -390,16 +389,14 @@ When a user changes their password, passwordChangedAt invalidation prevents olde
 Refresh token reuse detection treats a reused old refresh token as suspicious because rotation should have replaced it.
 That protects sessions when a refresh token has leaked or when a client tries to replay a stale token.
 
-The client-side access token is intentionally short lived.
-Keeping it in memory reduces the value of persistent browser storage compromise.
-The refresh cookie is protected by browser cookie controls and is not used as the bearer credential for ordinary API calls.
+Browser tokens are inaccessible to JavaScript. Refresh cookies are scoped to authentication routes; access cookies authorize ordinary API calls.
 
 Redis JTI state gives the backend a practical way to revoke token instances without waiting for natural expiry.
 That is useful during logout, password changes, suspicious reuse detection, and administrative account intervention.
 In production, losing Redis means losing part of the session safety model, so Redis should not be treated as optional.
 The in-process JTI cache is only an optimization for tokens already observed as revoked by that worker.
 It is not shared across replicas.
-Multi-replica deployments must rely on Redis as the authoritative revocation store and should keep access tokens short-lived because a worker can have a brief stale window until it checks Redis for a JTI it has not seen before.
+Multi-replica deployments must rely on Redis as the authoritative revocation store and should keep access tokens short-lived and recheck revocation before delivering sensitive socket events.
 
 ### File uploads
 
@@ -409,7 +406,7 @@ The backend performs magic-byte validation rather than trusting the filename or 
 
 Images and PDFs are processed through libraries such as sharp and pdf-lib where the workflow requires transformation, normalization, or safe document generation.
 After validation and processing, files are stored in S3-compatible object storage when S3 settings are configured.
-If S3 is not configured, the backend falls back to local disk storage for single-server development or simple deployments.
+If S3 is not configured, the backend falls back to local disk storage for development. Production startup rejects missing S3 configuration.
 
 Serving protected files still goes through the application.
 The server checks role and enrollment rules before returning study materials, assignment submissions, marksheets, or other controlled files.
@@ -530,10 +527,10 @@ See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for Docker setup and local dev.
 | FRONTEND_URL | Yes | Trusted frontend origin for CORS, password reset links, and browser Socket.IO connections. |
 | NODE_ENV | Yes | Runtime mode, normally development, test, or production. |
 | REDIS_URL | Production | Redis connection string for JTI revocation, rate limits, Socket.IO scaling, and BullMQ. |
-| S3_BUCKET | Optional | S3-compatible bucket for upload storage; local disk is used when S3 settings are incomplete. |
-| S3_REGION | Optional | Region for S3-compatible upload storage. |
-| S3_ACCESS_KEY | Optional | Access key for S3-compatible upload storage. |
-| S3_SECRET_KEY | Optional | Secret key for S3-compatible upload storage. |
+| S3_BUCKET | Production | S3-compatible bucket; local disk is development-only. |
+| S3_REGION | Production | Region for S3-compatible upload storage. |
+| S3_ACCESS_KEY | Production | Access key for S3-compatible upload storage. |
+| S3_SECRET_KEY | Production | Secret key for S3-compatible upload storage. |
 | MAIL_FROM | Optional | Sender address for password reset and notification email. |
 | RESEND_SMTP_HOST | Optional | SMTP host for Resend or compatible SMTP delivery, normally smtp.resend.com. |
 | RESEND_SMTP_PORT | Optional | SMTP port for Resend or compatible SMTP delivery, normally 587. |

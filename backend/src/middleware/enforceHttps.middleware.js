@@ -1,9 +1,9 @@
-const isHttpsExemptRoute = (req) => (
+const isHttpsExemptRoute = (/** @type {{ method: string; path: string; }} */ req) => (
   (req.method === 'GET' && req.path === '/health') ||
   (req.method === 'GET' && req.path.startsWith('/api/docs'))
 )
 
-const isHttpsRequest = (req) => {
+const isHttpsRequest = (/** @type {import('express').Request} */ req) => {
   const forwardedProto = String(req.headers?.['x-forwarded-proto'] || '')
     .split(',')[0]
     .trim()
@@ -12,7 +12,7 @@ const isHttpsRequest = (req) => {
   return req.secure === true || forwardedProto === 'https'
 }
 
-const enforceHttps = (req, res, next) => {
+const enforceHttps = (/** @type {import('express').Request} */ req, /** @type {import('express').Response} */ res, /** @type {import('express').NextFunction} */ next) => {
   if (process.env.NODE_ENV !== 'production' || isHttpsExemptRoute(req) || isHttpsRequest(req)) {
     return next()
   }

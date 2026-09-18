@@ -1,6 +1,6 @@
 const SEMVER_PATTERN = /^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/
 
-const parseSemverCore = (version) => {
+const parseSemverCore = (/** @type {string} */ version) => {
   const [core] = String(version || '').split(/[-+]/)
   const parts = core.split('.').map((part) => Number.parseInt(part, 10))
 
@@ -11,7 +11,7 @@ const parseSemverCore = (version) => {
   return parts
 }
 
-const compareSemver = (left, right) => {
+const compareSemver = (/** @type {string} */ left, /** @type {string} */ right) => {
   const leftParts = parseSemverCore(left)
   const rightParts = parseSemverCore(right)
 
@@ -29,7 +29,7 @@ const compareSemver = (left, right) => {
 
 const getMinimumMobileVersion = () => String(process.env.MIN_MOBILE_VERSION || '').trim()
 
-const hasMobileClientHeaders = (req) => {
+const hasMobileClientHeaders = (/** @type {import('express').Request} */ req) => {
   const clientType = String(req.get('x-client-type') || '').trim().toLowerCase()
   if (clientType !== 'mobile') {
     return false
@@ -41,7 +41,7 @@ const hasMobileClientHeaders = (req) => {
   return SEMVER_PATTERN.test(clientVersion) && SEMVER_PATTERN.test(appVersion)
 }
 
-const validateMobileClient = (req, res, next) => {
+const validateMobileClient = (/** @type {import('express').Request} */ req, /** @type {import('express').Response} */ res, /** @type {import('express').NextFunction} */ next) => {
   const clientType = String(req.get('x-client-type') || '').trim().toLowerCase()
   const appVersion = String(req.get('x-app-version') || '').trim()
 

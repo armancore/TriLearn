@@ -11,6 +11,7 @@ if (!isProduction) {
   fs.mkdirSync(logsDir, { recursive: true })
 }
 
+/** @type {import("winston-transport")[]} */
 const transports = [
   new winston.transports.Console()
 ]
@@ -24,13 +25,17 @@ if (!isProduction) {
 const logger = winston.createLogger({
   level: isProduction ? 'warn' : 'debug',
   format: winston.format.combine(
-    winston.format((info) => sanitizeLogMeta(info))(),
+    winston.format((info) => { sanitizeLogMeta(info); return info })(),
     winston.format.timestamp(),
     winston.format.json()
   ),
   transports
 })
 
+/**
+ * @param {unknown} value
+ * @returns {unknown}
+ */
 function sanitizeLogMeta(value, seen = new WeakSet()) {
   if (!value || typeof value !== 'object') {
     return value
@@ -52,17 +57,14 @@ function sanitizeLogMeta(value, seen = new WeakSet()) {
 
   Object.entries(value).forEach(([key, nestedValue]) => {
     if (SENSITIVE_KEY_PATTERN.test(key)) {
-      value[key] = REDACTED
+      Reflect.set(value, key, REDACTED)
       return
     }
 
-    value[key] = sanitizeLogMeta(nestedValue, seen)
+    Reflect.set(value, key, sanitizeLogMeta(nestedValue, seen))
   })
 
   return value
 }
 
-logger.sanitizeLogMeta = sanitizeLogMeta
-logger.REDACTED = REDACTED
-
-module.exports = logger
+module.exports = Object.assign(logger, { sanitizeLogMeta, REDACTED })

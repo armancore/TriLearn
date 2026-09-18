@@ -201,6 +201,8 @@ test('verifySocketTokenUser rejects revoked access token jti before user lookup'
       verify: () => ({
         id: 'user-1',
         type: 'access',
+        iat: Math.floor(Date.now() / 1000),
+        exp: Math.floor(Date.now() / 1000) + 60,
         jti: 'revoked-jti'
       })
     },
@@ -226,4 +228,100 @@ test('verifySocketTokenUser rejects revoked access token jti before user lookup'
     () => verifySocketTokenUser('revoked-access-token'),
     /Token has been revoked/
   )
+})
+
+const createLifecycleHarness = async () => {
+  const jwt = require('jsonwebtoken')
+  const servers = []
+  let revoked = false
+  let redisReady = true
+  const user = { id: 'socket-user', role: 'STUDENT', isActive: true, passwordChangedAt: null }
+  class FakeServer {
+    constructor() { this.sockets = { sockets: new Map() }; this.handlers = {}; servers.push(this) }
+    use(fn) { this.authenticate = fn }
+    on(event, fn) { this.handlers[event] = fn }
+    adapter() {}
+    serverSideEmit(event, ...args) { for (const server of servers) if (server !== this) server.handlers[event](...args) }
+    async close() { for (const socket of this.sockets.sockets.values()) socket.disconnect(true) }
+  }
+  const redis = {
+    exists: async () => revoked ? 1 : 0,
+    duplicate: () => ({ on() {}, connect: async () => {}, quit: async () => {} })
+  }
+  const mocks = {
+    'socket.io': { Server: FakeServer },
+    '@socket.io/redis-adapter': { createAdapter: () => ({}) },
+    './prisma': { user: { findUnique: async () => user } },
+    './redis': { isRedisConfigured: () => true, getReadyRedisClient: async () => redisReady ? redis : null },
+    './accessTokenRevocation': { cacheRevokedJti() {}, isRevokedJtiCached: () => false }
+  }
+  const modules = [0, 1].map(() => loadWithMocks(resolveFromTest('src', 'utils', 'realtime.js'), mocks))
+  await Promise.all(modules.map(module => module.initRealtime({ server: {} })))
+  let nextId = 0
+  const token = (overrides = {}) => jwt.sign({ id: user.id, role: 'STUDENT', type: 'access', jti: 'jti', iat: Math.floor(Date.now() / 1000) - 10, exp: Math.floor(Date.now() / 1000) + 60, ...overrides }, process.env.JWT_ACCESS_SECRET)
+  const connect = async (index, accessToken = token()) => {
+    const server = servers[index]
+    const socket = {
+      id: String(++nextId), data: {}, connected: true, handshake: { auth: { token: accessToken } }, events: [], handlers: {},
+      use(fn) { this.middleware = fn }, join() {}, on(event, fn) { this.handlers[event] = fn },
+      emit(event, payload) { this.events.push({ event, payload }) },
+      disconnect() { this.connected = false; this.handlers.disconnect?.(); server.sockets.sockets.delete(this.id) }
+    }
+    await new Promise((resolve, reject) => server.authenticate(socket, error => error ? reject(error) : resolve()))
+    server.sockets.sockets.set(socket.id, socket)
+    server.handlers.connection(socket)
+    return socket
+  }
+  return { modules, user, token, connect, revoke: () => { revoked = true }, outage: () => { redisReady = false }, close: () => Promise.all(modules.map(m => m.closeRealtime())) }
+}
+
+test('local and remote passive listeners are reauthorized before notification delivery', async () => {
+  for (const invalidate of ['revoke', 'password', 'disabled', 'outage']) {
+    const h = await createLifecycleHarness()
+    try {
+      const local = await h.connect(0)
+      const remote = await h.connect(1)
+      await h.modules[0].emitNotificationCreated(h.user.id, { id: 'allowed' })
+      await new Promise(resolve => setImmediate(resolve))
+      assert.equal(local.events.length, 1)
+      assert.equal(remote.events.length, 1)
+      if (invalidate === 'password') h.user.passwordChangedAt = new Date()
+      else if (invalidate === 'disabled') h.user.isActive = false
+      else h[invalidate]()
+      await h.modules[0].emitNotificationCreated(h.user.id, { id: 'secret' })
+      await new Promise(resolve => setImmediate(resolve))
+      for (const socket of [local, remote]) {
+        assert.equal(socket.events.length, 1, invalidate)
+        assert.equal(socket.connected, false, invalidate)
+      }
+    } finally { await h.close() }
+  }
+})
+
+test('socket handshake and auth refresh reject password cutoffs; fresh sessions remain usable', async () => {
+  const h = await createLifecycleHarness()
+  try {
+    const old = h.token()
+    const socket = await h.connect(0, old)
+    h.user.passwordChangedAt = new Date(Date.now() - 5000)
+    await assert.rejects(() => h.connect(1, old), /Password was changed/)
+    let ack
+    await socket.handlers['auth:refresh']({ token: old }, value => { ack = value })
+    assert.deepEqual(ack, { ok: false })
+    const fresh = await h.connect(1, h.token({ iat: Math.floor(Date.now() / 1000) }))
+    assert.equal(fresh.connected, true)
+  } finally { await h.close() }
+})
+
+test('token refresh replaces the expiration timer and expired passive sockets disconnect', async () => {
+  const h = await createLifecycleHarness()
+  try {
+    const shortToken = h.token({ exp: Math.floor(Date.now() / 1000) + 1 })
+    const expired = await h.connect(0, shortToken)
+    const refreshed = await h.connect(1, shortToken)
+    await refreshed.handlers['auth:refresh']({ token: h.token() }, () => {})
+    await new Promise(resolve => setTimeout(resolve, 1100))
+    assert.equal(expired.connected, false)
+    assert.equal(refreshed.connected, true)
+  } finally { await h.close() }
 })

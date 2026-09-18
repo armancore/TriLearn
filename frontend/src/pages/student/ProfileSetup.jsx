@@ -21,11 +21,10 @@ const ProfileSetup = () => {
     address: '',
     guardianName: '',
     guardianPhone: '',
-    dateOfBirth: '',
-    section: ''
+    dateOfBirth: ''
   }, (formValues) => {
     const validationErrors = {}
-    ;['name', 'phone', 'address', 'guardianName', 'guardianPhone', 'dateOfBirth', 'section'].forEach((field) => {
+    ;['name', 'phone', 'address', 'guardianName', 'guardianPhone', 'dateOfBirth'].forEach((field) => {
       if (!formValues[field]?.trim()) validationErrors[field] = 'This field is required'
     })
     return validationErrors
@@ -62,8 +61,7 @@ const ProfileSetup = () => {
             ['phone', 'Phone Number'],
             ['guardianName', 'Guardian Name'],
             ['guardianPhone', 'Guardian Phone'],
-            ['dateOfBirth', 'Date of Birth', 'date'],
-            ['section', 'Section']
+            ['dateOfBirth', 'Date of Birth', 'date']
           ].map(([name, placeholder, type = 'text']) => (
             <div key={name}>
               <input
