@@ -75,10 +75,12 @@
     "form-data": "4.0.6",
     "js-yaml": "^4.3.2",
     "postcss": "8.5.25",
-    "shell-quote": "1.10.0",
+    "postcss-selector-parser": "7.1.6",
+    "shell-quote": "1.12.0",
     "socket.io-parser": "4.2.7",
     "uuid": "^14.0.0",
     "ws": "8.21.0",
+    "zod": "4.6.7",
     "decode-uri-component": "$decode-uri-component"
   },
   "private": true
